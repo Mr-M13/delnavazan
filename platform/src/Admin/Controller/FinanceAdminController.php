@@ -1927,7 +1927,7 @@ final class FinanceAdminController {
             echo '<p class="description">Stripe configuration requires payment provider authority.</p>';
         }
         echo '</details>';
-        echo '<p class="description">Booking horizon is an academy scheduling rule and now lives in <a href="' . esc_url(admin_url('admin.php?page=dzn-general') . '#booking-horizon') . '">General Settings</a>. The manual ledger remains independent from every setting on this page.</p>';
+        echo '<p class="description">Booking horizon is an academy scheduling rule and now lives in <a href="' . esc_url(admin_url('admin.php?page=dzn-policies') . '#booking-horizon') . '">Settings → Policies</a>. The manual ledger remains independent from every setting on this page.</p>';
     }
 
     private static function renderTeacherSettings(FinanceAdminReadService $read, FinanceSettingsService $settings): void {
@@ -2212,7 +2212,7 @@ final class FinanceAdminController {
             echo '<tr><td><code>' . esc_html($key) . '</code></td><td>' . esc_html($commercialDescriptions[$key] ?? '') . '</td><td>' . esc_html($current['set'] ? (string) $current['value'] : 'Unset') . '</td><td>' . esc_html($current['version'] === null ? '—' : (string) $current['version']) . '</td></tr>';
         }
         echo '</tbody></table>';
-        echo '<p class="description"><strong>Booking horizon</strong> has moved to <a href="' . esc_url(admin_url('admin.php?page=dzn-general') . '#booking-horizon') . '">General Settings</a> because it is an academy scheduling rule, not a Finance rule.</p>';
+        echo '<p class="description"><strong>Booking horizon</strong> has moved to <a href="' . esc_url(admin_url('admin.php?page=dzn-policies') . '#booking-horizon') . '">Settings → Policies</a> because it is an academy scheduling rule, not a Finance rule.</p>';
         if (current_user_can('dzn_manage_commercial_policies')) {
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form" onsubmit="return confirm(\'Record a new commercial policy version? Existing purchases and payments are not rewritten.\')"><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="save_commercial_policy">';
             wp_nonce_field('dzn_finance_settings');

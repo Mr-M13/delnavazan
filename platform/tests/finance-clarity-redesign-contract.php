@@ -31,6 +31,7 @@ $goldenRule = $read('src/Core/Application/Finance/GoldenHourRule.php');
 $goldenPolicy = $read('src/Core/Application/Finance/GoldenHourPolicyService.php');
 $goldenPay = $read('src/Core/Application/Finance/GoldenHourPayService.php');
 $general = $read('src/Admin/Controller/GeneralSettingsController.php');
+$policies = $read('src/Admin/Controller/PoliciesController.php');
 $regional = $read('src/Core/Application/Finance/Pricing/RegionalPricingService.php');
 $platform = $read('delnavazan-platform.php');
 
@@ -96,7 +97,8 @@ $contains($goldenRule, array('normalizeRules', 'assertNoOverlaps', 'golden_hour_
 $contains($goldenPay, array('$rules = is_array($policy[\'rules\']', 'effective_from'), 'Golden-hour calculation must honour row rules and effective dates');
 $contains($finance, array('golden_rules[', 'Local start', 'Local finish', 'Bonus %', 'Retire', 'Copy row', 'Golden-hour coverage', 'AcademyCoverageController::renderAtlas'), 'Golden-hour settings must be editable rows with copy/retire and coverage charts immediately below');
 $assert(str_contains($finance, 'overflow') || str_contains($finance, 'Overnight') || str_contains($finance, 'cross midnight'), 'Golden-hour UI must document overnight support');
-$contains($general, array('Booking horizon', 'INTRO_BOOKING_HORIZON', 'academy scheduling rule', 'dzn_general_booking_horizon'), 'Booking horizon must move to General Settings');
+$assert(!str_contains($general, 'INTRO_BOOKING_HORIZON') && !str_contains($general, 'dzn_general_booking_horizon'), 'Booking horizon must not remain a General Settings control');
+$contains($policies, array('Introductory booking horizon', 'INTRO_BOOKING_HORIZON', 'academy scheduling rule', 'horizonConfiguration'), 'Booking horizon must live under Settings → Policies with its effective configuration');
 $assert(!str_contains($finance, '<option value="INTRO_BOOKING_HORIZON"'), 'Finance must not keep the booking horizon as a selectable commercial policy');
 $contains($finance, array('<details class="dzn-finance-settings-section" id="stripe"><summary><strong>Stripe integration and safeguards</strong>'), 'Stripe settings must stay collapsed');
 $contains($finance, array("current_user_can(ManualPaymentSettlementService::MANAGE_CAPABILITY)", "current_user_can('dzn_manage_refund_reviews')", "current_user_can('dzn_manage_finance_statements')", "current_user_can(TeacherStatementBatchWorkflowService::MANAGE_CAPABILITY)", "check_admin_referer('dzn_finance_statement_workflow')", "check_admin_referer('dzn_finance_receipts_report')"), 'Every new write/read surface must keep its capability and nonce gate');

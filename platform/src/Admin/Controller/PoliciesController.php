@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Admin\Controller;
 
+use Delnavazan\Platform\Core\Application\BookingRequestValidationService;
 use Delnavazan\Platform\Core\Application\CommercialPolicyService;
 use Delnavazan\Platform\Core\Application\ConsentLifecycleWorker;
 use Delnavazan\Platform\Core\Application\ConsentNotificationService;
@@ -97,6 +98,7 @@ final class PoliciesController {
         echo '<p class="dzn-settings-lede">One-page operational policy reference. Editable values are written through their existing versioned authority; structural rules remain locked.</p>';
         self::flash($status);
         self::operationalPolicies();
+        self::bookingHorizon();
         self::indicators($counts);
         self::policyLibrary($service);
         self::consentOperations($service,$counts);
@@ -110,7 +112,6 @@ final class PoliciesController {
     private static function operationalPolicies():void{
         $sections=array(
             'Booking and teacher allocation'=>array(
-                array('Introductory booking horizon','INTRO_BOOKING_HORIZON','weeks','How far ahead an introductory lesson can be requested.','editable'),
                 array('Teacher offer response window',null,'24 hours','Enforced: unanswered offers expire and are reassigned to the next eligible Teacher; the Teacher portal shows the remaining time.','locked'),
                 array('Unassigned request escalation',null,'3 days','Agreed operational target; verify runtime enforcement before making configurable.','review'),
                 array('Teacher allocation order',null,'Round-robin','Agreed allocation workflow; implementation authority must be verified.','review'),
@@ -142,7 +143,7 @@ final class PoliciesController {
         echo '<nav aria-label="Policy categories">';
         $index=0;
         foreach(array_keys($sections) as $title){echo '<a class="button button-small" style="margin:0 6px 6px 0" href="#dzn-policy-section-'.esc_attr((string)$index).'">'.esc_html($title).'</a>'; $index++;}
-        echo ' <a class="button button-small" href="#dzn-consent-policy-library">Privacy and consent</a></nav>';
+        echo ' <a class="button button-small" href="#booking-horizon">Introductory booking horizon</a> <a class="button button-small" href="#dzn-consent-policy-library">Privacy and consent</a></nav>';
         $service=new CommercialPolicyService();
         $index=0;
         foreach($sections as $title=>$rows){
@@ -173,6 +174,54 @@ final class PoliciesController {
         echo '</section>';
     }
 
+    /**
+     * The introductory booking horizon is an academy scheduling rule. The screen reports the
+     * effective configuration the public intake actually enforces: a recorded policy version or
+     * the built-in fallback, so an unrecorded value is never presented as "not configured".
+     */
+    private static function bookingHorizon():void{
+        $configuration=BookingRequestValidationService::horizonConfiguration();
+        $recorded=$configuration['source']==='policy';
+        $days=(int)$configuration['days'];
+        $summary=$recorded
+            ? (string)$configuration['weeks'].' week'.((int)$configuration['weeks']===1?'':'s').' ('.$days.' days)'
+            : $days.' days';
+        $history=array();
+        if(current_user_can('dzn_view_commercial_authority')){
+            try{$history=(array)((new CommercialPolicyService())->history('INTRO_BOOKING_HORIZON')['versions']??array());}catch(\Throwable){}
+        }
+        echo '<section class="dzn-settings-card" id="booking-horizon"><h2>Introductory booking horizon</h2>';
+        echo '<p>How far ahead an introductory lesson can be requested. This academy scheduling rule uses the existing versioned commercial policy; the public intake always applies the effective value below.</p>';
+        echo '<p><strong>Current configuration:</strong> <span class="dzn-status-badge is-ok">Active</span> '.esc_html($summary).' ';
+        if($recorded)echo '<span class="dzn-settings-meta">Version '.esc_html((string)$configuration['version']).'</span>';
+        elseif(!empty($configuration['recorded']))echo '<span class="dzn-settings-meta">The recorded value ('.esc_html((string)($configuration['recorded_value']??'')).' '.esc_html((string)($configuration['recorded_value_type']??'')).') is not a valid whole-week value, so the built-in '.esc_html((string)$days).'-day fallback is in force.</span>';
+        else echo '<span class="dzn-settings-meta">No version recorded — the built-in '.esc_html((string)$days).'-day fallback is in force.</span>';
+        echo '</p>';
+        if(!empty($configuration['read_error']))echo '<div class="notice notice-warning inline"><p>The recorded policy could not be read, so the built-in '.esc_html((string)$days).'-day fallback is in force. The form below records a new version once the policy store is available.</p></div>';
+        if(current_user_can('dzn_manage_commercial_policies')){
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-settings-inline-form">';
+            echo '<input type="hidden" name="action" value="'.esc_attr(self::ACTION_COMMERCIAL_POLICY).'">';
+            echo '<input type="hidden" name="policy_key" value="INTRO_BOOKING_HORIZON">';
+            echo '<input type="hidden" name="return_anchor" value="booking-horizon">';
+            wp_nonce_field(self::ACTION_COMMERCIAL_POLICY);
+            echo '<label for="dzn-policy-booking-horizon"><strong>Whole weeks</strong></label> <input id="dzn-policy-booking-horizon" name="policy_value" type="number" min="1" max="104" required placeholder="e.g. 4" value="'.esc_attr($recorded?(string)$configuration['weeks']:'').'"> ';
+            echo '<button class="button button-primary" type="submit">Record new horizon version</button>';
+            echo '<p class="dzn-settings-meta">Recording a new version never rewrites a completed booking or an existing policy version.</p></form>';
+        }else{
+            echo '<p class="dzn-settings-meta">Recording a new horizon requires the commercial-policy capability.</p>';
+        }
+        if($history!==array()){
+            echo '<details><summary><strong>Version history</strong></summary><table class="widefat striped dzn-settings-table"><thead><tr><th>Version</th><th>Value</th><th>Effective from</th><th>Recorded</th></tr></thead><tbody>';
+            foreach(array_slice(array_reverse($history),0,10)as$row){
+                $historyType=(string)($row['value_type']??'');
+                $historyValue=($row['value']??null)===null?'Unset':(string)$row['value'].($historyType==='weeks'?' weeks':($historyType==='duration'?' seconds':''));
+                echo '<tr><td>#'.esc_html((string)($row['policy_version']??'')).'</td><td>'.esc_html($historyValue).'</td><td>'.esc_html((string)($row['effective_from']??'—')).'</td><td><code dir="ltr">'.esc_html((string)($row['recorded_at']??'')).'</code></td></tr>';
+            }
+            echo '</tbody></table></details>';
+        }
+        echo '</section>';
+    }
+
     public static function saveCommercialPolicy():never{
         if('POST'!==strtoupper((string)($_SERVER['REQUEST_METHOD']??'')))wp_die('Method not allowed','Delnavazan',array('response'=>405));
         if(!current_user_can('dzn_manage_commercial_policies'))wp_die('Forbidden','Delnavazan',array('response'=>403));
@@ -191,7 +240,9 @@ final class PoliciesController {
                 'evidence_at'=>$now,
             ),'settings-policies-'.$key.'-'.wp_generate_uuid4());
         }catch(\Throwable $error){$message='Policy not changed. Check the value and your policy permissions.';}
-        wp_safe_redirect(add_query_arg(array('page'=>self::MENU_SLUG,'dzn_policy_status'=>$message),admin_url('admin.php')).'#operational-policy-centre');
+        $anchor=sanitize_key((string)wp_unslash($_POST['return_anchor']??''));
+        if(!in_array($anchor,array('operational-policy-centre','booking-horizon'),true))$anchor='operational-policy-centre';
+        wp_safe_redirect(add_query_arg(array('page'=>self::MENU_SLUG,'dzn_policy_status'=>$message),admin_url('admin.php')).'#'.$anchor);
         exit;
     }
 

@@ -8,6 +8,7 @@ $root = dirname(__DIR__);
 $read = static fn(string $path): string => (string) file_get_contents($root . '/' . $path);
 $shell = $read('src/Admin/Controller/AdminShellController.php');
 $general = $read('src/Admin/Controller/GeneralSettingsController.php');
+$policies = $read('src/Admin/Controller/PoliciesController.php');
 $staff = $read('src/Admin/Controller/StaffAccessController.php');
 $staffService = $read('src/Core/Application/StaffAccessService.php');
 $notifications = $read('src/Admin/Controller/NotificationManagementController.php');
@@ -35,16 +36,18 @@ $fail(str_contains($general, 'Open integrations') === false, 'General still cont
 /* General responsibilities. */
 foreach (array(
     'Site information', 'Contact and public presence', 'Pages and project', 'Legal and policy pages',
-    'Introductory booking horizon', 'Who can use each work area', 'admin@delnavazan.com',
+    'Who can use each work area', 'admin@delnavazan.com',
     '0413 413 004', 'https://www.instagram.com/insta.delnavazan/', 'Notification sender',
-    'CommercialPolicyService', 'LegalPageProvisioner', 'get_pages', 'renderPanel',
+    'LegalPageProvisioner', 'get_pages', 'renderPanel',
 ) as $needle) {
     $fail(str_contains($general, $needle) || str_contains($staff, $needle), 'General is missing: ' . $needle);
 }
 $fail(!str_contains($general, 'admin@DelLavazon.com') || str_contains($general, 'were corrected'), 'The supplied misspelt contact domain must be visibly corrected, not used');
 $fail(!str_contains($general, '0413 4113 004') || str_contains($general, 'were corrected'), 'The supplied unverified phone digits must be visibly corrected, not used');
-$fail(str_contains($general, 'dzn_general_booking_horizon') && str_contains($general, 'check_admin_referer'), 'Booking horizon save must be nonce-protected');
-$fail(str_contains($general, 'dzn_manage_commercial_policies'), 'Booking horizon must use the existing commercial-policy authority');
+$fail(!str_contains($general, 'dzn_general_booking_horizon') && !str_contains($general, 'INTRO_BOOKING_HORIZON'), 'Booking horizon must not remain a General settings control');
+$fail(str_contains($policies, 'Introductory booking horizon') && str_contains($policies, 'INTRO_BOOKING_HORIZON'), 'Booking horizon must live under Settings → Policies');
+$fail(str_contains($policies, 'check_admin_referer') && str_contains($policies, 'dzn_manage_commercial_policies'), 'Booking horizon save must be nonce-protected and use the commercial-policy authority');
+$fail(str_contains($policies, 'horizonConfiguration') && str_contains($policies, 'Active'), 'Policies must display the effective booking-horizon configuration, including the default');
 $fail(str_contains($general, 'unpublished drafts') && stripos($general, 'does not publish') !== false, 'Legal work must remain draft-only and explicit');
 $booking = $read('src/Core/Application/BookingRequestValidationService.php');
 $fail(str_contains($booking, 'bookingHorizonDays') && str_contains($booking, "current('INTRO_BOOKING_HORIZON')"), 'Public booking intake must follow the versioned horizon policy with a safe fallback');

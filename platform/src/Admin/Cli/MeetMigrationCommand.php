@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Admin\Cli;
 
 use Delnavazan\Platform\Integrations\GoogleWorkspace\{GoogleWorkspaceClassroomService,GoogleWorkspaceOAuthService,GoogleWorkspaceRepository,MeetAttendanceService,MeetRecordingService};
+use Delnavazan\Platform\Core\Application\ProviderEvidenceSystemActor;
 
 /** Operator commands for the Google Meet migration. No command deletes historical data. */
 final class MeetMigrationCommand {
@@ -35,6 +36,19 @@ final class MeetMigrationCommand {
         \WP_CLI::log('Open recording alerts: '.count($repository->alerts('open',200)));
         \WP_CLI::log('Worker scheduled: '.(wp_next_scheduled(\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceWorker::HOOK)?'yes':'no'));
         \WP_CLI::log('Booking projection worker scheduled: '.(wp_next_scheduled(\Delnavazan\Platform\Integrations\BookingCalendarProjectionWorker::HOOK)?'yes':'no'));
+        \WP_CLI::log('Provider evidence actor: '.(ProviderEvidenceSystemActor::isConfigured()?'ready':'unconfigured'));
+    }
+
+    /** Provision the narrow actor used only to ingest verified Meet evidence. */
+    public function provision_attendance_actor(array $args,array $assoc):void{
+        self::requireOperator();
+        try{
+            $id=ProviderEvidenceSystemActor::provision();
+        }catch(\Throwable $error){
+            if($error->getMessage()==='provider_evidence_system_actor_unauthorized')\WP_CLI::error('A real administrator is required. Re-run with --user=<administrator_id>.');
+            throw $error;
+        }
+        \WP_CLI::success('Provider evidence actor ready: '.$id.'.');
     }
 
     /**

@@ -99,6 +99,11 @@ $check('participant sessions are read from Meet', str_contains($attendance, 'lis
 $check('anonymous guests are retained as unverified evidence', str_contains($attendance, "'type'=>'anonymous'"));
 $check('only a verified Phase-P mapping may reach canonical intake', str_contains($attendance, 'verifiedAttendanceMapping'));
 $check('attendance never writes completion directly', !str_contains($attendance, 'completed_at') && !str_contains($attendance, 'lifecycle_state'));
+$check('unattended Meet ingestion uses the narrow provider-evidence actor', str_contains($attendance, 'ProviderEvidenceSystemActor::run') && !str_contains($attendance, "current_user_can('dzn_ingest_canonical_attendance_evidence')"));
+$providerActor = $read('platform/src/Core/Application/ProviderEvidenceSystemActor.php');
+$cli = $read('platform/src/Admin/Cli/MeetMigrationCommand.php');
+$check('provider-evidence actor is explicitly provisioned and least-privileged', str_contains($providerActor, 'public static function provision') && str_contains($providerActor, "ROLE='dzn_provider_evidence'") && str_contains($providerActor, 'provider_evidence_system_actor_unauthorized'));
+$check('Meet CLI exposes explicit provider-evidence actor provisioning', str_contains($cli, 'provision_attendance_actor') && str_contains($cli, 'Provider evidence actor'));
 
 $migration = $read('platform/src/Core/Infrastructure/Migration/Migrator.php');
 $check('migration 068 is wired', str_contains($migration, '068_google_meet_classroom_authority'));

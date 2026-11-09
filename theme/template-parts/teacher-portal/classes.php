@@ -43,6 +43,7 @@ $card_index = 0;
 	</div>
 	<p class="dzn-tp-help dzn-tp-classes__guidance">برای جزئیات، کلاس را باز کنید.</p>
 	<?php if ( isset( $_GET['intro_notice'] ) ) : ?><p class="dzn-tp-action-status" role="<?php echo sanitize_key( (string) ( $_GET['intro_status'] ?? '' ) ) === 'failed' ? 'alert' : 'status'; ?>"><?php echo esc_html( sanitize_text_field( wp_unslash( (string) $_GET['intro_notice'] ) ) ); ?></p><?php endif; ?>
+	<?php dzn_theme_teacher_portal_component( 'test-classes', array( 'items' => (array) ( $model['god_mode_test_classes'] ?? array() ), 'timezone' => $timezone, 'calendar' => (string) ( $model['teacher_calendar'] ?? '' ), 'locale' => (string) ( $model['teacher_locale'] ?? '' ) ) ); ?>
 <?php foreach ( $sections as $section ) : ?>
 	<?php if ( ! empty( $section['collapsed'] ) ) : ?><details class="dzn-tp-class-horizon"><summary><?php echo esc_html( $section['heading'] ); ?> <span class="dzn-tp-class-history__count"><?php echo esc_html( (string) count( $section['items'] ) ); ?></span></summary><p class="dzn-tp-help">این کلاس‌ها ثبت شده‌اند و برای خلوت‌تر شدن صفحه در بخش جمع‌شده نمایش داده می‌شوند.</p><?php endif; ?>
 	<section class="dzn-tp-class-section dzn-tp-class-section--<?php echo esc_attr( $section['key'] ); ?>" aria-labelledby="tp-classes-<?php echo esc_attr( $section['key'] ); ?>">

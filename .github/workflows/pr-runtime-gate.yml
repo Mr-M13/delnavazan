@@ -362,6 +362,14 @@ jobs:
           php platform/tests/public-hardening-contract.php
           php platform/tests/release-presentation-gate-contract.php
           php platform/tests/student-payments-flag-contract.php
+          php platform/tests/god-mode-rule-unit.php
+          php platform/tests/god-mode-scenario-library-unit.php
+          php platform/tests/god-mode-schema-contract.php
+          php platform/tests/god-mode-security-contract.php
+          php platform/tests/god-mode-dashboard-language-contract.php
+          php platform/tests/god-mode-financial-isolation-unit.php
+          php platform/tests/god-mode-cleanup-contract.php
+          php platform/tests/god-mode-teacher-participation-contract.php
           if [[ -f platform/tests/phase-operations-portal-contract.php ]]; then
             php platform/tests/phase-operations-portal-contract.php
           else

@@ -2753,6 +2753,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'attention' => $bookingAttention,
 		'open_requests' => $openRequestAttention,
 		'booking_provisioning' => (array) ( $data['booking_provisioning'] ?? array() ),
+		'god_mode_test_classes' => (array) ( $data['god_mode_test_classes'] ?? array() ),
 		'post_intro_outcomes' => $post_intro_outcomes,
 		'statistics' => array('active_students'=>(string)count($studentNames),'upcoming'=>(string)$upcoming_count,'lessons_month'=>(string)count($monthRows),'hours_month'=>number_format_i18n($seconds/HOUR_IN_SECONDS,1)),
 		'classes' => $classes,

@@ -1,0 +1,20 @@
+<?php
+$root=dirname(__DIR__);
+$read=file_get_contents($root.'/src/Portals/PortalAuthenticatedReadService.php');
+$service=file_get_contents($root.'/src/Core/Application/GodMode/GodModeTeacherReadService.php');
+$controller=file_get_contents($root.'/src/Admin/Controller/GodModeTeacherController.php');
+$themeRoot=dirname($root).'/theme';
+$theme=file_get_contents($themeRoot.'/template-parts/teacher-portal/test-classes.php');
+$classes=file_get_contents($themeRoot.'/template-parts/teacher-portal/classes.php');
+foreach(compact('read','service','controller','theme','classes') as $name=>$source)if(!is_string($source)||$source==='')throw new RuntimeException('Unable to read teacher participation source: '.$name.'.');
+if(!str_contains($read,"'god_mode_test_classes'")||!str_contains($read,'GodModeTeacherReadService'))throw new RuntimeException('The teacher portal read model must include test classes.');
+if(!str_contains($service,'teacher_principal_links')||!str_contains($service,"current_user_can('dzn_view_own_portal_schedule')"))throw new RuntimeException('Test class visibility must be teacher-principal bound.');
+if(!str_contains($service,"'is_test'=>true")||!str_contains($service,"'label'=>'TEST CLASS'"))throw new RuntimeException('Test classes must be explicitly distinguished in the teacher model.');
+if(!str_contains($service,'ParticipantJoinWindow::contains'))throw new RuntimeException('Teacher joining must respect the normal join window.');
+if(!str_contains($controller,'ParticipantJoinWindow::contains'))throw new RuntimeException('The teacher join endpoint must enforce the join window server-side.');
+if(!str_contains($theme,'کلاس آزمایشی')&&!str_contains($theme,'TEST'))throw new RuntimeException('The teacher-facing test class must be clearly labelled.');
+if(!str_contains($theme,'بدون تأثیر مالی'))throw new RuntimeException('The teacher-facing test class must explain financial isolation.');
+if(!str_contains($theme,'attendance_available')||!str_contains($theme,'cancel_available')||!str_contains($theme,'reschedule_available'))throw new RuntimeException('Teachers must be able to confirm attendance, cancel and reschedule permitted test classes.');
+if(!str_contains($classes,"dzn_theme_teacher_portal_component( 'test-classes'"))throw new RuntimeException('The classes screen must render the test-class section.');
+if(str_contains($service,'GodModeAuthority::require'))throw new RuntimeException('Teacher participation must not require God Mode authority.');
+echo "God Mode teacher participation contract passed\n";

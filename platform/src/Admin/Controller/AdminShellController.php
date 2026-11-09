@@ -22,6 +22,9 @@ final class AdminShellController {
         'finance' => ['Finance', [
             ['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']],
         ]],
+        'godmode' => ['God Mode', [
+            ['God Mode', 'dzn-god-mode', 'dzn_access_god_mode'],
+        ]],
         'settings' => ['Settings', [
             ['General', 'dzn-general', 'manage_options'],
             // Top-level fallback for catalogue-only staff. Settings sections below still render four links.
@@ -77,11 +80,12 @@ final class AdminShellController {
         'dzn-system-health' => 'dzn_access_system_health',
         'dzn-portal-capabilities' => 'dzn_view_portal_capabilities',
         'dzn-core-dataset-readiness' => Menu::CORE_WORKFLOW_CAP,
+        'dzn-god-mode' => 'dzn_access_god_mode',
     ];
 
     /** Pages share their tab while retaining their original, protected callback. */
     private const PAGE_TABS = [
-        'dzn-platform' => 'overview', 'dzn-academy-dashboard' => 'overview',
+        'dzn-platform' => 'overview', 'dzn-academy-dashboard' => 'overview', 'dzn-god-mode' => 'godmode',
         'dzn-teachers-menu' => 'teachers',
         'dzn-student' => 'students', 'dzn-student-identity-authority' => 'students',
         'dzn-account-removal' => 'settings',

@@ -2636,3 +2636,24 @@
   .dzn-tp-statement-lines{display:block;overflow-x:auto;font-size:.76rem;white-space:nowrap}
   .dzn-tp-statement-lines th,.dzn-tp-statement-lines td{padding:.4rem .5rem}
 }
+
+/* Explicit God Mode test classes: visible, clearly labelled and financially inert. */
+.dzn-tp-test-classes {
+  border: 1px dashed var(--dzn-color-border-strong, #cbd5e1);
+  border-radius: var(--dzn-radius-lg, 16px);
+  padding: 1rem;
+  background: color-mix(in srgb, var(--dzn-color-information, #2271b1) 4%, var(--dzn-color-surface-elevated, #fff));
+}
+.dzn-tp-test-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #7c2d12;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+}
+.dzn-tp-class.is-test { outline: 1px dashed #fdba74; outline-offset: 2px; }

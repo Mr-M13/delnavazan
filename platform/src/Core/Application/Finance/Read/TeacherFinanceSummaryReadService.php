@@ -35,7 +35,8 @@ final class TeacherFinanceSummaryReadService {
             "SELECT COUNT(DISTINCT e.student_id) FROM {$p}teacher_assignments a
              INNER JOIN {$p}enrolments e ON e.id=a.enrolment_id AND e.archived_at IS NULL
              WHERE a.teacher_id=%d AND a.applicable_slot=1 AND a.state='assigned'
-             AND e.lifecycle_state IN ('current','authorised')",
+             AND e.lifecycle_state IN ('current','authorised')
+             AND e.activity_type<>'test'",
             $teacherId
         ));
         if($wpdb->last_error!=='')throw new \RuntimeException('teacher_finance_summary_unavailable');
@@ -55,6 +56,7 @@ final class TeacherFinanceSummaryReadService {
              INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1
              LEFT JOIN {$p}canonical_lesson_delivery_outcomes o ON o.lesson_id=l.id AND o.applicable_slot=1
              WHERE l.teacher_id=%d AND l.record_model=%s AND l.archived_at IS NULL
+             AND l.activity_type<>'test'
              AND l.lifecycle_state IN ('authorised','completed')
              AND COALESCE(o.occurrence_starts_at_utc,v.starts_at_utc)>=%s
              AND COALESCE(o.occurrence_starts_at_utc,v.starts_at_utc)<%s",
@@ -67,6 +69,7 @@ final class TeacherFinanceSummaryReadService {
             "SELECT COUNT(*) FROM {$p}lessons l
              INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1
              WHERE l.teacher_id=%d AND l.record_model=%s AND l.archived_at IS NULL
+             AND l.activity_type<>'test'
              AND l.lifecycle_state='authorised' AND v.starts_at_utc>=%s",
             $teacherId,self::CANONICAL_MODEL,$nowUtc
         ));
@@ -82,6 +85,7 @@ final class TeacherFinanceSummaryReadService {
              LEFT JOIN {$p}courses c ON c.id=l.course_id
              LEFT JOIN {$p}instruments i ON i.id=c.instrument_id
              WHERE l.teacher_id=%d AND l.record_model=%s AND l.archived_at IS NULL
+             AND l.activity_type<>'test'
              AND l.lifecycle_state='authorised' AND v.starts_at_utc>=%s
              ORDER BY v.starts_at_utc LIMIT 1",
             $teacherId,self::CANONICAL_MODEL,$nowUtc
@@ -99,7 +103,7 @@ final class TeacherFinanceSummaryReadService {
              FROM {$p}terms t
              INNER JOIN {$p}enrolments e ON e.id=t.enrolment_id AND e.archived_at IS NULL
              INNER JOIN {$p}teacher_assignments a ON a.enrolment_id=e.id AND a.teacher_id=%d AND a.applicable_slot=1
-             INNER JOIN {$p}lessons l ON l.term_id=t.id AND l.record_model=%s AND l.archived_at IS NULL
+             INNER JOIN {$p}lessons l ON l.term_id=t.id AND l.record_model=%s AND l.archived_at IS NULL AND l.activity_type<>'test'
              LEFT JOIN {$p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1
              LEFT JOIN {$p}students s ON s.id=e.student_id
              LEFT JOIN {$p}courses c ON c.id=e.course_id

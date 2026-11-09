@@ -226,6 +226,7 @@ final class PortalAuthenticatedReadService {
             'assignments' => $assignments,
             'booking_classes' => $bookingClasses,
             'booking_provisioning' => $bookingProvisioning,
+            'god_mode_test_classes' => (new \Delnavazan\Platform\Core\Application\GodMode\GodModeTeacherReadService())->forTeacher((int) $principal['id'], (int) get_current_user_id()),
         );
     }
 

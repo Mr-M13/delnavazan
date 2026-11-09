@@ -8,7 +8,7 @@
  */
 defined( 'ABSPATH' ) || exit;
 define( 'DZN_PLATFORM_VERSION', '0.1.0' );
-define( 'DZN_PLATFORM_SCHEMA_VERSION', '60' );
+define( 'DZN_PLATFORM_SCHEMA_VERSION', '74' );
 // Package-stamped runtime-validation identity. This is deliberately explicit
 // because production packages do not include Git metadata.
 define( 'DZN_PLATFORM_BUILD_ID', 'stripe-live-mode-20261106.1' );
@@ -53,7 +53,10 @@ add_action( 'plugins_loaded', static function () {
 	if ( (string) get_option( 'dzn_platform_schema_version' ) !== (string) DZN_PLATFORM_SCHEMA_VERSION ) {
 		Delnavazan\Platform\Core\Infrastructure\Migration\Migrator::maybe_upgrade();
 	}
+	Delnavazan\Platform\Core\Application\GodMode\GodModeAuthority::bootstrap();
 	Delnavazan\Platform\Admin\Controller\Menu::register();
+	Delnavazan\Platform\Admin\Controller\GodModeController::register();
+	Delnavazan\Platform\Admin\Controller\GodModeTeacherController::register();
 	Delnavazan\Platform\Admin\Controller\AccountRemovalController::register();
 	Delnavazan\Platform\Admin\Controller\CommunicationsTemplateController::register();
 	Delnavazan\Platform\Admin\Controller\NotificationManagementController::register();

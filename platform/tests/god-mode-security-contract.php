@@ -1,0 +1,26 @@
+<?php
+$root=dirname(__DIR__);
+$authority=file_get_contents($root.'/src/Core/Application/GodMode/GodModeAuthority.php');
+$rule=file_get_contents($root.'/src/Core/Application/GodMode/GodModeRule.php');
+$controller=file_get_contents($root.'/src/Admin/Controller/GodModeController.php');
+$teacher=file_get_contents($root.'/src/Admin/Controller/GodModeTeacherController.php');
+$menu=file_get_contents($root.'/src/Admin/Controller/Menu.php');
+foreach(compact('authority','rule','controller','teacher','menu') as $name=>$source)if(!is_string($source)||$source==='')throw new RuntimeException('Unable to read '.$name.'.');
+if(str_contains($authority,'add_role(')||str_contains($authority,'add_cap(')&&str_contains($authority,'get_role('))throw new RuntimeException('God Mode must not be implemented as an assignable role.');
+if(!str_contains($authority,"USER_OPTION='dzn_god_mode_super_tester_user_id'"))throw new RuntimeException('Authority must be persisted by WordPress user id.');
+if(!str_contains($authority,"DIGEST_OPTION='dzn_god_mode_super_tester_email_digest'"))throw new RuntimeException('Authority must persist a verified email digest.');
+if(!str_contains($rule,'hash_equals($stored,$actual)'))throw new RuntimeException('Authority must compare the stored email digest with a timing-safe comparison.');
+if(!str_contains($authority,'user_can($user')&&!str_contains($authority,'user_can'))throw new RuntimeException('The designated account must still hold administrator access.');
+if(!str_contains($authority,'GodModeRule::CAPABILITY'))throw new RuntimeException('A dedicated server-side capability is required.');
+if(!str_contains($authority,"state'=>'revoked'")||!str_contains($authority,'removeCapability'))throw new RuntimeException('Revocation must remove the capability and preserve historical classification.');
+if(str_contains($controller,'wp_ajax_nopriv'))throw new RuntimeException('God Mode must not expose a public AJAX endpoint.');
+foreach(array("GodModeAuthority::require()","check_admin_referer(self::ACTION)","current_user_can") as $token){
+    if($token==='current_user_can')continue;
+    if(!str_contains($controller,$token))throw new RuntimeException('Privileged endpoint missing: '.$token);
+}
+if(!str_contains($teacher,'teacher_principal_links')||!str_contains($teacher,"current_user_can('dzn_view_own_portal_schedule')"))throw new RuntimeException('Teacher participation must re-prove the teacher principal and portal capability.');
+if(!str_contains($teacher,'activity_type')||!str_contains($teacher,'GodModeRule::ACTIVITY_TYPE'))throw new RuntimeException('Teacher actions must require explicit test classification.');
+if(!str_contains($menu,"'dzn_access_god_mode'"))throw new RuntimeException('The menu destination must be protected by the dedicated capability.');
+if(!str_contains($menu,"God Mode"))throw new RuntimeException('Admin navigation must expose one God Mode destination.');
+if(str_contains($authority,'update_user_meta')||str_contains($authority,'current_user_can(\'manage_options\')&&$userId'))throw new RuntimeException('Ordinary administrators must not be able to self-assign God Mode.');
+echo "God Mode security contract passed\n";

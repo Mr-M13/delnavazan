@@ -71,10 +71,10 @@ final class AcademyDashboardReadService {
             $counts['teachers'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}teachers WHERE archived_at IS NULL AND status='active'");
         }
         if (current_user_can('dzn_manage_enrolments')) {
-            $counts['enrolments'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}enrolments WHERE archived_at IS NULL AND COALESCE(lifecycle_state,status)='active'");
+            $counts['enrolments'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}enrolments WHERE archived_at IS NULL AND activity_type<>'test' AND COALESCE(lifecycle_state,status)='active'");
         }
         if (current_user_can('dzn_view_booking_requests')) {
-            $counts['bookings'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_requests WHERE privacy_erased_at IS NULL AND resolution_state='unresolved'");
+            $counts['bookings'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_requests WHERE privacy_erased_at IS NULL AND activity_type<>'test' AND resolution_state='unresolved'");
         }
         if (current_user_can('dzn_manage_exceptions')) {
             $counts['exceptions'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}operational_exceptions WHERE status='open'");
@@ -99,9 +99,9 @@ final class AcademyDashboardReadService {
         global $wpdb;
         $p = $wpdb->prefix . 'dzn_';
         $start = gmdate('Y-m-d', strtotime('-' . ($days - 1) . ' days'));
-        $bookings = $this->dailyCounts("SELECT DATE(created_at) d,COUNT(*) c FROM {$p}booking_requests WHERE privacy_erased_at IS NULL AND created_at>=%s GROUP BY DATE(created_at)", $start);
+        $bookings = $this->dailyCounts("SELECT DATE(created_at) d,COUNT(*) c FROM {$p}booking_requests WHERE privacy_erased_at IS NULL AND activity_type<>'test' AND created_at>=%s GROUP BY DATE(created_at)", $start);
         $lessons = current_user_can('dzn_manage_lessons')
-            ? $this->dailyCounts("SELECT DATE(completed_at) d,COUNT(*) c FROM {$p}lessons WHERE archived_at IS NULL AND completed_at IS NOT NULL AND completed_at>=%s GROUP BY DATE(completed_at)", $start)
+            ? $this->dailyCounts("SELECT DATE(completed_at) d,COUNT(*) c FROM {$p}lessons WHERE archived_at IS NULL AND activity_type<>'test' AND completed_at IS NOT NULL AND completed_at>=%s GROUP BY DATE(completed_at)", $start)
             : array();
         $rows = array();
         for ($i = 0; $i < $days; $i++) {

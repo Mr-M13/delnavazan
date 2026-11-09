@@ -3,6 +3,9 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 deploy="$ROOT/deployment/production-deploy.sh"
 workflow="$ROOT/.github/workflows/deploy-production.yml"
+risk_classifier="$ROOT/deployment/qa/deployment-risk-classifier.sh"
+risk_classifier_unit="$ROOT/deployment/qa/deployment-risk-classifier-unit.sh"
+validated_gate="$ROOT/deployment/qa/validated-commit-gate.sh"
 smoke="$ROOT/deployment/qa/production-smoke.sh"
 smoke_lib="$ROOT/deployment/qa/production-smoke-lib.sh"
 smoke_decision="$ROOT/deployment/qa/production-smoke-decision.sh"
@@ -61,6 +64,9 @@ need "$deploy" 'main-${2:0:12}'
 need "$deploy" 'production URL/indexability preflight failed'
 need "$workflow" 'environment: production'
 need "$workflow" 'refs/heads/main'
+need "$workflow" 'actions: read'
+need "$workflow" 'validated-commit-gate.sh'
+need "$workflow" 'Verify previously validated commit'
 need "$workflow" 'deployment/production-deploy.sh "$TARGET" "$COMMIT_SHA"'
 need "$workflow" 'deployment/qa/production-smoke.sh https://delnavazan.com'
 need "$workflow" 'PRODUCTION_KNOWN_HOSTS'
@@ -126,6 +132,7 @@ need "$booking_enqueue" "get_theme_file_uri( 'assets/css/booking.css' )"
 bash -n "$static_diagnostic"
 bash "$static_diagnostic_contract"
 bash -n "$smoke_lib" "$smoke_decision" "$smoke_retry_unit" "$smoke_decision_unit"
+bash -n "$risk_classifier" "$risk_classifier_unit" "$validated_gate"
 bash "$smoke_retry_unit"
 bash "$smoke_decision_unit"
 if grep -Fq 'staging.delnavazan.com' "$deploy" "$workflow" "$smoke"; then

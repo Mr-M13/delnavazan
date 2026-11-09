@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: delnavazan-production-deploy
@@ -22,8 +23,33 @@ concurrency:
 
 jobs:
   source-gate:
-    name: Current-main source gate
-    uses: ./.github/workflows/pr-runtime-gate.yml
+    name: Verify previously validated commit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact requested SHA is current main
+        shell: bash
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this workflow from the main branch only.' >&2; exit 1; }
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character commit SHA.' >&2; exit 1; }
+          git fetch --no-tags origin main
+          [[ "$(git rev-parse origin/main)" == "$COMMIT_SHA" ]] || { echo 'Requested SHA must still be current origin/main.' >&2; exit 1; }
+
+      - name: Require successful PR runtime gate for exact SHA
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: bash deployment/qa/validated-commit-gate.sh "$COMMIT_SHA"
 
   deploy:
     name: Deploy and verify production
@@ -57,6 +83,7 @@ jobs:
           bash -n deployment/production-deploy.sh
           bash -n deployment/qa/production-smoke.sh
           bash -n deployment/qa/production-deployment-contract.sh
+          bash -n deployment/qa/validated-commit-gate.sh
           bash deployment/qa/production-deployment-contract.sh
 
       - name: Configure pinned production SSH access

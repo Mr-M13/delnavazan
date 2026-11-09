@@ -1,6 +1,6 @@
 # Notification task redesign — grounded audit and implementation plan
 
-Date: 2026-11-09  
+Date: 2026-11-09
 Scope: Delnavazan platform and its in-repository WordPress theme. No production or provider mutation was performed.
 
 ## Confirmed current state

@@ -40,12 +40,12 @@ final class GoogleWorkspaceApiClient {
     public function createCalendarEvent(array $event):array{
         $id=trim((string)($event['id']??''));
         if(!preg_match('/^[0-9a-v]{5,1024}$/D',$id))throw new \InvalidArgumentException('meet_calendar_event_id_invalid');
-        return $this->call('POST','/calendar/v3/calendars/'.rawurlencode($this->organizerEmail()).'/events?conferenceDataVersion=1&sendUpdates=all',$event);
+        return $this->call('POST','/calendar/v3/calendars/'.rawurlencode($this->organizerEmail()).'/events?conferenceDataVersion=1&sendUpdates=none',$event);
     }
 
     public function updateCalendarEvent(string $eventId,array $event):array{
         if(!preg_match('/^[0-9a-v]{5,1024}$/D',$eventId))throw new \InvalidArgumentException('meet_calendar_event_id_invalid');
-        return $this->call('PATCH','/calendar/v3/calendars/'.rawurlencode($this->organizerEmail()).'/events/'.rawurlencode($eventId).'?conferenceDataVersion=1&sendUpdates=all',$event);
+        return $this->call('PATCH','/calendar/v3/calendars/'.rawurlencode($this->organizerEmail()).'/events/'.rawurlencode($eventId).'?conferenceDataVersion=1&sendUpdates=none',$event);
     }
 
     public function getCalendarEvent(string $eventId):array{
@@ -55,7 +55,7 @@ final class GoogleWorkspaceApiClient {
 
     public function cancelCalendarEvent(string $eventId):array{
         if(!preg_match('/^[0-9a-v]{5,1024}$/D',$eventId))throw new \InvalidArgumentException('meet_calendar_event_id_invalid');
-        return $this->call('PATCH','/calendar/v3/calendars/'.rawurlencode($this->organizerEmail()).'/events/'.rawurlencode($eventId).'?conferenceDataVersion=1&sendUpdates=all',array('status'=>'cancelled'));
+        return $this->call('PATCH','/calendar/v3/calendars/'.rawurlencode($this->organizerEmail()).'/events/'.rawurlencode($eventId).'?conferenceDataVersion=1&sendUpdates=none',array('status'=>'cancelled'));
     }
 
     // ---- Meet -------------------------------------------------------------------------------

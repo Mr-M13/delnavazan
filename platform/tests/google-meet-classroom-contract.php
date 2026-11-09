@@ -50,6 +50,7 @@ $check('Readiness resolves an empty Meet callback to the central callback', str_
 $check('Readiness never accepts the legacy teacher callback', !str_contains($integrationSettings, 'dzn_google_oauth_callback'));
 
 $service = $read('platform/src/Integrations/GoogleWorkspace/GoogleWorkspaceClassroomService.php');
+$api = $read('platform/src/Integrations/GoogleWorkspace/GoogleWorkspaceApiClient.php');
 $check('Calendar event id is deterministic', str_contains($service, 'GoogleWorkspaceClassroomRule::eventId($identity)'));
 $check('new provisioning creates an app-owned Meet space', str_contains($service, '$this->api->createSpace()'));
 $check('Calendar event attaches the existing app space', str_contains($service, "'entryPoints'=>array(array(") && str_contains($service, "'conferenceId'=>\$meetingCode"));
@@ -58,6 +59,7 @@ $check('space provenance and organizer identity are sealed', str_contains($servi
 $check('legacy Calendar-created spaces are replaced on the same event', str_contains($service, 'replaceLegacyCalendarSpace') && str_contains($service, 'replacement_event_reference') && str_contains($service, 'legacy_space_replaced'));
 $check('member operations use the exact app space name', str_contains($service, 'MeetCoHostRule::canManageMembers') && str_contains($service, "spaceName(\$name)"));
 $check('Teacher and Student are Calendar attendees', str_contains($service, 'attendanceEmails($facts)'));
+$check('Calendar projections do not send Google invitation or update emails', str_contains($api, 'sendUpdates=none') && !str_contains($api, 'sendUpdates=all'));
 $check('Teacher is assigned COHOST', str_contains($service, "createMember(\$space,\$email,'COHOST')"));
 $check('co-host refusal reports the exact provider response', str_contains($service, "'meet_cohost_assignment_refused'") && str_contains($service, "'response'=>\$response"));
 $check('co-host membership is explicitly verified', str_contains($service, 'verifyCoHostMember') && str_contains($service, "'cohost_verified'"));

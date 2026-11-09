@@ -83,7 +83,9 @@ permissions. The classification travels through:
 
 ## 3. Database migration
 
-Migration: `074_god_mode_super_tester` (schema constant advanced to `74`).
+Migration: `074_god_mode_super_tester`. The package keeps `DZN_PLATFORM_SCHEMA_VERSION = '60'` for
+compatibility with the existing release/runtime convention; the migration ledger carries the new
+`074_god_mode_super_tester` entry, exactly as the preceding `073` migration does.
 
 New tables:
 

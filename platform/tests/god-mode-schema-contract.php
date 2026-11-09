@@ -5,7 +5,7 @@ $migrator=file_get_contents($root.'/src/Core/Infrastructure/Migration/Migrator.p
 $snapshot=file_get_contents($root.'/src/Core/Application/Finance/LessonFinanceSnapshotService.php');
 $finance=file_get_contents($root.'/src/Core/Application/Finance/Read/TeacherFinanceSummaryReadService.php');
 if(!is_string($plugin)||!is_string($migrator)||!is_string($snapshot)||!is_string($finance))throw new RuntimeException('Unable to read God Mode schema sources.');
-if(!str_contains($plugin,"DZN_PLATFORM_SCHEMA_VERSION', '74'"))throw new RuntimeException('Schema version must be 74 for the God Mode migration.');
+if(!str_contains($plugin,"DZN_PLATFORM_SCHEMA_VERSION', '60'"))throw new RuntimeException('The existing package schema option must remain compatible.');
 foreach(array("074_god_mode_super_tester","install_god_mode_super_tester","verify_god_mode_super_tester_schema") as $token)if(!str_contains($migrator,$token))throw new RuntimeException('Migration registration missing: '.$token);
 foreach(array(
     'god_mode_authorisations','god_mode_sessions','god_mode_session_events','god_mode_scenario_runs',

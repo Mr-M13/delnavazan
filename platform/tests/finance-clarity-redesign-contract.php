@@ -100,6 +100,7 @@ $assert(str_contains($finance, 'overflow') || str_contains($finance, 'Overnight'
 $assert(!str_contains($general, 'INTRO_BOOKING_HORIZON') && !str_contains($general, 'dzn_general_booking_horizon'), 'Booking horizon must not remain a General Settings control');
 $contains($policies, array('Introductory booking horizon', 'INTRO_BOOKING_HORIZON', 'academy scheduling rule', 'horizonConfiguration'), 'Booking horizon must live under Settings → Policies with its effective configuration');
 $assert(!str_contains($finance, '<option value="INTRO_BOOKING_HORIZON"'), 'Finance must not keep the booking horizon as a selectable commercial policy');
+$assert(str_contains($finance, "'reason_code' => 'finance_policy_update'"), 'Finance commercial policy saves must supply the controlled reason code the commercial authority requires');
 $contains($finance, array('<details class="dzn-finance-settings-section" id="stripe"><summary><strong>Stripe integration and safeguards</strong>'), 'Stripe settings must stay collapsed');
 $contains($finance, array("current_user_can(ManualPaymentSettlementService::MANAGE_CAPABILITY)", "current_user_can('dzn_manage_refund_reviews')", "current_user_can('dzn_manage_finance_statements')", "current_user_can(TeacherStatementBatchWorkflowService::MANAGE_CAPABILITY)", "check_admin_referer('dzn_finance_statement_workflow')", "check_admin_referer('dzn_finance_receipts_report')"), 'Every new write/read surface must keep its capability and nonce gate');
 

@@ -231,18 +231,20 @@ final class PoliciesController {
         if(!isset($types[$key]))wp_die('Unknown policy','Delnavazan',array('response'=>400));
         $value=sanitize_text_field(wp_unslash((string)($_POST['policy_value']??'')));
         $message='Policy version recorded';
+        $recorded=true;
         try{
             $now=gmdate('Y-m-d H:i:s');
             (new CommercialPolicyService())->set($key,array(
-                'policy_value'=>$value,'value_type'=>$types[$key],
+                'policy_value'=>$value,'value_type'=>$types[$key],'reason_code'=>'settings_policy_update',
                 'evidence_channel'=>'authenticated_platform',
                 'evidence_reference'=>'settings-policies:'.get_current_user_id().':'.wp_generate_uuid4(),
                 'evidence_at'=>$now,
             ),'settings-policies-'.$key.'-'.wp_generate_uuid4());
-        }catch(\Throwable $error){$message='Policy not changed. Check the value and your policy permissions.';}
+        }catch(\Throwable $error){$message='Policy not changed. Check the value and your policy permissions.';$recorded=false;}
         $anchor=sanitize_key((string)wp_unslash($_POST['return_anchor']??''));
         if(!in_array($anchor,array('operational-policy-centre','booking-horizon'),true))$anchor='operational-policy-centre';
-        wp_safe_redirect(add_query_arg(array('page'=>self::MENU_SLUG,'dzn_policy_status'=>$message),admin_url('admin.php')).'#'.$anchor);
+        $redirect=add_query_arg(array('page'=>self::MENU_SLUG,'dzn_policy_status'=>$message),admin_url('admin.php'));
+        wp_safe_redirect($recorded?$redirect.'#'.$anchor:$redirect);
         exit;
     }
 

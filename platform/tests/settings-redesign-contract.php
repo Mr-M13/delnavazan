@@ -48,6 +48,7 @@ $fail(!str_contains($general, 'dzn_general_booking_horizon') && !str_contains($g
 $fail(str_contains($policies, 'Introductory booking horizon') && str_contains($policies, 'INTRO_BOOKING_HORIZON'), 'Booking horizon must live under Settings → Policies');
 $fail(str_contains($policies, 'check_admin_referer') && str_contains($policies, 'dzn_manage_commercial_policies'), 'Booking horizon save must be nonce-protected and use the commercial-policy authority');
 $fail(str_contains($policies, 'horizonConfiguration') && str_contains($policies, 'Active'), 'Policies must display the effective booking-horizon configuration, including the default');
+$fail(str_contains($policies, "'reason_code'=>'settings_policy_update'"), 'Policy saves must supply the controlled reason code the commercial authority requires');
 $fail(str_contains($general, 'unpublished drafts') && stripos($general, 'does not publish') !== false, 'Legal work must remain draft-only and explicit');
 $booking = $read('src/Core/Application/BookingRequestValidationService.php');
 $fail(str_contains($booking, 'bookingHorizonDays') && str_contains($booking, "current('INTRO_BOOKING_HORIZON')"), 'Public booking intake must follow the versioned horizon policy with a safe fallback');

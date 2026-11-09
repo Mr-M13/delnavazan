@@ -97,6 +97,16 @@ namespace {
     $assert($repo->secrets===0,'A central booking must not create a duplicate legacy teacher-calendar secret.');
     $assert(isset($repo->notifications['41|confirmed']),'Central confirmation must queue exactly one student notification.');
 
+    // A historical/provider-confirmed row must reconcile an open request when the worker
+    // replays the already-confirmed projection.
+    $reconcileRepo=new BookingTeacherResponseRepository();
+    $reconcileRepo->confirmationRow->state='confirmed';
+    $reconcileRepo->deliveryRow->state='confirmed';
+    Central::$calls=array();
+    $reconciled=(new BookingCalendarProjectionService($reconcileRepo))->dispatch(70);
+    $assert($reconciled['state']==='confirmed'&&$reconcileRepo->deliveryRow->lifecycle_status==='closed'&&$reconcileRepo->deliveryRow->resolution_state==='teacher_confirmed','A replayed confirmed booking must reconcile the request lifecycle.');
+    $assert(Central::$calls===array(),'Lifecycle reconciliation must not reprovision an existing classroom.');
+
     $rescheduleRepo=new BookingTeacherResponseRepository();$rescheduleRepo->confirmationRow->state='confirmed';
     $rescheduled=(new BookingCalendarProjectionService($rescheduleRepo))->reschedule(70,'2026-11-03 08:00:00','2026-11-03 08:45:00','Australia/Brisbane');
     $assert($rescheduled['state']==='confirmed'&&in_array(array('rescheduleForBooking',70,'2026-11-03 08:00:00','2026-11-03 08:45:00','Australia/Brisbane'),Central::$calls,true),'Central reschedule must patch the organizer event without a legacy vault.');

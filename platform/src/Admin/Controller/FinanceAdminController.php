@@ -2293,6 +2293,7 @@ final class FinanceAdminController {
         (new CommercialPolicyService())->set($key, array(
             'policy_value' => sanitize_text_field((string) ($_POST['policy_value'] ?? '')),
             'value_type' => sanitize_key((string) ($_POST['value_type'] ?? 'policy_reference')),
+            'reason_code' => 'finance_policy_update',
             'evidence_channel' => 'authenticated_platform',
             'evidence_reference' => 'finance-settings:commercial:' . $key . ':' . $now,
             'evidence_at' => $now,

@@ -16,6 +16,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  risk-classification:
+    name: Deployment risk classification
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Classify changed paths
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          if [[ -z "$base" || "$base" == 0000000000000000000000000000000000000000 ]]; then
+            base="HEAD^"
+          fi
+          bash deployment/qa/deployment-risk-classifier.sh "$base" "$GITHUB_SHA" | tee "$RUNNER_TEMP/deployment-risk.txt"
+      - name: Test classifier safety boundaries
+        run: bash deployment/qa/deployment-risk-classifier-unit.sh
+
   source-contracts:
     name: PHP source contracts
     runs-on: ubuntu-24.04
@@ -363,6 +384,9 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          bash -n deployment/qa/deployment-risk-classifier.sh
+          bash -n deployment/qa/validated-commit-gate.sh
+          bash deployment/qa/deployment-risk-classifier-unit.sh
           bash -n deployment/production-deploy.sh
           bash -n deployment/qa/production-smoke.sh
           bash -n deployment/qa/production-deployment-contract.sh

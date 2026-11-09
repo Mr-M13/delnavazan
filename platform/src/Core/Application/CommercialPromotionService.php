@@ -21,7 +21,10 @@ final class CommercialPromotionService {
         $actor=CommercialSupport::actor();
         $kind=(string)($input['kind']??'');
         if(!in_array($kind,CommercialRule::PROMOTION_KINDS,true))throw new \InvalidArgumentException('Controlled promotion kind required');
-        $code=(string)($input['promotion_code']??'');
+        // The raw code is retained only as the operator-visible reference. Lookups still use the
+        // salted digest, so the reference is display metadata and never an authorisation key.
+        $code=strtoupper(trim((string)($input['promotion_code']??'')));
+        if($code!==''&&(strlen($code)>32||preg_match('/^[A-Z0-9._-]{3,32}$/D',$code)!==1))throw new \InvalidArgumentException('promotion_code_invalid');
         $name=trim((string)($input['name']??''))===''?null:mb_substr(trim((string)$input['name']),0,191);
         $productId=($input['product_id']??null)===null||$input['product_id']===''?null:CommercialSupport::positiveInt($input['product_id'],'Valid product scope required');
         $percentageBp=null;$fixedMinor=null;$currency=null;
@@ -52,7 +55,7 @@ final class CommercialPromotionService {
             if($winner=$this->repository->command($digest)){$result=$this->replay($winner,$payload);$this->repository->commit();return $result;}
             $now=CommercialSupport::now();
             $id=$this->repository->insertPromotion(array(
-                'uid'=>Identifier::uid(),'reference_code'=>null,'code_digest'=>$codeDigest,'name'=>$name,'kind'=>$kind,
+                'uid'=>Identifier::uid(),'reference_code'=>$code===''?null:$code,'code_digest'=>$codeDigest,'name'=>$name,'kind'=>$kind,
                 'percentage_bp'=>$percentageBp,'fixed_amount_minor'=>$fixedMinor,'currency'=>$currency,'product_id'=>$productId,
                 'first_term_only'=>$firstTermOnly,'max_redemptions'=>$maxRedemptions,'per_beneficiary_limit'=>$perBeneficiaryLimit,
                 'stackable'=>$stackable,'valid_from'=>$validFrom,'valid_until'=>$validUntil,'status'=>$status,
@@ -69,7 +72,7 @@ final class CommercialPromotionService {
             $this->repository->rollback();
             $constraint=$this->repository->duplicate($e);
             if($constraint==='command_key_digest'&&($winner=$this->repository->command($digest)))return $this->replay($winner,$payload);
-            if($constraint==='code_digest')throw new \InvalidArgumentException('promotion_code_exists');
+            if($constraint==='code_digest'||$constraint==='reference_code')throw new \InvalidArgumentException('promotion_code_exists');
             throw $e;
         }
     }
@@ -153,6 +156,7 @@ final class CommercialPromotionService {
     private function view(object $promotion):array{
         return array(
             'promotion_id'=>(int)$promotion->id,'name'=>$promotion->name===null?null:(string)$promotion->name,
+            'code'=>$promotion->reference_code===null?null:(string)$promotion->reference_code,
             'kind'=>(string)$promotion->kind,'status'=>(string)$promotion->status,
             'code_registered'=>$promotion->code_digest!==null,
             'percentage_bp'=>$promotion->percentage_bp===null?null:(int)$promotion->percentage_bp,

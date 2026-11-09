@@ -365,7 +365,7 @@ ob_start();
 \Delnavazan\Platform\Admin\Controller\FinanceAdminController::screen();
 $adminHtml=(string)ob_get_clean();
 $_GET=$previousGet;
-foreach(array('id="discount-codes"','name="promotion_code"','name="promotion_percentage"','name="max_redemptions"','name="per_beneficiary_limit"','name="stackable"','max="100"') as $needle){
+foreach(array('id="discount-codes"','name="promotion_code"','name="promotion_percentage"','name="valid_from"','name="valid_until"','name="max_redemptions"','name="per_beneficiary_limit"','name="stackable"','max="100"') as $needle){
     dzn_promo_assert(str_contains($adminHtml,$needle),'the Finance Payments discount-code panel is missing: '.$needle);
 }
 

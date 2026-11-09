@@ -254,6 +254,10 @@ These are added to the PR runtime gate. Local results on this branch:
 - PHP lint across all tracked PHP files passes.
 - Existing Google Meet, admin shell/navigation, finance clarity, teacher portal phase 2, notification
   management and portal completion contracts pass.
+- PR runtime gate run `42719315075` passed every job, including PHP source contracts, Finance,
+  Booking release, interim attendance, Students workspace, catalogue, promotion, post-intro,
+  recording, Stripe, OAuth and CodeQL. Those runtime jobs install the plugin from scratch in
+  disposable WordPress/MariaDB containers, so migration `074` is proven to apply in a fresh install.
 
 Relevant pre-existing issue discovered:
 
@@ -263,9 +267,10 @@ Relevant pre-existing issue discovered:
 
 ## 12. Unresolved limitations
 
-1. **No live Google/MariaDB runtime was executed here.** Docker was unavailable. The WP-CLI runtime
-   smoke is provided for a disposable environment; production-like provider behaviour still requires
-   a configured Google organizer grant.
+1. **No live Google provider runtime was executed here.** The local workstation had no Docker, so
+   the dedicated WP-CLI God Mode smoke was not run locally. The PR runtime gate did install the
+   migration and schema in disposable MariaDB runtimes successfully, but production-like provider
+   behaviour still requires a configured Google organizer grant.
 2. **Automatic attendance ownership mapping is evidence-only.** Participant evidence is recorded,
    but mapping a Meet participant to a teacher/student remains a separate verification step. The
    scenario reports this honestly as warning/awaiting manual.

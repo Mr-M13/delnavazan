@@ -1,23 +1,20 @@
 <?php
 namespace Delnavazan\Platform\Admin\Controller;
 
-use Delnavazan\Platform\Core\Application\CommercialPolicyService;
 use Delnavazan\Platform\Core\Application\DiagnosticsService;
 use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
 use Delnavazan\Platform\Core\Application\Recording\RecordingControlPlane;
 use Delnavazan\Platform\Core\Application\Recording\RecordingFeatureFlags;
 
 /**
- * Settings → General: academy information, public presence, pages, policy and access.
+ * Settings → General: academy information, public presence, pages, legal drafts and access.
  *
  * Detailed schema, queue and provider evidence belongs to Diagnostics/Integrations. This page
- * reads no secret value and publishes no legal page. The booking horizon is written only through
- * the existing versioned commercial-policy authority.
+ * reads no secret value and publishes no legal page. Academy policy values live under Policies.
  */
 final class GeneralSettingsController {
     public const MENU_SLUG = 'dzn-general';
     public const CAPABILITY = 'manage_options';
-    public const ACTION_BOOKING_HORIZON = 'dzn_general_booking_horizon';
     public const ACTION_RECORDING_CAPTURE = 'dzn_general_recording_capture';
 
     /**
@@ -32,7 +29,6 @@ final class GeneralSettingsController {
     public const INSTAGRAM_URL = 'https://www.instagram.com/insta.delnavazan/';
 
     public static function register(): void {
-        add_action('admin_post_' . self::ACTION_BOOKING_HORIZON, [self::class, 'saveBookingHorizon']);
         add_action('admin_post_' . self::ACTION_RECORDING_CAPTURE, [self::class, 'saveRecordingCapture']);
     }
 
@@ -44,7 +40,7 @@ final class GeneralSettingsController {
 
         echo '<div class="wrap dzn-settings-page" dir="ltr">';
         echo '<h1>General</h1>';
-        echo '<p class="dzn-settings-lede">Academy information, public contact details, pages, policy review and staff access. Provider setup is under Integrations; runtime evidence is under Diagnostics.</p>';
+        echo '<p class="dzn-settings-lede">Academy information, public contact details, pages, legal drafts and staff access. Academy policy values are under Policies; provider setup is under Integrations; runtime evidence is under Diagnostics.</p>';
         self::renderFlash();
 
         self::renderSiteInformation($status, $environment);
@@ -54,7 +50,6 @@ final class GeneralSettingsController {
             echo '<section class="dzn-settings-card"><h2>Courses &amp; instruments</h2><p>Manage the teaching catalogue used by bookings and classes.</p><p><a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-catalogue-workspace')) . '">Open courses and instruments</a></p></section>';
         }
         self::renderLegalPages();
-        self::renderBookingHorizon();
         self::renderRecordingCapture();
         StaffAccessController::renderPanel(true);
         echo '<section class="dzn-settings-card" id="account-removal" dir="rtl">';
@@ -209,39 +204,6 @@ final class GeneralSettingsController {
         echo '</section>';
     }
 
-    private static function renderBookingHorizon(): void {
-        $service = new CommercialPolicyService();
-        $current = ['set' => false, 'value' => null, 'version' => null, 'effective_from' => null];
-        $history = [];
-        try { $current = $service->current('INTRO_BOOKING_HORIZON'); } catch (\Throwable) {}
-        if (current_user_can('dzn_view_commercial_authority')) {
-            try { $history = (array) (($service->history('INTRO_BOOKING_HORIZON')['versions'] ?? [])); } catch (\Throwable) {}
-        }
-        echo '<section class="dzn-settings-card" id="booking-horizon">';
-        echo '<h2>Introductory booking horizon</h2>';
-        echo '<p>How far ahead an introductory lesson may be requested. This academy scheduling rule uses the existing versioned commercial policy; historical values stay recorded and a new value creates a new version.</p>';
-        echo '<p><strong>Current value:</strong> ' . esc_html(!empty($current['set']) ? (string) $current['value'] . ' week(s)' : 'Not recorded') . ' <span class="dzn-settings-meta">' . esc_html(!empty($current['version']) ? 'version ' . (string) $current['version'] : '') . '</span></p>';
-        if (current_user_can('dzn_manage_commercial_policies')) {
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-settings-inline-form">';
-            echo '<input type="hidden" name="action" value="' . esc_attr(self::ACTION_BOOKING_HORIZON) . '">';
-            wp_nonce_field(self::ACTION_BOOKING_HORIZON);
-            echo '<label for="dzn-booking-horizon-weeks"><strong>Whole weeks</strong></label> <input id="dzn-booking-horizon-weeks" type="number" min="1" max="104" required name="weeks" value="' . esc_attr(!empty($current['set']) ? (string) $current['value'] : '') . '"> ';
-            echo '<button class="button button-primary" type="submit">Record new horizon version</button>';
-            echo '<p class="dzn-settings-meta">Recording a new version never rewrites a completed booking or an existing policy version.</p></form>';
-        } else {
-            echo '<p class="dzn-settings-meta">Recording a new horizon requires the commercial-policy capability.</p>';
-        }
-        if ($history !== []) {
-            echo '<details><summary><strong>Version history</strong></summary><table class="widefat striped dzn-settings-table"><thead><tr><th>Version</th><th>Value</th><th>Effective from</th><th>Recorded</th></tr></thead><tbody>';
-            foreach (array_slice(array_reverse($history), 0, 10) as $row) {
-                echo '<tr><td>#' . esc_html((string) ($row['policy_version'] ?? '')) . '</td><td>' . esc_html((string) ($row['value'] ?? 'Unset')) . '</td><td>' . esc_html((string) ($row['effective_from'] ?? '—')) . '</td><td><code dir="ltr">' . esc_html((string) ($row['recorded_at'] ?? '')) . '</code></td></tr>';
-            }
-            echo '</tbody></table></details>';
-        }
-        echo '<p><a class="button button-small" href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=settings#finance-policies')) . '">Open full policy history in Finance</a></p>';
-        echo '</section>';
-    }
-
     public static function saveRecordingCapture(): never {
         if (!current_user_can(self::CAPABILITY)) wp_die('Forbidden', 403);
         check_admin_referer(self::ACTION_RECORDING_CAPTURE);
@@ -273,28 +235,6 @@ final class GeneralSettingsController {
         echo '</form>';
         echo '<p class="dzn-settings-meta">The emergency stop remains available on the <a href="' . esc_url(admin_url('admin.php?page=dzn-recordings')) . '">Recordings</a> page for immediate incident response.</p>';
         echo '</section>';
-    }
-
-    public static function saveBookingHorizon(): never {
-        if (!current_user_can('dzn_manage_commercial_policies')) wp_die('Forbidden', 403);
-        check_admin_referer(self::ACTION_BOOKING_HORIZON);
-        $weeks = isset($_POST['weeks']) ? absint($_POST['weeks']) : 0;
-        if ($weeks < 1 || $weeks > 104) {
-            self::redirectNotice('error', 'Enter a whole number of weeks between 1 and 104.');
-        }
-        try {
-            $now = gmdate('Y-m-d H:i:s');
-            (new CommercialPolicyService())->set('INTRO_BOOKING_HORIZON', [
-                'policy_value' => (string) $weeks,
-                'value_type' => 'weeks',
-                'evidence_channel' => 'authenticated_platform',
-                'evidence_reference' => 'general-booking-horizon:' . (int) get_current_user_id() . ':' . $now,
-                'evidence_at' => $now,
-            ], 'general-booking-horizon-' . $weeks . '-' . $now . '-' . wp_generate_uuid4());
-            self::redirectNotice('success', 'Booking horizon version recorded.');
-        } catch (\Throwable) {
-            self::redirectNotice('error', 'The booking horizon was not changed. Check the value and your finance-policy authority.');
-        }
     }
 
     private static function redirectNotice(string $type, string $message): never {

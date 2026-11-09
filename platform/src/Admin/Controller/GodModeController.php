@@ -133,6 +133,13 @@ final class GodModeController {
                 $sessionId=(int)($_POST['session_id']??0);
                 $result=$sessions->verifyRecording($sessionId);
                 return self::successRedirect('Recording verification: '.($result['state']??'unknown').'. '.($result['detail']??''),array('tab'=>'inspector','session'=>$sessionId));
+            case 'map_participant':
+                $sessionId=(int)($_POST['session_id']??0);
+                $digest=sanitize_text_field(wp_unslash((string)($_POST['participant_digest']??'')));
+                $type=sanitize_key((string)wp_unslash($_POST['participant_type']??'unknown'));
+                $role=sanitize_key((string)wp_unslash($_POST['role']??''));
+                $result=(new GodModeSessionService($repo))->mapParticipant($sessionId,$digest,$type,$role);
+                return self::successRedirect('Participant identity mapped to '.$result['role'].'. Re-run evidence verification to confirm attendance.',array('tab'=>'inspector','session'=>$sessionId));
             case 'verify_attendance_evidence':
                 $sessionId=(int)($_POST['session_id']??0);
                 $result=(new GodModeSessionService($repo))->verifyAttendance($sessionId);

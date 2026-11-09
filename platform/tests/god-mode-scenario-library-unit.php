@@ -14,12 +14,16 @@ $all=GodModeScenarioLibrary::all();
 foreach($required as $code){
     if(!isset($all[$code]))throw new RuntimeException('Missing scenario: '.$code);
     $scenario=$all[$code];
-    foreach(array('category','title','description','prerequisites','steps','mode','manual_verification') as $field)if(!array_key_exists($field,$scenario))throw new RuntimeException('Scenario field missing: '.$code.'.'.$field);
+    foreach(array('category','title','description','prerequisites','steps','mode','manual_verification','framework_gap') as $field)if(!array_key_exists($field,$scenario))throw new RuntimeException('Scenario field missing: '.$code.'.'.$field);
     if(!in_array($scenario['mode'],GodModeRule::MODES,true))throw new RuntimeException('Invalid scenario mode: '.$code);
     if(!is_array($scenario['prerequisites'])||!is_array($scenario['steps'])||$scenario['steps']===array())throw new RuntimeException('Scenario prerequisites/steps incomplete: '.$code);
 }
 if(count($all)!==count($required))throw new RuntimeException('The library must not silently contain a different scenario count.');
 $manual=array_filter($all,static fn(array $scenario):bool=>!empty($scenario['manual_verification']));
 if(!isset($manual['teacher_onboarding_end_to_end'],$manual['recording_availability_verification'],$manual['sms_fallback']))throw new RuntimeException('Human/provider-dependent scenarios must be marked for manual verification.');
+foreach(array('teacher_onboarding','introductory_class_booking','post_intro_continuation','enrolment_workflow_simulation','teacher_onboarding_end_to_end','introductory_class_end_to_end','regular_class_end_to_end','booking_to_attendance_end_to_end') as $gapCode){
+    if(empty($all[$gapCode]['framework_gap']))throw new RuntimeException('Incomplete scenario must be explicitly gated: '.$gapCode);
+}
+if(!empty($all['direct_class_booking']['framework_gap']))throw new RuntimeException('Direct test booking must remain executable.');
 foreach(array('passed','failed','warning','awaiting_manual_verification') as $result)if(!in_array($result,GodModeRule::RESULTS,true))throw new RuntimeException('Result vocabulary missing '.$result);
 echo "God Mode scenario library unit passed\n";

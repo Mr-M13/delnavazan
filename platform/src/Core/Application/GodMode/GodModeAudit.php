@@ -31,6 +31,7 @@ final class GodModeAudit {
         $value=trim((string)$value);
         if($value==='')return null;
         $value=preg_replace('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i','[redacted-email]',$value) ?? '';
+        $value=preg_replace('/(?<![0-9])\+?[0-9][0-9\s\-().]{7,}[0-9]/','[redacted-phone]',$value) ?? '';
         $value=preg_replace('/Bearer\s+[A-Za-z0-9._\-]+/i','Bearer [redacted]',$value) ?? '';
         return substr($value,0,1000);
     }

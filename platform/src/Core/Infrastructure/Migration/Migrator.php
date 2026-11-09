@@ -580,6 +580,7 @@ final class Migrator {
 		if ( in_array( '055_recording_decision_authority', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_recording_decision_authority_schema(); }
 		if ( in_array( '069_booking_allocation', $completed, true ) ) { self::verify_booking_allocation_schema(); }
 		if ( in_array( '070_stripe_live_mode', $completed, true ) ) { self::verify_stripe_live_mode_schema(); }
+		if ( in_array( '074_god_mode_super_tester', $completed, true ) ) { self::verify_god_mode_super_tester_schema(); }
 		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) && in_array( '057_telnyx_provider_events', $completed, true ) && in_array( '058_golden_hour_pay_snapshot_details', $completed, true ) && in_array( '059_golden_hour_iran_global', $completed, true ) && in_array( '060_manual_refund_reservations', $completed, true ) && in_array( '061_statement_email_outbox', $completed, true ) && in_array( '062_statement_batch_runs', $completed, true ) && in_array( '063_finance_notification_outbox', $completed, true ) && in_array( '064_teacher_induction_progress', $completed, true ) && in_array( '065_confirmed_intro_cancellation', $completed, true ) && in_array( '066_consent_lifecycle_authority', $completed, true ) && in_array( '067_recording_archive_authority', $completed, true ) && in_array( '068_google_meet_classroom_authority', $completed, true ) && in_array( '069_booking_allocation', $completed, true ) && in_array( '070_stripe_live_mode', $completed, true ) && in_array( '071_post_intro_feedback', $completed, true ) && in_array( '072_intro_recurring_slot_override', $completed, true ) && in_array( '073_teacher_lesson_notes', $completed, true ) && in_array( '074_god_mode_super_tester', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 
 		self::ensure_capabilities();
@@ -4202,6 +4203,23 @@ final class Migrator {
 				KEY state(state),
 				KEY created_at(created_at)
 			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}god_mode_participant_mappings (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				session_id bigint unsigned NOT NULL,
+				participant_digest char(64) NOT NULL,
+				participant_type varchar(16) NOT NULL,
+				role varchar(16) NOT NULL,
+				state varchar(16) NOT NULL,
+				verified_at datetime NOT NULL,
+				verified_by bigint unsigned NOT NULL,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY(id),
+				UNIQUE KEY uid(uid),
+				UNIQUE KEY session_digest(session_id,participant_digest),
+				KEY session_role(session_id,role,state)
+			) ENGINE=InnoDB $c",
 			"CREATE TABLE {$p}god_mode_cleanup_receipts (
 				id bigint unsigned NOT NULL AUTO_INCREMENT,
 				uid char(26) NOT NULL,
@@ -4248,13 +4266,16 @@ final class Migrator {
 		if(!user_can($user,'manage_options'))return;
 		$digest=self::god_mode_email_digest($email);
 		if($digest==='')return;
+		global $wpdb;$p=$wpdb->prefix.'dzn_';$now=gmdate('Y-m-d H:i:s');
+		$existing=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}god_mode_authorisations WHERE wordpress_user_id=%d",$userId));
+		if($existing&&(string)$existing->state==='revoked'){
+			if($user->has_cap('dzn_access_god_mode'))$user->remove_cap('dzn_access_god_mode');
+			return;
+		}
 		update_option('dzn_god_mode_super_tester_user_id',$userId,false);
 		update_option('dzn_god_mode_super_tester_email_digest',$digest,false);
 		if(!$user->has_cap('dzn_access_god_mode'))$user->add_cap('dzn_access_god_mode');
-		global $wpdb;$p=$wpdb->prefix.'dzn_';$now=gmdate('Y-m-d H:i:s');
-		$existing=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}god_mode_authorisations WHERE wordpress_user_id=%d",$userId));
 		if($existing){
-			if((string)$existing->state==='revoked')return;
 			$wpdb->update($p.'god_mode_authorisations',array('email_digest'=>$digest,'updated_at'=>$now),array('id'=>(int)$existing->id));
 			return;
 		}
@@ -4274,14 +4295,15 @@ final class Migrator {
 			'god_mode_scenario_runs'=>array('uid','scenario_code','session_id','state','result_summary','evidence_json','failed_stage','started_at','finished_at','created_by','created_at','updated_at'),
 			'god_mode_audit_events'=>array('uid','wordpress_user_id','action','target_kind','target_id','reason_code','safe_detail','request_fingerprint_digest','occurred_at','created_at'),
 			'god_mode_notification_tests'=>array('uid','session_id','scenario_run_id','channel','recipient_kind','recipient_digest','template_key','state','provider_key','outcome_code','failure_class','fallback_used','fallback_condition_verified','provider_reference_digest','attempted_at','created_at','created_by'),
-			'god_mode_cleanup_receipts'=>array('uid','session_id','action','classification','affected_counts_json','retained_evidence_json','executed_at','executed_by','created_at')
+			'god_mode_cleanup_receipts'=>array('uid','session_id','action','classification','affected_counts_json','retained_evidence_json','executed_at','executed_by','created_at'),
+			'god_mode_participant_mappings'=>array('uid','session_id','participant_digest','participant_type','role','state','verified_at','verified_by','created_at','updated_at')
 		);
 		foreach($tables as $table=>$columns){$physical=$p.$table;if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$physical))!==$physical)throw new \RuntimeException('God Mode migration verification failed: missing '.$table);if(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$physical)),'InnoDB')!==0)throw new \RuntimeException('God Mode migration verification failed: '.$table.' must use InnoDB');foreach($columns as $column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$physical} LIKE '{$column}'"))throw new \RuntimeException('God Mode migration verification failed: missing '.$table.'.'.$column);}
-		foreach(array(array('god_mode_authorisations','wordpress_user',true,array('wordpress_user_id')),array('god_mode_sessions','reference_code',true,array('reference_code')),array('god_mode_sessions','teacher_starts',false,array('teacher_id','starts_at_utc')),array('god_mode_sessions','status_starts',false,array('status','starts_at_utc')),array('god_mode_session_events','session_stage',false,array('session_id','stage','id')),array('god_mode_scenario_runs','scenario_started',false,array('scenario_code','started_at')),array('god_mode_audit_events','user_time',false,array('wordpress_user_id','occurred_at')),array('god_mode_notification_tests','session_channel',false,array('session_id','channel')),array('god_mode_cleanup_receipts','session_id',false,array('session_id')))as$spec)if(!self::has_index_columns($p.$spec[0],$spec[1],$spec[2],$spec[3]))throw new \RuntimeException('God Mode migration verification failed: index '.$spec[1]);
+		foreach(array(array('god_mode_authorisations','wordpress_user',true,array('wordpress_user_id')),array('god_mode_sessions','reference_code',true,array('reference_code')),array('god_mode_sessions','teacher_starts',false,array('teacher_id','starts_at_utc')),array('god_mode_sessions','status_starts',false,array('status','starts_at_utc')),array('god_mode_session_events','session_stage',false,array('session_id','stage','id')),array('god_mode_scenario_runs','scenario_started',false,array('scenario_code','started_at')),array('god_mode_audit_events','user_time',false,array('wordpress_user_id','occurred_at')),array('god_mode_notification_tests','session_channel',false,array('session_id','channel')),array('god_mode_cleanup_receipts','session_id',false,array('session_id')),array('god_mode_participant_mappings','session_digest',true,array('session_id','participant_digest')),array('god_mode_participant_mappings','session_role',false,array('session_id','role','state')))as$spec)if(!self::has_index_columns($p.$spec[0],$spec[1],$spec[2],$spec[3]))throw new \RuntimeException('God Mode migration verification failed: index '.$spec[1]);
 		foreach(array('lessons','enrolments','booking_requests')as$table)foreach(array('activity_type','god_mode_session_id')as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}{$table} LIKE '{$column}'"))throw new \RuntimeException('God Mode migration verification failed: classification column '.$table.'.'.$column);
 		if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}meet_classrooms LIKE 'test_session_id'"))throw new \RuntimeException('God Mode migration verification failed: meet classroom test identity');
 		if(!$wpdb->get_row("SHOW INDEX FROM {$p}meet_classrooms WHERE Key_name='test_session_active'"))throw new \RuntimeException('God Mode migration verification failed: meet classroom test identity index');
-		foreach(array('god_mode_authorisations'=>array('email_digest','wordpress_user_id'),'god_mode_audit_events'=>array('request_fingerprint_digest'))as$table=>$columns)foreach($columns as$column){$row=$wpdb->get_row("SHOW COLUMNS FROM {$p}{$table} LIKE '{$column}'");if(!$row||($column==='email_digest'||$column==='request_fingerprint_digest'?strtolower((string)$row->Type)!=='char(64)':false))throw new \RuntimeException('God Mode migration verification failed: digest shape '.$table.'.'.$column);}
+		foreach(array(array('god_mode_authorisations','email_digest'),array('god_mode_audit_events','request_fingerprint_digest'),array('god_mode_participant_mappings','participant_digest'))as$shape){$row=$wpdb->get_row("SHOW COLUMNS FROM {$p}{$shape[0]} LIKE '{$shape[1]}'");if(!$row||strtolower((string)$row->Type)!=='char(64)'||$row->Null!=='NO')throw new \RuntimeException('God Mode migration verification failed: digest shape '.$shape[0].'.'.$shape[1]);}
 		if($wpdb->get_row("SHOW COLUMNS FROM {$p}god_mode_session_events LIKE 'updated_at'"))throw new \RuntimeException('God Mode migration verification failed: session events must be append-only');
 		if($wpdb->get_row("SHOW COLUMNS FROM {$p}god_mode_audit_events LIKE 'updated_at'"))throw new \RuntimeException('God Mode migration verification failed: audit events must be append-only');
 	}

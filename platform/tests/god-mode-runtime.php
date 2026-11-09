@@ -15,7 +15,7 @@ global $wpdb;$assert=static function(bool $ok,string $message):void{if(!$ok)thro
 $assert(GodModeAuthority::designatedUserId()>0,'The designated account was not resolved.');
 $assert(GodModeAuthority::isAuthorised(GodModeAuthority::designatedUserId()),'The designated account does not hold God Mode authority.');
 $p=$wpdb->prefix.'dzn_';
-foreach(array('god_mode_sessions','god_mode_session_events','god_mode_audit_events','god_mode_cleanup_receipts') as $table)$assert($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$p.$table))===$p.$table,'Missing table '.$table);
+foreach(array('god_mode_sessions','god_mode_session_events','god_mode_audit_events','god_mode_cleanup_receipts','god_mode_participant_mappings') as $table)$assert($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$p.$table))===$p.$table,'Missing table '.$table);
 foreach(array('lessons','enrolments','booking_requests') as $table)$assert($wpdb->get_row("SHOW COLUMNS FROM {$p}{$table} LIKE 'activity_type'"),'Missing activity_type on '.$table);
 $options=(new GodModeBookingService())->bookingOptions();
 $assert(!empty($options['teachers'])&&!empty($options['instruments']),'A teacher and instrument are required for the runtime smoke.');
@@ -34,6 +34,9 @@ $sessionId=$repo->createSession(array(
 $assert($sessionId>0,'Test session was not created.');
 $session=$repo->session($sessionId);
 $assert((string)$session->activity_type==='test','Explicit test classification was lost.');
+$digest=hash('sha256','runtime-participant-evidence');
+(new GodModeSessionService($repo))->mapParticipant($sessionId,$digest,'signedin','teacher');
+$assert(count($repo->participantMappings($sessionId))===1,'Participant evidence mapping was not persisted.');
 (new GodModeSessionService($repo))->confirmAttendance($sessionId,true,'runtime smoke');
 $after=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}finance_lesson_snapshots");
 $assert($before===$after,'Test completion created a finance snapshot.');
@@ -41,6 +44,7 @@ $assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHE
 (new GodModeSessionService($repo))->archive($sessionId);
 $result=(new GodModeSessionService($repo))->deleteEligible($sessionId,false);
 $assert(!empty($result['deleted']),'Eligible test data was not removed.');
+$assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}god_mode_participant_mappings WHERE session_id=%d",$sessionId))===0,'Cleanup left orphaned participant mappings.');
 $assert($before===(int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}finance_lesson_snapshots"),'Cleanup changed finance evidence.');
 $inventory=(new GodModeInventoryService($repo))->inventoryForUser(GodModeAuthority::designatedUserId());
 $assert(isset($inventory['destructive_action_executed'])&&$inventory['destructive_action_executed']===false,'Inventory must be read-only.');

@@ -271,9 +271,10 @@ Relevant pre-existing issue discovered:
    the dedicated WP-CLI God Mode smoke was not run locally. The PR runtime gate did install the
    migration and schema in disposable MariaDB runtimes successfully, but production-like provider
    behaviour still requires a configured Google organizer grant.
-2. **Automatic attendance ownership mapping is evidence-only.** Participant evidence is recorded,
-   but mapping a Meet participant to a teacher/student remains a separate verification step. The
-   scenario reports this honestly as warning/awaiting manual.
+2. **Automatic attendance ownership mapping still needs an explicit operator mapping.** Official
+   Meet evidence exposes opaque signed-in account resource names, not email addresses. The
+   implementation now records participant digests and requires an explicit teacher/student mapping
+   before attendance can be reported as verified. Unmapped evidence is a warning, never a pass.
 3. **Student-portal test joining is not a separate authenticated student journey.** The isolated test
    aggregate uses a synthetic student and does not contaminate the designated account's real student
    profile. The admin/teacher join path and provider join reference are real.
@@ -307,3 +308,70 @@ Relevant pre-existing issue discovered:
 5. Confirm Google organizer connectivity before expecting Meet provisioning to report `ready`.
 6. Enable production deployment only after review. Do not run destructive cleanup as part of the
    deployment.
+
+## 15. Independent review hardening (2026-11-10)
+
+The review identified and fixed the following:
+
+- **Migration prefix bug:** `verify_god_mode_super_tester_schema()` passed unprefixed index table
+  names to `has_index_columns()`. Every disposable runtime failed activation until this was fixed.
+  The verifier now uses the real `$wpdb->prefix . 'dzn_'` table names.
+- **Schema compatibility:** the package constant remains `60`; `074_god_mode_super_tester` is the
+  ledger entry, exactly like the preceding `073`. The migration is now also verified early whenever
+  its ledger entry is present.
+- **Revocation during rerun:** the migration bootstrap no longer re-adds the capability when the
+  authority row is already revoked.
+- **Participant evidence mapping:** added `dzn_god_mode_participant_mappings`, opaque participant
+  digests, explicit teacher/student role mapping, and verified-attendance outcomes. The scenario
+  passes only when both roles are mapped and participant sessions exist.
+- **Recording evidence:** conference records must belong to the classroom space; a recording is only
+  `verified` when a finalised artifact has a Drive destination. Configuration is reported separately.
+- **Scenario honesty:** added `framework_gap` metadata and early gating for incomplete scenarios.
+  Framework-gap scenarios cannot create synthetic test sessions or report `passed`. Google scenarios
+  now require confirmed event/invitation/co-host/recording evidence. Cancellation/rescheduling only
+  pass when a ready provider event was actually exercised.
+- **Asynchronous financial isolation:** completion candidate selection, renewal reminders and
+  canonical academy obligations now exclude/refuse test-classified activity. Finance snapshot
+  capture remains the final domain guard.
+- **Teacher isolation:** added a source contract proving test classes remain a separate teacher read
+  model and do not enter finance or workload metrics.
+- **Audit redaction:** phone numbers and bearer credentials are redacted from audit detail.
+- **Teacher provisioning authorization:** the non-God-Mode provisioning path now re-proves the
+  owning teacher principal and the `teacher_accepted` workflow state.
+- **Cleanup runbook:** added `docs/GOD-MODE-LEGACY-CLEANUP-RUNBOOK.md` with full backup, dry run,
+  rollback, approvals and separation of test/financial evidence.
+
+## 16. Pre-existing teacher-classes contract failure
+
+`platform/tests/teacher-today-classes-settings-contract.php` fails on baseline `main` because
+`theme/template-parts/components/classroom-actions.php` does not contain the `meet_label` field the
+test expects, while `classes.php` passes that argument. This is a pre-existing compatibility gap in
+the shared classroom-actions component.
+
+It does **not** affect God Mode teacher portal behaviour: test classes use
+`theme/template-parts/teacher-portal/test-classes.php` and its own server-issued join/accept/
+reschedule/cancel/attendance forms. No correction was made in this PR; it should be handled in a
+separately scoped theme fix.
+
+## 17. Requirement review table
+
+| Review requirement | Status | Supporting files | Evidence |
+| --- | --- | --- | --- |
+| 1. Lifecycle financial isolation, including async, attendance, completion, retries, reporting and statements | Verified | `LessonFinanceSnapshotService.php`, `CanonicalLessonAuthorityRepository.php`, `RenewalReminderWorker.php`, `CanonicalAcademyObligationService.php`, `TeacherFinanceSummaryReadService.php`, `AcademyDashboardReadService.php`, `TeacherWorkspaceReadService.php` | `god-mode-financial-isolation-unit.php`, PR runtime gate finance/booking/attendance jobs |
+| 2. Migration 074 compatibility, ordering, idempotency, interrupted upgrades, existing DBs | Verified | `Migrator.php`, `delnavazan-platform.php` | `god-mode-migration-contract.php`, `god-mode-schema-contract.php`, dedicated God Mode CI runtime plus fresh-install runtime jobs |
+| 3. Direct/Workflow modes exercise genuine services without false claims | Partially Verified | `GodModeBookingService.php`, `GodModeScenarioLibrary.php`, `GodModeScenarioRunner.php` | Genuine teacher-portal acceptance, provider provisioning, rescheduling, cancellation and attendance are exercised. Real booking-request, continuation and enrolment pipelines are explicitly `framework_gap` and cannot pass. |
+| 4. Meet provisioning, co-host, recording verification, participant identity mapping | Verified | `GoogleWorkspaceClassroomService.php`, `GodModeRecordingVerifier.php`, `GodModeAttendanceVerifier.php`, `GodModeSessionService.php` | `god-mode-scenario-honesty-contract.php`; mapping requires explicit verified roles; recording requires finalised artifact + space match + Drive destination |
+| 5. Scenario Passed means intended behaviour verified; incomplete scenarios gated | Verified | `GodModeScenarioRunner.php`, `GodModeScenarioLibrary.php` | `god-mode-scenario-honesty-contract.php`, `god-mode-scenario-library-unit.php` |
+| 6. English-only dashboard, navigation, settings, errors, diagnostics, filters, cleanup | Verified | `GodModeView.php`, `GodModeController.php`, `Menu.php`, `AdminShellController.php`, `god-mode.css` | `god-mode-dashboard-language-contract.php` |
+| 7. Authority, revocation, endpoints, nonces, audit, sensitive data, cleanup authorization | Verified | `GodModeAuthority.php`, `GodModeAudit.php`, `GodModeController.php`, `GodModeTeacherController.php` | `god-mode-security-contract.php`, `god-mode-rule-unit.php`, `god-mode-cleanup-contract.php` |
+| 8. Teacher visibility without earnings/statements/workload/capacity | Verified | `PortalAuthenticatedReadService.php`, `GodModeTeacherReadService.php`, teacher portal templates, finance/workload reads | `god-mode-teacher-participation-contract.php`, `god-mode-teacher-isolation-contract.php` |
+| 9. Cleanup runbook with backup, inventory, dry run, rollback, evidence separation | Verified (runbook only; not executed) | `docs/GOD-MODE-LEGACY-CLEANUP-RUNBOOK.md`, `GodModeInventoryService.php` | Runbook reviewed; inventory contract and dashboard dry-run controls; destructive cleanup not executed |
+| 10. Investigate pre-existing teacher-classes failure | Verified (analysis only) | `theme/template-parts/components/classroom-actions.php`, `classes.php`, `test-classes.php` | Failure reproduced on `main`; God Mode uses its own template, so no God Mode impact. Unrelated fix intentionally not included. |
+
+**Blocked items (require external approval/runtime):**
+
+- Live production Google organizer evidence for `ready`/`verified` states.
+- Full participant email mapping requires a Google Directory/Admin integration or explicit operator
+  mapping; email addresses are not exposed by the Meet participant API.
+- Destructive cleanup of the account's previous genuine student records.
+- Production deployment and merge.

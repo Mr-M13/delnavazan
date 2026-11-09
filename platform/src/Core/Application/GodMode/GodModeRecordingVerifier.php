@@ -55,18 +55,29 @@ final class GodModeRecordingVerifier {
         if($selected===null)return array('state'=>'unknown','detail'=>'No conference record matches this test session','evidence'=>array('recording_configured'=>true));
         $name=trim((string)($selected['name']??''));
         if($name==='')return array('state'=>'unknown','detail'=>'The conference record identity is unavailable','evidence'=>array());
+        $spaceMatched=null;
+        try{
+            $expectedSpace=GoogleWorkspaceClassroomRule::spaceName((string)($references['space_name']??''));
+            $providerSpace=trim((string)($selected['space']??''));
+            if($providerSpace!=='')$spaceMatched=hash_equals($expectedSpace,$providerSpace);
+        }catch(\Throwable){$spaceMatched=null;}
+        if($spaceMatched===false)return array('state'=>'unknown','detail'=>'The conference record does not belong to this test classroom space','evidence'=>array('space_matched'=>false));
         $recordings=$this->api->listRecordings($name);
         if(($recordings['status']??0)<200||($recordings['status']??0)>=300)return array('state'=>'unknown','detail'=>'Recording artifacts are unavailable','evidence'=>array('provider_status'=>(int)($recordings['status']??0)));
-        $states=array();
+        $states=array();$driveFiles=0;
         foreach((array)($recordings['body']['recordings']??array()) as $recording){
-            if(is_array($recording))$states[]=(string)($recording['state']??'STATE_UNSPECIFIED');
+            if(!is_array($recording))continue;
+            $states[]=(string)($recording['state']??'STATE_UNSPECIFIED');
+            $destination=$recording['driveDestination']??null;
+            if(is_array($destination)&&trim((string)($destination['file']??''))!=='')$driveFiles++;
         }
-        if(!$states)return array('state'=>'awaiting_artifact','detail'=>'The conference ended but no recording artifact is available yet','evidence'=>array('recording_configured'=>true));
-        $available=count(array_filter($states,static fn(string $state):bool=>in_array($state,array('ENDED','FILE_GENERATED'),true)))>0;
+        if(!$states)return array('state'=>'awaiting_artifact','detail'=>'The conference ended but no recording artifact is available yet','evidence'=>array('recording_configured'=>true,'space_matched'=>$spaceMatched));
+        $finalised=count(array_filter($states,static fn(string $state):bool=>in_array($state,array('ENDED','FILE_GENERATED'),true)))>0;
+        $available=$finalised&&$driveFiles>0;
         return array(
             'state'=>$available?'verified':($states?'active':'unknown'),
-            'detail'=>$available?'A recording artifact is available in the organizer account':'Recording artifacts exist but are not finalised',
-            'evidence'=>array('artifact_count'=>count($states),'artifact_states'=>array_values(array_unique($states)),'recording_configured'=>true),
+            'detail'=>$available?'A finalised recording artifact with a Drive destination is available in the organizer account':($finalised?'A recording is finalised but no Drive destination is verified':'Recording artifacts exist but are not finalised'),
+            'evidence'=>array('artifact_count'=>count($states),'artifact_states'=>array_values(array_unique($states)),'drive_destination_count'=>$driveFiles,'space_matched'=>$spaceMatched,'recording_configured'=>true),
         );
     }
 }

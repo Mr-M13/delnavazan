@@ -125,6 +125,13 @@ final class GodModeBookingService {
         if(!$session)throw new \InvalidArgumentException('god_mode_session_required');
         if((string)$session->activity_type!=='test')throw new \InvalidArgumentException('god_mode_test_activity_required');
         if($requireGodModeAuthority)GodModeAuthority::require();
+        else{
+            $userId=(int)get_current_user_id();
+            if($userId<1||(string)$session->workflow_state!=='teacher_accepted')throw new \RuntimeException('god_mode_teacher_provisioning_forbidden');
+            global $wpdb;
+            $owns=$wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}dzn_teacher_principal_links WHERE teacher_id=%d AND wordpress_user_id=%d AND status='active' AND revoked_at IS NULL LIMIT 1",(int)$session->teacher_id,$userId));
+            if(!$owns)throw new \RuntimeException('god_mode_teacher_provisioning_forbidden');
+        }
         $this->repository->appendEvent($sessionId,GodModeRule::STAGE_CALENDAR_EVENT,GodModeRule::EVENT_ATTEMPTED,array('provider'=>'google_calendar','retry'=>$retry),'provision:'.$sessionId);
         $data=(array)$session;
         $data['teacher_name']=$this->teacherName((int)$session->teacher_id);

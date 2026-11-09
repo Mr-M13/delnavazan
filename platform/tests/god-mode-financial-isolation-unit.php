@@ -24,4 +24,14 @@ $runner=file_get_contents($root.'/src/Core/Application/GodMode/GodModeScenarioRu
 if(!str_contains($runner,"'finance_snapshot_created'=>false")||!str_contains($runner,"'billing_impact'=>0"))throw new RuntimeException('Scenario evidence must assert zero financial impact.');
 $session=file_get_contents($root.'/src/Core/Application/GodMode/GodModeSessionService.php');
 if(!str_contains($session,"'finance_snapshot_created'=>false"))throw new RuntimeException('Completion evidence must state that no finance snapshot is created.');
+$automation=file_get_contents($root.'/src/Core/Infrastructure/Repository/CanonicalLessonAuthorityRepository.php');
+if(!str_contains($automation,"l.activity_type<>'test'"))throw new RuntimeException('Asynchronous completion candidate discovery must exclude test Lessons.');
+$renewal=file_get_contents($root.'/src/Integrations/RenewalReminderWorker.php');
+if(substr_count($renewal,"activity_type<>'test'")<3)throw new RuntimeException('Renewal reminders must not count test Lessons, test Enrolments or test term ends.');
+$obligations=file_get_contents($root.'/src/Core/Application/CanonicalAcademyObligationService.php');
+if(!str_contains($obligations,'canonical_obligation_test_activity_isolated'))throw new RuntimeException('Attendance settlement must refuse to establish academy obligations for test activity.');
+$dashboard=file_get_contents($root.'/src/Core/Application/AcademyDashboardReadService.php');
+if(substr_count($dashboard,"activity_type<>'test'")<4)throw new RuntimeException('Operational dashboards must exclude test activity.');
+$teacherWorkspace=file_get_contents($root.'/src/Core/Application/TeacherWorkspaceReadService.php');
+if(substr_count($teacherWorkspace,"activity_type<>'test'")<4)throw new RuntimeException('Teacher workload metrics must exclude test activity.');
 echo "God Mode financial isolation unit passed\n";

@@ -207,6 +207,23 @@ final class GodModeView {
             if($event['retryable']){echo '<form id="dzn-gm-retry-'.(int)$event['id'].'" method="post" action="'.esc_url(admin_url('admin-post.php')).'">';$this->actionFields('retry_stage',array('session_id'=>$id,'stage'=>(string)$event['retry_stage']));echo '</form>';}
         }
         echo '</tbody></table>';
+        echo '<h3>Participant identity mapping</h3>';
+        $attendance=(array)($inspector['attendance_evidence']??array());
+        $participants=(array)($attendance['participants']??array());
+        if(empty($participants)){
+            echo '<p class="description">No participant evidence is stored yet. Run “Detect participant evidence” after the class ends.</p>';
+        }else{
+            echo '<p>Verified teacher present: <strong>'.(!empty($attendance['verified_teacher_present'])?'Yes':'No').'</strong> · Verified student present: <strong>'.(!empty($attendance['verified_student_present'])?'Yes':'No').'</strong> · Attendance verified: <strong>'.(!empty($attendance['verified_attendance'])?'Yes':'No').'</strong></p>';
+            echo '<table class="widefat striped"><thead><tr><th>Participant evidence</th><th>Type</th><th>Sessions</th><th>Mapped role</th><th>Action</th></tr></thead><tbody>';
+            foreach($participants as $participant){
+                $digest=(string)($participant['digest']??'');
+                if(!preg_match('/^[a-f0-9]{64}$/D',$digest))continue;
+                echo '<tr><td><code>'.esc_html(substr($digest,0,16)).'…</code></td><td>'.esc_html((string)($participant['type']??'')).'</td><td>'.esc_html((string)($participant['session_count']??0)).'</td><td>'.esc_html((string)($participant['mapped_role']??'Unmapped')).'</td><td>';
+                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-gm-inline">';$this->actionFields('map_participant',array('session_id'=>$id,'participant_digest'=>$digest,'participant_type'=>(string)($participant['type']??'unknown')));
+                echo '<select name="role"><option value="teacher">Teacher</option><option value="student">Student</option></select> <button class="button button-small" type="submit">Map identity</button></form></td></tr>';
+            }
+            echo '</tbody></table>';
+        }
         echo '<h3>Notification attempts</h3><table class="widefat striped"><thead><tr><th>Channel</th><th>Recipient</th><th>State</th><th>Provider</th><th>Outcome</th><th>Fallback</th><th>Attempted</th></tr></thead><tbody>';
         if(empty($inspector['notification_tests']))echo '<tr><td colspan="7">No notification attempts.</td></tr>';
         foreach((array)$inspector['notification_tests'] as $n)echo '<tr><td>'.esc_html((string)$n->channel).'</td><td>'.esc_html((string)$n->recipient_kind).'</td><td>'.esc_html((string)$n->state).'</td><td>'.esc_html((string)($n->provider_key??'')).'</td><td>'.esc_html((string)($n->outcome_code??'')).'</td><td>'.($n->fallback_used?'used'.($n->fallback_condition_verified?' · condition verified':''):'not used').'</td><td>'.esc_html((string)$n->attempted_at).'</td></tr>';

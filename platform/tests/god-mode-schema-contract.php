@@ -9,7 +9,7 @@ if(!str_contains($plugin,"DZN_PLATFORM_SCHEMA_VERSION', '60'"))throw new Runtime
 foreach(array("074_god_mode_super_tester","install_god_mode_super_tester","verify_god_mode_super_tester_schema") as $token)if(!str_contains($migrator,$token))throw new RuntimeException('Migration registration missing: '.$token);
 foreach(array(
     'god_mode_authorisations','god_mode_sessions','god_mode_session_events','god_mode_scenario_runs',
-    'god_mode_audit_events','god_mode_notification_tests','god_mode_cleanup_receipts',
+    'god_mode_audit_events','god_mode_notification_tests','god_mode_cleanup_receipts','god_mode_participant_mappings',
 ) as $table)if(!str_contains($migrator,$table))throw new RuntimeException('God Mode table missing: '.$table);
 if(substr_count($migrator,'activity_type')<6)throw new RuntimeException('Test classification must be added to lessons, enrolments and booking requests.');
 if(substr_count($migrator,'god_mode_session_id')<2)throw new RuntimeException('Test classification must carry the owning test session identity.');

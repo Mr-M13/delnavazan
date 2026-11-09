@@ -61,9 +61,14 @@ final class GodModeReadService {
         }
         $runs=$this->repository->scenarioRuns(200);
         $runs=array_values(array_filter($runs,static fn(object $run):bool=>(int)($run->session_id??0)===$sessionId));
+        $attendanceEvidence=array();
+        foreach($timeline as $event){
+            if((string)$event['stage']===GodModeRule::STAGE_ATTENDANCE_CONFIRMED&&is_array($event['evidence']))$attendanceEvidence=$event['evidence'];
+        }
         return array(
             'session'=>(array)$session,
             'timeline'=>$timeline,
+            'attendance_evidence'=>$attendanceEvidence,
             'notification_tests'=>$this->repository->notificationTests($sessionId),
             'scenario_runs'=>$runs,
             'activity_type'=>GodModeRule::ACTIVITY_TYPE,

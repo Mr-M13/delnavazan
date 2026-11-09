@@ -27,6 +27,9 @@ final class GodModeScenarioRunner {
     /** @return array<string,mixed> */
     private function execute(array $scenario,array $input,int $runId):array{
         $code=(string)$scenario['code'];
+        if(!empty($scenario['framework_gap'])){
+            return array('state'=>GodModeRule::RESULT_AWAITING_MANUAL,'summary'=>(string)$scenario['framework_gap'],'evidence'=>array('framework_gap'=>true,'gap_reason'=>(string)$scenario['framework_gap'],'prerequisites'=>$scenario['prerequisites'],'steps'=>$scenario['steps'],'test_session_created'=>false),'session_id'=>null);
+        }
         if($code==='notification_failure_retry'){
             return array('state'=>GodModeRule::RESULT_AWAITING_MANUAL,'summary'=>'A controlled transport failure must be induced with a disposable recipient, then retried and verified. The platform will not fabricate a failure or a successful retry.','evidence'=>array('prerequisites'=>$scenario['prerequisites'],'steps'=>$scenario['steps'],'controlled_failure_required'=>true,'delivery_confirmed'=>false),'session_id'=>null);
         }
@@ -83,23 +86,49 @@ final class GodModeScenarioRunner {
         if($code==='booking_cancellation'){
             $created=$booking->create($base);
             $sessionId=(int)($created['id']??0);
+            $providerReady=(string)($created['meet_state']??'')==='ready';
             $booking->cancel($sessionId,'scenario_cancellation');
             $session=$this->repository->session($sessionId);
-            $state=(string)($session->status??'')===GodModeRule::STATUS_CANCELLED?GodModeRule::RESULT_PASSED:GodModeRule::RESULT_FAILED;
-            return array('state'=>$state,'summary'=>$state===GodModeRule::RESULT_PASSED?'Test session and provider event cancelled; evidence was retained.':'Cancellation did not reach the expected state.','evidence'=>array('session'=>(array)$session),'session_id'=>$sessionId,'failed_stage'=>$state===GodModeRule::RESULT_FAILED?GodModeRule::STAGE_CLEANUP:null);
+            $cancelled=(string)($session->status??'')===GodModeRule::STATUS_CANCELLED;
+            $state=$cancelled?($providerReady?GodModeRule::RESULT_PASSED:GodModeRule::RESULT_WARNING):GodModeRule::RESULT_FAILED;
+            $summary=$state===GodModeRule::RESULT_PASSED?'Test session and provider event cancelled; evidence was retained.':($cancelled?'Test session cancelled, but no ready provider event existed to prove provider cancellation.':'Cancellation did not reach the expected state.');
+            return array('state'=>$state,'summary'=>$summary,'evidence'=>array('session'=>(array)$session,'provider_ready'=>$providerReady),'session_id'=>$sessionId,'failed_stage'=>$state===GodModeRule::RESULT_FAILED?GodModeRule::STAGE_CLEANUP:null);
         }
         if($code==='class_rescheduling'){
             $created=$booking->create($base);
             $sessionId=(int)($created['id']??0);
+            $providerReady=(string)($created['meet_state']??'')==='ready';
             $newStart=(new \DateTimeImmutable((string)$created['starts_at_utc'],new \DateTimeZone('UTC')))->modify('+1 hour');
             $booking->reschedule($sessionId,array_merge($base,array('local_date'=>$newStart->format('Y-m-d'),'local_time'=>$newStart->format('H:i'),'conflict_acknowledged'=>true)));
             $session=$this->repository->session($sessionId);
-            return array('state'=>GodModeRule::RESULT_PASSED,'summary'=>'The same test classroom was moved to the new interval.','evidence'=>array('session'=>(array)$session),'session_id'=>$sessionId);
+            return array('state'=>$providerReady?GodModeRule::RESULT_PASSED:GodModeRule::RESULT_WARNING,'summary'=>$providerReady?'The same test classroom and provider event were moved to the new interval.':'The test session moved, but no ready provider event existed to prove provider rescheduling.','evidence'=>array('session'=>(array)$session,'provider_ready'=>$providerReady),'session_id'=>$sessionId);
         }
         $created=$booking->create($base);
         $sessionId=(int)($created['id']??0);
         $session=$this->repository->session($sessionId);
         if(!$session)throw new \RuntimeException('god_mode_session_persistence_failed');
+        if($code==='google_calendar_event_creation'){
+            $confirmed=$this->confirmedStage($sessionId,GodModeRule::STAGE_CALENDAR_EVENT);
+            return array('state'=>$confirmed?GodModeRule::RESULT_PASSED:((string)$session->meet_state==='not_configured'?GodModeRule::RESULT_AWAITING_MANUAL:GodModeRule::RESULT_FAILED),'summary'=>$confirmed?'Calendar event creation was confirmed by provider evidence.':((string)$session->meet_state==='not_configured'?'Google Workspace is not configured; Calendar event creation cannot be verified.':'Calendar event creation did not produce confirmed provider evidence.'),'evidence'=>array('session'=>(array)$session,'calendar_event_confirmed'=>$confirmed),'session_id'=>$sessionId,'failed_stage'=>$confirmed?null:GodModeRule::STAGE_CALENDAR_EVENT);
+        }
+        if($code==='google_meet_provisioning'){
+            $confirmed=$this->confirmedStage($sessionId,GodModeRule::STAGE_MEET_PROVISIONED);
+            return array('state'=>$confirmed?GodModeRule::RESULT_PASSED:((string)$session->meet_state==='not_configured'?GodModeRule::RESULT_AWAITING_MANUAL:GodModeRule::RESULT_FAILED),'summary'=>$confirmed?'Google Meet provisioning was confirmed with a ready co-host state.':((string)$session->meet_state==='not_configured'?'Google Workspace is not configured; Meet provisioning cannot be verified.':'Meet provisioning did not reach confirmed evidence.'),'evidence'=>array('session'=>(array)$session,'meet_confirmed'=>$confirmed),'session_id'=>$sessionId,'failed_stage'=>$confirmed?null:GodModeRule::STAGE_MEET_PROVISIONED);
+        }
+        if($code==='teacher_invitation'){
+            $confirmed=$this->confirmedStage($sessionId,GodModeRule::STAGE_INVITATION_SENT);
+            return array('state'=>$confirmed?GodModeRule::RESULT_PASSED:((string)$session->meet_state==='not_configured'?GodModeRule::RESULT_AWAITING_MANUAL:GodModeRule::RESULT_FAILED),'summary'=>$confirmed?'Teacher invitation evidence was confirmed.':((string)$session->meet_state==='not_configured'?'Google Workspace is not configured; invitation evidence is unavailable.':'Invitation evidence is not confirmed.'),'evidence'=>array('session'=>(array)$session,'invitation_confirmed'=>$confirmed),'session_id'=>$sessionId,'failed_stage'=>$confirmed?null:GodModeRule::STAGE_INVITATION_SENT);
+        }
+        if($code==='host_cohost_permissions'){
+            $evidence=$this->stageEvidence($sessionId,GodModeRule::STAGE_MEET_PROVISIONED);
+            $ready=!empty($evidence['cohost_ready'])||!empty($evidence['cohost_verified']);
+            return array('state'=>$ready?GodModeRule::RESULT_PASSED:((string)$session->meet_state==='not_configured'?GodModeRule::RESULT_AWAITING_MANUAL:GodModeRule::RESULT_FAILED),'summary'=>$ready?'Co-host membership was verified by provisioning evidence.':'Co-host verification is not confirmed.','evidence'=>array('session'=>(array)$session,'cohost_evidence'=>$evidence),'session_id'=>$sessionId,'failed_stage'=>$ready?null:GodModeRule::STAGE_MEET_PROVISIONED);
+        }
+        if($code==='automatic_recording_configuration'){
+            $evidence=$this->stageEvidence($sessionId,GodModeRule::STAGE_MEET_PROVISIONED);
+            $configured=!empty($session->recording_requested)&&((string)$session->recording_state==='configured')&&!empty($evidence['recording_configured']);
+            return array('state'=>$configured?GodModeRule::RESULT_PASSED:((string)$session->meet_state==='not_configured'?GodModeRule::RESULT_AWAITING_MANUAL:GodModeRule::RESULT_FAILED),'summary'=>$configured?'Automatic recording configuration was confirmed by provider evidence. Actual recording availability still requires the class to run.':'Automatic recording configuration is not confirmed.','evidence'=>array('session'=>(array)$session,'recording_evidence'=>$evidence,'activation_verified'=>false),'session_id'=>$sessionId,'failed_stage'=>$configured?null:GodModeRule::STAGE_MEET_PROVISIONED);
+        }
         if(in_array($code,array('teacher_manual_attendance_confirmation','class_completion'),true)){
             (new GodModeSessionService($this->repository))->confirmAttendance($sessionId,true,'Scenario '.$code);
             $session=$this->repository->session($sessionId);
@@ -114,10 +143,17 @@ final class GodModeScenarioRunner {
             if((string)($verify['state']??'')==='not_configured'||(string)($verify['state']??'')==='failed')$state=GodModeRule::RESULT_FAILED;
             return array('state'=>$state,'summary'=>(string)($verify['detail']??'Recording verification did not produce a confirmed artifact.'),'evidence'=>array('verification'=>$verify,'session'=>(array)$session),'session_id'=>$sessionId);
         }
+        if(in_array($code,array('direct_class_booking','teacher_assignment'),true)){
+            return array('state'=>GodModeRule::RESULT_PASSED,'summary'=>$code==='direct_class_booking'?'The isolated test class was created without approval, eligibility, payment or enrolment prerequisites.':'The selected teacher assignment was persisted on the isolated test aggregate.','evidence'=>array('session'=>(array)$session,'teacher_id'=>(int)$session->teacher_id,'activity_type'=>(string)$session->activity_type,'billing_impact'=>0),'session_id'=>$sessionId);
+        }
         if($code==='automatic_attendance_detection'){
             $verify=(new GodModeSessionService($this->repository))->verifyAttendance($sessionId);
-            $state=(string)($verify['state']??'')==='detected'?GodModeRule::RESULT_WARNING:GodModeRule::RESULT_AWAITING_MANUAL;
-            return array('state'=>$state,'summary'=>(string)($verify['detail']??'Participant evidence could not be verified.'),'evidence'=>array('verification'=>$verify,'ownership_mapped'=>false,'canonical_attendance_claim'=>false),'session_id'=>$sessionId);
+            $state=match((string)($verify['state']??'')){
+                'verified'=>GodModeRule::RESULT_PASSED,
+                'partial_mapping','detected_unmapped'=>GodModeRule::RESULT_WARNING,
+                default=>GodModeRule::RESULT_AWAITING_MANUAL,
+            };
+            return array('state'=>$state,'summary'=>(string)($verify['detail']??'Participant evidence could not be verified.'),'evidence'=>array('verification'=>$verify,'canonical_attendance_claim'=>false),'session_id'=>$sessionId);
         }
         if(in_array($code,array('teacher_join_access','student_join_access','introductory_class_end_to_end','regular_class_end_to_end','booking_to_attendance_end_to_end','post_intro_continuation','enrolment_workflow_simulation','teacher_acceptance','introductory_class_booking'),true)){
             $state=(string)($session->meet_state)==='failed'?GodModeRule::RESULT_FAILED:GodModeRule::RESULT_AWAITING_MANUAL;
@@ -128,5 +164,23 @@ final class GodModeScenarioRunner {
         }
         $state=(string)$session->meet_state==='not_configured'?GodModeRule::RESULT_AWAITING_MANUAL:GodModeRule::RESULT_FAILED;
         return array('state'=>$state,'summary'=>(string)$session->meet_state==='not_configured'?'Google Workspace is not configured, so provider provisioning cannot be verified.':'Provider provisioning failed. Inspect the session timeline and retry the failed stage.','evidence'=>array('session'=>(array)$session),'session_id'=>$sessionId,'failed_stage'=>$state===GodModeRule::RESULT_FAILED?GodModeRule::STAGE_MEET_PROVISIONED:null);
+    }
+
+    private function confirmedStage(int $sessionId,string $stage):bool{
+        foreach($this->repository->events($sessionId) as $event){
+            if((string)$event->stage===$stage&&(string)$event->state===GodModeRule::EVENT_CONFIRMED)return true;
+        }
+        return false;
+    }
+
+    /** @return array<string,mixed> */
+    private function stageEvidence(int $sessionId,string $stage):array{
+        $latest=array();
+        foreach($this->repository->events($sessionId) as $event){
+            if((string)$event->stage!==$stage)continue;
+            $decoded=json_decode((string)($event->evidence_json??''),true);
+            if(is_array($decoded))$latest=$decoded;
+        }
+        return $latest;
     }
 }

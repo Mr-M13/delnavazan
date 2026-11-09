@@ -51,21 +51,38 @@ final class GodModeAttendanceVerifier {
         if($name==='')return array('state'=>'unknown','detail'=>'The conference record identity is unavailable','evidence'=>array());
         $participants=$this->api->listParticipants($name);
         if(($participants['status']??0)<200||($participants['status']??0)>=300)return array('state'=>'unknown','detail'=>'Participant evidence is unavailable','evidence'=>array('provider_status'=>(int)($participants['status']??0)));
+        $mapping=array();foreach($this->repository->participantMappings((int)$session->id) as $row)$mapping[(string)$row->participant_digest]=(string)$row->role;
         $counts=array('signedin'=>0,'anonymous'=>0,'phone'=>0);
-        $sessions=0;
+        $sessions=0;$entries=array();$verified=array('teacher'=>false,'student'=>false);
         foreach((array)($participants['body']['participants']??array()) as $participant){
             if(!is_array($participant))continue;
-            if(is_array($participant['signedinUser']??null))$counts['signedin']++;
-            elseif(is_array($participant['anonymousUser']??null))$counts['anonymous']++;
-            elseif(is_array($participant['phoneUser']??null))$counts['phone']++;
+            $type='';$accountKey='';
+            if(is_array($participant['signedinUser']??null)){$type='signedin';$accountKey=(string)($participant['signedinUser']['user']??'');}
+            elseif(is_array($participant['anonymousUser']??null)){$type='anonymous';$accountKey='anonymous:'.(string)($participant['name']??'');}
+            elseif(is_array($participant['phoneUser']??null)){$type='phone';$accountKey='phone:'.(string)($participant['name']??'');}
+            if($type==='')continue;
+            $counts[$type]++;
+            $digest=hash('sha256','dzn-meet-'.($type==='signedin'?'account':'guest').':'.$accountKey);
             $list=$this->api->listParticipantSessions((string)($participant['name']??''));
-            if(($list['status']??0)>=200&&($list['status']??0)<300)$sessions+=count((array)($list['body']['participantSessions']??array()));
+            $sessionCount=($list['status']??0)>=200&&($list['status']??0)<300?count((array)($list['body']['participantSessions']??array())):0;
+            $sessions+=$sessionCount;
+            $role=(string)($mapping[$digest]??'');
+            if($role!==''&&$sessionCount>0)$verified[$role]=true;
+            $entries[]=array('digest'=>$digest,'type'=>$type,'session_count'=>$sessionCount,'mapped_role'=>$role!==''?$role:null);
         }
         $total=array_sum($counts);
+        $verifiedAttendance=$verified['teacher']&&$verified['student'];
+        $state=$total<1?'no_participant_evidence':($verifiedAttendance?'verified':(($verified['teacher']||$verified['student'])?'partial_mapping':'detected_unmapped'));
+        $detail=match($state){
+            'verified'=>'Both teacher and student participant identities are verified from official Meet evidence.',
+            'partial_mapping'=>'Official participant evidence exists and one participant identity is mapped; the other role still needs verification.',
+            'detected_unmapped'=>'Official participant evidence exists, but no participant identity is mapped to the test teacher or student.',
+            default=>'No official participant evidence is available for this test session',
+        };
         return array(
-            'state'=>$total>0?'detected':'no_participant_evidence',
-            'detail'=>$total>0?'Official Meet participant evidence is available; ownership mapping remains a separate verification step':'No official participant evidence is available for this test session',
-            'evidence'=>array('participant_count'=>$total,'participant_types'=>$counts,'participant_sessions'=>$sessions,'ownership_mapped'=>false),
+            'state'=>$state,
+            'detail'=>$detail,
+            'evidence'=>array('participant_count'=>$total,'participant_types'=>$counts,'participant_sessions'=>$sessions,'participants'=>$entries,'verified_teacher_present'=>$verified['teacher'],'verified_student_present'=>$verified['student'],'verified_attendance'=>$verifiedAttendance,'ownership_mapped'=>$verified['teacher']||$verified['student']),
         );
     }
 }

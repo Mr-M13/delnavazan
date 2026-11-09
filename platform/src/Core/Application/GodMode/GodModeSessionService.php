@@ -64,9 +64,21 @@ final class GodModeSessionService {
         $this->repository->appendEvent($sessionId,GodModeRule::STAGE_ATTENDANCE_CONFIRMED,GodModeRule::EVENT_ATTEMPTED,array('verification'=>'meet_participant_evidence'),'attendance:'.$sessionId);
         $result=(new GodModeAttendanceVerifier())->verify($session);
         $state=(string)($result['state']??'unknown');
-        $this->repository->appendEvent($sessionId,GodModeRule::STAGE_ATTENDANCE_CONFIRMED,match($state){'detected'=>'confirmed','no_participant_evidence'=>'unknown',default=>'unknown'},array_merge((array)($result['evidence']??array()),array('verification_state'=>$state,'detail'=>(string)($result['detail']??''),'canonical_attendance_claim'=>false)),'attendance:'.$sessionId);
+        $eventState=match($state){'verified','partial_mapping','detected_unmapped'=>'confirmed','no_participant_evidence'=>'unknown',default=>'unknown'};
+        $this->repository->appendEvent($sessionId,GodModeRule::STAGE_ATTENDANCE_CONFIRMED,$eventState,array_merge((array)($result['evidence']??array()),array('verification_state'=>$state,'detail'=>(string)($result['detail']??''),'canonical_attendance_claim'=>false)),'attendance:'.$sessionId);
         GodModeAudit::record($actor,'test_session_attendance_evidence','test_session',$sessionId,$state,(string)($result['detail']??''));
         return $result;
+    }
+
+    /** Explicitly map an opaque Meet participant digest to the test teacher or student. */
+    public function mapParticipant(int $sessionId,string $digest,string $type,string $role):array{
+        $actor=GodModeAuthority::require();
+        $session=$this->repository->session($sessionId);
+        if(!$session||(string)$session->activity_type!=='test')throw new \InvalidArgumentException('god_mode_test_session_required');
+        $this->repository->mapParticipant($sessionId,$digest,$type,$role,$actor);
+        $this->repository->appendEvent($sessionId,GodModeRule::STAGE_ATTENDANCE_CONFIRMED,GodModeRule::EVENT_CONFIRMED,array('participant_mapping_set'=>true,'participant_digest_prefix'=>substr($digest,0,12),'role'=>$role,'participant_type'=>$type),'participant-map:'.$sessionId);
+        GodModeAudit::record($actor,'test_session_participant_map','test_session',$sessionId,$role,substr($digest,0,12));
+        return array('mapped'=>true,'role'=>$role,'participant_digest_prefix'=>substr($digest,0,12));
     }
 
     public function retry(int $sessionId,string $stage):array{

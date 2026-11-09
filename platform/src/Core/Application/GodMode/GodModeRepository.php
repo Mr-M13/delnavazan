@@ -41,7 +41,7 @@ final class GodModeRepository {
     }
     public function deleteSession(int $id):void{
         global $wpdb;
-        foreach(array('god_mode_session_events','god_mode_notification_tests') as $table)$wpdb->delete($this->p.$table,array('session_id'=>$id));
+        foreach(array('god_mode_session_events','god_mode_notification_tests','god_mode_participant_mappings') as $table)$wpdb->delete($this->p.$table,array('session_id'=>$id));
         $wpdb->delete($this->p.'god_mode_scenario_runs',array('session_id'=>$id));
         if($wpdb->delete($this->p.'god_mode_sessions',array('id'=>$id))===false)throw new \RuntimeException('god_mode_session_delete_failed');
     }
@@ -136,6 +136,26 @@ final class GodModeRepository {
         ));
         return (int)$wpdb->insert_id;
     }
+    /** @return list<object> */
+    public function participantMappings(int $sessionId):array{
+        global $wpdb;$rows=$wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}god_mode_participant_mappings WHERE session_id=%d AND state='verified' ORDER BY id ASC",$sessionId));
+        return is_array($rows)?$rows:array();
+    }
+
+    public function mapParticipant(int $sessionId,string $digest,string $type,string $role,int $actor):void{
+        if(!preg_match('/^[a-f0-9]{64}$/D',$digest))throw new \InvalidArgumentException('god_mode_participant_digest_invalid');
+        if(!in_array($role,array('teacher','student'),true))throw new \InvalidArgumentException('god_mode_participant_role_invalid');
+        $type=in_array($type,array('signedin','anonymous','phone'),true)?$type:'unknown';
+        global $wpdb;$now=gmdate('Y-m-d H:i:s');
+        $existing=$wpdb->get_row($wpdb->prepare("SELECT id FROM {$this->p}god_mode_participant_mappings WHERE session_id=%d AND participant_digest=%s LIMIT 1",$sessionId,$digest));
+        if($existing){
+            $wpdb->update($this->p.'god_mode_participant_mappings',array('participant_type'=>$type,'role'=>$role,'state'=>'verified','verified_at'=>$now,'verified_by'=>$actor,'updated_at'=>$now),array('id'=>(int)$existing->id));
+            return;
+        }
+        $wpdb->insert($this->p.'god_mode_participant_mappings',array('uid'=>Identifier::uid(),'session_id'=>$sessionId,'participant_digest'=>$digest,'participant_type'=>$type,'role'=>$role,'state'=>'verified','verified_at'=>$now,'verified_by'=>$actor,'created_at'=>$now,'updated_at'=>$now));
+        if($wpdb->last_error!=='')throw new \RuntimeException('god_mode_participant_mapping_failed');
+    }
+
     /** @return list<object> */
     public function notificationTests(?int $sessionId=null,int $limit=100):array{
         global $wpdb;

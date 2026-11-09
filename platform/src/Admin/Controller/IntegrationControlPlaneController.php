@@ -394,7 +394,7 @@ final class IntegrationControlPlaneController {
     private static function authorizeStripeSettings():void{if(!current_user_can(PaymentExecutionController::CAPABILITY)||!current_user_can('dzn_manage_payment_providers'))wp_die('Forbidden',403);}
     private static function settingsForm(string $provider):void{
         self::authorizeSettings();$service=new IntegrationSettingsService();$configs=$service->redacted($provider);$schema=IntegrationSettingsService::providerSchemas()[$provider]??array();
-        $labels=array('email'=>'Email','whatsapp'=>'WhatsApp (Telnyx / Meta WABA)','sms'=>'SMS fallback (Telnyx)','google'=>'Google Workspace classroom');
+        $labels=array('email'=>'Email','whatsapp'=>'WhatsApp (Telnyx / Meta WABA)','sms'=>'SMS fallback (Telnyx)','google'=>'Google Workspace & Meet');
         $safe=array('email'=>'Sends an explicitly requested TEST email to the entered destination. Mailer acceptance is not mailbox delivery.','whatsapp'=>'Uses the approved Meta WhatsApp Cloud API template through Telnyx. The test sends only after you press the button.','sms'=>'Sends a clearly marked Telnyx test SMS to the entered number only after you press the test button.','google'=>'Tests local OAuth configuration. The organizer connection is authorized separately and only by an administrator.');
         $telnyx=new TelnyxConfiguration($service);
         $last=(array)get_option('dzn_integration_test_'.$provider,array());
@@ -527,9 +527,8 @@ final class IntegrationControlPlaneController {
         self::renderProviderCard($settings,'email','Email','Account, security and operational email delivery.','dzn-integration-email',array('Sender name/address','Host mail or SMTP','Write-only password'));
         self::renderProviderCard($settings,'whatsapp','WhatsApp','Business-initiated WhatsApp through the existing Telnyx / Meta WABA route.','dzn-integration-whatsapp',array('Telnyx sender and WABA','Meta approved templates','Provider-template mapping is in Notifications → Templates'));
         self::renderProviderCard($settings,'sms','SMS','A constrained fallback only after a verified terminal WhatsApp failure. It is never a primary channel.','dzn-integration-sms',array('Telnyx SMS sender/profile','Consent and suppression remain mandatory','Direct SMS is not enabled by a checkbox'));
-        self::renderProviderCard($settings,'google','Google Workspace classroom','One Delnavazan-owned organizer creates Meet spaces; Teachers are external co-hosts and do not connect personal Google accounts.','dzn-integration-google',array('Academy OAuth client','Organizer account and exact scopes','Consent-gated recording and Drive artifacts'));
+        self::renderGoogleCard($settings);
         self::renderStripeCard();
-        self::renderClassroomCard();
         echo '</div>';
         echo '<section class="dzn-settings-card"><h2>Routing and provider boundaries</h2><ul class="dzn-settings-list">';
         echo '<li><strong>Twilio WhatsApp is not implemented.</strong> No Twilio credential is read or stored, and no Twilio send can be enabled here.</li>';
@@ -580,11 +579,24 @@ final class IntegrationControlPlaneController {
         echo '</section>';
     }
 
-    private static function renderClassroomCard():void{
+    /**
+     * One canonical Google Workspace & Meet card.
+     *
+     * The academy-wide organizer connection, Calendar/Meet provisioning, classroom reconciliation
+     * and consent-gated recording status are facets of the same integration, not separate OAuth
+     * implementations. Teacher personal Google authorization is not requested or stored.
+     */
+    private static function renderGoogleCard(IntegrationSettingsService $settings):void{
+        $ready=false;$redacted=array();
+        try{$ready=$settings->ready('google');$redacted=$settings->redacted('google');}catch(\Throwable){}
+        $secretStored=false;foreach($redacted as $value)if($value===true){$secretStored=true;break;}
         $health=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceOAuthService())->health();
         $state=(string)($health['state']??'not_connected');
-        $badge=$state==='connected'?'is-ok':'is-locked';
-        echo '<section class="dzn-settings-card dzn-integration-card"><h2>Google Meet classroom</h2><p><span class="dzn-status-badge '.esc_attr($badge).'">'.esc_html($state).'</span></p>';
+        $badge=$state==='connected'&&!empty($health['credential_valid'])?'is-ok':($ready?'is-warn':'is-locked');
+        $last=(array)get_option('dzn_integration_test_google',array());
+        echo '<section class="dzn-settings-card dzn-integration-card dzn-integration-card--google"><h2>Google Workspace &amp; Meet</h2>';
+        echo '<p><span class="dzn-status-badge '.esc_attr($badge).'">'.esc_html($state==='connected'?'Connected':'Needs attention').'</span> <span class="dzn-status-badge '.($ready?'is-warn':'is-locked').'">'.esc_html($ready?'OAuth client configured':'OAuth client not configured').'</span></p>';
+        echo '<p>One Delnavazan-owned organizer creates Calendar events and Meet spaces; Teachers are external co-hosts and do not connect personal Google accounts. This is the single management interface for OAuth, Calendar, Meet provisioning, classroom reconciliation and recording status.</p>';
         echo '<p>Organizer <code>'.esc_html((string)($health['organizer_email']??'')).'</code> creates and owns every lesson space. Teachers join as external co-hosts and Students as regular participants.</p>';
         echo '<p class="dzn-settings-meta">Scopes: '.esc_html(!empty($health['scope_match'])?'exact':'re-consent required').' · Credential: '.esc_html(!empty($health['credential_valid'])?'valid':'missing or expired').' · Last checked: '.esc_html((string)($health['last_checked_at']??'never')).(!empty($health['failure_reason_code'])?' · Last error: <code>'.esc_html((string)$health['failure_reason_code']).'</code>':'').'</p>';
         try{
@@ -604,7 +616,8 @@ final class IntegrationControlPlaneController {
                 echo '</ul></div>';
             }
         }catch(\Throwable){}
-        echo '<p><a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-integration-google')).'">Manage organizer connection</a></p></section>';
+        echo '<p class="dzn-settings-meta">Last explicit OAuth configuration test: '.esc_html((string)($last['state']??'not run')).' · <code dir="ltr">'.esc_html((string)($last['code']??'not_run')).'</code>'.($last?' · '.esc_html((string)($last['at']??'')):'').'. No live provider operation is run to render this page.</p>';
+        echo '<p><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page=dzn-integration-google')).'">Manage Google Workspace &amp; Meet</a> <a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-system-health')).'">Inspect Google diagnostics</a></p></section>';
     }
 
     private static function canConfigureProvider():bool{

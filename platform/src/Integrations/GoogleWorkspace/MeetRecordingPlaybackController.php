@@ -30,7 +30,7 @@ final class MeetRecordingPlaybackController {
             $studentId=$repository->studentPrincipalUser((int)$lesson->student_id);
             $isAdmin=current_user_can('manage_options')||current_user_can('dzn_view_recording_operations')||current_user_can('dzn_manage_recording_operations')||current_user_can('dzn_manage_recording_legal_hold');
             if($purpose==='')$purpose=$teacherId===$userId&&$teacherId>0?MeetRecordingAccessRule::TEACHER_REVIEW:($studentId===$userId&&$studentId>0?MeetRecordingAccessRule::STUDENT_REVIEW:MeetRecordingAccessRule::ADMIN_OPERATIONAL);
-            if($purpose===MeetRecordingAccessRule::COMPLIANCE_REVIEW)$portal=home_url('/wp-admin/admin.php?page=dzn-recordings');
+            if($purpose===MeetRecordingAccessRule::COMPLIANCE_REVIEW)$portal=home_url('/wp-admin/admin.php?page=dzn-policies#consent-management');
             $decision=(new MeetRecordingAccessService($repository))->decide((int)$lesson->id,$purpose,$reasonCode,$reasonText);
             if(empty($decision['media_allowed'])||empty($decision['drive_file_id']))throw new \RuntimeException((string)($decision['reason']??'recording_not_authorised'));
             $handle=(new MeetRecordingService($repository))->streamHandleForFile((string)$decision['drive_file_id']);

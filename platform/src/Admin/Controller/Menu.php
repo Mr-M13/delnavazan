@@ -30,6 +30,8 @@ final class Menu {
     public const CORE_WORKFLOW_CAP = 'dzn_access_core_workflow';
     /** One communications workspace; individual tabs still enforce their own narrow authority. */
     public const NOTIFICATION_MANAGEMENT_CAP = 'dzn_access_notification_management';
+    /** Policy read or manage authority; write commands still require the manage capability. */
+    public const POLICY_ACCESS_CAP = 'dzn_access_policy';
     private const INTEGRATIONS_OVERVIEW_CAP = 'dzn_access_integrations_overview';
     private const INTEGRATION_SETTINGS_CAP = 'dzn_access_provider_integration_settings';
     private const SYSTEM_HEALTH_CAP = 'dzn_access_system_health';
@@ -88,6 +90,10 @@ final class Menu {
             'dzn_manage_commercial_catalogue',
         ]);
         if ($cap === self::CORE_WORKFLOW_CAP) return self::mappedCoreWorkflowCaps($userId);
+        if ($cap === self::POLICY_ACCESS_CAP) return self::mappedAnyCaps($userId, [
+            'dzn_manage_consent_policies',
+            'dzn_view_consent_evidence',
+        ]);
         if ($cap === self::NOTIFICATION_MANAGEMENT_CAP) return self::mappedAnyCaps($userId, [
             'dzn_manage_notification_templates',
             'dzn_view_notification_authority',
@@ -186,18 +192,18 @@ final class Menu {
             ['Attendance review', 'dzn_manage_canonical_attendance_review', 'dzn-attendance-review', [AttendanceReviewController::class, 'screen'], [AttendanceReviewController::class, 'handlePost']],
 
             ['Notifications', self::NOTIFICATION_MANAGEMENT_CAP, 'dzn-notifications', [NotificationManagementController::class, 'screen'], null],
-            ['Policies', 'dzn_manage_consent_policies', 'dzn-policies', [PoliciesController::class, 'render'], null],
-    ['Recordings', 'dzn_manage_recording_operations', 'dzn-recordings', [RecordingOperationsController::class, 'render'], null],
+            ['Policy', self::POLICY_ACCESS_CAP, 'dzn-policies', [PoliciesController::class, 'render'], null],
             ['Communications', NotificationRule::READ_CAPABILITY, 'dzn-communications', [NotificationDiagnosticsController::class, 'screen'], null],
             ['Notification templates', 'dzn_manage_provider_integrations', 'dzn-communications-templates', [CommunicationsTemplateController::class, 'screen'], null],
             ['Stripe setup', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings', [IntegrationControlPlaneController::class, 'stripeSettings'], null],
             ['General', GeneralSettingsController::CAPABILITY, GeneralSettingsController::MENU_SLUG, [GeneralSettingsController::class, 'render'], null],
+            ['Administration & Delegated Access', DelegatedAccessController::CAPABILITY, DelegatedAccessController::MENU_SLUG, [DelegatedAccessController::class, 'screen'], null],
             ['Integrations', self::INTEGRATIONS_OVERVIEW_CAP, 'dzn-integrations', [IntegrationControlPlaneController::class, 'screen'], null],
             ['Email', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-email', [IntegrationControlPlaneController::class, 'emailSettings'], null],
             ['Meta WhatsApp Cloud API', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-whatsapp', [IntegrationControlPlaneController::class, 'whatsAppSettings'], null],
             ['SMS fallback', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-sms', [IntegrationControlPlaneController::class, 'smsSettings'], null],
-            ['Google OAuth / Calendar', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-google', [IntegrationControlPlaneController::class, 'googleSettings'], null],
-            ['Diagnostics', self::SYSTEM_HEALTH_CAP, 'dzn-system-health', [ScreenController::class, 'status'], null],
+            ['Google Workspace & Meet', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-google', [IntegrationControlPlaneController::class, 'googleSettings'], null],
+            ['Diagnostics', self::SYSTEM_HEALTH_CAP, 'dzn-system-health', [DiagnosticsController::class, 'screen'], null],
             ['Exceptions', 'dzn_manage_exceptions', 'dzn-exception', static fn() => ScreenController::screen('exception'), static fn() => ScreenController::handlePost('exception')],
         ];
 

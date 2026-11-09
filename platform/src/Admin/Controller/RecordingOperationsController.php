@@ -45,10 +45,6 @@ final class RecordingOperationsController {
                 if(!current_user_can(RecordingOperationsReadService::LEGAL_HOLD_CAPABILITY)&&!current_user_can('manage_options'))throw new \RuntimeException('recording_legal_hold_capability_required');
                 $active=(string)wp_unslash($_POST['legal_hold']??'')==='active';
                 $control->setLegalHold($recordingId,$active,get_current_user_id(),$reason);$status=$active?'legal_hold_applied':'legal_hold_released';
-            }elseif($operation==='emergency_stop'){
-                $control->engageEmergencyStop(get_current_user_id(),$reason);$status='emergency_stop_engaged';
-            }elseif($operation==='resume_capture'){
-                $control->releaseEmergencyStop(get_current_user_id());$status='emergency_stop_released';
             }else{$status='operation_not_supported';}
         }catch(\Throwable $error){
             $message=(string)$error->getMessage();
@@ -77,29 +73,14 @@ final class RecordingOperationsController {
         echo '<h1>Recordings</h1>';
         echo '<p class="description">Canonical lesson capture, archive reconciliation and the durable transfer/deletion outbox. This page cannot create consent, override a refusal or provide a filesystem path.</p>';
         if($flash!=='')echo '<div class="notice notice-info"><p>'.esc_html(str_replace('_',' ',$flash)).'</p></div>';
-        self::emergencyStop($read->emergencyStop());
+        // The retired LiveKit emergency-stop control is no longer exposed. The durable backend
+        // stop remains in RecordingControlPlane for archived capture/legal-hold safety only.
         self::health($health);self::indicators($counts,$labels);
         echo '<form method="get" style="margin:1em 0"><input type="hidden" name="page" value="'.esc_attr(self::MENU_SLUG).'"><label>State <select name="state"><option value="">All</option>';
         foreach($labels as $key=>$label)echo '<option value="'.esc_attr($key).'"'.selected($state,$key,false).'>'.esc_html($label).'</option>';
         echo '</select></label> ';submit_button('Filter','secondary','',false);echo '</form>';
         self::recordingsTable($recordings,$labels);self::commandsTable($commands);
         echo '</div>';
-    }
-
-    private static function emergencyStop(array $state):void{
-        $engaged=($state['engaged']??false)===true;
-        echo '<div class="notice '.esc_attr($engaged?'notice-error':'notice-info').'" style="border-left-width:6px"><p><strong>Emergency stop.</strong> ';
-        echo esc_html($engaged?'ENGAGED — new capture is refused and active recordings are being stopped.':'Not engaged.');
-        if($engaged){
-            echo ' Reason '.esc_html((string)($state['reason']??'')).' · at '.esc_html((string)($state['at']??'')).'.';
-        }
-        echo '</p><form method="post" action="'.esc_url(admin_url('admin-post.php')).'" style="margin:0 0 8px">';
-        echo '<input type="hidden" name="action" value="'.esc_attr(self::ACTION).'">';
-        echo '<input type="hidden" name="operation" value="'.($engaged?'resume_capture':'emergency_stop').'">';
-        echo '<input type="hidden" name="reason" value="classroom_performance">';
-        wp_nonce_field(self::ACTION);
-        submit_button($engaged?'Release emergency stop':'Emergency stop recording','delete','',false);
-        echo '</form><p class="description">The stop is durable in the database, blocks every new capture and queues a stop for active recordings. A local recorder kill file is also supported.</p></div>';
     }
 
     private static function health(array $health):void{

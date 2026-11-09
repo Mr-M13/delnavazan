@@ -332,7 +332,7 @@ foreach ( array(
     "['Email', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-email'",
     "['Meta WhatsApp Cloud API', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-whatsapp'",
     "['SMS fallback', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-sms'",
-    "['Google OAuth / Calendar', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-google'",
+    "['Google Workspace & Meet', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-google'",
     "['Exceptions', 'dzn_manage_exceptions', 'dzn-exception'",
     "['Diagnostics', self::SYSTEM_HEALTH_CAP, 'dzn-system-health'",
 ) as $protected_route ) {

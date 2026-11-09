@@ -18,16 +18,16 @@ final class AdminShellController {
         ]],
         'enrolment' => ['Enrolment', [
             ['Enrolment', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP],
+            // Catalogue management belongs with enrolment work, not Settings → General.
+            ['Courses & instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP],
         ]],
         'finance' => ['Finance', [
             ['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']],
         ]],
         'settings' => ['Settings', [
             ['General', 'dzn-general', 'manage_options'],
-            // Top-level fallback for catalogue-only staff. Settings sections below still render four links.
-            ['Catalogue access', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP],
-            ['Policies', 'dzn-policies', 'dzn_manage_consent_policies'],
-        ['Recordings', 'dzn-recordings', 'dzn_manage_recording_operations'],
+            ['Administration & Delegated Access', 'dzn-delegated-access', 'manage_options'],
+            ['Policy', 'dzn-policies', Menu::POLICY_ACCESS_CAP],
             ['Notifications', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP],
             ['Integrations', 'dzn-integrations', 'dzn_access_integrations_overview'],
             ['Diagnostics', 'dzn-system-health', 'dzn_access_system_health'],
@@ -35,15 +35,15 @@ final class AdminShellController {
     ];
 
     /**
-     * The visible Settings navigation is exactly four sections. Every other registered
-     * Settings destination remains a protected direct route, keeps its original callback
-     * and is mapped to one of the four sections so an old bookmark highlights the right
-     * place. No legacy route is deleted or repurposed.
+     * The visible Settings navigation is exactly six sections. Legacy protected routes that still
+     * belong to a section (staff access, recording notices, provider details, recovery controls)
+     * remain resolvable and highlight their canonical section. Retired recording-operations and
+     * account-removal routes are no longer registered.
      */
     private const SETTINGS_SECTIONS = [
-        'general' => ['General', ['dzn-general', 'dzn-staff-access', 'dzn-recording-notices', 'dzn-account-removal', 'dzn-catalogue-workspace', 'dzn-course', 'dzn-instrument']],
-        'policies' => ['Policies', ['dzn-policies']],
-        'recordings' => ['Recordings', ['dzn-recordings']],
+        'general' => ['General', ['dzn-general']],
+        'access' => ['Administration & Delegated Access', ['dzn-delegated-access', 'dzn-staff-access']],
+        'policy' => ['Policy', ['dzn-policies', 'dzn-recording-notices']],
         'notifications' => ['Notifications', ['dzn-notifications', 'dzn-communications', 'dzn-communications-templates']],
         'integrations' => ['Integrations', [
             'dzn-integrations', 'dzn-integration-email', 'dzn-integration-whatsapp',
@@ -52,20 +52,16 @@ final class AdminShellController {
         'diagnostics' => ['Diagnostics', ['dzn-system-health', 'dzn-portal-capabilities', 'dzn-core-dataset-readiness']],
     ];
 
-    /** Alias retained for older source contracts; the visible shape is the four sections above. */
+    /** Alias retained for older source contracts; the visible shape is the six sections above. */
     private const SETTINGS_GROUPS = self::SETTINGS_SECTIONS;
 
     /** Capability for every registered Settings route, including protected legacy routes. */
     private const SETTINGS_ROUTE_CAPABILITIES = [
         'dzn-general' => 'manage_options',
-        'dzn-policies' => 'dzn_manage_consent_policies',
-    'dzn-recordings' => 'dzn_manage_recording_operations',
+        'dzn-delegated-access' => 'manage_options',
+        'dzn-policies' => Menu::POLICY_ACCESS_CAP,
         'dzn-staff-access' => 'manage_options',
         'dzn-recording-notices' => 'manage_options',
-        'dzn-account-removal' => 'manage_options',
-        'dzn-catalogue-workspace' => Menu::CATALOGUE_WORKSPACE_CAP,
-        'dzn-course' => 'dzn_manage_courses',
-        'dzn-instrument' => 'dzn_manage_instruments',
         'dzn-notifications' => Menu::NOTIFICATION_MANAGEMENT_CAP,
         'dzn-communications' => 'dzn_view_notification_authority',
         'dzn-communications-templates' => 'dzn_manage_provider_integrations',
@@ -84,23 +80,21 @@ final class AdminShellController {
         'dzn-platform' => 'overview', 'dzn-academy-dashboard' => 'overview',
         'dzn-teachers-menu' => 'teachers',
         'dzn-student' => 'students', 'dzn-student-identity-authority' => 'students',
-        'dzn-account-removal' => 'settings',
         'dzn-lesson' => 'enrolment', 'dzn-attendance-workspace' => 'enrolment',
         'dzn-attendance-review' => 'enrolment', 'dzn-post-intro' => 'enrolment',
-        'dzn-enrolment-workspace' => 'enrolment', 'dzn-catalogue-workspace' => 'settings',
+        'dzn-enrolment-workspace' => 'enrolment', 'dzn-catalogue-workspace' => 'enrolment',
         'dzn-booking-requests' => 'enrolment', 'dzn-booking-request-coordination' => 'enrolment',
-        'dzn-enrolment' => 'enrolment', 'dzn-term' => 'enrolment', 'dzn-course' => 'settings', 'dzn-instrument' => 'settings',
+        'dzn-enrolment' => 'enrolment', 'dzn-term' => 'enrolment', 'dzn-course' => 'enrolment', 'dzn-instrument' => 'enrolment',
         'dzn-exception' => 'enrolment',
         'dzn-commercial-catalogue' => 'finance', 'dzn-payment-execution' => 'finance', 'dzn-finance-cashbook' => 'finance',
         'dzn-finance' => 'finance', 'dzn-finance-reconciliation' => 'finance', 'dzn-finance-policies' => 'finance', 'dzn-stripe-settings' => 'finance',
         'dzn-finance-rates' => 'finance', 'dzn-finance-statements' => 'finance', 'dzn-finance-payability' => 'finance',
         'dzn-general' => 'settings', 'dzn-integration-email' => 'settings', 'dzn-integration-whatsapp' => 'settings',
-        'dzn-policies' => 'settings', 'dzn-recordings' => 'settings',
+        'dzn-policies' => 'settings', 'dzn-delegated-access' => 'settings',
         'dzn-integration-sms' => 'settings', 'dzn-notifications' => 'settings', 'dzn-communications' => 'settings', 'dzn-communications-templates' => 'settings',
         'dzn-integrations' => 'settings', 'dzn-integration-google' => 'settings', 'dzn-staff-access' => 'settings',
         'dzn-system-health' => 'settings', 'dzn-portal-capabilities' => 'settings', 'dzn-core-dataset-readiness' => 'settings',
         'dzn-recording-notices' => 'settings',
-        'dzn-policies' => 'settings', 'dzn-recordings' => 'settings',
     ];
 
     public static function register(): void {

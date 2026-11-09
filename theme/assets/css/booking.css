@@ -190,6 +190,7 @@
 .dzn-booking__review dl { display: grid; grid-template-columns: minmax(9rem, .65fr) 1.35fr; gap: .45rem 1rem; margin: 0; }
 .dzn-booking__review dt { color: var(--dzn-color-text-muted); }
 .dzn-booking__review dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.dzn-booking__review dd[dir="ltr"] { direction: ltr; text-align: right; unicode-bidi: isolate; }
 .dzn-booking__review ol { margin-bottom: 0; }
 .dzn-booking__summary-note { position: relative; overflow: hidden; border: 1px solid color-mix(in srgb, var(--dzn-color-highlight) 36%, var(--dzn-color-border)); border-radius: 1rem; background: linear-gradient(145deg, var(--dzn-color-surface-elevated), color-mix(in srgb, var(--dzn-color-highlight) 12%, var(--dzn-color-surface))); padding: 1rem 1.15rem; box-shadow: 0 .7rem 1.8rem rgb(var(--dzn-rgb-brand) / .07); }
 .dzn-booking__summary-note::before { position: absolute; inset-block: 0; inset-inline-start: 0; inline-size: .25rem; background: var(--dzn-color-accent); content: ""; }

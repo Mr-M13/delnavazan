@@ -150,6 +150,7 @@ $show_provisioning = 'ok' === $state && $provisioning
 			<?php dzn_theme_portal_component( 'post-intro', array( 'items' => $model['post_intro'] ?? array(), 'recording' => $model['recording_choices'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'announcement', array( 'announcement' => $model['announcement'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'support', array() ); ?>
+			<?php dzn_theme_portal_component( 'notifications', array( 'items' => $model['notifications'] ?? array(), 'available' => $notifications_available, 'unread' => $notification_unread, 'archive_url' => $model['notification_archive_url'] ?? '', 'actions' => $model['notification_actions'] ?? array() ) ); ?>
 		<?php endif; ?>
 	</div>
 	<?php dzn_theme_portal_component( 'notification-banner', array( 'items' => $model['notifications'] ?? array(), 'actions' => $model['notification_actions'] ?? array(), 'role' => 'student' ) ); ?>

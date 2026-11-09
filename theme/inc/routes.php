@@ -242,8 +242,8 @@ function dzn_theme_render_password_reset_route( $action ) {
 	<main id="main-content" class="site-main dzn-container dzn-route dzn-route--login" tabindex="-1"><section class="dzn-route__state" aria-labelledby="dzn-route-title">
 	<p class="dzn-eyebrow">حساب دلنوازان</p><h1 id="dzn-route-title">تنظیم رمز عبور تازه</h1>
 	<?php if ( is_wp_error( $user ) ) : ?><p class="dzn-route__notice is-error" role="alert">این پیوند بازیابی معتبر یا فعال نیست. از صفحهٔ ورود یک پیوند تازه درخواست کنید.</p><p><a href="<?php echo esc_url( add_query_arg( 'action', 'lostpassword', home_url( '/login/' ) ) ); ?>">درخواست پیوند تازه</a></p>
-	<?php else : ?><?php if ( isset( $_GET['error'] ) ) : ?><p class="dzn-route__notice is-error" role="alert">رمزها باید یکسان و دست‌کم ۱۲ نویسه باشند. دوباره تلاش کنید.</p><?php endif; ?><p>رمز تازه‌ای برای حساب دلنوازان انتخاب کنید.</p><form class="dzn-login-form" method="post" action="<?php echo esc_url( add_query_arg( array( 'action' => 'rp', 'redirect_to' => $redirect_to ), home_url( '/login/' ) ) ); ?>">
-	<?php wp_nonce_field( 'dzn_branded_password_reset', 'dzn_password_nonce' ); ?><input type="hidden" name="redirect_to" value="<?php echo esc_attr( $redirect_to ); ?>"><input type="hidden" name="key" value="<?php echo esc_attr( $key ); ?>"><input type="hidden" name="login" value="<?php echo esc_attr( $login ); ?>"><label for="dzn-new-password">رمز تازه<input id="dzn-new-password" type="password" name="pass1" autocomplete="new-password" minlength="12" required></label><label for="dzn-confirm-password">تکرار رمز تازه<input id="dzn-confirm-password" type="password" name="pass2" autocomplete="new-password" minlength="12" required></label><button type="submit">ذخیرهٔ رمز تازه</button>
+	<?php else : ?><?php if ( isset( $_GET['error'] ) ) : ?><p class="dzn-route__notice is-error" role="alert">رمزها باید یکسان و دست‌کم ۸ نویسه باشند. دوباره تلاش کنید.</p><?php endif; ?><p>رمز تازه‌ای برای حساب دلنوازان انتخاب کنید.</p><form class="dzn-login-form" method="post" action="<?php echo esc_url( add_query_arg( array( 'action' => 'rp', 'redirect_to' => $redirect_to ), home_url( '/login/' ) ) ); ?>">
+	<?php wp_nonce_field( 'dzn_branded_password_reset', 'dzn_password_nonce' ); ?><input type="hidden" name="redirect_to" value="<?php echo esc_attr( $redirect_to ); ?>"><input type="hidden" name="key" value="<?php echo esc_attr( $key ); ?>"><input type="hidden" name="login" value="<?php echo esc_attr( $login ); ?>"><label for="dzn-new-password">رمز تازه<input id="dzn-new-password" type="password" name="pass1" autocomplete="new-password" minlength="8" required></label><label for="dzn-confirm-password">تکرار رمز تازه<input id="dzn-confirm-password" type="password" name="pass2" autocomplete="new-password" minlength="8" required></label><button type="submit">ذخیرهٔ رمز تازه</button>
 	</form><?php endif; ?></section></main>
 	<?php
 }
@@ -312,7 +312,7 @@ function dzn_theme_handle_branded_password_reset() {
 	$user = $key && $login ? check_password_reset_key( $key, $login ) : new WP_Error( 'invalid_key', 'Invalid reset link.' );
 	$pass1 = isset( $_POST['pass1'] ) && is_string( $_POST['pass1'] ) ? (string) wp_unslash( $_POST['pass1'] ) : '';
 	$pass2 = isset( $_POST['pass2'] ) && is_string( $_POST['pass2'] ) ? (string) wp_unslash( $_POST['pass2'] ) : '';
-	if ( is_wp_error( $user ) || strlen( $pass1 ) < 12 || ! hash_equals( $pass1, $pass2 ) ) { wp_safe_redirect( add_query_arg( array( 'action' => is_wp_error( $user ) ? 'lostpassword' : 'rp', 'error' => '1', 'key' => is_wp_error( $user ) ? '' : $key, 'login' => is_wp_error( $user ) ? '' : $login, 'redirect_to' => $redirect_to ), home_url( '/login/' ) ) ); exit; }
+	if ( is_wp_error( $user ) || strlen( $pass1 ) < 8 || ! hash_equals( $pass1, $pass2 ) ) { wp_safe_redirect( add_query_arg( array( 'action' => is_wp_error( $user ) ? 'lostpassword' : 'rp', 'error' => '1', 'key' => is_wp_error( $user ) ? '' : $key, 'login' => is_wp_error( $user ) ? '' : $login, 'redirect_to' => $redirect_to ), home_url( '/login/' ) ) ); exit; }
 	reset_password( $user, $pass1 );
 	wp_safe_redirect( add_query_arg( array( 'password_reset' => '1', 'redirect_to' => $redirect_to ), home_url( '/login/' ) ) ); exit;
 }
@@ -360,7 +360,7 @@ function dzn_theme_dashboard_destination() {
 function dzn_theme_render_teacher_invitation_route() {
 	$claim_state = isset( $_GET['claim_state'] ) ? sanitize_key( wp_unslash( $_GET['claim_state'] ) ) : '';
 	$claim_messages = array(
-		'password_short' => 'رمز عبور باید دست‌کم ۱۲ نویسه داشته باشد.',
+		'password_short' => 'رمز عبور باید دست‌کم ۸ نویسه داشته باشد.',
 		'password_mismatch' => 'رمز عبور و تکرار آن یکسان نیستند.',
 		'existing_account' => 'برای این نشانی ایمیل از قبل حسابی وجود دارد. ابتدا با همان حساب وارد شوید، سپس به این صفحه برگردید و کد دعوت را دوباره وارد کنید. رمز حساب موجود تغییر نمی‌کند.',
 		'account_mismatch' => 'این دعوت با حسابی که اکنون وارد آن هستید مطابقت ندارد. از این حساب خارج شوید، با حساب مربوط به ایمیل دعوت وارد شوید و کد را دوباره ثبت کنید.',
@@ -379,8 +379,8 @@ function dzn_theme_render_teacher_invitation_route() {
 				<input type="hidden" name="action" value="dzn_teacher_invitation_claim"><?php wp_nonce_field( 'dzn_teacher_invitation_claim' ); ?>
 					<p><label>کد دعوت<br><input class="dzn-invitation-code" required dir="ltr" autocomplete="one-time-code" autocapitalize="off" spellcheck="false" inputmode="text" minlength="64" maxlength="64" name="invitation_code"></label><small>کد ۶۴ نویسه‌ای را بدون فاصله در این کادر بچسبانید.</small></p>
 				<?php if ( ! is_user_logged_in() ) : ?>
-					<p><label>رمز عبور (حداقل ۱۲ نویسه)<br><input required type="password" autocomplete="new-password" minlength="12" name="account_password"></label></p>
-					<p><label>تکرار رمز عبور<br><input required type="password" autocomplete="new-password" minlength="12" name="account_password_confirmation"></label></p>
+					<p><label>رمز عبور (حداقل ۸ نویسه)<br><input required type="password" autocomplete="new-password" minlength="8" name="account_password"></label></p>
+					<p><label>تکرار رمز عبور<br><input required type="password" autocomplete="new-password" minlength="8" name="account_password_confirmation"></label></p>
 					<p>اگر حسابی با ایمیل دعوت وجود نداشته باشد، همان ایمیل در صورت امکان نام کاربری شما می‌شود و مستقیماً به راه‌اندازی مدرس می‌روید.</p>
 				<?php else : $current_account = wp_get_current_user(); ?><p>این دعوت فقط در صورتی به حساب فعلی <strong><?php echo esc_html( (string) $current_account->user_email ); ?></strong> متصل می‌شود که ایمیل آن دقیقاً با ایمیل دعوت یکسان باشد.</p><?php endif; ?>
 				<p><button class="wp-block-button__link wp-element-button" type="submit"><?php echo is_user_logged_in() ? 'اتصال دعوت به این حساب' : 'ساخت حساب و شروع راه‌اندازی'; ?></button></p>

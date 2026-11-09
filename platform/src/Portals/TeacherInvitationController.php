@@ -25,7 +25,7 @@ final class TeacherInvitationController {
                 $password = (string) ( $post['account_password'] ?? '' );
                 $confirmation = (string) ( $post['account_password_confirmation'] ?? '' );
                 $passwordLength = function_exists( 'mb_strlen' ) ? mb_strlen( $password ) : strlen( $password );
-                if ( $passwordLength < 12 ) self::redirectState( 'password_short' );
+                if ( $passwordLength < 8 ) self::redirectState( 'password_short' );
                 if ( ! hash_equals( $password, $confirmation ) ) self::redirectState( 'password_mismatch' );
                 if ( $service->requiresExistingAccountAuthentication( $secret ) ) self::redirectState( 'existing_account' );
                 $claim = $service->beginProvisioning( $secret, $command ); $recipient = (string) $claim['recipient'];

@@ -38,6 +38,7 @@ namespace Delnavazan\Platform\Integrations\GoogleWorkspace {
         public ?string $getSpaceName = null;
         public string $meetingCode = 'abc-defg-hij';
         public int $calendarStatus = 200;
+        public int $calendarUpdateStatus = 200;
         public ?array $existingEvent = null;
         public int $memberStatus = 200;
         public string $memberErrorClass = 'permission_denied';
@@ -77,7 +78,11 @@ namespace Delnavazan\Platform\Integrations\GoogleWorkspace {
         public function updateCalendarEvent(string $eventId, array $event): array {
             $this->calls[] = array('updateCalendarEvent', $eventId, $event);
             $this->rescheduleBodies[] = $event;
-            return array('status' => 200, 'body' => $this->eventBody($event + array('id' => $eventId)), 'error_class' => null);
+            if ($this->calendarUpdateStatus < 200 || $this->calendarUpdateStatus >= 300) {
+                return array('status' => $this->calendarUpdateStatus, 'body' => array(), 'error_class' => 'backend_error');
+            }
+            $this->existingEvent = $this->eventBody($event + array('id' => $eventId));
+            return array('status' => $this->calendarUpdateStatus, 'body' => $this->existingEvent, 'error_class' => null);
         }
         public function cancelCalendarEvent(string $eventId): array {
             $this->calls[] = array('cancelCalendarEvent', $eventId);
@@ -229,7 +234,10 @@ namespace {
         );
     };
     $readyReference = static function (bool $appOwned): object {
-        $refs = array('provider_object_reference' => 'event-9', 'join_uri_reference' => 'https://meet.google.com/abc-defg-hij');
+        $refs = array(
+            'provider_object_reference' => 'event9',
+            'join_uri_reference' => $appOwned ? 'https://meet.google.com/abc-defg-hij' : 'https://meet.google.com/old-meet-xyz',
+        );
         if ($appOwned) {
             $refs['space_name'] = 'spaces/AppSpace_123';
             $refs['space_origin'] = 'app';
@@ -363,19 +371,51 @@ namespace {
     $assert($count($apiRecover->calls, 'createMember') === 1, 'Blocked recovery must verify COHOST membership again.');
     $assert($repoRecover->rows[0]->failure_reason_code === null && (string) $repoRecover->rows[0]->cohost_state === 'verified', 'Recovery must clear the block only after provider verification.');
 
-    // 9. Historical Calendar-created blocked bookings stay closed and create no new provider object.
+    // 9. Historical Calendar-created bookings keep the event/invitation while replacing the space.
     $repoLegacy = new GoogleWorkspaceRepository(array($blockedRow(false)));
     $repoLegacy->referenceRow = $readyReference(false);
     $apiLegacy = new GoogleWorkspaceApiClient();
-    $legacy = false;
-    try { $service($repoLegacy, $apiLegacy)->ensureForBooking(9); }
-    catch (RuntimeException $error) { $legacy = $error->getMessage() === 'meet_cohost_calendar_space_unsupported'; }
-    $assert($legacy, 'A historical Calendar-created space must fail with the documented unsupported-space code.');
-    $assert($apiLegacy->calls === array(), 'A historical Calendar-created space must not call Calendar or Meet.');
-    $assert((string) $repoLegacy->rows[0]->classroom_state === 'blocked' && (string) $repoLegacy->rows[0]->failure_reason_code === 'meet_cohost_calendar_space_unsupported', 'The historical row must remain blocked on the same identity.');
-    $assert((int) $repoLegacy->rows[0]->active_slot === 0, 'The historical row must not be reopened.');
+    $apiLegacy->existingEvent = array(
+        'id' => 'event9',
+        'conferenceData' => array('conferenceId' => 'old-meet-xyz'),
+        'hangoutLink' => 'https://meet.google.com/old-meet-xyz',
+    );
+    $legacy = $service($repoLegacy, $apiLegacy)->ensureForBooking(9);
+    $assert(($legacy['state'] ?? '') === 'ready' && ($legacy['cohost_state'] ?? '') === 'verified', 'A historical Calendar-created classroom must recover to verified readiness.');
+    $assert($count($apiLegacy->calls, 'createSpace') === 1, 'Legacy recovery must create exactly one app-owned replacement space.');
+    $assert($count($apiLegacy->calls, 'createCalendarEvent') === 0, 'Legacy recovery must preserve the existing Calendar event.');
+    $assert($count($apiLegacy->calls, 'updateCalendarEvent') === 1, 'Legacy recovery must patch the existing Calendar event once.');
+    $legacyPatch = array_values(array_filter($apiLegacy->calls, static fn(array $call): bool => ($call[0] ?? '') === 'updateCalendarEvent'))[0];
+    $assert(($legacyPatch[1] ?? '') === 'event9', 'Legacy recovery must retain the exact Calendar event id.');
+    $assert(($legacyPatch[2]['conferenceData']['conferenceId'] ?? '') === 'abc-defg-hij', 'Legacy recovery must attach the replacement app-space conference.');
+    $assert($count($apiLegacy->calls, 'createMember') === 1, 'Legacy recovery must assign and verify the Teacher as COHOST.');
+    $legacyRefs = $repoLegacy->referenceRow?->references ?? array();
+    $assert(($legacyRefs['provider_object_reference'] ?? '') === 'event9' && ($legacyRefs['space_origin'] ?? '') === 'app', 'Legacy recovery must seal the same event with app-owned space provenance.');
 
-    // 10. Recording eligibility still controls the app-space configuration.
+    // 10. A transient Calendar replacement failure resumes the same event and app space.
+    $repoLegacyRetry = new GoogleWorkspaceRepository(array($blockedRow(false)));
+    $repoLegacyRetry->referenceRow = $readyReference(false);
+    $apiLegacyRetry = new GoogleWorkspaceApiClient();
+    $apiLegacyRetry->existingEvent = array(
+        'id' => 'event9',
+        'conferenceData' => array('conferenceId' => 'old-meet-xyz'),
+        'hangoutLink' => 'https://meet.google.com/old-meet-xyz',
+    );
+    $apiLegacyRetry->calendarUpdateStatus = 503;
+    $legacyRetryable = false;
+    try { $service($repoLegacyRetry, $apiLegacyRetry)->ensureForBooking(9); }
+    catch (RuntimeException $error) { $legacyRetryable = $error->getMessage() === 'meet_calendar_projection_retryable'; }
+    $assert($legacyRetryable, 'A transient legacy event replacement failure must remain retryable.');
+    $pendingLegacyRefs = $repoLegacyRetry->referenceRow?->references ?? array();
+    $assert(($pendingLegacyRefs['replacement_event_reference'] ?? '') === 'event9' && ($pendingLegacyRefs['space_origin'] ?? '') === 'app', 'The replacement event and app space must be durable before Calendar is patched.');
+    $apiLegacyRetry->calendarUpdateStatus = 200;
+    $apiLegacyRetry->calls = array();
+    $legacyRecovered = $service($repoLegacyRetry, $apiLegacyRetry)->ensureForBooking(9);
+    $assert(($legacyRecovered['state'] ?? '') === 'ready', 'A legacy replacement retry must converge to ready.');
+    $assert($count($apiLegacyRetry->calls, 'createSpace') === 0 && $count($apiLegacyRetry->calls, 'createCalendarEvent') === 0, 'A legacy replacement retry must not create another space or event.');
+    $assert($count($apiLegacyRetry->calls, 'updateCalendarEvent') === 1 && $count($apiLegacyRetry->calls, 'createMember') === 1, 'A legacy replacement retry must patch the same event and verify COHOST.');
+
+    // 11. Recording eligibility still controls the app-space configuration.
     $recording = new RecordingDecisionAuthorityService();
     $recording->eligible = true;
     $repoRecording = new GoogleWorkspaceRepository(array((object) array_merge((array) $blockedRow(true), array(
@@ -391,7 +431,7 @@ namespace {
     $assert($recordingPatch !== null && ($recordingPatch[2]['config']['artifactConfig']['recordingConfig']['autoRecordingGeneration'] ?? '') === 'ON', 'Current recording consent must enable auto-recording.');
     $assert($recordingPatch[1] === 'spaces/AppSpace_123', 'Recording configuration must target the exact app space.');
 
-    // 11. Reschedule and cancellation keep the same Calendar event and app space.
+    // 12. Reschedule and cancellation keep the same Calendar event and app space.
     $repoMove = new GoogleWorkspaceRepository(array((object) array_merge((array) $blockedRow(true), array(
         'id' => 9, 'classroom_state' => 'ready', 'cohost_state' => 'verified', 'active_slot' => 1,
         'failure_reason_code' => null, 'starts_at_utc' => gmdate('Y-m-d H:i:s', time() + 3600),
@@ -403,7 +443,7 @@ namespace {
     $moved = $service($repoMove, $apiMove)->rescheduleForBooking(9, gmdate('Y-m-d H:i:s', time() + 7200), gmdate('Y-m-d H:i:s', time() + 9000), 'Asia/Tehran');
     $assert(($moved['state'] ?? '') === 'ready', 'Reschedule must keep the classroom ready.');
     $assert($count($apiMove->calls, 'createSpace') === 0 && $count($apiMove->calls, 'createCalendarEvent') === 0, 'Reschedule must not create another space or event.');
-    $assert(($apiMove->calls[0][0] ?? '') === 'updateCalendarEvent' && ($apiMove->calls[0][1] ?? '') === 'event-9', 'Reschedule must update the existing event.');
+    $assert(($apiMove->calls[0][0] ?? '') === 'updateCalendarEvent' && ($apiMove->calls[0][1] ?? '') === 'event9', 'Reschedule must update the existing event.');
     $cancelled = $service($repoMove, $apiMove)->cancelForBooking(9);
     $assert(!empty($cancelled['cancelled']) && (string) $repoMove->rows[0]->classroom_state === 'cancelled', 'Cancellation must preserve the row and mark it cancelled.');
     $assert($count($apiMove->calls, 'cancelCalendarEvent') === 1 && $count($apiMove->calls, 'endActiveConference') === 1, 'Cancellation must cancel the same event and end its active conference.');

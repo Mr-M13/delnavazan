@@ -21,9 +21,25 @@ namespace Delnavazan\Platform\Integrations\GoogleWorkspace {
     final class GoogleWorkspaceApiClient {
         public array $calls = array();
         public array $members = array();
-        public function createSpace(): array { $this->calls[] = array('createSpace'); throw new \RuntimeException('A lesson retry must not create another space.'); }
+        public bool $legacyReplacement = false;
+        public bool $replacementAttached = false;
+        public function createSpace(): array {
+            $this->calls[] = array('createSpace');
+            if (!$this->legacyReplacement) throw new \RuntimeException('An app-owned lesson retry must not create another space.');
+            return array('status' => 200, 'body' => array('name' => 'spaces/AppSpace_123', 'meetingUri' => 'https://meet.google.com/abc-defg-hij', 'meetingCode' => 'abc-defg-hij'), 'error_class' => null);
+        }
         public function createCalendarEvent(array $event): array { $this->calls[] = array('createCalendarEvent'); throw new \RuntimeException('A lesson retry must not create another Calendar event.'); }
-        public function getCalendarEvent(string $eventId): array { $this->calls[] = array('getCalendarEvent', $eventId); throw new \RuntimeException('A lesson retry must reuse the sealed event.'); }
+        public function getCalendarEvent(string $eventId): array {
+            $this->calls[] = array('getCalendarEvent', $eventId);
+            if (!$this->legacyReplacement) throw new \RuntimeException('An app-owned lesson retry must reuse the sealed event.');
+            $code = $this->replacementAttached ? 'abc-defg-hij' : 'old-meet-xyz';
+            return array('status' => 200, 'body' => array('id' => $eventId, 'conferenceData' => array('conferenceId' => $code), 'hangoutLink' => 'https://meet.google.com/' . $code), 'error_class' => null);
+        }
+        public function updateCalendarEvent(string $eventId, array $event): array {
+            $this->calls[] = array('updateCalendarEvent', $eventId, $event);
+            $this->replacementAttached = true;
+            return array('status' => 200, 'body' => array('id' => $eventId, 'conferenceData' => $event['conferenceData'], 'hangoutLink' => 'https://meet.google.com/abc-defg-hij'), 'error_class' => null);
+        }
         public function getSpace(string $spaceOrCode): array {
             $this->calls[] = array('getSpace', $spaceOrCode);
             return array('status' => 200, 'body' => array('name' => 'spaces/AppSpace_123', 'meetingUri' => 'https://meet.google.com/abc-defg-hij', 'meetingCode' => 'abc-defg-hij'), 'error_class' => null);
@@ -143,12 +159,12 @@ namespace {
             'cohost_exception_reason' => null, 'active_slot' => null, 'version' => 3, 'recording_state' => 'disabled',
             'starts_at_utc' => gmdate('Y-m-d H:i:s', time() + 3600), 'ends_at_utc' => gmdate('Y-m-d H:i:s', time() + 5400),
             'schedule_timezone' => 'Asia/Tehran', 'last_provider_response_code' => 403,
-            'space_name' => 'spaces/AppSpace_123', 'event_id_digest' => hash('sha256', 'dzn-meet-event:event-42'),
+            'space_name' => 'spaces/AppSpace_123', 'event_id_digest' => hash('sha256', 'dzn-meet-event:event42'),
             'meet_uri_digest' => hash('sha256', 'dzn-meet-uri:https://meet.google.com/abc-defg-hij'),
         ), $overrides);
     };
     $reference = static function (bool $appOwned): object {
-        $refs = array('provider_object_reference' => 'event-42', 'join_uri_reference' => 'https://meet.google.com/abc-defg-hij');
+        $refs = array('provider_object_reference' => 'event42', 'join_uri_reference' => $appOwned ? 'https://meet.google.com/abc-defg-hij' : 'https://meet.google.com/old-meet-xyz');
         if ($appOwned) {
             $refs['space_name'] = 'spaces/AppSpace_123';
             $refs['space_origin'] = 'app';
@@ -172,15 +188,15 @@ namespace {
     $assert($count($api->calls, 'getSpace') === 1 && $count($api->calls, 'createMember') === 1 && $count($api->calls, 'listMembers') === 1, 'The retry must re-verify the existing space and COHOST membership once.');
     $assert((string) $repo->rows[0]->classroom_state === 'ready' && (string) $repo->rows[0]->cohost_state === 'verified', 'The reused row must become provider-verified ready.');
 
-    // 2. A legacy Calendar-created lesson reference fails closed before any provider mutation.
+    // 2. A legacy Calendar-created lesson keeps its event while replacing the Meet space.
     $repoLegacy = new GoogleWorkspaceRepository($row(), $reference(false));
     $apiLegacy = new GoogleWorkspaceApiClient();
-    $legacy = false;
-    try { $service($repoLegacy, $apiLegacy)->retryClassroom(42, 1, 'Documented organizer permission correction'); }
-    catch (RuntimeException $error) { $legacy = $error->getMessage() === 'meet_cohost_calendar_space_unsupported'; }
-    $assert($legacy, 'A legacy Calendar-created lesson must fail with the unsupported-space code.');
-    $assert($apiLegacy->calls === array(), 'A legacy Calendar-created lesson must not call Calendar or Meet.');
-    $assert(count($repoLegacy->rows) === 1 && (string) $repoLegacy->rows[0]->classroom_state === 'blocked', 'A legacy lesson retry must keep the same blocked row.');
+    $apiLegacy->legacyReplacement = true;
+    $legacy = $service($repoLegacy, $apiLegacy)->retryClassroom(42, 1, 'Replace the legacy Calendar-created Meet space');
+    $assert(($legacy['state'] ?? '') === 'ready', 'A legacy Calendar-created lesson must recover to ready.');
+    $assert($count($apiLegacy->calls, 'createSpace') === 1 && $count($apiLegacy->calls, 'updateCalendarEvent') === 1, 'Legacy recovery must create one app space and patch the existing event once.');
+    $assert($count($apiLegacy->calls, 'createCalendarEvent') === 0, 'Legacy recovery must not create another Calendar event.');
+    $assert(count($repoLegacy->rows) === 1 && (string) $repoLegacy->rows[0]->classroom_state === 'ready', 'A legacy lesson retry must keep the same row and verify readiness.');
 
     // 3. Provider identity without an open reference fails before creating another space/event.
     $repoMissing = new GoogleWorkspaceRepository($row(), null);

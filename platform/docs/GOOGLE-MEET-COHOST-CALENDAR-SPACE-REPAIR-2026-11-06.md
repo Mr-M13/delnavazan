@@ -1,9 +1,9 @@
 # Google Meet co-host repair — Calendar-created space limitation
 
-Status: **code-only repair prepared; not validated against a live Google tenant and not applied to
-production.** This document records the production evidence, the official Google API support
-boundary, the implemented design, the historical-booking limitation, the staging-only acceptance test
-and the per-booking production recovery plan that requires separate approval.
+Status: **new app-owned-space provisioning is deployed and production diagnostics show verified
+co-hosts; legacy Calendar-created events now have a guarded in-place recovery path.** This document
+records the production evidence, the official Google API support boundary, the implemented design,
+and the provider-backed acceptance and recovery requirements.
 
 ## 1. Production evidence (read-only)
 
@@ -109,13 +109,18 @@ Preserved invariants:
   reference is unavailable, the retry fails as `meet_classroom_reference_missing` before any
   `spaces.create` or Calendar write.
 
-### Historical Cal-created rows
+### Historical Calendar-created rows
 
 A reference produced by the old flow has a Calendar-created space and no `space_origin=app` marker.
-The repair does **not** call `spaces.members.create` on it again. It persists
-`meet_cohost_calendar_space_unsupported`, keeps the same row/event/space, and leaves the booking
-blocked. This is deliberate: creating a second space during an ordinary retry would violate the
-one-meeting invariant. Historical #9–#12 therefore need the separately approved recovery in §7.
+An explicitly retried, still-eligible class now preserves the same Calendar event and invitation,
+creates exactly one app-owned replacement space, patches that event to the replacement conference,
+then configures and verifies the Teacher as `COHOST`. The replacement event id, old conference code
+and new app-space identity are sealed before the Calendar patch, so a transient or ambiguous response
+resumes the same replacement instead of creating another meeting.
+
+Ended, cancelled, stale, reallocated or otherwise ineligible classrooms remain closed under the
+existing booking/lesson retry guards. Recovery never revives historical delivery ownership or creates
+a second Calendar event.
 
 ## 4. Failure classification
 
@@ -129,7 +134,7 @@ one-meeting invariant. Historical #9–#12 therefore need the separately approve
 | Row has provider identity but no open sealed reference | `meet_classroom_reference_missing`, permanent, no provider call |
 | Member 403 `permission_denied` | `meet_cohost_assignment_blocked`, permanent |
 | Member transport/429/5xx | `meet_cohost_assignment_retryable`, bounded retry |
-| Legacy Calendar-created reference | `meet_cohost_calendar_space_unsupported`, permanent, no provider call |
+| Eligible legacy Calendar-created reference | Keep event; create one app space; patch and verify; bounded retry |
 
 ## 5. What can and cannot be claimed from tests
 
@@ -142,19 +147,19 @@ The PHP tests prove the source contract and the state machine with fake transpor
 - 403 is permanent and 5xx is bounded-retryable;
 - duplicate runs, Calendar `409`, transient member retry and blocked app-owned recovery converge on
   the same event/space;
-- legacy Calendar-created rows fail closed without new objects;
+- eligible legacy Calendar-created rows retain their event and converge on one replacement app space;
 - recording, reschedule and cancellation still target the same app space/event.
 
 They do **not** prove that Google Calendar in this tenant accepts an app-created space through
 `conferenceData.entryPoints`, that Meet shows the native join action, or that the tenant grants the
 external Teacher `COHOST`. Those require the staging-only live test below.
 
-## 6. Staging-only live acceptance test (not executed here)
+## 6. Provider-backed acceptance
 
-**Execution status: blocked in this workspace.** The repository records that Google OAuth is not
-configured on staging, and this task explicitly prohibits calling live Google APIs. The test below is
-the required next gate and must be run in an isolated staging environment with staging-only
-credentials. Passing mocked PHP tests is not evidence that Google accepts this Calendar attachment.
+The read-only production diagnostic on 8 November 2026 reported current lessons 22 and 23 as
+`classroom_state=ready` and `cohost_state=verified`, proving that new app-owned spaces can be attached
+to Calendar events and that Google returns the Teacher as `COHOST`. The legacy replacement path still
+requires a controlled eligible-class recovery before it can be claimed as provider-verified.
 
 Prerequisites: a non-production staging site, a staging Google Cloud project, a staging organizer
 account, a staging test Teacher, a staging test Student, and no production credentials or data.
@@ -181,11 +186,11 @@ account, a staging test Teacher, a staging test Student, and no production crede
 Acceptance is only the provider-backed result from step 4 plus the UI check in step 5. A fake
 transport or a successful Calendar HTTP 200 is not acceptance.
 
-## 7. Per-booking production recovery plan (requires separate approval)
+## 7. Guarded production recovery
 
-Historical #9–#12 already own a Calendar event and a Calendar-created space. A plain retry cannot
-convert that space. Do not run `retry-booking` repeatedly hoping for a different result. The following
-is a proposed plan, not an authorised production action.
+Historical #9–#12 already own a Calendar event and a Calendar-created space. The guarded retry path
+can now convert an eligible classroom without changing its Calendar event id. Production execution is
+still one confirmation at a time and requires the existing version, eligibility and operator checks.
 
 For one confirmation at a time, after a new read-only review:
 
@@ -200,12 +205,13 @@ For one confirmation at a time, after a new read-only review:
    `conferenceData` (`conferenceSolution` + `conferenceId` + `entryPoints`, `conferenceDataVersion=1`).
    Do not create a second event.
 4. **Verify attachment:** re-read the event and require `conferenceId` to equal the new app space's
-   meeting code. On mismatch, stop and restore the prior sealed reference; do not assign a co-host.
+   meeting code. On mismatch, stop with the durable pending replacement reference; do not create
+   another space and do not assign a co-host.
 5. **Configure and verify:** set moderation `ON`/access, apply recording only if consent is current,
    assign the Teacher `COHOST` on the exact new space, and read the membership back.
-6. **Commit atomically:** retire the old sealed reference and persist the new event/space reference,
-   pending app-space reference, provider evidence and audit. Mark the classroom ready only after the
-   provider read-back.
+6. **Commit durably:** seal the pending app-space identity before the Calendar mutation, then replace
+   it with the verified event/space reference after Calendar read-back. Mark the classroom ready only
+   after the member read-back.
 7. **Finish the booking through the existing guarded recovery path** so the acceptance delivery stays
    intact and no new teacher offer is issued. If any provider step fails, leave the row blocked; no
    partial ready state.
@@ -213,10 +219,9 @@ For one confirmation at a time, after a new read-only review:
    meeting-code lifecycle. Record it as orphaned operational evidence; do not delete Calendar rows or
    recordings.
 
-This requires a dedicated, audited operator command or an approved one-off runbook because it
-intentionally creates a replacement space for a historical booking. It must not be wired into the
-automatic worker or into ordinary `retry-booking`. Approval must name the confirmation ids, versions,
-operator, reason and rollback point.
+Use the existing audited, version-checked administrator retry path. The permanently blocked row is not
+picked up by the automatic worker, so recovery remains an explicit operator action. Approval must name
+the confirmation id, expected version, operator and reason.
 
 ## 8. Remaining blockers / tenant questions
 

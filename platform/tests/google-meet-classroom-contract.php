@@ -55,7 +55,7 @@ $check('new provisioning creates an app-owned Meet space', str_contains($service
 $check('Calendar event attaches the existing app space', str_contains($service, "'entryPoints'=>array(array(") && str_contains($service, "'conferenceId'=>\$meetingCode"));
 $check('new provisioning never asks Calendar to create a second conference', !str_contains($service, "'conferenceData'=>array('createRequest'"));
 $check('space provenance and organizer identity are sealed', str_contains($service, 'space_origin') && str_contains($service, 'space_organizer'));
-$check('legacy Calendar-created spaces fail closed', str_contains($service, 'meet_cohost_calendar_space_unsupported'));
+$check('legacy Calendar-created spaces are replaced on the same event', str_contains($service, 'replaceLegacyCalendarSpace') && str_contains($service, 'replacement_event_reference') && str_contains($service, 'legacy_space_replaced'));
 $check('member operations use the exact app space name', str_contains($service, 'MeetCoHostRule::canManageMembers') && str_contains($service, "spaceName(\$name)"));
 $check('Teacher and Student are Calendar attendees', str_contains($service, 'attendanceEmails($facts)'));
 $check('Teacher is assigned COHOST', str_contains($service, "createMember(\$space,\$email,'COHOST')"));

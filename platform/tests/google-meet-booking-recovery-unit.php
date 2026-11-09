@@ -23,6 +23,8 @@ namespace Delnavazan\Platform\Integrations\GoogleWorkspace {
         public string $memberErrorClass = '';
         public int $spaceStatus = 200;
         public string $spaceErrorClass = '';
+        public bool $legacyReplacement = false;
+        public bool $replacementAttached = false;
         public function createSpace(): array { $this->calls[] = array('createSpace'); return array('status' => 200, 'body' => array('name' => 'spaces/abc-defg-hij', 'meetingUri' => 'https://meet.google.com/abc-defg-hij', 'meetingCode' => 'abc-defg-hij')); }
         public function getSpace(string $code): array { $this->calls[] = array('getSpace', $code); return array('status' => $this->spaceStatus, 'body' => $this->spaceStatus >= 200 && $this->spaceStatus < 300 ? array('name' => 'spaces/abc-defg-hij', 'meetingUri' => 'https://meet.google.com/abc-defg-hij') : array(), 'error_class' => $this->spaceErrorClass); }
         public function createMember(string $space,string $email,string $role='COHOST'): array {
@@ -36,7 +38,17 @@ namespace Delnavazan\Platform\Integrations\GoogleWorkspace {
         }
         public function patchSpace(string $space,array $config,?string $mask=null): array { $this->calls[] = array('patchSpace', $space); return array('status' => 200, 'body' => array()); }
         public function createCalendarEvent(array $body): array { throw new \RuntimeException('A recovered booking must reuse its existing event.'); }
-        public function getCalendarEvent(string $eventId): array { throw new \RuntimeException('A recovered booking must reuse its existing event.'); }
+        public function getCalendarEvent(string $eventId): array {
+            if (!$this->legacyReplacement) throw new \RuntimeException('An app-owned recovered booking must reuse its sealed event.');
+            $this->calls[] = array('getCalendarEvent', $eventId);
+            $code = $this->replacementAttached ? 'abc-defg-hij' : 'old-meet-xyz';
+            return array('status' => 200, 'body' => array('id' => $eventId, 'conferenceData' => array('conferenceId' => $code), 'hangoutLink' => 'https://meet.google.com/' . $code), 'error_class' => null);
+        }
+        public function updateCalendarEvent(string $eventId,array $event): array {
+            $this->calls[] = array('updateCalendarEvent', $eventId, $event);
+            $this->replacementAttached = true;
+            return array('status' => 200, 'body' => array('id' => $eventId, 'conferenceData' => $event['conferenceData'], 'hangoutLink' => 'https://meet.google.com/abc-defg-hij'), 'error_class' => null);
+        }
     }
     final class GoogleWorkspaceRepository {
         public array $rows;
@@ -95,7 +107,7 @@ namespace Delnavazan\Platform\Integrations\GoogleWorkspace {
             return (object) array(
                 'id' => 1, 'classroom_id' => $classroomId, 'state' => 'active', 'active_slot' => 1,
                 'references' => array(
-                    'provider_object_reference' => 'event-9',
+                    'provider_object_reference' => 'event9',
                     'join_uri_reference' => 'https://meet.google.com/abc-defg-hij',
                     'space_name' => 'spaces/abc-defg-hij',
                     'space_origin' => 'app',
@@ -103,8 +115,11 @@ namespace Delnavazan\Platform\Integrations\GoogleWorkspace {
                 ),
             );
         }
-        public function insertReference(array $data): int { throw new \RuntimeException('Recovery must reuse the existing reference.'); }
-        public function retireReference(int $id,int $actor,string $now): int { throw new \RuntimeException('Recovery must reuse the existing reference.'); }
+        public function insertReference(array $data): int {
+            $this->reference = (object) array('id' => 1, 'classroom_id' => (int) ($data['classroom_id'] ?? 0), 'state' => 'active', 'active_slot' => 1, 'references' => $data['references'] ?? array());
+            return 1;
+        }
+        public function retireReference(int $id,int $actor,string $now): int { $this->reference = null; return 1; }
         public array $events = array();
         public function insertEvent(array $data): int { $this->events[] = $data; return 1; }
         public function openAlert(int $classroomId,string $code): ?object { return null; }
@@ -160,25 +175,25 @@ namespace {
     $assert($repo2->inserted === 0 && count($repo2->rows) === 1, 'A refused recovery must not duplicate the classroom row.');
     $assert((string) $repo2->rows[0]->classroom_state === 'blocked' && (string) $repo2->rows[0]->cohost_state === 'blocked', 'A refused recovery must persist the block on the same row.');
 
-    // A reference created before this repair points at a Calendar-created space. It cannot be
-    // repaired through the Meet members API and must remain closed without creating a new object.
+    // A reference created before this repair keeps the same Calendar event and receives a new
+    // app-owned Meet space so the Teacher can be verified as COHOST.
     $repoLegacy = new GoogleWorkspaceRepository();
     $repoLegacy->reference = (object) array(
         'id' => 1, 'classroom_id' => 9, 'state' => 'active', 'active_slot' => 1,
         'references' => array(
-            'provider_object_reference' => 'event-9',
-            'join_uri_reference' => 'https://meet.google.com/abc-defg-hij',
+            'provider_object_reference' => 'event9',
+            'join_uri_reference' => 'https://meet.google.com/old-meet-xyz',
         ),
     );
     $apiLegacy = new GoogleWorkspaceApiClient();
+    $apiLegacy->legacyReplacement = true;
     $serviceLegacy = new GoogleWorkspaceClassroomService($repoLegacy, $apiLegacy, new GoogleWorkspaceOAuthService(), new ProviderReferenceVault(), new RecordingDecisionAuthorityService());
-    $legacyBlocked = false;
-    try { $serviceLegacy->ensureForBooking(9); }
-    catch (RuntimeException $error) { $legacyBlocked = $error->getMessage() === 'meet_cohost_calendar_space_unsupported'; }
-    $assert($legacyBlocked, 'A legacy Calendar-created space must fail closed with the unsupported-space code.');
+    $legacyRecovered = $serviceLegacy->ensureForBooking(9);
+    $assert(($legacyRecovered['state'] ?? '') === 'ready' && ($legacyRecovered['cohost_state'] ?? '') === 'verified', 'A legacy Calendar-created space must recover with verified COHOST membership.');
     $assert($repoLegacy->inserted === 0 && count($repoLegacy->rows) === 1, 'Legacy recovery must not create a second classroom row.');
-    $assert((string) $repoLegacy->rows[0]->classroom_state === 'blocked' && (string) $repoLegacy->rows[0]->failure_reason_code === 'meet_cohost_calendar_space_unsupported', 'Legacy recovery must persist the unsupported-space block on the same row.');
-    $assert($apiLegacy->calls === array(), 'Legacy recovery must not call Calendar or Meet with an unmanageable space.');
+    $assert((string) $repoLegacy->rows[0]->classroom_state === 'ready' && (string) $repoLegacy->rows[0]->cohost_state === 'verified', 'Legacy recovery must preserve the row and clear its block after verification.');
+    $assert(count(array_filter($apiLegacy->calls, static fn(array $call): bool => ($call[0] ?? '') === 'createSpace')) === 1, 'Legacy recovery must create exactly one replacement app space.');
+    $assert(count(array_filter($apiLegacy->calls, static fn(array $call): bool => ($call[0] ?? '') === 'updateCalendarEvent')) === 1, 'Legacy recovery must patch the existing event exactly once.');
 
     // Cancelled history is never revived.
     $repo3 = new GoogleWorkspaceRepository();

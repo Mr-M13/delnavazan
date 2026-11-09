@@ -78,6 +78,40 @@ final class BookingTeacherResponseRepository {
     public function notificationForUpdate(int $id):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_student_notifications WHERE id=%d FOR UPDATE",$id))?:null;}
     public function auditByDigest(string $digest):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}platform_audit_events WHERE idempotency_key=%s LIMIT 1",$digest))?:null;}
     public function insertAudit(array $data):int{return $this->insert('platform_audit_events',$data);}
+    /** A Teacher eligible for the exact introductory course (and therefore its instrument). */
+    public function teacherEligibleForCourse(int $teacherId,int $courseId):bool{
+        global $wpdb;
+        if($teacherId<1||$courseId<1)return false;
+        return (bool)$wpdb->get_var($wpdb->prepare(
+            "SELECT e.id FROM {$this->p}teacher_course_eligibilities e
+             INNER JOIN {$this->p}teachers t ON t.id=e.teacher_id AND t.status='active' AND t.archived_at IS NULL
+             WHERE e.teacher_id=%d AND e.course_id=%d AND e.status='active'
+               AND (e.effective_from IS NULL OR e.effective_from<=UTC_TIMESTAMP())
+               AND (e.effective_until IS NULL OR e.effective_until>UTC_TIMESTAMP()) LIMIT 1",
+            $teacherId,$courseId
+        ));
+    }
+    public function declineForTeacher(int $requestId,int $teacherId,bool $lock=false):?object{
+        global $wpdb;$suffix=$lock?' FOR UPDATE':'';
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_teacher_declines WHERE booking_request_id=%d AND teacher_id=%d AND state='active' LIMIT 1{$suffix}",$requestId,$teacherId))?:null;
+    }
+    /** Idempotent Teacher-specific decline evidence; it never closes or cancels the request. */
+    public function recordDecline(array $data):int{
+        global $wpdb;
+        $deliveryId=isset($data['delivery_id'])?max(0,(int)$data['delivery_id']):0;
+        $deliverySql=$deliveryId>0?(string)$deliveryId:'NULL';
+        $sql=$wpdb->prepare(
+            "INSERT INTO {$this->p}booking_request_teacher_declines
+                (uid,booking_request_id,delivery_id,teacher_id,source,reason_code,reason_text,state,created_at,updated_at)
+             VALUES (%s,%d,{$deliverySql},%d,%s,%s,%s,'active',%s,%s)
+             ON DUPLICATE KEY UPDATE delivery_id=VALUES(delivery_id),source=VALUES(source),reason_code=VALUES(reason_code),reason_text=VALUES(reason_text),state='active',updated_at=VALUES(updated_at)",
+            (string)$data['uid'],(int)$data['booking_request_id'],(int)$data['teacher_id'],(string)$data['source'],(string)$data['reason_code'],isset($data['reason_text'])&&''!==(string)$data['reason_text']?(string)$data['reason_text']:null,(string)$data['created_at'],(string)$data['updated_at']
+        );
+        if($wpdb->query($sql)===false)throw new \RuntimeException('Booking teacher decline persistence failed');
+        $id=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$this->p}booking_request_teacher_declines WHERE booking_request_id=%d AND teacher_id=%d",(int)$data['booking_request_id'],(int)$data['teacher_id']));
+        if($id<1)throw new \RuntimeException('Booking teacher decline persistence failed');
+        return $id;
+    }
     public function updateNotification(int $id,string $from,array $data,?string $leaseTokenDigest=null):void{global $wpdb;$where=array('id'=>$id,'state'=>$from);if($leaseTokenDigest!==null)$where['lease_token_digest']=$leaseTokenDigest;$n=$wpdb->update($this->p.'booking_request_student_notifications',$data,$where);if($n!==1)throw new \RuntimeException('Booking student notification changed concurrently');}
 
     private function insert(string $table,array $data):int{global $wpdb;if($wpdb->insert($this->p.$table,$data)===false)throw new \RuntimeException('Booking response persistence failed');return(int)$wpdb->insert_id;}

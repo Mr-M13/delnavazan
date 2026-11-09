@@ -140,6 +140,7 @@ jobs:
           php platform/tests/intro-recurring-slot-override-policy-unit.php
           php platform/tests/booking-allocation-unit.php
           php platform/tests/booking-teacher-response-contract.php
+          php platform/tests/teacher-intro-opportunity-board-contract.php
           php platform/tests/intro-recurring-slot-override-contract.php
           php platform/tests/booking-teacher-response-unit.php
           php platform/tests/student-occupancy-authority-contract.php

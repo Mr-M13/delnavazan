@@ -16,7 +16,7 @@ function dzn_rda_ui_notice(string $audience,string $language,int $version,string
 function dzn_rda_ui_render_student(array $model):string{ob_start();dzn_theme_portal_component('recording-choices',array('recording'=>$model));return(string)ob_get_clean();}
 function dzn_rda_ui_render_teacher(array $model):string{ob_start();dzn_theme_teacher_portal_component('recording-terms',array('recording'=>$model));return(string)ob_get_clean();}
 
-dzn_rda_ui_assert((string)DZN_PLATFORM_SCHEMA_VERSION==='60','UI runtime requires the current package schema');
+dzn_rda_ui_assert((string)DZN_PLATFORM_SCHEMA_VERSION==='61','UI runtime requires the current package schema');
 dzn_rda_ui_assert('Delnavazan Production Theme'===(string)wp_get_theme()->get('Name'),'Delnavazan theme must be active for component rendering');
 
 $teacherUser=dzn_rda_ui_user('teacher');$teacher=dzn_rda_ui_teacher('UI Teacher');dzn_rda_ui_teacher_link($teacher,$teacherUser);

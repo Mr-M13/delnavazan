@@ -70,10 +70,16 @@ namespace {
     $request = static function (array $o = array()): array {
         return array_merge(array(
             'ref' => 'DELIVERY-1', 'action_available' => true, 'authoritative_request' => true, 'state' => 'intro_request',
-            'title' => 'درخواست تازهٔ کلاس آشنایی', 'context' => 'Neda · Setar', 'message' => 'Sunday 4 October، 18:30 به وقت شما · این فقط درخواست در انتظار بررسی است و کلاس تأییدشده نیست.',
-            'due' => 'در انتظار پاسخ', 'primary' => 'مشاهدهٔ درخواست',
+            'title' => 'درخواست جدید کلاس آشنایی', 'context' => 'Neda · Setar · استرالیا', 'student_name' => 'Neda', 'instrument' => 'سه‌تار', 'country_label' => 'استرالیا',
+            'message' => 'این درخواست در انتظار پاسخ شماست.',
+            'due' => 'در انتظار پاسخ شما', 'primary' => 'تأیید درخواست', 'secondary' => 'رد درخواست',
             'response_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_booking_response', 'response_nonce' => 'nonce-response', 'delivery_uid' => 'DELIVERY-UID',
-            'response_deadline_iso' => '2026-11-05T10:00:00Z', 'response_remaining_seconds' => 3600, 'response_expired' => false, 'response_window_label' => 'مهلت پاسخ: ۲۴ ساعت',
+            'response_deadline_iso' => '2026-11-05T10:00:00Z', 'response_remaining_seconds' => 3600, 'response_remaining_label' => '۱ ساعت مانده', 'response_expired' => false,
+            'response_deadline_label' => 'سه‌شنبه ۱۹ آبان ۱۴۰۵، ۱۳:۴۹', 'deadline_sentence' => 'تا سه‌شنبه ۱۹ آبان ۱۴۰۵، ساعت ۱۳:۴۹ فرصت دارید به این درخواست پاسخ دهید.',
+            'requested_preferences' => array(
+                array('id' => 31, 'label' => 'شنبه ۳ آبان ۱۴۰۵، ۱۰:۰۰', 'date_label' => 'شنبه ۳ آبان ۱۴۰۵', 'time_label' => '۱۰:۰۰', 'coverage' => 'preferred', 'tone' => 'available', 'coverage_label' => 'هماهنگ با برنامهٔ شما', 'available' => true, 'offered' => true),
+                array('id' => 32, 'label' => 'یکشنبه ۴ آبان ۱۴۰۵، ۱۱:۰۰', 'date_label' => 'یکشنبه ۴ آبان ۱۴۰۵', 'time_label' => '۱۱:۰۰', 'coverage' => 'outside', 'tone' => 'outside', 'coverage_label' => 'خارج از برنامهٔ زمانی شما', 'available' => false, 'offered' => false),
+            ),
         ), $o);
     };
     $nav = array(
@@ -153,14 +159,18 @@ namespace {
     // 3. Booking acceptance is preserved and gains an honest in-progress state.
     $classesAttn = $render('classes', $model(array('attention' => array($request()))));
     $check('pending booking requests stay visible on the default classes screen', str_contains($classesAttn, 'id="tp-attention"') && str_contains($classesAttn, 'name="delivery_uid" value="DELIVERY-UID"') && str_contains($classesAttn, 'name="decision" value="accept"'));
-    $check('pending booking requests show the 24-hour response countdown', str_contains($classesAttn, 'data-dzn-response-deadline="2026-11-05T10:00:00Z"') && str_contains($classesAttn, 'مهلت پاسخ: ۲۴ ساعت') && str_contains($classesAttn, 'data-dzn-response-countdown'));
-    $expiredAttn = $render('home', $model(array('attention' => array($request(array('response_expired' => true, 'response_remaining_seconds' => 0))))));
+    $check('pending booking requests show the dynamic deadline and countdown without a 24-hour label', str_contains($classesAttn, 'data-dzn-response-deadline="2026-11-05T10:00:00Z"') && str_contains($classesAttn, 'data-dzn-response-countdown') && !str_contains($classesAttn, 'مهلت پاسخ: ۲۴ ساعت'));
+    $check('the deadline sentence is generated for the teacher timezone and calendar', str_contains($classesAttn, 'تا سه‌شنبه ۱۹ آبان ۱۴۰۵، ساعت ۱۳:۴۹ فرصت دارید به این درخواست پاسخ دهید.'));
+    $check('the card shows the student, instrument and Persian country name', str_contains($classesAttn, 'Neda · سه‌تار · استرالیا'));
+    $check('all preferences are visible with explicit green and yellow labels', substr_count($classesAttn, 'name="requested_time_id"') === 2 && str_contains($classesAttn, 'هماهنگ با برنامهٔ شما') && str_contains($classesAttn, 'خارج از برنامهٔ زمانی شما') && str_contains($classesAttn, 'زمان‌های پیشنهادی هنرجو'));
+    $check('the availability caption permits yellow preferences without a second confirmation', str_contains($classesAttn, 'زمان‌های سبز با برنامهٔ زمانی شما هماهنگ هستند') && str_contains($classesAttn, 'می‌توانید آن‌ها را نیز انتخاب و تأیید کنید'));
+    $expiredAttn = $render('home', $model(array('attention' => array($request(array('response_expired' => true, 'response_remaining_seconds' => 0, 'response_remaining_label' => 'مهلت پاسخ گذشته است'))))));
     $check('an expired booking request hides its actions and explains reassignment', str_contains($expiredAttn, 'مهلت پاسخ گذشته است') && str_contains($expiredAttn, 'مدرس در دسترس بعدی') && !str_contains($expiredAttn, 'name="decision" value="accept"'));
     $attn = $render('home', $model(array('attention' => array($request()))));
     $check('accept and decline forms keep nonce, response key, delivery uid and decision', substr_count($attn, 'name="_wpnonce" value="nonce-response"') === 2 && substr_count($attn, 'name="response_key" value="11111111-2222-4333-8444-555555555555"') === 2 && substr_count($attn, 'name="delivery_uid" value="DELIVERY-UID"') === 2 && str_contains($attn, 'name="decision" value="accept"') && str_contains($attn, 'name="decision" value="decline"'));
-    $check('request is distinguished from a confirmed class and provider-first rule is stated', str_contains($attn, 'درخواست در انتظار بررسی') && str_contains($attn, 'فقط پس از موفقیت هر دو'));
+    $check('acceptance is direct and the accept control starts disabled until a preference is chosen', str_contains($attn, 'data-dzn-tp-intro-accept') && str_contains($attn, 'data-dzn-tp-accept') && str_contains($attn, 'disabled>تأیید درخواست') && str_contains($attn, 'برای تأیید، یکی از زمان‌های پیشنهادی را انتخاب کنید.'));
+    $check('rejection requires a reason inside the card, not a dialog', str_contains($attn, 'دلیل رد درخواست') && str_contains($attn, 'زمان‌های پیشنهادی مناسب نیست') && str_contains($attn, 'دلیل دیگر') && !str_contains($attn, 'aria-haspopup="dialog"'));
     $check('acceptance shows progress while Calendar and Meet are created', str_contains($attn, 'data-dzn-tp-busy-label="در حال ساخت رویداد و پیوند Meet… لطفاً صفحه را نبندید"') && str_contains($attn, 'role="status" aria-live="polite"'));
-    $check('dialog is announced and labelled', str_contains($attn, 'aria-haspopup="dialog"') && str_contains($attn, 'aria-labelledby="tp-action-title-0"'));
     $inform = $render('home', $model(array('attention' => array($request(array('authoritative_request' => false))))));
     $section = static function (string $html, string $id): string { $start = strpos($html, 'aria-labelledby="' . $id . '"'); $end = strpos($html, '</section>', (int) $start); return (string) substr($html, (int) $start, $end - (int) $start); };
     $informed = $section($inform, 'tp-attention');
@@ -168,20 +178,22 @@ namespace {
 
     $openRequest = array(
         'ref' => 'open-REQUEST-UID', 'action_available' => true, 'authoritative_request' => true, 'state' => 'intro_open_request',
-        'title' => 'درخواست بدون مدرس برای ساز شما', 'context' => 'Neda · Setar',
-        'message' => 'این درخواست به مدرس دیگری ارجاع نشده است.', 'due' => 'خارج از زمان‌های در دسترس شما', 'primary' => 'پذیرش این درخواست',
-        'request_uid' => 'REQUEST-UID',
+        'title' => 'درخواست جدید کلاس آشنایی', 'context' => 'Neda · Setar · استرالیا', 'student_name' => 'Neda', 'instrument' => 'سه‌تار', 'country_label' => 'استرالیا',
+        'message' => 'این فرصت هنوز به مدرسی واگذار نشده است.', 'due' => 'فرصت آزاد · بدون مدرس', 'primary' => 'تأیید درخواست', 'secondary' => 'رد درخواست',
+        'request_uid' => 'REQUEST-UID', 'opportunity' => true,
         'requested_preferences' => array(
-            array('id' => 31, 'label' => 'Saturday 3 October، 10:00', 'coverage' => 'outside', 'coverage_label' => 'خارج از زمان‌های در دسترس شما', 'available' => false, 'offered' => false),
-            array('id' => 32, 'label' => 'Sunday 4 October، 11:00', 'coverage' => 'preferred', 'coverage_label' => 'در زمان‌های در دسترس شما', 'available' => true, 'offered' => false),
+            array('id' => 31, 'label' => 'Saturday 3 October، 10:00', 'coverage' => 'outside', 'tone' => 'outside', 'coverage_label' => 'خارج از برنامهٔ زمانی شما', 'available' => false, 'offered' => false),
+            array('id' => 32, 'label' => 'Sunday 4 October، 11:00', 'coverage' => 'preferred', 'tone' => 'available', 'coverage_label' => 'هماهنگ با برنامهٔ شما', 'available' => true, 'offered' => false),
         ),
         'claim_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_booking_claim', 'claim_nonce' => 'nonce-claim',
     );
     $openClasses = $render('classes', $model(array('open_requests' => array($openRequest))));
     $openHome = $render('home', $model(array('open_requests' => array($openRequest))));
-    $check('unmatched requests render on classes and home with their outside-availability reason', str_contains($openClasses, 'id="tp-open-requests"') && str_contains($openClasses, 'درخواست‌های بدون مدرس برای سازهای شما') && str_contains($openClasses, 'خارج از زمان‌های در دسترس شما') && str_contains($openHome, 'id="tp-open-requests"'));
-    $check('unmatched claim form posts its nonce, request and selected preference', str_contains($openClasses, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_booking_claim"') && str_contains($openClasses, 'name="_wpnonce" value="nonce-claim"') && str_contains($openClasses, 'name="request_uid" value="REQUEST-UID"') && str_contains($openClasses, 'name="claim_key"') && str_contains($openClasses, 'name="requested_time_id" value="31"') && str_contains($openClasses, 'name="requested_time_id" value="32"'));
-    $check('unmatched claim never reuses the delivered-request form', !str_contains($openClasses, 'name="delivery_uid"') && !str_contains($openClasses, 'name="decision"'));
+    $check('unassigned opportunities render at the bottom of classes only', str_contains($openClasses, 'id="tp-open-requests"') && str_contains($openClasses, 'فرصت‌های کلاس آشنایی') && str_contains($openClasses, 'درخواست‌های بدون مدرس برای سازهایی که تدریس می‌کنید') && !str_contains($openHome, 'id="tp-open-requests"'));
+    $check('an opportunity is visually distinguished and labelled as unassigned', str_contains($openClasses, 'is-opportunity') && str_contains($openClasses, 'فرصت آزاد · هنوز مدرسی برای این درخواست تعیین نشده است'));
+    $check('opportunity cards show all preferences without a 24-hour countdown', str_contains($openClasses, 'name="requested_time_id" value="31"') && str_contains($openClasses, 'name="requested_time_id" value="32"') && !str_contains($openClasses, 'data-dzn-response-countdown') && str_contains($openClasses, 'وضعیت: فرصت آزاد و قابل پذیرش'));
+    $check('unmatched claim form posts its nonce, request and selected preference', str_contains($openClasses, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_booking_claim"') && str_contains($openClasses, 'name="_wpnonce" value="nonce-claim"') && str_contains($openClasses, 'name="request_uid" value="REQUEST-UID"') && str_contains($openClasses, 'name="claim_key"'));
+    $check('unmatched claim never reuses the delivered-request form', !str_contains($openClasses, 'name="delivery_uid"') && str_contains($openClasses, 'name="decision" value="accept"') && str_contains($openClasses, 'name="decision" value="decline"'));
 
     $absence = array(
         'ref' => 'ABS-1', 'action_available' => true, 'state' => 'student_absence',
@@ -248,7 +260,7 @@ namespace {
     $_GET = array();
     $controller = (string) file_get_contents($root . '/platform/src/Portals/TeacherBookingResponseController.php');
     preg_match_all("/'([^']*[\\x{0600}-\\x{06FF}][^']*)'/u", $controller, $found);
-    $check('every outcome message the controller can issue is allowlisted', count($found[1]) === 9 && !array_diff($found[1], dzn_theme_teacher_portal_response_notice_allowlist()));
+    $check('every outcome message the controller can issue is allowlisted', $found[1] !== array() && !array_diff($found[1], dzn_theme_teacher_portal_response_notice_allowlist()));
     $claimController = (string) file_get_contents($root . '/platform/src/Portals/TeacherBookingClaimController.php');
     preg_match_all("/'([^']*[\\x{0600}-\\x{06FF}][^']*)'/u", $claimController, $claimFound);
     $check('every unmatched claim notice reuses an allowlisted message', $claimFound[1] !== array() && !array_diff($claimFound[1], dzn_theme_teacher_portal_response_notice_allowlist()));

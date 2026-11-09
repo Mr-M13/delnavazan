@@ -492,7 +492,7 @@
     });
   });
   const currentStep = () => root.querySelector('.dzn-booking__step.is-active')?.dataset.step || 'instrument';
-  const goTo = (name) => keepViewport(() => {
+  const goTo = (name) => {
     showError('');
     root.querySelectorAll('.dzn-booking__step').forEach((section) => {
       const active = section.dataset.step === name;
@@ -507,7 +507,10 @@
     });
     const heading = root.querySelector('[data-step="' + name + '"] h2');
     if (heading) heading.focus({ preventScroll: true });
-  });
+    // A new step begins at the top of the page. Only in-step re-renders keep
+    // the viewport still, so the student is not left halfway down the page.
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   const validateSection = (step) => {
     const section = root.querySelector('[data-step="' + step + '"]');
     const fields = Array.from(section.querySelectorAll('input, select, textarea'));
@@ -535,17 +538,18 @@
     const rows = [
       ['ساز', selectedOption().textContent.trim()],
       ['نام', fieldValue('full_name')],
-      ['ایمیل', fieldValue('email')],
-      ['موبایل', fieldValue('mobile')],
+      ['ایمیل', fieldValue('email'), 'ltr'],
+      ['موبایل', fieldValue('mobile'), 'ltr'],
       ['کشور و شهر', fieldValue('country').toUpperCase() + ' · ' + fieldValue('city')],
-      ['منطقهٔ زمانی انتخاب‌شده', timezone.value],
-      ['واتساپ', fieldValue('mobile')]
+      ['منطقهٔ زمانی انتخاب‌شده', timezone.value, 'ltr'],
+      ['واتساپ', fieldValue('mobile'), 'ltr']
     ];
     const dl = document.createElement('dl');
-    rows.forEach(([label, text]) => {
+    rows.forEach(([label, text, dir]) => {
       const dt = document.createElement('dt');
       const dd = document.createElement('dd');
       dd.textContent = text;
+      if (dir) dd.setAttribute('dir', dir);
       dt.textContent = label;
       dl.append(dt, dd);
     });

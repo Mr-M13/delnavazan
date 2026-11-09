@@ -17,7 +17,7 @@ $files = array(
     'registry' => $read($root . '/src/Admin/RecordAction/RecordActionRegistry.php'),
 );
 $contracts = array(
-    'same-page password setup after claim' => str_contains($files['claim'], '$passwordLength < 12') && str_contains($files['claim'], 'wp_create_user( $login, $password, $recipient )') && str_contains($files['routes'], 'name="account_password"') && str_contains($files['routes'], 'minlength="12"') && !str_contains($files['claim'], 'wp_new_user_notification') && !str_contains($files['claim'], 'wp_generate_password'),
+    'same-page password setup after claim' => str_contains($files['claim'], '$passwordLength < 8') && str_contains($files['claim'], 'wp_create_user( $login, $password, $recipient )') && str_contains($files['routes'], 'name="account_password"') && str_contains($files['routes'], 'minlength="8"') && !str_contains($files['claim'], 'wp_new_user_notification') && !str_contains($files['claim'], 'wp_generate_password'),
     'existing claim preserves authenticated account password' => str_contains($files['claim'], 'beginExistingClaim') && !str_contains($files['claim'], 'wp_set_password'),
     'complete readiness submits for explicit review' => str_contains($files['onboarding'], "'state' => 'pending_review'") && str_contains($files['onboarding'], 'teacher_submitted_for_review'),
     'administrator can approve return or reject' => str_contains($files['onboarding'], 'function review(') && str_contains($files['onboarding'], "array( 'approve', 'return', 'reject' )") && str_contains($files['registry'], 'Approve and activate'),

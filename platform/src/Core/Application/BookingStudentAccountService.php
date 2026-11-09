@@ -50,7 +50,7 @@ final class BookingStudentAccountService {
     private function assertPasswordShape(string $password, string $confirmation, int $sessionUserId): void {
         if ( $sessionUserId > 0 && $password === '' && $confirmation === '' ) return;
         $length = function_exists( 'mb_strlen' ) ? mb_strlen( $password ) : strlen( $password );
-        if ( $length < 12 || $length > 4096 || ! hash_equals( $password, $confirmation ) ) throw new BookingAccountAuthenticationException( 'Account authentication failed' );
+        if ( $length < 8 || $length > 4096 || ! hash_equals( $password, $confirmation ) ) throw new BookingAccountAuthenticationException( 'Account authentication failed' );
     }
 
     private function resolveAccount(string $email, string $password, string $displayName, int $sessionUserId, int &$createdUserId): object {

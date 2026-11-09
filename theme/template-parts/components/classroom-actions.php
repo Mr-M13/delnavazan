@@ -39,7 +39,7 @@ $entry_url = add_query_arg( $entry_args, home_url( '/music-classroom/' ) );
 <div class="dzn-classroom-actions">
 	<?php if ( $join_available && $has_identifiers ) : ?>
 		<?php if ( 'student' === $role ) : ?>
-			<form class="dzn-classroom-actions__form" method="post" action="<?php echo esc_url( $join_action_url ); ?>">
+			<form class="dzn-classroom-actions__form" method="post" target="_blank" action="<?php echo esc_url( $join_action_url ); ?>">
 				<input type="hidden" name="action" value="<?php echo esc_attr( $join_action ); ?>">
 				<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( $join_nonce ); ?>">
 				<?php if ( $is_booking ) : ?>

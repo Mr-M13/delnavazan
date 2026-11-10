@@ -254,10 +254,13 @@ These are added to the PR runtime gate. Local results on this branch:
 - PHP lint across all tracked PHP files passes.
 - Existing Google Meet, admin shell/navigation, finance clarity, teacher portal phase 2, notification
   management and portal completion contracts pass.
-- PR runtime gate run `42719315075` passed every job, including PHP source contracts, Finance,
-  Booking release, interim attendance, Students workspace, catalogue, promotion, post-intro,
-  recording, Stripe, OAuth and CodeQL. Those runtime jobs install the plugin from scratch in
-  disposable WordPress/MariaDB containers, so migration `074` is proven to apply in a fresh install.
+- PR runtime gate runs `42719315075`, `42726603110` and `42727508392` passed every job, including PHP
+  source contracts, Finance, Booking release, interim attendance, Students workspace, catalogue,
+  promotion, post-intro, recording, Stripe, OAuth and CodeQL.
+- A dedicated **God Mode runtime** job now installs the plugin from scratch in disposable
+  WordPress/MariaDB, verifies the `074` ledger entry, all God Mode tables/columns, performs a
+  test-session lifecycle with participant mapping and cleanup, and asserts that the finance-snapshot
+  count is unchanged. It passed in runs `42726603110` and `42727508392`.
 
 Relevant pre-existing issue discovered:
 

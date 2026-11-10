@@ -39,5 +39,15 @@ dzn_wp eval '
         $wpdb->insert($table, array("uid" => Delnavazan\Platform\Core\Support\Identifier::uid(), "wordpress_user_id" => 1, "email_digest" => $digest, "state" => "active", "capability_version" => "god_mode_v1", "granted_at" => gmdate("Y-m-d H:i:s"), "granted_by" => 1, "created_at" => gmdate("Y-m-d H:i:s"), "updated_at" => gmdate("Y-m-d H:i:s")));
     }
 '
+dzn_wp eval '
+    global $wpdb; $p = $wpdb->prefix . "dzn_"; $now = gmdate("Y-m-d H:i:s");
+    $uid = Delnavazan\Platform\Core\Support\Identifier::uid();
+    $wpdb->insert($p . "instruments", array("uid" => $uid, "reference_code" => "GM-RUNTIME-INS", "slug" => "gm-runtime-ins", "name_fa" => "Runtime Instrument", "name_en" => "Runtime Instrument", "status" => "active", "created_at" => $now, "updated_at" => $now));
+    $instrument = (int) $wpdb->insert_id;
+    $wpdb->insert($p . "courses", array("uid" => Delnavazan\Platform\Core\Support\Identifier::uid(), "reference_code" => "GM-RUNTIME-COURSE", "instrument_id" => $instrument, "name_fa" => "Runtime Course", "name_en" => "Runtime Course", "course_type" => "standard", "status" => "active", "default_duration_minutes" => 30, "default_buffer_minutes" => 0, "created_at" => $now, "updated_at" => $now));
+    $wpdb->insert($p . "teachers", array("uid" => Delnavazan\Platform\Core\Support\Identifier::uid(), "reference_code" => "GM-RUNTIME-TEACHER", "status" => "active", "persian_name" => "Runtime Teacher", "english_name" => "Runtime Teacher", "display_name" => "Runtime Teacher", "email" => "runtime-teacher@example.invalid", "timezone" => "UTC", "locale" => "en", "calendar_preference" => "gregorian", "created_at" => $now, "updated_at" => $now));
+    if (!$instrument || !$wpdb->insert_id) { throw new RuntimeException("Runtime teacher seed failed"); }
+    echo "god_mode_seed_ok\n";
+'
 dzn_wp_env DZN_GOD_MODE_RUNTIME_TEST=authority -- eval-file "$DZN_PLUGIN_SOURCE/platform/tests/god-mode-runtime.php" --user=1
 echo 'God Mode runtime: PASS'

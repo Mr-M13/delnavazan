@@ -30,9 +30,10 @@ $assert = static function (bool $ok, string $message) use (&$fail): void { if (!
 $all = implode("\n", $files);
 
 $assert(preg_match("/DZN_PLATFORM_SCHEMA_VERSION', '([0-9]+)'/", $files['plugin'], $schema) && (int) $schema[1] >= 61, 'Schema must include the Teacher decline evidence migration.');
-foreach (array('074_teacher_booking_declines', 'install_teacher_booking_declines', 'verify_teacher_booking_declines_schema', 'booking_request_teacher_declines', "state='active'") as $needle) {
+foreach (array('075_teacher_booking_declines', 'install_teacher_booking_declines', 'verify_teacher_booking_declines_schema', 'booking_request_teacher_declines', "state='active'") as $needle) {
     $assert(str_contains($files['migration'], $needle), 'Teacher decline migration missing: ' . $needle);
 }
+$assert(!str_contains($files['migration'], '074_teacher_booking_declines'), 'Migration 074 is reserved for the God Mode super tester branch.');
 
 // One reusable card for both sources, with the required Persian content.
 foreach (array('درخواست جدید کلاس آشنایی', 'زمان‌های پیشنهادی هنرجو', 'زمان‌های سبز با برنامهٔ زمانی شما هماهنگ هستند', 'می‌توانید آن‌ها را نیز انتخاب و تأیید کنید', 'تأیید درخواست', 'رد درخواست', 'دلیل رد درخواست', 'زمان‌های پیشنهادی مناسب نیست', 'در حال حاضر ظرفیت ندارم', 'امکان تدریس به این هنرجو را ندارم', 'دلیل دیگر') as $needle) {

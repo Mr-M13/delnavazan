@@ -86,6 +86,8 @@ introductory/import idempotency, canonical reschedule/release/cancel, Teacher
 replacement history, attendance duplicate protection and post-intro reminder
 policy. It calls no external provider or message transport.
 
+`make teacher-intro-opportunity` builds synthetic assigned and unassigned introductory requests, then exercises green/yellow acceptance, rejection reasons, expiry, eligibility, hard conflicts, migration rehearsal, provisioning recovery and a two-Teacher/two-connection opportunity claim race. It uses no external provider or message transport.
+
 `make coordination-command-centre` builds synthetic coordination cases covering
 an unresolved identity, a resolved identity with agreement/Proposal/provisional
 evidence, a final arrangement ready for conversion, and an unresolved

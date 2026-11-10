@@ -506,6 +506,11 @@
   gap: .55rem;
 }
 
+/* A lone request/opportunity should use the available width instead of one narrow grid track. */
+.dzn-tp-attention-card.dzn-tp-intro-card:only-child {
+  grid-column: 1 / -1;
+}
+
 .dzn-tp-intro-card.is-opportunity {
   border-color: color-mix(in srgb, var(--dzn-color-warning) 45%, var(--dzn-tp-border));
   border-inline-start-color: var(--dzn-color-warning);
@@ -742,7 +747,7 @@
 }
 
 @media (max-width: 34rem) {
-  .dzn-tp-intro-card__actions {
+  .dzn-tp-intro-card .dzn-tp-intro-card__actions {
     grid-template-columns: minmax(0, 1fr);
   }
 

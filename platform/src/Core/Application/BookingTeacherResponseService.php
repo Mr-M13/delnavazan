@@ -54,6 +54,7 @@ final class BookingTeacherResponseService {
                 $delivery=$this->repository->deliveryByUid($deliveryUid,true);
                 if(!$delivery)throw new \RuntimeException('Booking request not found');
             }
+            $this->assertHardOccupancy($delivery,(int)$teacher->id);
             $overridden=(bool)$this->allocation->assertAcceptable($delivery,$now,$selectedTimeId,$allowOverride);
             if($overridden)$this->auditAvailabilityOverride($delivery,$selectedTimeId,$actor,$keyDigest,$now);
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($delivery,$teacher,$actor,$keyDigest,$payloadDigest,$now);
@@ -117,6 +118,7 @@ final class BookingTeacherResponseService {
             $this->repository->insertClaimOffer($requestId,$deliveryId,(int)$teacher->id,$requestedTimeId,$now,$deadline);
             $locked=$this->repository->deliveryByUid($uid,true);
             if(!$locked||(int)$locked->teacher_id!==(int)$teacher->id)throw new \RuntimeException('Booking request not found');
+            $this->assertHardOccupancy($locked,(int)$teacher->id);
             $overridden=(bool)$this->allocation->assertAcceptable($locked,$now,$requestedTimeId,true);
             $this->auditClaim($locked,$requestedTimeId,$overridden,$actor,$keyDigest,$now);
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($locked,$teacher,$actor,$keyDigest,$payloadDigest,$now);
@@ -274,6 +276,21 @@ final class BookingTeacherResponseService {
         $this->repository->transitionDelivery($deliveryId,'pending_request','accepting',$now);
         $this->repository->insertCommand(array('uid'=>Identifier::uid(),'command_key_digest'=>$keyDigest,'command_payload_digest'=>$payloadDigest,'delivery_id'=>$deliveryId,'operation'=>'accept','result_state'=>$paid?'awaiting_payment':'accepting','result_confirmation_id'=>$confirmationId,'created_at'=>$now,'created_by'=>$actor));
         return array((int)$confirmationId,(bool)$paid,$introUid);
+    }
+
+    /**
+     * Surface hard Student/Teacher scheduling conflicts distinctly from advisory availability.
+     *
+     * The allocation candidates query deliberately collapses several refusal reasons; calling the
+     * shared occupancy reads here preserves the specific Teacher/Student conflict diagnostics while
+     * still leaving the final acceptance revalidation in the canonical allocation authority.
+     */
+    private function assertHardOccupancy(object $delivery,int $teacherId):void{
+        $start=(string)($delivery->starts_at_utc??'');
+        $end=(string)($delivery->occupied_ends_at_utc??'');
+        if(''===$start||''===$end||$end<=$start)throw new \RuntimeException('Booking requested time is unavailable');
+        if($this->repository->studentOccupancyConflicts((int)($delivery->student_id??0),array(array('starts_at_utc'=>$start,'occupied_ends_at_utc'=>$end)),array('exclude_booking_request_id'=>(int)($delivery->booking_request_id??0))))throw new \InvalidArgumentException('student_slot_conflict');
+        if($this->repository->teacherOccupancyConflicts((int)$teacherId,$start,$end,(int)($delivery->booking_request_id??0)))throw new \InvalidArgumentException('teacher_slot_conflict');
     }
 
     /** @return array{0:string,1:string} */

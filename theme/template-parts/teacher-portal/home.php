@@ -21,7 +21,6 @@ $announcement_valid = in_array( $announcement['state'] ?? 'none', $announcement_
 <?php endif; ?>
 <?php dzn_theme_teacher_portal_component( 'induction-card', array( 'model' => $model ) ); ?>
 <?php dzn_theme_teacher_portal_component( 'attention', array( 'items' => $model['attention'] ?? array(), 'model' => $model, 'timezone' => $teacher_tz ) ); ?>
-<?php dzn_theme_teacher_portal_component( 'open-requests', array( 'items' => $model['open_requests'] ?? array(), 'model' => $model ) ); ?>
 <?php dzn_theme_teacher_portal_component( 'post-intro-outcomes', array( 'items' => $model['post_intro_outcomes'] ?? array() ) ); ?>
 <?php
 // Today is the operational screen: pending work first, then the current local day only.

@@ -24,7 +24,7 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
         $sql = "SELECT d.uid delivery_uid,d.state delivery_state,d.match_strength,d.created_at,
                        d.requested_time_id,
                        offer.deadline_at response_deadline_at,
-                       r.id booking_request_id,r.reference_code request_reference,s.full_name,
+                       r.id booking_request_id,r.reference_code request_reference,s.full_name,s.country request_country,
                        COALESCE(NULLIF(i.name_fa,''),i.name_en) instrument_name,
                        COALESCE(NULLIF(c.name_fa,''),c.name_en) course_name,
                        rt.local_date,rt.local_start_time,rt.timezone student_timezone,
@@ -118,6 +118,13 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
             \Delnavazan\Platform\Core\Support\Identifier::uid(),$requestedTimeId,$teacherId,$now,$now,$bookingRequestId
         ));
         if ($changed === false) throw new \RuntimeException('Booking Teacher delivery reassignment failed');
+        // An explicit administrator reassignment is the authorised re-offer path: retire a prior
+        // Teacher-specific decline so the opportunity/response is not permanently blocked.
+        $wpdb->query($wpdb->prepare(
+            "UPDATE {$this->prefix}booking_request_teacher_declines SET state='superseded',updated_at=%s
+             WHERE booking_request_id=%d AND teacher_id=%d AND state='active'",
+            $now,$bookingRequestId,$teacherId
+        ));
         // MySQL counts both changed tables when an active offer is retired.
         if ($changed > 0) return;
         $exists = $wpdb->get_var($wpdb->prepare(
@@ -135,7 +142,7 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
                     instructional_ends_at_utc,occupied_ends_at_utc
              FROM {$this->prefix}booking_request_requested_times
              WHERE booking_request_id=%d
-             ORDER BY sequence_number ASC LIMIT 3",
+             ORDER BY sequence_number ASC",
             $requestId
         ), ARRAY_A);
         if ($wpdb->last_error !== '') throw new \RuntimeException('Teacher booking preference read unavailable');

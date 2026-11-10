@@ -287,6 +287,51 @@ function dzn_theme_platform_timezone_label( $timezone ) {
 }
 
 /**
+ * Persian full country name for a stored ISO country code.
+ *
+ * The Teacher needs the Student's country as context, not an ISO token. ICU is used when it is
+ * available; the fixed vocabulary covers Delnavazan's booking regions even on reduced-ICU hosts.
+ */
+function dzn_theme_platform_country_label( $code ) {
+	$code = strtoupper( trim( (string) $code ) );
+	if ( '' === $code ) { return ''; }
+	$labels = array(
+		'AU' => 'استرالیا', 'NZ' => 'نیوزیلند', 'US' => 'ایالات متحده', 'CA' => 'کانادا',
+		'GB' => 'بریتانیا', 'UK' => 'بریتانیا', 'IE' => 'ایرلند', 'DE' => 'آلمان',
+		'FR' => 'فرانسه', 'NL' => 'هلند', 'ES' => 'اسپانیا', 'IT' => 'ایتالیا',
+		'AT' => 'اتریش', 'BE' => 'بلژیک', 'PT' => 'پرتغال', 'FI' => 'فنلاند',
+		'GR' => 'یونان', 'LU' => 'لوکزامبورگ', 'CY' => 'قبرس', 'SK' => 'اسلواکی',
+		'SI' => 'اسلوونی', 'EE' => 'استونی', 'LV' => 'لتونی', 'LT' => 'لیتوانی',
+		'SE' => 'سوئد', 'NO' => 'نروژ', 'DK' => 'دانمارک', 'CH' => 'سوئیس',
+		'IR' => 'ایران', 'TR' => 'ترکیه', 'AE' => 'امارات متحدهٔ عربی', 'SA' => 'عربستان سعودی',
+		'QA' => 'قطر', 'KW' => 'کویت', 'BH' => 'بحرین', 'OM' => 'عمان',
+		'IQ' => 'عراق', 'AF' => 'افغانستان', 'PK' => 'پاکستان', 'IN' => 'هند',
+		'LB' => 'لبنان', 'JO' => 'اردن', 'EG' => 'مصر', 'ZA' => 'آفریقای جنوبی',
+		'BR' => 'برزیل', 'AR' => 'آرژانتین', 'MX' => 'مکزیک', 'JP' => 'ژاپن',
+		'KR' => 'کرهٔ جنوبی', 'CN' => 'چین', 'SG' => 'سنگاپور', 'MY' => 'مالزی',
+		'ID' => 'اندونزی', 'TH' => 'تایلند',
+	);
+	if ( isset( $labels[ $code ] ) ) { return $labels[ $code ]; }
+	if ( class_exists( 'Locale' ) && strlen( $code ) === 2 ) {
+		try {
+			$localized = \Locale::getDisplayRegion( 'und-' . $code, 'fa' );
+			if ( is_string( $localized ) && '' !== trim( $localized ) && 0 !== strcasecmp( trim( $localized ), $code ) ) { return trim( $localized ); }
+		} catch ( Throwable $e ) {
+			// Fall through to the code only when the host cannot localise this region.
+		}
+	}
+	return $code;
+}
+
+/** Full deadline sentence in the Teacher's selected timezone and calendar. */
+function dzn_theme_platform_teacher_deadline_sentence( $utc, $timezone, $calendar, $locale = '' ) {
+	$date = dzn_theme_platform_calendar_time( (string) $utc, $timezone, $calendar, $locale, 'date' );
+	$time = dzn_theme_platform_calendar_time( (string) $utc, $timezone, $calendar, $locale, 'time' );
+	if ( '' === $date || '' === $time ) { return ''; }
+	return 'تا ' . $date . '، ساعت ' . $time . ' فرصت دارید به این درخواست پاسخ دهید.';
+}
+
+/**
  * Canonical lesson temporal state from UTC instants only.
  *
  * Boundary rules: now < start is upcoming; start <= now < end is in progress;
@@ -1850,15 +1895,19 @@ function dzn_theme_platform_teacher_preference_models( $request, $teacher_timezo
 		if ( ! is_array( $preference ) ) { continue; }
 		$coverage = (string) ( $preference['coverage'] ?? 'outside' );
 		if ( ! in_array( $coverage, array( 'preferred', 'requestable', 'outside' ), true ) ) { $coverage = 'outside'; }
-		$label = dzn_theme_platform_calendar_time( (string) ( $preference['starts_at_utc'] ?? '' ), $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' );
+		$starts_at = (string) ( $preference['starts_at_utc'] ?? '' );
+		$label = dzn_theme_platform_calendar_time( $starts_at, $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' );
+		$available = 'outside' !== $coverage;
 		$models[] = array(
 			'id' => (int) ( $preference['id'] ?? 0 ),
 			'label' => $label,
+			'date_label' => dzn_theme_platform_calendar_time( $starts_at, $teacher_timezone, $teacher_calendar, $teacher_locale, 'date' ),
+			'time_label' => dzn_theme_platform_calendar_time( $starts_at, $teacher_timezone, $teacher_calendar, $teacher_locale, 'time' ),
+			'starts_at_iso' => '' !== $starts_at ? dzn_theme_platform_iso_instant( $starts_at ) : '',
 			'coverage' => $coverage,
-			'coverage_label' => 'preferred' === $coverage
-				? 'در زمان‌های در دسترس شما'
-				: ( 'requestable' === $coverage ? 'با پذیرش درخواستی شما در دسترس' : 'خارج از زمان‌های در دسترس شما' ),
-			'available' => 'outside' !== $coverage,
+			'tone' => $available ? 'available' : 'outside',
+			'coverage_label' => $available ? 'هماهنگ با برنامهٔ شما' : 'خارج از برنامهٔ زمانی شما',
+			'available' => $available,
 			'offered' => $offered > 0 && (int) ( $preference['id'] ?? 0 ) === $offered,
 		);
 	}
@@ -2509,22 +2558,27 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$remaining=max(0,(int)ceil($remainingSeconds/60));
 		$remainingText=dzn_theme_platform_persian_digits((int)floor($remaining/60)).' ساعت و '.dzn_theme_platform_persian_digits($remaining%60).' دقیقه';
 		$preferenceModels=dzn_theme_platform_teacher_preference_models($request,$teacher_timezone,$teacher_calendar,$teacher_locale);
-		$preferences=array_map(static fn($preference)=>(string)($preference['label']??''),$preferenceModels);
-		$preferenceText=$preferences?' اولویت‌های هنرجو: '.implode(' · ',$preferences).'.':'';
+		$student=trim((string)($request->full_name??''));
+		$instrument=trim((string)($request->instrument_name??$request->course_name??''));
+		$country=dzn_theme_platform_country_label((string)($request->request_country??''));
 		return array(
 			'ref'=>(string)$request->delivery_uid,'action_available'=>true,'authoritative_request'=>true,'state'=>'intro_request',
-			'title'=>'درخواست تازهٔ کلاس آشنایی',
-			'context'=>(string)$request->full_name.' · '.(string)($request->instrument_name?:$request->course_name),
-			'message'=>$teacherTime.' به وقت شما · مهلت پاسخ ۲۴ ساعت است (تا '.$deadline.'). زمان باقی‌مانده: '.$remainingText.'. اگر تا پایان این مهلت پاسخ ندهید، درخواست به مدرس در دسترس بعدی ارجاع می‌شود. این فقط درخواست در انتظار بررسی است و کلاس تأییدشده نیست.'.$preferenceText,
-			'due'=>'پاسخ تا '.$deadline,
+			'title'=>'درخواست جدید کلاس آشنایی',
+			'context'=>trim($student.(''!==$instrument?' · '.$instrument:'').(''!==$country?' · '.$country:'')),
+			'student'=>$student,'student_name'=>$student,'instrument'=>$instrument,'country'=>$country,'country_label'=>$country,
+			'message'=>'این درخواست در انتظار پاسخ شماست. اگر هیچ‌یک از زمان‌های پیشنهادی مناسب نیست، دلیل رد را ثبت کنید.',
+			'due'=>'در انتظار پاسخ شما',
 			'response_deadline_utc'=>$deadlineUtc,
 			'response_deadline_iso'=>''!==$deadlineUtc?dzn_theme_platform_iso_instant($deadlineUtc):'',
 			'response_remaining_seconds'=>$remainingSeconds,
+			'response_remaining_label'=>$remainingSeconds>0?dzn_theme_platform_teacher_response_remaining_label($remainingSeconds):'مهلت پاسخ گذشته است',
 			'response_expired'=>$remainingSeconds<=0,
 			'response_deadline_label'=>$deadline,
-			'response_window_label'=>'مهلت پاسخ: ۲۴ ساعت',
-			'primary'=>'مشاهدهٔ درخواست','response_action_url'=>admin_url('admin-post.php?action=dzn_teacher_booking_response'),'response_nonce'=>wp_create_nonce('dzn_teacher_booking_response'),'delivery_uid'=>(string)$request->delivery_uid,
+			'deadline_sentence'=>''!==$deadlineUtc?dzn_theme_platform_teacher_deadline_sentence($deadlineUtc,$teacher_timezone,$teacher_calendar,$teacher_locale):'',
+			'primary'=>'تأیید درخواست','secondary'=>'رد درخواست',
+			'response_action_url'=>admin_url('admin-post.php?action=dzn_teacher_booking_response'),'response_nonce'=>wp_create_nonce('dzn_teacher_booking_response'),'delivery_uid'=>(string)$request->delivery_uid,
 			'requested_preferences'=>$preferenceModels,'offered_time_id'=>(int)($request->requested_time_id??0),
+			'decline_action_url'=>admin_url('admin-post.php?action=dzn_teacher_booking_response'),'decline_nonce'=>wp_create_nonce('dzn_teacher_booking_response'),
 		);
 	},dzn_theme_platform_teacher_booking_requests());
 	// Unmatched requests never entered the Teacher's inbox through allocation. They are offered
@@ -2539,20 +2593,30 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		if ( ! $preferences ) { return null; }
 		$instrument = trim( (string) ( $request->instrument_name ?? $request->course_name ?? '' ) );
 		$student = trim( (string) ( $request->full_name ?? '' ) );
+		$country = dzn_theme_platform_country_label( (string) ( $request->request_country ?? '' ) );
 		return array(
 			'ref' => 'open-' . $request_uid,
 			'action_available' => true,
 			'authoritative_request' => true,
 			'state' => 'intro_open_request',
-			'title' => 'درخواست بدون مدرس برای ساز شما',
-			'context' => trim( $student . ( '' !== $instrument ? ' · ' . $instrument : '' ) ),
-			'message' => 'این درخواست به مدرس دیگری ارجاع نشده است. زمان‌های درخواستی هنرجو خارج از زمان‌های در دسترس اعلام‌شدهٔ شما هستند؛ با انتخاب یکی از آن‌ها و پذیرش، این کلاس را به‌صورت استثنایی ثبت می‌کنید. تداخل با کلاس‌های شما همچنان بررسی می‌شود.',
-			'due' => 'خارج از زمان‌های در دسترس شما',
-			'primary' => 'پذیرش این درخواست',
+			'title' => 'درخواست جدید کلاس آشنایی',
+			'student' => $student,
+			'student_name' => $student,
+			'instrument' => $instrument,
+			'country' => $country,
+			'country_label' => $country,
+			'context' => trim( $student . ( '' !== $instrument ? ' · ' . $instrument : '' ) . ( '' !== $country ? ' · ' . $country : '' ) ),
+			'message' => 'این فرصت هنوز به مدرسی واگذار نشده است. با انتخاب یکی از زمان‌های پیشنهادی و تأیید، مسئولیت برگزاری آن زمان را می‌پذیرید.',
+			'due' => 'فرصت آزاد · بدون مدرس',
+			'primary' => 'تأیید درخواست',
+			'secondary' => 'رد درخواست',
 			'request_uid' => $request_uid,
 			'requested_preferences' => $preferences,
 			'claim_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_booking_claim' ),
 			'claim_nonce' => wp_create_nonce( 'dzn_teacher_booking_claim' ),
+			'decline_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_booking_claim' ),
+			'decline_nonce' => wp_create_nonce( 'dzn_teacher_booking_claim' ),
+			'opportunity' => true,
 		);
 	}, dzn_theme_platform_teacher_open_booking_requests() ) ) );
 	// Accepted bookings stay visible while Calendar/Meet provisioning is pending or failed. The

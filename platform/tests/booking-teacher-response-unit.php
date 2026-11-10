@@ -14,6 +14,8 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public array $audits = array();
         public array $slotConflicts = array();
         public array $teacherConflicts = array();
+        public array $declines = array();
+        public bool $eligibleForCourse = true;
         private int $nextConfirmation = 70;
 
         public function __construct() {
@@ -39,6 +41,9 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function insertClaimOffer(int $requestId,int $deliveryId,int $teacherId,int $requestedTimeId,string $now,string $deadline): int { $this->offer=(object) array('id'=>88,'booking_request_id'=>$requestId,'delivery_id'=>$deliveryId,'teacher_id'=>$teacherId,'requested_time_id'=>$requestedTimeId,'state'=>'pending','active_slot'=>1,'deadline_at'=>$deadline); return 88; }
         public function auditByDigest(string $digest): ?object { return $this->audits[$digest] ?? null; }
         public function insertAudit(array $data): int { $this->audits[$data['idempotency_key']]=(object) $data; return count($this->audits); }
+        public function teacherEligibleForCourse(int $teacherId,int $courseId): bool { return $this->eligibleForCourse; }
+        public function declineForTeacher(int $requestId,int $teacherId,bool $lock=false): ?object { $key=$requestId.'|'.$teacherId; return $this->declines[$key] ?? null; }
+        public function recordDecline(array $data): int { $key=(int)$data['booking_request_id'].'|'.(int)$data['teacher_id']; $this->declines[$key]=(object) $data; return count($this->declines); }
         public function activeConnection(int $teacherId,bool $lock=false): ?object { return $teacherId === 9 ? $this->connection : null; }
         public function transitionDelivery(int $id,string $from,string $to,string $now): void { if ($id !== 41 || $this->delivery->state !== $from) throw new \RuntimeException('transition mismatch'); $this->delivery->state = $to; }
         public function closeRequest(int $id,string $resolution,string $now,int $actor): void { $this->delivery->lifecycle_status='closed';$this->delivery->resolution_state=$resolution; }
@@ -97,9 +102,13 @@ namespace {
 
     $declineRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
     $declineRepository->teacher->onboarding_state='in_progress';$declineRepository->teacher->readiness_state='not_ready';$declineRepository->connection=null;
-    $declined=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($declineRepository,null,$freePricing))->respond($declineRepository->delivery->uid,'decline','decline-once');
+    $declined=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($declineRepository,null,$freePricing))->respond($declineRepository->delivery->uid,'decline','decline-once',null,'other','زمان مناسب نیست و ظرفیت ندارم.');
     $assert($declined['state']==='declined' && $declineRepository->delivery->resolution_state==='unresolved','A decline must leave the request open for the next Teacher or administrator.');
     $assert(!isset($declineRepository->notifications['41|declined']),'A decline must not tell the Student that the entire request failed.');
+    $declineRow=$declineRepository->declines['12|9']??null;
+    $assert($declineRow!==null && (string)$declineRow->source==='assigned' && (string)$declineRow->reason_code==='other' && (string)$declineRow->reason_text==='زمان مناسب نیست و ظرفیت ندارم.','A decline reason must be stored against the exact request and Teacher delivery.');
+    $declineAudit=array_values(array_filter($declineRepository->audits,static fn($row)=>(string)$row->event_type==='teacher_booking_decline' && (string)$row->reason_code==='other'));
+    $assert(count($declineAudit)===1,'A Teacher decline must leave a durable audit event.');
 
     $restartRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
     $first=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($restartRepository,null,$freePricing))->respond($restartRepository->delivery->uid,'accept','restart-first');
@@ -206,5 +215,19 @@ namespace {
     try{(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($claimBlockedRepository,null,$freePricing))->claim($claimBlockedRepository->request->uid,14,'claim-blocked-once');}
     catch(\InvalidArgumentException $error){$claimBlocked=$error->getMessage()==='Booking request is no longer available';}
     $assert($claimBlocked && $claimBlockedRepository->confirmations===array(),'An already-offered request must not be claimed again.');
+
+    // Declining an unassigned opportunity records Teacher-specific disinterest without closing,
+    // cancelling or confirming the request. The active decline row suppresses a repeat offer.
+    $opportunityRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    $opportunityRepository->request=(object)array('id'=>12,'uid'=>'01ARZ3NDEKTSV4RRFFQ69G5FAX','lifecycle_status'=>'submitted','resolution_state'=>'unresolved','privacy_erased_at'=>null,'student_id'=>55,'selected_intro_course_id'=>77);
+    $opportunity=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($opportunityRepository,null,$freePricing))->declineOpportunity($opportunityRepository->request->uid,'times_unsuitable','','opportunity-decline-once');
+    $assert($opportunity['state']==='declined' && $opportunityRepository->delivery->resolution_state==='unresolved','An opportunity decline must not cancel the underlying request.');
+    $opportunityRow=$opportunityRepository->declines['12|9']??null;
+    $assert($opportunityRow!==null && (string)$opportunityRow->source==='opportunity' && (string)$opportunityRow->reason_code==='times_unsuitable','An opportunity decline must be Teacher-specific and durable.');
+    $assert($opportunityRepository->confirmations===array(),'An opportunity decline must never create a confirmation.');
+    $blockedClaim=false;
+    try{(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($opportunityRepository,null,$freePricing))->claim($opportunityRepository->request->uid,14,'opportunity-decline-reclaim');}
+    catch(\InvalidArgumentException $error){$blockedClaim=$error->getMessage()==='Booking request is no longer available';}
+    $assert($blockedClaim,'A declined opportunity must not be silently re-offered to the same Teacher.');
     echo "Booking teacher response unit passed\n";
 }

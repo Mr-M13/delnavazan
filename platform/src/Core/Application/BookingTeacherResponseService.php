@@ -8,9 +8,11 @@ use Delnavazan\Platform\Core\Support\Identifier;
 
 /** Teacher-owned Accept/Decline authority for one delivered introductory booking request. */
 final class BookingTeacherResponseService {
+    /** Stable Teacher-facing decline reasons; `other` requires free text. */
+    public const DECLINE_REASONS=array('times_unsuitable','no_capacity','cannot_teach_student','other');
     public function __construct(private ?BookingTeacherResponseRepository $repository=null,private ?object $projector=null,private ?\Closure $introPricing=null,private ?\Closure $introPayments=null,private ?BookingAllocationService $allocation=null){$this->repository??=new BookingTeacherResponseRepository();$this->allocation??=new BookingAllocationService();}
 
-    public function respond(string $deliveryUid,string $decision,string $commandKey,?int $requestedTimeId=null):array{
+    public function respond(string $deliveryUid,string $decision,string $commandKey,?int $requestedTimeId=null,?string $reasonCode=null,?string $reasonText=null):array{
         $actor=(int)get_current_user_id();if($actor<1)throw new \RuntimeException('Unauthorized');
         if(!in_array($decision,array('accept','decline'),true))throw new \InvalidArgumentException('Unsupported booking response');
         $deliveryUid=trim($deliveryUid);if(!preg_match('/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/D',$deliveryUid))throw new \InvalidArgumentException('Booking delivery identity required');
@@ -33,9 +35,11 @@ final class BookingTeacherResponseService {
             if((string)$delivery->state!=='pending_request'||(string)$delivery->lifecycle_status!=='submitted'||(string)$delivery->resolution_state!=='unresolved'||$delivery->privacy_erased_at!==null)throw new \InvalidArgumentException('Booking request is no longer pending');
             $this->allocation->assertPending($delivery,$now);
             if($decision==='decline'){
+                [$declineReason,$declineText]=$this->declineReason($reasonCode,$reasonText);
+                $this->recordDecline($delivery,'assigned',$declineReason,$declineText,$actor,$keyDigest,$now);
                 $next=$this->allocation->advanceLocked($delivery,'declined',$now);
                 $this->repository->insertCommand(array('uid'=>Identifier::uid(),'command_key_digest'=>$keyDigest,'command_payload_digest'=>$payloadDigest,'delivery_id'=>$deliveryId,'operation'=>'decline','result_state'=>'declined','result_confirmation_id'=>null,'created_at'=>$now,'created_by'=>$actor));
-                $this->repository->commit();return array('delivery_id'=>$deliveryId,'confirmation_id'=>null,'state'=>'declined','next_offer'=>$next,'idempotent'=>false);
+                $this->repository->commit();return array('delivery_id'=>$deliveryId,'confirmation_id'=>null,'state'=>'declined','next_offer'=>$next,'reason_code'=>$declineReason,'idempotent'=>false);
             }
             // The Teacher may choose any Student preference. The originally offered time keeps the
             // strict availability rules; a different, explicitly selected preference may proceed
@@ -50,6 +54,7 @@ final class BookingTeacherResponseService {
                 $delivery=$this->repository->deliveryByUid($deliveryUid,true);
                 if(!$delivery)throw new \RuntimeException('Booking request not found');
             }
+            $this->assertHardOccupancy($delivery,(int)$teacher->id);
             $overridden=(bool)$this->allocation->assertAcceptable($delivery,$now,$selectedTimeId,$allowOverride);
             if($overridden)$this->auditAvailabilityOverride($delivery,$selectedTimeId,$actor,$keyDigest,$now);
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($delivery,$teacher,$actor,$keyDigest,$payloadDigest,$now);
@@ -89,7 +94,9 @@ final class BookingTeacherResponseService {
             if($winner=$this->repository->command($keyDigest)){$result=$this->replay($winner,$payloadDigest);$this->repository->commit();return $result;}
             if((string)$request->lifecycle_status!=='submitted'||(string)$request->resolution_state!=='unresolved'||$request->privacy_erased_at!==null)throw new \InvalidArgumentException('Booking request is no longer pending');
             if((int)($request->student_id??0)<1||(int)($request->selected_intro_course_id??0)<1)throw new \InvalidArgumentException('Resolve the student identity before confirming a match');
+            if(!$this->repository->teacherEligibleForCourse((int)$teacher->id,(int)$request->selected_intro_course_id))throw new \InvalidArgumentException('Teacher is not eligible for this instrument');
             $requestId=(int)$request->id;
+            if($this->repository->declineForTeacher($requestId,(int)$teacher->id,true))throw new \InvalidArgumentException('Booking request is no longer available');
             $time=$this->repository->requestedTime($requestId,$requestedTimeId,true);
             if(!$time)throw new \InvalidArgumentException('Choose one of the requested times');
             if((string)$time->starts_at_utc<=$now)throw new \InvalidArgumentException('Booking time is no longer available');
@@ -111,6 +118,7 @@ final class BookingTeacherResponseService {
             $this->repository->insertClaimOffer($requestId,$deliveryId,(int)$teacher->id,$requestedTimeId,$now,$deadline);
             $locked=$this->repository->deliveryByUid($uid,true);
             if(!$locked||(int)$locked->teacher_id!==(int)$teacher->id)throw new \RuntimeException('Booking request not found');
+            $this->assertHardOccupancy($locked,(int)$teacher->id);
             $overridden=(bool)$this->allocation->assertAcceptable($locked,$now,$requestedTimeId,true);
             $this->auditClaim($locked,$requestedTimeId,$overridden,$actor,$keyDigest,$now);
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($locked,$teacher,$actor,$keyDigest,$payloadDigest,$now);
@@ -119,6 +127,44 @@ final class BookingTeacherResponseService {
         }catch(\Throwable $error){$this->repository->rollback();throw $error;}
         if($paid)return array('delivery_id'=>$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'awaiting_payment','payment_required'=>true,'intro_obligation_uid'=>$introUid,'idempotent'=>false);
         return $this->dispatchProjection($deliveryId,(int)$confirmationId);
+    }
+
+    /**
+     * Record one Teacher's disinterest in an unassigned opportunity.
+     *
+     * This is deliberately not a request cancellation: the opportunity remains visible to every
+     * other eligible Teacher, no allocation offer is consumed and no confirmation is created. The
+     * active decline row is Teacher-scoped and prevents the same opportunity being shown to the
+     * same Teacher again unless an authorised workflow explicitly clears that row.
+     */
+    public function declineOpportunity(string $requestUid,string $reasonCode,string $reasonText,string $commandKey):array{
+        $actor=(int)get_current_user_id();if($actor<1)throw new \RuntimeException('Unauthorized');
+        $requestUid=trim($requestUid);if(!preg_match('/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/D',$requestUid))throw new \InvalidArgumentException('Booking request identity required');
+        [$declineReason,$declineText]=$this->declineReason($reasonCode,$reasonText);
+        $commandKey=trim($commandKey);if($commandKey===''||strlen($commandKey)>191)throw new \InvalidArgumentException('Booking response command required');
+        $keyDigest=hash_hmac('sha256','booking-opportunity-decline-key:'.$commandKey,wp_salt('dzn_booking_response'));
+        $now=gmdate('Y-m-d H:i:s');$requestId=0;
+        $this->repository->begin();
+        try{
+            $teacher=$this->repository->teacherForUser($actor,true);
+            if(!$teacher||(string)$teacher->status!=='active'||$teacher->archived_at!==null)throw new \RuntimeException('Active Teacher required');
+            $request=$this->repository->requestByUid($requestUid,true);
+            if(!$request)throw new \RuntimeException('Booking request not found');
+            $requestId=(int)$request->id;
+            if((string)$request->lifecycle_status!=='submitted'||(string)$request->resolution_state!=='unresolved'||$request->privacy_erased_at!==null)throw new \InvalidArgumentException('Booking request is no longer pending');
+            if((int)($request->selected_intro_course_id??0)<1||!$this->repository->teacherEligibleForCourse((int)$teacher->id,(int)$request->selected_intro_course_id))throw new \InvalidArgumentException('Teacher is not eligible for this instrument');
+            if($this->repository->confirmationForRequest($requestId,true))throw new \InvalidArgumentException('Booking request is no longer available');
+            if($this->repository->activeAllocationOffer($requestId,true))throw new \InvalidArgumentException('Booking request is no longer available');
+            $delivery=$this->repository->deliveryForRequest($requestId,true);
+            if($delivery&&in_array((string)($delivery->state??''),array('accepting','confirmed'),true))throw new \InvalidArgumentException('Booking request is no longer available');
+            if($this->repository->declineForTeacher($requestId,(int)$teacher->id,true)){
+                $this->repository->commit();
+                return array('request_id'=>$requestId,'delivery_id'=>0,'state'=>'declined','reason_code'=>$declineReason,'idempotent'=>true);
+            }
+            $this->recordDecline((object)array('id'=>0,'booking_request_id'=>$requestId,'teacher_id'=>(int)$teacher->id),'opportunity',$declineReason,$declineText,$actor,$keyDigest,$now,$requestId);
+            $this->repository->commit();
+        }catch(\Throwable $error){$this->repository->rollback();throw $error;}
+        return array('request_id'=>$requestId,'delivery_id'=>0,'state'=>'declined','reason_code'=>$declineReason,'idempotent'=>false);
     }
 
     /**
@@ -230,6 +276,59 @@ final class BookingTeacherResponseService {
         $this->repository->transitionDelivery($deliveryId,'pending_request','accepting',$now);
         $this->repository->insertCommand(array('uid'=>Identifier::uid(),'command_key_digest'=>$keyDigest,'command_payload_digest'=>$payloadDigest,'delivery_id'=>$deliveryId,'operation'=>'accept','result_state'=>$paid?'awaiting_payment':'accepting','result_confirmation_id'=>$confirmationId,'created_at'=>$now,'created_by'=>$actor));
         return array((int)$confirmationId,(bool)$paid,$introUid);
+    }
+
+    /**
+     * Surface hard Student/Teacher scheduling conflicts distinctly from advisory availability.
+     *
+     * The allocation candidates query deliberately collapses several refusal reasons; calling the
+     * shared occupancy reads here preserves the specific Teacher/Student conflict diagnostics while
+     * still leaving the final acceptance revalidation in the canonical allocation authority.
+     */
+    private function assertHardOccupancy(object $delivery,int $teacherId):void{
+        $start=(string)($delivery->starts_at_utc??'');
+        $end=(string)($delivery->occupied_ends_at_utc??'');
+        if(''===$start||''===$end||$end<=$start)throw new \RuntimeException('Booking requested time is unavailable');
+        if($this->repository->studentOccupancyConflicts((int)($delivery->student_id??0),array(array('starts_at_utc'=>$start,'occupied_ends_at_utc'=>$end)),array('exclude_booking_request_id'=>(int)($delivery->booking_request_id??0))))throw new \InvalidArgumentException('student_slot_conflict');
+        if($this->repository->teacherOccupancyConflicts((int)$teacherId,$start,$end,(int)($delivery->booking_request_id??0)))throw new \InvalidArgumentException('teacher_slot_conflict');
+    }
+
+    /** @return array{0:string,1:string} */
+    private function declineReason(?string $reasonCode,?string $reasonText):array{
+        $code=strtolower(trim((string)$reasonCode));
+        $text=trim((string)$reasonText);
+        if(''===$code)$code='unspecified';
+        if('unspecified'!==$code&&!in_array($code,self::DECLINE_REASONS,true))throw new \InvalidArgumentException('Choose a valid decline reason');
+        if(strlen($text)>1000)throw new \InvalidArgumentException('Decline reason is too long');
+        if('other'===$code&&''===$text)throw new \InvalidArgumentException('Decline reason text required');
+        return array($code,$text);
+    }
+
+    /**
+     * Persist Teacher-specific decline evidence plus a privacy-safe audit event.
+     *
+     * `$delivery` is the assigned delivery anchor when one exists; an unassigned opportunity has
+     * no delivery yet, so the request identity alone is the aggregate.
+     */
+    private function recordDecline(?object $delivery,string $source,string $reasonCode,string $reasonText,int $actor,string $keyDigest,string $now,int $requestId=0):void{
+        $requestId=$requestId>0?$requestId:(int)($delivery->booking_request_id??0);
+        $teacherId=(int)($delivery->teacher_id??0);
+        if($teacherId<1){$teacher=$this->repository->teacherForUser($actor,false);$teacherId=(int)($teacher->id??0);}
+        if($requestId<1||$teacherId<1)throw new \RuntimeException('Booking decline target required');
+        $deliveryId=(int)($delivery->id??0);
+        $this->repository->recordDecline(array(
+            'uid'=>Identifier::uid(),'booking_request_id'=>$requestId,'delivery_id'=>$deliveryId>0?$deliveryId:null,
+            'teacher_id'=>$teacherId,'source'=>$source,'reason_code'=>$reasonCode,'reason_text'=>$reasonText,
+            'created_at'=>$now,'updated_at'=>$now,
+        ));
+        $digest=hash('sha256','booking-decline-audit:'.$keyDigest);
+        if($this->repository->auditByDigest($digest))return;
+        $this->repository->insertAudit(array(
+            'aggregate_type'=>'booking_request','aggregate_id'=>$requestId,'event_type'=>'teacher_booking_decline',
+            'actor_type'=>'user','actor_id'=>$actor,'reason_code'=>$reasonCode,
+            'safe_detail'=>(string)json_encode(array('teacher_id'=>$teacherId,'delivery_id'=>$deliveryId,'source'=>$source,'reason_text'=>$reasonText)),
+            'idempotency_key'=>$digest,'occurred_at'=>$now,
+        ));
     }
 
     /** Audit an explicit alternative preference accepted outside declared availability. */

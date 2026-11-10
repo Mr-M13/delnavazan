@@ -42,7 +42,7 @@ $done = array_values(array_filter((array) get_option('dzn_platform_completed_mig
 update_option('dzn_platform_completed_migrations', $done, false);
 update_option('dzn_platform_schema_version', '56', false);
 Migrator::maybe_upgrade();
-$assert((string) get_option('dzn_platform_schema_version') === '60', 'The migration must reach the current schema');
+$assert((string) get_option('dzn_platform_schema_version') === '61', 'The migration must reach the current schema');
 $detail = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}finance_golden_hour_details WHERE snapshot_id=%d AND snapshot_correction_id=0", 9950001));
 $assert($detail !== null, 'The legacy lesson-level record must move into the dedicated detail table');
 $assert((int) $detail->base_amount_minor === 4000 && (int) $detail->total_bonus_minor === 800 && (int) $detail->committed_total_minor === 4800, 'The migration must preserve the committed amounts without recalculation.');

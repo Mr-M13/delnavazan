@@ -10,7 +10,7 @@ declare(strict_types=1);
 define('DZN_PLATFORM_PAYMENT_TEST_VAULT',true);
 define('DZN_STRIPE_CHECKOUT_TEST_MODE_AUTHORIZED',true);
 define('DZN_PRELAUNCH_PRODUCTION_TEST_MODE_ENABLED',true);
-define('DZN_PLATFORM_SCHEMA_VERSION','60');
+define('DZN_PLATFORM_SCHEMA_VERSION','61');
 
 $source=dirname(__DIR__).'/src/';
 spl_autoload_register(static function(string $class)use($source):void{
@@ -21,7 +21,7 @@ spl_autoload_register(static function(string $class)use($source):void{
 });
 
 $GLOBALS['options']=array(
-    'dzn_platform_schema_version'=>'60',
+    'dzn_platform_schema_version'=>'61',
     'dzn_platform_completed_migrations'=>array('035_provider_reference_vault','036_checkout_session_authority','070_stripe_live_mode'),
     'dzn_platform_payment_worker_principal'=>41,
 );

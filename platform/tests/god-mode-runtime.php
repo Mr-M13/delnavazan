@@ -16,7 +16,7 @@ $assert(GodModeAuthority::designatedUserId()>0,'The designated account was not r
 $assert(GodModeAuthority::isAuthorised(GodModeAuthority::designatedUserId()),'The designated account does not hold God Mode authority.');
 $p=$wpdb->prefix.'dzn_';
 foreach(array('god_mode_sessions','god_mode_session_events','god_mode_audit_events','god_mode_cleanup_receipts','god_mode_participant_mappings') as $table)$assert($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$p.$table))===$p.$table,'Missing table '.$table);
-foreach(array('lessons','enrolments','booking_requests') as $table)$assert($wpdb->get_row("SHOW COLUMNS FROM {$p}{$table} LIKE 'activity_type'"),'Missing activity_type on '.$table);
+foreach(array('lessons','enrolments','booking_requests') as $table)$assert((bool)$wpdb->get_row("SHOW COLUMNS FROM {$p}{$table} LIKE 'activity_type'"),'Missing activity_type on '.$table);
 $options=(new GodModeBookingService())->bookingOptions();
 $assert(!empty($options['teachers'])&&!empty($options['instruments']),'A teacher and instrument are required for the runtime smoke.');
 $teacherId=(int)$options['teachers'][0]->id;$instrumentId=(int)$options['instruments'][0]->id;

@@ -24,14 +24,15 @@ $css = $read('src/Admin/Assets/admin.css');
 $bootstrap = $read('delnavazan-platform.php');
 $worker = $read('src/Integrations/BookingStudentNotificationWorker.php');
 
-$expect(1 === preg_match_all("/\\['Enrolment', 'dzn-enrolment-workspace'/", $shell), 'Enrolment must expose one destination without sub-tabs.');
+$expect(1 === preg_match_all("/\\['Enrolment', 'dzn-enrolment-workspace'/", $shell), 'Enrolment must expose one primary destination.');
 $contains($shell, array(
     "['Enrolment', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
-    "'dzn-catalogue-workspace' => Menu::CATALOGUE_WORKSPACE_CAP",
-), 'The single Enrolment destination and the protected Settings catalogue route are required.');
+    "['Courses & instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
+    "'dzn-catalogue-workspace' => 'enrolment'",
+), 'Catalogue management must remain under Enrolment, not Settings → General.');
 $general = $read('src/Admin/Controller/GeneralSettingsController.php');
-$contains($general, array("admin.php?page=dzn-catalogue-workspace", 'Open courses and instruments'), 'The catalogue must remain discoverable from General.');
-$notContains($shell, array("['Classes & Schedules'", "['Attendance & Post-intro'", "['Bookings & Enrolments'", "['Courses & Instruments'"), 'The former four visible Enrolment destinations must be gone.');
+$notContains($general, array('dzn-catalogue-workspace', 'Open courses and instruments'), 'General must not own catalogue management.');
+$notContains($shell, array("['Classes & Schedules'", "['Attendance & Post-intro'", "['Bookings & Enrolments'"), 'The former Enrolment sub-tabs must be gone.');
 $contains($menu, array(
     "['Booking requests', 'dzn_view_booking_requests', 'dzn-booking-requests'",
     "['Class admin', 'dzn_manage_booking_request_coordination', 'dzn-booking-request-coordination'",

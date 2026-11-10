@@ -27,8 +27,11 @@ foreach (['067_recording_archive_authority','install_recording_archive_authority
 $need(str_contains($migrator, '067_recording_archive_authority'), 'migration ledger must include 067');
 $need(!preg_match('/INSERT\s+INTO[^;]*recordings/i', $migrator), 'migration must not backfill a recording or decision');
 
-foreach (['Recordings','dzn-recordings','dzn_manage_recording_operations'] as $x) $need(str_contains($read('src/Admin/Controller/Menu.php'), $x) && str_contains($read('src/Admin/Controller/AdminShellController.php'), $x), 'admin consolidation missing ' . $x);
-foreach (['RecordingInvalidationListener','RecordingWithdrawalListener','RecordingReconciliationWorker','RecordingOperationsController','RecordingServiceRestController'] as $x) $need(str_contains($plugin, $x), 'bootstrap missing ' . $x);
+// The retired LiveKit recording-operations Settings task and emergency-stop UI are gone.
+$need(!str_contains($read('src/Admin/Controller/Menu.php'), 'dzn-recordings'), 'retired recording Settings route still registered');
+$need(!str_contains($read('src/Admin/Controller/AdminShellController.php'), "'recordings' => ['Recordings'"), 'retired recording Settings tab still visible');
+foreach (['RecordingInvalidationListener','RecordingWithdrawalListener','RecordingReconciliationWorker','RecordingServiceRestController'] as $x) $need(str_contains($plugin, $x), 'bootstrap missing ' . $x);
+$need(!str_contains($plugin, 'RecordingOperationsController::register()'), 'retired recording operations admin route still registered');
 
 foreach (['assertCaptureAuthorised','RecordingFeatureFlags::captureEnabledForLesson','freshServiceHealth','dzn_recording_withdrawal_requested','recording_idempotency_conflict','recording_legal_hold_active','recording_archive_confirmation_required','deletionAuthorisation','recording_archive_confirmation_signature_invalid'] as $x) $need(str_contains($control . $withdrawal . $flags, $x), 'control-plane safeguard missing ' . $x);
 foreach (['$_POST','$_REQUEST','$_GET','wp_upload_dir','wp_handle_upload','move_uploaded_file'] as $x) $need(!str_contains($control, $x), 'control plane must not use browser/upload input ' . $x);
@@ -83,10 +86,11 @@ $need(str_contains($read('../services/recorder-archiver/bin/router.php'), "/metr
 $need(str_contains($read('../services/playback-gateway/src/App.php'), "/metrics"), 'playback gateway must expose Prometheus metrics');
 $need(str_contains($read('src/Core/Application/Recording/RecordingFeatureFlags.php'), 'EMERGENCY_STOP_OPTION'), 'WordPress must expose the durable emergency stop');
 $need(str_contains($read('src/Core/Application/Recording/RecordingControlPlane.php'), 'engageEmergencyStop'), 'control plane must engage the emergency stop');
-$need(str_contains($read('src/Admin/Controller/RecordingOperationsController.php'), 'emergency_stop'), 'admin must expose the emergency stop');
-$need(str_contains($read('src/Core/Application/Recording/RecordingFeatureFlags.php'), 'GLOBAL_CAPTURE_OPTION'), 'WordPress must expose the normal global capture switch');
-$need(str_contains($read('src/Core/Application/Recording/RecordingControlPlane.php'), 'setGlobalCapture'), 'control plane must implement the global capture switch');
-$need(str_contains($read('src/Admin/Controller/GeneralSettingsController.php'), 'ACTION_RECORDING_CAPTURE'), 'Settings must expose the global recording switch');
+$need(!str_contains($read('src/Admin/Controller/RecordingOperationsController.php'), "operation==='emergency_stop'"), 'retired emergency-stop UI handler remains in the admin controller');
+$need(str_contains($read('src/Core/Application/Recording/RecordingControlPlane.php'), 'engageEmergencyStop'), 'the durable safety control must remain available to archive/legal-hold operations');
+$need(str_contains($read('src/Core/Application/Recording/RecordingFeatureFlags.php'), 'GLOBAL_CAPTURE_OPTION'), 'historical capture state must remain readable');
+$need(str_contains($read('src/Core/Application/Recording/RecordingControlPlane.php'), 'setGlobalCapture'), 'historical control plane must remain intact');
+$need(!str_contains($read('src/Admin/Controller/GeneralSettingsController.php'), 'ACTION_RECORDING_CAPTURE'), 'General must no longer expose a recording-capture switch');
 $need(str_contains($read('src/Integrations/LiveKit/LiveKitWebhookController.php'), 'maybeStartRecording'), 'LiveKit admission must request recording for canonical lessons');
 $need(str_contains($read('src/Integrations/LiveKit/LiveKitWebhookController.php'), 'requestStopForLesson'), 'LiveKit room finish must stop the lesson recording');
 $need(str_contains($read('../theme/assets/js/music-classroom.js'), "now - lastTap < 300"), 'classroom must distinguish single tap from double tap');

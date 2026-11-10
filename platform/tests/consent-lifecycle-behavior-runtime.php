@@ -123,6 +123,6 @@ dzn_cl_assert((int)$counts['pending_withdrawals']>=0&&(int)$counts['failed_jobs'
 $evidence=(new Delnavazan\Platform\Core\Application\ConsentOperationsReadService())->evidence('student',$adult,50);
 dzn_cl_assert(count($evidence)>=2,'append-only evidence must remain readable for the adult student');
 $_GET=array();ob_start();Delnavazan\Platform\Admin\Controller\PoliciesController::render();$adminHtml=(string)ob_get_clean();
-foreach(array('Consent indicators','Policy library','Consent operations','Withdrawal processing','Consent evidence','Recording-authorised lessons','ML-eligible recordings')as$text)dzn_cl_assert(str_contains($adminHtml,$text),'Settings Policies missing '.$text);
+foreach(array('Consent Management','Policy library and notice versions','Withdrawal processing','Consent evidence inspector','Recording-authorised lessons','AI research eligible')as$text)dzn_cl_assert(str_contains($adminHtml,$text),'Settings Policies missing '.$text);
 dzn_cl_assert(!str_contains($adminHtml,'name="decision_code"'),'Policies must not expose a form that writes a decision');
 echo "Consent lifecycle behavior runtime: PASS\n";

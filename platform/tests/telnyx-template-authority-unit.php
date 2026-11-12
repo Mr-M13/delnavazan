@@ -24,7 +24,7 @@ final class DznTemplateAuthorityRepository extends NotificationProviderRepositor
 
 $row=static function(string $name,array $definition,string $status='APPROVED',?string $order=null):object{
     return (object)array(
-        'provider'=>'telnyx','template_name'=>$name,'language'=>'fa','status'=>$status,
+        'provider'=>'telnyx','template_name'=>$name,'language'=>'fa','status'=>$status,'category'=>'UTILITY',
         'event_key'=>$definition['event_key'],'audience'=>$definition['audience'],
         'variable_order'=>$order??implode(',',$definition['variable_order']),'last_verified_at'=>'2026-11-01 00:00:00',
     );

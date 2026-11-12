@@ -56,7 +56,7 @@ $fail('generic notification resend surface is removed', !str_contains($controlle
 $fail('provider mapping lives with the WhatsApp template editor', str_contains($controller, 'private static function renderProviderMapping') && str_contains($controller, "if(\$channel!=='whatsapp')return;"));
 $fail('admin and transport share one provider mapping authority', str_contains($library, 'TelnyxTemplateAuthority') && str_contains($adapter, 'TelnyxTemplateAuthority') && str_contains($authority, "count(\$approved)>1") && str_contains($authority, 'CONTRACT_MISMATCH'));
 $fail('discovered mappings do not expose a duplicate manual editor', str_contains($controller, "(\$mapping['source']??'')==='discovery'") && str_contains($controller, 'verified Telnyx template discovery record'));
-$fail('Twilio is not presented as implemented', str_contains($controller, 'Twilio WhatsApp is not implemented') && str_contains((string) file_get_contents($root . '/src/Admin/Controller/IntegrationControlPlaneController.php'), 'Twilio WhatsApp is not implemented'));
+$fail('Twilio is not presented as implemented', !str_contains($controller, 'Twilio') && str_contains((string) file_get_contents($root . '/src/Admin/Controller/IntegrationControlPlaneController.php'), 'Twilio WhatsApp is not implemented'));
 
 /* 1d. Booking and class records show the shared delivery status vocabulary. */
 $fail('booking records show notification status', str_contains((string) file_get_contents($root . '/src/Admin/Controller/BookingRequestController.php'), "renderRecordStatus('booking_request'"));

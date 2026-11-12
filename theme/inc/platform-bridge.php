@@ -2605,6 +2605,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'instrument' => $instrument,
 			'country' => $country,
 			'country_label' => $country,
+			'request_date_label' => ! empty( $request->created_at ) ? dzn_theme_platform_calendar_time( (string) $request->created_at, $teacher_timezone, $teacher_calendar, $teacher_locale, 'date' ) : '',
 			'context' => trim( $student . ( '' !== $instrument ? ' · ' . $instrument : '' ) . ( '' !== $country ? ' · ' . $country : '' ) ),
 			'message' => 'این فرصت هنوز به مدرسی واگذار نشده است. با انتخاب یکی از زمان‌های پیشنهادی و تأیید، مسئولیت برگزاری آن زمان را می‌پذیرید.',
 			'due' => 'فرصت آزاد · بدون مدرس',

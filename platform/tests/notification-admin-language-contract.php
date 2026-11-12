@@ -9,6 +9,7 @@
 $root = dirname(__DIR__);
 $repo = dirname($root);
 $controller = (string) file_get_contents($root . '/src/Admin/Controller/NotificationManagementController.php');
+$channelPolicy = (string) file_get_contents($root . '/src/Integrations/Notifications/NotificationChannelPolicy.php');
 $menu = (string) file_get_contents($root . '/src/Admin/Controller/Menu.php');
 $shell = (string) file_get_contents($root . '/src/Admin/Controller/AdminShellController.php');
 $catalogueSource = (string) file_get_contents($root . '/src/Integrations/Notifications/NotificationCatalogue.php');
@@ -94,10 +95,10 @@ foreach (array('check_admin_referer(', 'current_user_can(', 'wp_safe_redirect(',
 }
 $fail('template editing still uses the canonical capability', str_contains($controller, "CAP_EDIT='dzn_manage_notification_templates'"));
 
-/* 8. SMS is presented only as a verified WhatsApp fallback, never as a primary channel. */
-$fail('delivery rules use the SMS fallback label', str_contains($controller, '<th>SMS fallback</th>') && !str_contains($controller, 'SMS instead of WhatsApp'));
-$fail('delivery rules carry the fallback-only explanation', str_contains($controller, 'SMS is a fallback only') && str_contains($controller, 'verified terminal WhatsApp delivery failure'));
-$fail('delivery rules expose one SMS fallback flag', str_contains($controller, "foreach(array('email','website','whatsapp','sms_fallback') as \$flag)"));
+/* 8. SMS remains an event-specific, verified WhatsApp fallback, never a primary route. */
+$fail('catalogue displays all four delivery methods', str_contains($controller, "array('website','email','whatsapp','sms')"));
+$fail('catalogue explains the SMS fallback restriction', str_contains($controller, 'SMS is fallback-only after a verified terminal WhatsApp failure.'));
+$fail('SMS fallback stays event-gated', str_contains($channelPolicy, 'allowsSmsFallback') && str_contains($channelPolicy, "self::allows($eventKey,'sms')"));
 $fail('customer content remains Persian after the label change', $persian(NotificationCatalogue::defaultCopy('booking.confirmed.student', 'sms', 'fa-IR')['body']));
 
 echo "Notification admin language contract passed\n";

@@ -102,6 +102,8 @@ final class GodModeReadService {
     /** @return list<object> */
     public function history(array $filters,int $limit=100,int $offset=0):array{return $this->repository->sessions($filters,$limit,$offset);}
     public function historyCount(array $filters):int{return $this->repository->countSessions($filters);}
+    /** @return list<object> */
+    public function scenarioRuns(int $limit=100):array{return $this->repository->scenarioRuns($limit);}
 
     /** @return list<object> */
     public function teachers():array{

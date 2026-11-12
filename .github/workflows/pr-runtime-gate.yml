@@ -374,6 +374,7 @@ jobs:
           php platform/tests/god-mode-scenario-honesty-contract.php
           php platform/tests/god-mode-migration-contract.php
           php platform/tests/god-mode-teacher-isolation-contract.php
+          php platform/tests/god-mode-controller-contract.php
           if [[ -f platform/tests/phase-operations-portal-contract.php ]]; then
             php platform/tests/phase-operations-portal-contract.php
           else

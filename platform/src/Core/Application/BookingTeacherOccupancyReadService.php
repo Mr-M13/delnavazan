@@ -18,8 +18,19 @@ final class BookingTeacherOccupancyReadService {
 
     /** @return list<array{lesson_id:int,starts_at_utc:string,occupied_ends_at_utc:string}> */
     public function overlapping(int $teacherId,string $startsAtUtc,string $occupiedEndUtc,int $excludeLessonId=0,int $excludeBookingRequestId=0,bool $includePendingOffers=true):array{
-        $result=$this->canonical->overlapping($teacherId,$startsAtUtc,$occupiedEndUtc,$excludeLessonId);
-        foreach(TeacherBookingOccupancyQuery::conflicts($teacherId,$startsAtUtc,$occupiedEndUtc,$excludeBookingRequestId,$includePendingOffers) as $conflict)$result[]=array('lesson_id'=>(int)$conflict['conflict_id'],'starts_at_utc'=>$conflict['starts_at_utc'],'occupied_ends_at_utc'=>$conflict['occupied_ends_at_utc']);
+        return $this->range($teacherId,$startsAtUtc,$occupiedEndUtc,$excludeLessonId,$excludeBookingRequestId,$includePendingOffers);
+    }
+
+    /**
+     * Batched occupancy for a whole coverage-clock range. Existing booking rules
+     * are unchanged; only the interval comparison is widened so a 24-hour clock
+     * does not issue one query per 15-minute segment.
+     *
+     * @return list<array{lesson_id:int,starts_at_utc:string,occupied_ends_at_utc:string}>
+     */
+    public function range(int $teacherId,string $fromUtc,string $untilUtc,int $excludeLessonId=0,int $excludeBookingRequestId=0,bool $includePendingOffers=true):array{
+        $result=$this->canonical->inRange($teacherId,$fromUtc,$untilUtc,$excludeLessonId);
+        foreach(TeacherBookingOccupancyQuery::conflictsRange($teacherId,$fromUtc,$untilUtc,$excludeBookingRequestId,$includePendingOffers) as $conflict)$result[]=array('lesson_id'=>(int)$conflict['conflict_id'],'starts_at_utc'=>$conflict['starts_at_utc'],'occupied_ends_at_utc'=>$conflict['occupied_ends_at_utc']);
         usort($result,static fn(array $a,array $b):int=>($a['starts_at_utc']<=>$b['starts_at_utc'])?:($a['lesson_id']<=>$b['lesson_id']));
         return $result;
     }

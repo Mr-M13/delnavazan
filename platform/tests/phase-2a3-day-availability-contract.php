@@ -14,8 +14,8 @@ require dirname( __DIR__ ) . '/src/Core/Application/RequestedTimeNormalizer.php'
  * The Platform, not the Theme, owns candidate generation. A normal civil day is
  * represented by 45-minute candidate starts from local 00:00 through 23:15.
  * DST gaps/folds are omitted because ambiguous/nonexistent wall times must never
- * become selectable. The academy blackout is applied after conversion to UTC
- * and therefore moves correctly in the student's IANA timezone.
+ * become selectable. Quiet Hours are advisory only; candidate availability is
+ * decided solely by the shared Teacher-capacity assessment.
  */
 $dayCandidates = static function ( string $date, string $timezone, int $duration = 30, int $buffer = 15 ): array {
     $times = array();
@@ -33,7 +33,6 @@ $dayCandidates = static function ( string $date, string $timezone, int $duration
         $times[] = array(
             'local_start_time' => $normalized['local_start_time'],
             'starts_at_utc' => $normalized['starts_at_utc'],
-            'blocked' => RequestedTimeNormalizer::overlapsIranQuietHours( $normalized ),
         );
     }
     return $times;
@@ -45,19 +44,20 @@ if ( $brisbane[0]['local_start_time'] !== '00:00:00' || $brisbane[31]['local_sta
     throw new RuntimeException( 'Candidate boundaries must be 00:00 through 23:15 at 45-minute spacing' );
 }
 
-$blockedBrisbane = array_values( array_filter( $brisbane, static fn( array $row ): bool => $row['blocked'] ) );
-if ( ! $blockedBrisbane ) throw new RuntimeException( 'Brisbane view must contain Iran-blackout-derived blocked candidates' );
-foreach ( $blockedBrisbane as $row ) {
-    if ( ! RequestedTimeNormalizer::overlapsIranQuietHours( array(
-        'starts_at_utc' => $row['starts_at_utc'],
-        'occupied_ends_at_utc' => ( new DateTimeImmutable( $row['starts_at_utc'], new DateTimeZone( 'UTC' ) ) )->modify( '+45 minutes' )->format( 'Y-m-d H:i:s' ),
-    ) ) ) throw new RuntimeException( 'Blocked candidate must derive from Platform quiet-hours authority' );
+$policy = BookingAvailabilityPolicy::validate( array(
+    'academy_timezone' => 'Asia/Tehran',
+    'candidate_interval_minutes' => 45,
+    'quiet_start' => '01:00:00',
+    'quiet_end' => '06:00:00',
+    'student_quiet_start' => '01:00:00',
+    'student_quiet_end' => '06:00:00',
+    'version' => 2,
+) );
+if ( ! isset( $policy['quiet_hours_enabled'], $policy['quiet_start'], $policy['quiet_end'], $policy['quiet_timezone_basis'], $policy['quiet_student_advisory'] ) ) {
+    throw new RuntimeException( 'Quiet Hours must remain an advisory policy, not a hard restriction.' );
 }
-
-$tehran = $dayCandidates( '2026-10-02', 'Asia/Tehran' );
-$blockedTehranTimes = array_column( array_values( array_filter( $tehran, static fn( array $row ): bool => $row['blocked'] ) ), 'local_start_time' );
-if ( in_array( '00:00:00', $blockedTehranTimes, true ) || ! in_array( '01:30:00', $blockedTehranTimes, true ) || in_array( '06:00:00', $blockedTehranTimes, true ) ) {
-    throw new RuntimeException( 'Tehran blackout boundaries are incorrect' );
+if ( isset( $policy['student_quiet_start'], $policy['student_quiet_end'] ) ) {
+    throw new RuntimeException( 'Obsolete student-local quiet keys must not be exposed.' );
 }
 
 $sydneyGap = $dayCandidates( '2026-10-04', 'Australia/Sydney' );
@@ -67,37 +67,6 @@ if ( in_array( '02:15:00', array_column( $sydneyGap, 'local_start_time' ), true 
 $newYorkFold = $dayCandidates( '2026-11-01', 'America/New_York' );
 if ( in_array( '01:30:00', array_column( $newYorkFold, 'local_start_time' ), true ) ) {
     throw new RuntimeException( 'DST-fold candidate must be omitted rather than guessed' );
-}
-
-$customPolicy = BookingAvailabilityPolicy::validate( array(
-    'academy_timezone' => 'Australia/Brisbane',
-    'quiet_start' => '22:00:00',
-    'quiet_end' => '07:00:00',
-    'student_quiet_start' => '01:00:00',
-    'student_quiet_end' => '06:00:00',
-    'candidate_interval_minutes' => 45,
-    'version' => 2,
-) );
-$customBlocked = RequestedTimeNormalizer::normalize( array( 'local_date' => '2026-10-02', 'local_start_time' => '23:30', 'timezone' => 'Australia/Brisbane' ), 30, 15 );
-$customAllowed = RequestedTimeNormalizer::normalize( array( 'local_date' => '2026-10-02', 'local_start_time' => '12:00', 'timezone' => 'Australia/Brisbane' ), 30, 15 );
-if ( ! RequestedTimeNormalizer::overlapsAcademyQuietHours( $customBlocked, $customPolicy ) || RequestedTimeNormalizer::overlapsAcademyQuietHours( $customAllowed, $customPolicy ) ) {
-    throw new RuntimeException( 'Adjustable cross-midnight academy quiet-hours policy failed' );
-}
-
-
-$studentPolicy = BookingAvailabilityPolicy::validate( array(
-    'academy_timezone' => 'Asia/Tehran',
-    'quiet_start' => '01:00:00',
-    'quiet_end' => '06:00:00',
-    'student_quiet_start' => '01:00:00',
-    'student_quiet_end' => '06:00:00',
-    'candidate_interval_minutes' => 45,
-    'version' => 3,
-) );
-$studentFourAm = RequestedTimeNormalizer::normalize( array( 'local_date' => '2026-10-02', 'local_start_time' => '04:00', 'timezone' => 'Australia/Brisbane' ), 30, 15 );
-$studentNoon = RequestedTimeNormalizer::normalize( array( 'local_date' => '2026-10-02', 'local_start_time' => '12:00', 'timezone' => 'Australia/Brisbane' ), 30, 15 );
-if ( ! RequestedTimeNormalizer::overlapsStudentQuietHours( $studentFourAm, $studentPolicy ) || RequestedTimeNormalizer::overlapsStudentQuietHours( $studentNoon, $studentPolicy ) ) {
-    throw new RuntimeException( 'Student-local quiet-hours policy failed' );
 }
 
 $root = dirname( __DIR__ );

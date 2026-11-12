@@ -150,6 +150,44 @@ final class TeacherAvailabilityService {
         return $this->resolve( $facts, $from, $until );
     }
 
+    /**
+     * Recurring weekly availability only, without dated exceptions, holidays or
+     * open-ended temporary blocks. The coverage clock's structural weekly mode
+     * needs exactly this projection so one date's booking/exception never becomes
+     * a permanent loss of weekly coverage.
+     *
+     * @return list<array{state:string,starts_at_utc:string,ends_at_utc:string,source:string}>
+     */
+    public function recurring(int $teacherId, string $fromUtc, string $untilUtc): array {
+        $teacher = Normalizer::id($teacherId);
+        $from = $this->utc($fromUtc);
+        $until = $this->utc($untilUtc);
+        if ($until <= $from) throw new \InvalidArgumentException('Availability range end must follow start');
+        if (!$this->repo->evaluableTeacher($teacher)) return array();
+        $profile = $this->repo->profile($teacher);
+        if (!$profile || $profile->status !== 'active') return array();
+        $zone = new \DateTimeZone($this->authorityTimezone($profile->timezone));
+        $utc = new \DateTimeZone('UTC');
+        $fromLocal = (new \DateTimeImmutable($from, $utc))->setTimezone($zone);
+        $untilLocal = (new \DateTimeImmutable($until, $utc))->setTimezone($zone);
+        $startDate = $fromLocal->modify('-1 day')->format('Y-m-d');
+        $endDate = $untilLocal->modify('+1 day')->format('Y-m-d');
+        $facts = array();
+        $rules = $this->repo->activeRules($teacher);
+        for ($day = new \DateTimeImmutable($startDate, $zone); $day->format('Y-m-d') <= $endDate; $day = $day->modify('+1 day')) {
+            $date = $day->format('Y-m-d');
+            $weekday = (int) $day->format('N');
+            foreach ($rules as $rule) {
+                if ((int) $rule->weekday !== $weekday) continue;
+                $ruleTimezone = $this->authorityTimezone($rule->timezone ?? null);
+                try { $interval = AvailabilityLocalTime::interval($date, (string) $rule->local_start_time, (string) $rule->local_end_time, $ruleTimezone); }
+                catch (UnavailableLocalTimeException) { continue; }
+                $this->append($facts, $interval, (string) $rule->state, 'recurring', (int) $rule->id);
+            }
+        }
+        return $this->resolve($facts, $from, $until);
+    }
+
     /** Exact availability state (`preferred`|`requestable`) covering a range, or null when it is not covered. */
     public function coverage(int $teacherId, string $fromUtc, string $untilUtc): ?string {
         if ($untilUtc <= $fromUtc) { return null; }

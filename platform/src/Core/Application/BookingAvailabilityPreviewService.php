@@ -10,7 +10,7 @@ final class BookingAvailabilityPreviewService {
         $this->availability ??= new TeacherAvailabilityService();
     }
 
-    /** @return array{times:list<array{sequence:int,status:string,teacher_times:list<array{timezone:string,starts_at_utc:string}>}>} */
+    /** @return array{times:list<array{sequence:int,status:string,teacher_times:list<array{timezone:string,starts_at_utc:string}>,quiet_hours:array<string,mixed>}>} */
     public function assess( array $input ): array {
         if ( array_diff( array_keys( $input ), array( 'instrument_id', 'course_id', 'requested_times' ) ) ) throw new \InvalidArgumentException( 'Unsupported preview field' );
         $instrumentId = Normalizer::id( $input['instrument_id'] ?? null );
@@ -46,11 +46,11 @@ final class BookingAvailabilityPreviewService {
         $result = array();
         foreach ( $normalized as $index => $time ) {
             if ( null === $time ) {
-                $result[] = array( 'sequence' => $index + 1, 'status' => 'blocked', 'teacher_times' => array() );
+                $result[] = array( 'sequence' => $index + 1, 'status' => 'blocked', 'teacher_times' => array(), 'quiet_hours' => array( 'enabled' => false, 'policy_enabled' => false, 'student_advisory_enabled' => false, 'scope' => 'none', 'candidate_count' => 0, 'affected_candidate_count' => 0, 'candidates' => array() ) );
                 continue;
             }
             $scored = $assessment->assess( $time );
-            $result[] = array( 'sequence' => $index + 1, 'status' => $scored['status'], 'teacher_times' => $scored['teacher_times'] );
+            $result[] = array( 'sequence' => $index + 1, 'status' => $scored['status'], 'teacher_times' => $scored['teacher_times'], 'quiet_hours' => $scored['quiet_hours'] ?? array( 'enabled' => false, 'scope' => 'none', 'candidates' => array() ) );
         }
         return array( 'times' => $result );
     }

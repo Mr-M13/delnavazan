@@ -15,9 +15,21 @@ final class TeacherBookingOccupancyQuery {
      * @return list<array{source:string,conflict_id:int,starts_at_utc:string,occupied_ends_at_utc:string}>
      */
     public static function conflicts(int $teacherId, string $startsAtUtc, string $occupiedEndUtc, int $excludeBookingRequestId = 0, bool $includePendingOffers = true): array {
-        if ( $teacherId < 1 || ! CanonicalLessonScheduleValidator::utc( $startsAtUtc ) || ! CanonicalLessonScheduleValidator::utc( $occupiedEndUtc ) || $occupiedEndUtc <= $startsAtUtc ) {
+        return self::conflictsRange($teacherId, $startsAtUtc, $occupiedEndUtc, $excludeBookingRequestId, $includePendingOffers);
+    }
+
+    /**
+     * Same allocation/confirmation authority, evaluated once over a read-only
+     * range. Used by the coverage clock; write paths keep using `conflicts()`.
+     *
+     * @return list<array{source:string,conflict_id:int,starts_at_utc:string,occupied_ends_at_utc:string}>
+     */
+    public static function conflictsRange(int $teacherId, string $fromUtc, string $untilUtc, int $excludeBookingRequestId = 0, bool $includePendingOffers = true): array {
+        if ( $teacherId < 1 || ! CanonicalLessonScheduleValidator::utc( $fromUtc ) || ! CanonicalLessonScheduleValidator::utc( $untilUtc ) || $untilUtc <= $fromUtc ) {
             throw new \InvalidArgumentException( 'teacher_booking_occupancy_interval_invalid' );
         }
+        $startsAtUtc = $fromUtc;
+        $occupiedEndUtc = $untilUtc;
         global $wpdb;
         $p = $wpdb->prefix . 'dzn_';
         $offerSql = $includePendingOffers ? "SELECT 'booking_offer' source,o.id conflict_id,rt.starts_at_utc,rt.occupied_ends_at_utc

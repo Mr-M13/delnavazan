@@ -12,7 +12,19 @@ final class CanonicalTeacherOccupancyReadService {
 
     /** @return list<array{lesson_id:int,starts_at_utc:string,occupied_ends_at_utc:string}> */
     public function overlapping(int $teacherId,string $startsAtUtc,string $occupiedEndUtc,int $excludeLessonId=0):array{
-        if($teacherId<1||!CanonicalLessonScheduleValidator::utc($startsAtUtc)||!CanonicalLessonScheduleValidator::utc($occupiedEndUtc)||$occupiedEndUtc<=$startsAtUtc)throw new \InvalidArgumentException('canonical_occupancy_interval_invalid');
+        return $this->inRange($teacherId,$startsAtUtc,$occupiedEndUtc,$excludeLessonId);
+    }
+
+    /**
+     * Batched committed occupancy for one Teacher in a UTC range. The coverage
+     * clock reads a whole day/week once instead of querying every 15-minute
+     * segment. Every current fact is still validated before it is trusted.
+     *
+     * @return list<array{lesson_id:int,starts_at_utc:string,occupied_ends_at_utc:string}>
+     */
+    public function inRange(int $teacherId,string $fromUtc,string $untilUtc,int $excludeLessonId=0):array{
+        if($teacherId<1||!CanonicalLessonScheduleValidator::utc($fromUtc)||!CanonicalLessonScheduleValidator::utc($untilUtc)||$untilUtc<=$fromUtc)throw new \InvalidArgumentException('canonical_occupancy_interval_invalid');
+        $startsAtUtc=$fromUtc;$occupiedEndUtc=$untilUtc;
         $result=array();
         // Validate every current fact for this Teacher before trusting the subset selected by
         // interval comparison. Corrupt endpoints must not disappear from a SQL overlap filter.

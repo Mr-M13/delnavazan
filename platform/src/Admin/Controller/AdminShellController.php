@@ -151,6 +151,16 @@ final class AdminShellController {
         $scriptPath = defined('DZN_PLATFORM_DIR') ? DZN_PLATFORM_DIR . 'src/Admin/Assets/admin.js' : '';
         $scriptVersion = $scriptPath !== '' && file_exists($scriptPath) ? (string) filemtime($scriptPath) : $version;
         wp_enqueue_script('dzn-admin', $scriptUrl, array(), $scriptVersion, true);
+        $clockUrl = function_exists('get_theme_file_uri') ? get_theme_file_uri('assets/css/coverage-clock.css') : '';
+        if ($clockUrl !== '') {
+            $clockPath = function_exists('get_theme_file_path') ? get_theme_file_path('assets/css/coverage-clock.css') : '';
+            wp_enqueue_style('dzn-coverage-clock', $clockUrl, array('dzn-admin'), $clockPath !== '' && file_exists($clockPath) ? (string) filemtime($clockPath) : $version);
+        }
+        $clockScriptUrl = function_exists('get_theme_file_uri') ? get_theme_file_uri('assets/js/coverage-clock.js') : '';
+        if ($clockScriptUrl !== '') {
+            $clockScriptPath = function_exists('get_theme_file_path') ? get_theme_file_path('assets/js/coverage-clock.js') : '';
+            wp_enqueue_script('dzn-coverage-clock', $clockScriptUrl, array(), $clockScriptPath !== '' && file_exists($clockScriptPath) ? (string) filemtime($clockScriptPath) : $scriptVersion, true);
+        }
         $font = function_exists('get_theme_file_uri') ? get_theme_file_uri('assets/fonts/Vazirmatn-Variable.woff2') : '';
         if ($font !== '') {
             wp_add_inline_style('dzn-admin', "@font-face{font-family:Vazirmatn;src:url('" . esc_url_raw($font) . "') format('woff2');font-weight:100 900;font-style:normal;font-display:swap}");

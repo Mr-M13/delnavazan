@@ -466,7 +466,7 @@ final class AcademyOperationsController {
 
     /** Academy-wide golden-hour coverage now lives on Overview, not in Teachers. */
     private static function coveragePanel(): void {
-        echo '<section class="dzn-panel" id="dzn-golden-hour-overview"><div class="dzn-panel__head"><div><h2>Golden-hour coverage</h2><p>Academy-wide coverage and gaps by instrument and area. Teacher-specific golden hours remain in each Teacher profile; definitions and rules remain in Settings.</p></div><a class="dzn-panel__link" href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=settings#golden-hour-pay')) . '">Golden-hour settings →</a></div>';
+        echo '<section class="dzn-panel" id="dzn-golden-hour-overview"><div class="dzn-panel__head"><div><h2>Golden-hour coverage</h2><p>24-hour instrument capacity clock with actual-date and weekly views. Golden Hours remain a separate outer ring; teacher-specific golden hours remain in each Teacher profile and definitions remain in Settings.</p></div><a class="dzn-panel__link" href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=settings#golden-hour-pay')) . '">Golden-hour settings →</a></div>';
         if (current_user_can('dzn_view_booking_requests')) AcademyCoverageController::renderAtlas('dzn-academy-dashboard');
         else echo '<p class="dzn-empty">Coverage requires booking-request visibility.</p>';
         echo '</section>';

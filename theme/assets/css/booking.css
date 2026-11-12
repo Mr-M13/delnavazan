@@ -141,6 +141,7 @@
 .dzn-booking__time-option.is-preference:disabled { opacity: 1; cursor: default; }
 .dzn-booking__time-option.is-preference::after { position: absolute; inset-block-start: -.38rem; inset-inline-start: -.3rem; display: grid; inline-size: 1.15rem; block-size: 1.15rem; place-items: center; border-radius: 50%; background: var(--dzn-color-action-secondary); color: var(--dzn-color-on-action); content: attr(data-priority); font-size: .68rem; font-weight: 800; line-height: 1; }
 .dzn-booking__teacher-time { display: block; margin-block-start: .2rem; color: var(--dzn-color-text-muted); font-size: .78rem; font-weight: 500; line-height: 1.65; }
+.dzn-booking__quiet-hours { margin: .45rem 0 0; border-inline-start: .2rem solid var(--dzn-color-warning); border-radius: .35rem; background: color-mix(in srgb, var(--dzn-color-warning) 10%, var(--dzn-color-surface-elevated)); color: var(--dzn-color-text-secondary); padding: .45rem .6rem; font-size: .78rem; line-height: 1.7; }
 .dzn-booking__preference-heading { display: flex; align-items: center; justify-content: space-between; margin-top: 1.5rem; }
 .dzn-booking__preference-heading span { color: var(--dzn-color-text-muted); font-size: .9rem; }
 

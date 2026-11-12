@@ -80,58 +80,24 @@ if ( $equivalentPresentation['starts_at_utc'] !== $normal['starts_at_utc'] ) {
 
 $policy = BookingAvailabilityPolicy::validate( array(
     'academy_timezone' => 'Asia/Tehran',
+    'candidate_interval_minutes' => 45,
     'quiet_start' => '01:00:00',
     'quiet_end' => '06:00:00',
     'student_quiet_start' => '01:00:00',
     'student_quiet_end' => '06:00:00',
-    'candidate_interval_minutes' => 45,
-    'version' => 1,
-) );
-$endsAtBoundary = RequestedTimeNormalizer::normalize(
-    array( 'local_date' => '2026-10-02', 'local_start_time' => '00:15', 'timezone' => 'Asia/Tehran' ),
-    30,
-    15
-);
-$overlapsBoundary = RequestedTimeNormalizer::normalize(
-    array( 'local_date' => '2026-10-02', 'local_start_time' => '05:15', 'timezone' => 'Asia/Tehran' ),
-    30,
-    15
-);
-if ( RequestedTimeNormalizer::overlapsAcademyQuietHours( $endsAtBoundary, $policy ) || ! RequestedTimeNormalizer::overlapsAcademyQuietHours( $overlapsBoundary, $policy ) ) {
-    $fail( 'Blocked intervals must exclude the 30+15 occupied overlap while retaining exact boundaries.' );
-}
-
-$overnightPolicy = BookingAvailabilityPolicy::validate( array(
-    'academy_timezone' => 'Australia/Brisbane',
-    'quiet_start' => '22:00:00',
-    'quiet_end' => '03:00:00',
-    'student_quiet_start' => '22:00:00',
-    'student_quiet_end' => '03:00:00',
-    'candidate_interval_minutes' => 30,
     'version' => 2,
 ) );
-$overnightBoundary = RequestedTimeNormalizer::normalize(
-    array( 'local_date' => '2026-10-02', 'local_start_time' => '21:15', 'timezone' => 'Australia/Brisbane' ),
-    30,
-    15
-);
-$overnightOverlap = RequestedTimeNormalizer::normalize(
-    array( 'local_date' => '2026-10-02', 'local_start_time' => '21:30', 'timezone' => 'Australia/Brisbane' ),
-    30,
-    15
-);
-$overnightEndBoundary = RequestedTimeNormalizer::normalize(
-    array( 'local_date' => '2026-10-03', 'local_start_time' => '03:00', 'timezone' => 'Australia/Brisbane' ),
-    30,
-    15
-);
-if ( RequestedTimeNormalizer::overlapsAcademyQuietHours( $overnightBoundary, $overnightPolicy )
-    || RequestedTimeNormalizer::overlapsStudentQuietHours( $overnightBoundary, $overnightPolicy )
-    || ! RequestedTimeNormalizer::overlapsAcademyQuietHours( $overnightOverlap, $overnightPolicy )
-    || ! RequestedTimeNormalizer::overlapsStudentQuietHours( $overnightOverlap, $overnightPolicy )
-    || RequestedTimeNormalizer::overlapsAcademyQuietHours( $overnightEndBoundary, $overnightPolicy )
-    || RequestedTimeNormalizer::overlapsStudentQuietHours( $overnightEndBoundary, $overnightPolicy ) ) {
-    $fail( 'Overnight academy and student blocks must use half-open 30+15 occupied intervals at both boundaries.' );
+if ( ! isset( $policy['quiet_hours_enabled'], $policy['quiet_start'], $policy['quiet_end'], $policy['quiet_timezone_basis'], $policy['quiet_student_advisory'] ) ) {
+    $fail( 'Quiet Hours must be restored as advisory policy fields.' );
+}
+if ( isset( $policy['student_quiet_start'], $policy['student_quiet_end'] ) ) {
+    $fail( 'The obsolete student-local quiet keys must not be restored.' );
+}
+if ( $policy['quiet_start'] !== '01:00:00' || $policy['quiet_end'] !== '06:00:00' || $policy['quiet_timezone_basis'] !== 'teacher_local' ) {
+    $fail( 'Quiet Hours defaults and timezone interpretation must validate.' );
+}
+if ( $policy['academy_timezone'] !== 'Asia/Tehran' || $policy['candidate_interval_minutes'] !== 45 || $policy['version'] !== 2 ) {
+    $fail( 'The remaining booking policy fields must stay validated.' );
 }
 
 $preview = file_get_contents( $root . '/src/Core/Application/BookingAvailabilityPreviewService.php' );

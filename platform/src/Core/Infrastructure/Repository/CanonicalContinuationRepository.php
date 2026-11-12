@@ -64,8 +64,12 @@ final class CanonicalContinuationRepository {
     }
     /** Capacity arbitration: active Phase-Q holds overlapping the exact Teacher interval. */
     public function overlappingEffectiveReservations(int $teacherId,string $startsAt,string $occupiedEnd,string $now):array{
+        return $this->effectiveReservationsInRange($teacherId,$startsAt,$occupiedEnd,$now);
+    }
+    /** Batched active Phase-Q holds for one Teacher in a read-only UTC range. */
+    public function effectiveReservationsInRange(int $teacherId,string $fromUtc,string $untilUtc,string $now):array{
         global $wpdb;
-        $rows=$wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}canonical_continuation_reservations WHERE teacher_id=%d AND state='active' AND expires_at>%s AND starts_at_utc<%s AND occupied_ends_at_utc>%s ORDER BY id",$teacherId,$now,$occupiedEnd,$startsAt));
+        $rows=$wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}canonical_continuation_reservations WHERE teacher_id=%d AND state='active' AND expires_at>%s AND starts_at_utc<%s AND occupied_ends_at_utc>%s ORDER BY id",$teacherId,$now,$untilUtc,$fromUtc));
         if($wpdb->last_error!=='')throw new \RuntimeException('Continuation capacity read failed: '.$wpdb->last_error);
         return is_array($rows)?$rows:array();
     }

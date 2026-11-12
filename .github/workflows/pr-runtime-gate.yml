@@ -112,11 +112,14 @@ jobs:
           done
           php platform/tests/recording-archive-policy-unit.php
           php platform/tests/recording-archive-contract.php
-          php platform/tests/phase-2a3-iran-quiet-hours.php
+          php platform/tests/quiet-hours-removal-contract.php
           php platform/tests/phase-2a3-day-availability-contract.php
           php platform/tests/booking-availability-timezone-dst-contract.php
           php platform/tests/golden-hour-coverage-unit.php
           php platform/tests/golden-hour-coverage-view-unit.php
+          php platform/tests/instrument-coverage-clock-unit.php
+          php platform/tests/instrument-coverage-clock-view-unit.php
+          php platform/tests/instrument-coverage-clock-contract.php
           php platform/tests/golden-hour-teacher-visual-unit.php
           php platform/tests/teacher-availability-summary-unit.php
           php platform/tests/tuition-allocation-unit.php

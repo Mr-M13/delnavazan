@@ -12,7 +12,7 @@ The workflow uses PHP 8.3 and runs:
 2. `git diff --check HEAD^1 HEAD` for the proposed pull-request patch whitespace.
 3. A curated list of verified, WordPress/MySQL-free Platform source contracts:
    Phase 1B, 1D–1F, 2A.0, 2A.1A–D, 2A.2A–F and the 2A.2F concurrency contract.
-4. The pure/source-level Phase 2A.3 quiet-hours and day-availability contracts.
+4. The quiet-hours removal guard and the day-availability contracts.
 5. Teacher DST/lifecycle, booking preference-order/public-window/canonical/day-grid, operations dashboard and launch/onboarding hardening contracts.
 6. Student Portal state, teacher onboarding v1 and operations portal contracts when those files are present.
 7. `bash -n deployment/qa/site-smoke.sh` (the generic, read-only HTTP smoke runner).
@@ -54,7 +54,7 @@ for contract in \
   platform/tests/phase-2a2f-contract.php; do
   php "$contract"
 done
-php platform/tests/phase-2a3-iran-quiet-hours.php
+php platform/tests/quiet-hours-removal-contract.php
 php platform/tests/phase-2a3-day-availability-contract.php
 php platform/tests/teacher-availability-dst-contract.php
 php platform/tests/booking-preference-order-contract.php

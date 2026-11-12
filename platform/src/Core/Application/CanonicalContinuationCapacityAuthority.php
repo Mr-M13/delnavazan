@@ -34,4 +34,25 @@ final class CanonicalContinuationCapacityAuthority {
         $now=gmdate('Y-m-d H:i:s');
         return count($repository->overlappingEffectiveReservations($teacherId,$now,gmdate('Y-m-d H:i:s',strtotime($now.' UTC')+86400*400),$now));
     }
+
+    /**
+     * Validated active holds in a read-only UTC range. The coverage clock uses this
+     * batched seam so it applies exactly the same hold authority without one query
+     * per 15-minute segment. Corrupt holds fail closed.
+     *
+     * @return list<array{starts_at_utc:string,ends_at_utc:string}>
+     */
+    public static function activeHoldsInRange(int $teacherId,string $fromUtc,string $untilUtc,?CanonicalContinuationRepository $repository=null):array{
+        $repository??=new CanonicalContinuationRepository();
+        $now=gmdate('Y-m-d H:i:s');
+        $result=array();
+        foreach($repository->effectiveReservationsInRange($teacherId,$fromUtc,$untilUtc,$now) as $hold){
+            if(!CanonicalContinuationValidator::validForCase((int)$hold->continuation_case_id,$repository))throw new \InvalidArgumentException('canonical_continuation_integrity_conflict');
+            $start=(string)($hold->starts_at_utc??'');
+            $end=(string)($hold->occupied_ends_at_utc??'');
+            if($start===''||$end===''||$end<=$start)continue;
+            $result[]=array('starts_at_utc'=>$start,'ends_at_utc'=>$end);
+        }
+        return $result;
+    }
 }

@@ -1,0 +1,20 @@
+<?php
+$root=dirname(__DIR__);
+$plugin=file_get_contents($root.'/delnavazan-platform.php');
+$migrator=file_get_contents($root.'/src/Core/Infrastructure/Migration/Migrator.php');
+foreach(compact('plugin','migrator') as $name=>$source)if(!is_string($source)||$source==='')throw new RuntimeException('Unable to read migration source: '.$name.'.');
+$assert=static function(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);};
+$assert(str_contains($plugin,"DZN_PLATFORM_SCHEMA_VERSION', '61'"),'The package schema option must remain compatible with the existing release convention.');
+$assert(substr_count($migrator,'074_god_mode_super_tester')>=4,'Migration 074 must be registered in the fast path, execution block, required ledger and verifier.');
+$assert(str_contains($migrator,"if ( in_array( '074_god_mode_super_tester', \$completed, true ) ) { self::verify_god_mode_super_tester_schema(); }"),'A completed 074 ledger entry must be verified before the fast path.');
+$assert(str_contains($migrator,'install_god_mode_super_tester'),'The migration installer must exist.');
+$assert(str_contains($migrator,'verify_god_mode_super_tester_schema'),'The migration verifier must exist.');
+$assert(str_contains($migrator,'dbDelta(self::dbdelta_sql($sql))'),'God Mode tables must use the existing dbDelta convention.');
+$assert(str_contains($migrator,'SHOW COLUMNS FROM {$p}{$table}'),'Additive columns must be checked before ALTER.');
+$assert(str_contains($migrator,"has_index(\$p.\$table,'activity_type',false)"),'Additive indexes must be checked before ALTER.');
+$assert(str_contains($migrator,"state==='revoked'"),'The migration bootstrap must not regrant a revoked authority.');
+$assert(str_contains($migrator,"canonical_obligation_test_activity_isolated")===false,'The obligation guard belongs in the domain service, not only the migration.');
+$assert(str_contains($migrator,'god_mode_participant_mappings'),'Participant evidence mapping storage must be part of 074.');
+$assert(str_contains($migrator,'test_session_active'),'The Meet classroom identity index must be part of 074.');
+$assert(str_contains($migrator,"l.activity_type<>'test'")===false,'The migration must not smuggle reporting filters.');
+echo "God Mode migration contract passed\n";

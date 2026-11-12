@@ -70,6 +70,13 @@ final class GoogleWorkspaceRepository {
     public function latestClassroomForBooking(int $confirmationId):?object{
         return $this->row("SELECT * FROM {$this->p}meet_classrooms WHERE booking_confirmation_id=%d ORDER BY id DESC LIMIT 1",$confirmationId);
     }
+    /** God Mode test sessions are classified by their own aggregate, never by a fabricated Lesson. */
+    public function activeClassroomForTestSession(int $testSessionId,bool $lock=false):?object{
+        return $this->row("SELECT * FROM {$this->p}meet_classrooms WHERE test_session_id=%d AND active_slot=1".($lock?' FOR UPDATE':''),$testSessionId);
+    }
+    public function latestClassroomForTestSession(int $testSessionId):?object{
+        return $this->row("SELECT * FROM {$this->p}meet_classrooms WHERE test_session_id=%d ORDER BY id DESC LIMIT 1",$testSessionId);
+    }
     public function insertClassroom(array $data):int{return $this->insert('meet_classrooms',$data);}
     public function updateClassroom(int $id,array $data,array $where):int{return $this->update('meet_classrooms',$data,array_merge(array('id'=>$id),$where));}
     /** Classrooms whose lesson has ended and which still need recording/attendance reconciliation. */

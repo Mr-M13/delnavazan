@@ -171,6 +171,7 @@ final class Menu {
 
         $pages = [
             ['Overview', 'dzn_view_booking_requests', 'dzn-academy-dashboard', [AcademyOperationsController::class, 'screen'], null],
+            ['God Mode', 'dzn_access_god_mode', 'dzn-god-mode', [GodModeController::class, 'render'], null],
             ['Finance', self::FINANCE_WORKSPACE_CAP, 'dzn-finance', [FinanceAdminController::class, 'screen'], null],
             ['Booking requests', 'dzn_view_booking_requests', 'dzn-booking-requests', [BookingRequestController::class, 'screen'], [BookingRequestController::class, 'handlePost']],
             ['Class admin', 'dzn_manage_booking_request_coordination', 'dzn-booking-request-coordination', [CoordinationCaseController::class, 'screen'], [CoordinationCaseController::class, 'handlePost']],

@@ -38,4 +38,5 @@ dzn_theme_teacher_portal_component(
 	)
 );
 ?>
+<?php dzn_theme_teacher_portal_component( 'test-classes', array( 'items' => (array) ( $model['god_mode_test_classes'] ?? array() ), 'timezone' => $teacher_tz, 'calendar' => (string) ( $model['teacher_calendar'] ?? '' ), 'locale' => (string) ( $model['teacher_locale'] ?? '' ) ) ); ?>
 <?php dzn_theme_teacher_portal_component( 'support', array() ); ?>

@@ -1,0 +1,23 @@
+<?php
+$root=dirname(__DIR__);
+$runner=file_get_contents($root.'/src/Core/Application/GodMode/GodModeScenarioRunner.php');
+$library=file_get_contents($root.'/src/Core/Application/GodMode/GodModeScenarioLibrary.php');
+foreach(compact('runner','library') as $name=>$source)if(!is_string($source)||$source==='')throw new RuntimeException('Unable to read scenario honesty source: '.$name.'.');
+$assert=static function(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);};
+$assert(str_contains($runner,"framework_gap"),'Incomplete scenarios must be gated before test data is created.');
+$assert(str_contains($runner,"'test_session_created'=>false"),'A framework-gap scenario must not create synthetic evidence.');
+$assert(str_contains($runner,"notification_failure_retry"),'Controlled failure/retry must be explicitly identified.');
+$assert(str_contains($runner,"controlled_failure_required'=>true"),'Notification failure/retry must not fabricate a failure or a successful retry.');
+$assert(str_contains($runner,"delivery_confirmed'=>false"),'Transport hand-off must not be reported as confirmed delivery.');
+$assert(str_contains($runner,"fallback_condition_verified"),'SMS fallback must require the observed fallback condition.');
+$assert(str_contains($runner,"activation_verified'=>false"),'Recording configuration must not be reported as actual recording activation.');
+$assert(str_contains($runner,"recording_availability_verification"),'Recording availability must have an independent scenario.');
+$assert(str_contains($runner,"==='verified')".'$state=GodModeRule::RESULT_PASSED'),'Recording availability must require verified artifact evidence.');
+$assert(str_contains($runner,"automatic_attendance_detection"),'Automatic attendance detection must be explicitly evaluated.');
+$assert(str_contains($runner,"'partial_mapping','detected_unmapped'=>GodModeRule::RESULT_WARNING"),'Unmapped participant evidence must not pass.');
+$assert(str_contains($runner,"'verified'=>GodModeRule::RESULT_PASSED"),'Verified participant mapping must be the attendance pass condition.');
+$assert(str_contains($runner,"provider_ready"),'Cancellation/rescheduling must distinguish provider-ready evidence from local test-state changes.');
+$assert(str_contains($library,"framework_gap"),'The scenario library must publish framework-gap metadata.');
+foreach(array('teacher_onboarding','introductory_class_booking','post_intro_continuation','enrolment_workflow_simulation','teacher_onboarding_end_to_end','introductory_class_end_to_end','regular_class_end_to_end','booking_to_attendance_end_to_end') as $code)$assert(str_contains($library,"'{$code}'")&&str_contains($library,'framework_gap'),'Missing gated scenario: '.$code);
+if(preg_match('/RESULT_PASSED[^;]{0,120}notification_failure_retry/s',$runner)===1)throw new RuntimeException('Failure/retry scenario must not have a passed path.');
+echo "God Mode scenario honesty contract passed\n";

@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Core\Application\Finance;
 
 use Delnavazan\Platform\Core\Application\Finance\Integrity\{FinanceRateIntegrity,FinanceSnapshotIntegrity};
+use Delnavazan\Platform\Core\Application\GodMode\GodModeRule;
 use Delnavazan\Platform\Core\Infrastructure\Repository\{FinanceSnapshotRepository,TeacherRateRepository};
 use Delnavazan\Platform\Core\Support\Identifier;
 
@@ -37,6 +38,10 @@ final class LessonFinanceSnapshotService {
         $actor=FinanceSupport::actor();$now=FinanceSupport::now();$digest=FinanceSupport::key($rawKey);
         $hint=$this->facts->lesson($lessonId);
         if(!$hint)throw new FinanceRefusalException('finance_parent_not_live','The canonical Lesson does not exist');
+        // God Mode test activity is financially inert at the domain boundary, not only in reports.
+        global $wpdb;
+        $activity=(string)$wpdb->get_var($wpdb->prepare("SELECT activity_type FROM {$wpdb->prefix}dzn_lessons WHERE id=%d",$lessonId));
+        GodModeRule::assertBillable(array('activity_type'=>$activity));
         $teacherId=(int)$hint->teacher_id;
         $payload=FinanceSupport::payload(array('lesson_id'=>$lessonId,'operation'=>'capture'));
         $command=array('command_domain'=>FinanceRule::DOMAIN,'operation'=>'capture','command_key_digest'=>$digest,'command_payload_digest'=>$payload,'teacher_id'=>$teacherId,'lesson_id'=>$lessonId,'snapshot_id'=>null,'correction_id'=>null,'result_state'=>FinanceRule::commandSuccessState('capture'),'result_snapshot_id'=>null,'result_correction_id'=>null,'reason_code'=>null,'created_at'=>$now,'created_by'=>$actor);

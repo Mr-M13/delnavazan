@@ -580,7 +580,8 @@ final class Migrator {
 		if ( in_array( '055_recording_decision_authority', (array) get_option( self::COMPLETED, array() ), true ) ) { self::verify_recording_decision_authority_schema(); }
 		if ( in_array( '069_booking_allocation', $completed, true ) ) { self::verify_booking_allocation_schema(); }
 		if ( in_array( '070_stripe_live_mode', $completed, true ) ) { self::verify_stripe_live_mode_schema(); }
-		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) && in_array( '057_telnyx_provider_events', $completed, true ) && in_array( '058_golden_hour_pay_snapshot_details', $completed, true ) && in_array( '059_golden_hour_iran_global', $completed, true ) && in_array( '060_manual_refund_reservations', $completed, true ) && in_array( '061_statement_email_outbox', $completed, true ) && in_array( '062_statement_batch_runs', $completed, true ) && in_array( '063_finance_notification_outbox', $completed, true ) && in_array( '064_teacher_induction_progress', $completed, true ) && in_array( '065_confirmed_intro_cancellation', $completed, true ) && in_array( '066_consent_lifecycle_authority', $completed, true ) && in_array( '067_recording_archive_authority', $completed, true ) && in_array( '068_google_meet_classroom_authority', $completed, true ) && in_array( '069_booking_allocation', $completed, true ) && in_array( '070_stripe_live_mode', $completed, true ) && in_array( '071_post_intro_feedback', $completed, true ) && in_array( '072_intro_recurring_slot_override', $completed, true ) && in_array( '073_teacher_lesson_notes', $completed, true ) && in_array( '075_teacher_booking_declines', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
+		if ( in_array( '074_god_mode_super_tester', $completed, true ) ) { self::verify_god_mode_super_tester_schema(); }
+		if ( (string) get_option( self::OPTION ) === (string) DZN_PLATFORM_SCHEMA_VERSION && in_array( '043_booking_teacher_response', $completed, true ) && in_array( '044_booking_notification_recovery', $completed, true ) && in_array( '045_renewal_cycle_automatic_charge_at', $completed, true ) && in_array( '046_google_oauth_openid_subject', $completed, true ) && in_array( '047_stripe_canonical_account_reference', $completed, true ) && in_array( '048_post_intro_enrolment_automation', $completed, true ) && in_array( '049_finance_administration', $completed, true ) && in_array( '050_intro_payment_authority', $completed, true ) && in_array( '051_teacher_rate_origin', $completed, true ) && in_array( '052_payment_plan_choice', $completed, true ) && in_array( '054_lesson_reschedule_authority', $completed, true ) && in_array( '055_recording_decision_authority', $completed, true ) && in_array( '056_notification_management', $completed, true ) && in_array( '057_telnyx_provider_events', $completed, true ) && in_array( '058_golden_hour_pay_snapshot_details', $completed, true ) && in_array( '059_golden_hour_iran_global', $completed, true ) && in_array( '060_manual_refund_reservations', $completed, true ) && in_array( '061_statement_email_outbox', $completed, true ) && in_array( '062_statement_batch_runs', $completed, true ) && in_array( '063_finance_notification_outbox', $completed, true ) && in_array( '064_teacher_induction_progress', $completed, true ) && in_array( '065_confirmed_intro_cancellation', $completed, true ) && in_array( '066_consent_lifecycle_authority', $completed, true ) && in_array( '067_recording_archive_authority', $completed, true ) && in_array( '068_google_meet_classroom_authority', $completed, true ) && in_array( '069_booking_allocation', $completed, true ) && in_array( '070_stripe_live_mode', $completed, true ) && in_array( '071_post_intro_feedback', $completed, true ) && in_array( '072_intro_recurring_slot_override', $completed, true ) && in_array( '073_teacher_lesson_notes', $completed, true ) && in_array( '074_god_mode_super_tester', $completed, true ) && in_array( '075_teacher_booking_declines', $completed, true ) ) { self::verify_current_schema(); self::ensure_capabilities(); return; }
 
 		self::ensure_capabilities();
 		$token = wp_generate_uuid4(); $lock = get_option( self::LOCK );
@@ -729,11 +730,15 @@ final class Migrator {
 				self::install_teacher_lesson_notes();self::verify_teacher_lesson_notes_schema();
 				$done[]='073_teacher_lesson_notes';update_option(self::COMPLETED,$done,false);
 			}
+			if(!in_array('074_god_mode_super_tester',$done,true)){
+				self::install_god_mode_super_tester();self::verify_god_mode_super_tester_schema();
+				$done[]='074_god_mode_super_tester';update_option(self::COMPLETED,$done,false);
+			}
 			if(!in_array('075_teacher_booking_declines',$done,true)){
 				self::install_teacher_booking_declines();self::verify_teacher_booking_declines_schema();
 				$done[]='075_teacher_booking_declines';update_option(self::COMPLETED,$done,false);
 			}
-			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();self::verify_telnyx_provider_events_schema();self::verify_golden_hour_pay_snapshot_details_schema();self::verify_golden_hour_iran_global_schema();self::verify_manual_refund_reservations_schema();self::verify_statement_email_outbox_schema();self::verify_statement_batch_runs_schema();self::verify_finance_notification_outbox_schema();self::verify_teacher_induction_progress_schema();self::verify_confirmed_intro_cancellation_schema();self::verify_recording_archive_authority_schema();self::verify_google_meet_classroom_authority_schema();self::verify_booking_allocation_schema();self::verify_stripe_live_mode_schema();self::verify_post_intro_feedback_schema();self::verify_intro_recurring_slot_override_schema();self::verify_teacher_lesson_notes_schema();self::verify_teacher_booking_declines_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
+			self::verify_teacher_rate_origin_schema();self::verify_intro_payment_authority_schema();self::verify_finance_administration_schema();self::verify_post_intro_enrolment_automation_schema();self::verify_payment_plan_choice_schema();self::verify_stripe_canonical_account_reference();self::verify_booking_teacher_response_schema();self::verify_google_oauth_scope_policy();self::verify_renewal_recurring_enrolment_schema();self::verify_lesson_reschedule_authority_schema();self::verify_recording_decision_authority_schema();self::verify_notification_management_schema();self::verify_telnyx_provider_events_schema();self::verify_golden_hour_pay_snapshot_details_schema();self::verify_golden_hour_iran_global_schema();self::verify_manual_refund_reservations_schema();self::verify_statement_email_outbox_schema();self::verify_statement_batch_runs_schema();self::verify_finance_notification_outbox_schema();self::verify_teacher_induction_progress_schema();self::verify_confirmed_intro_cancellation_schema();self::verify_recording_archive_authority_schema();self::verify_google_meet_classroom_authority_schema();self::verify_booking_allocation_schema();self::verify_stripe_live_mode_schema();self::verify_post_intro_feedback_schema();self::verify_intro_recurring_slot_override_schema();self::verify_teacher_lesson_notes_schema();self::verify_god_mode_super_tester_schema();self::verify_teacher_booking_declines_schema();update_option(self::OPTION,DZN_PLATFORM_SCHEMA_VERSION,false);
 
 		} finally { $current = get_option( self::LOCK ); if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) { delete_option( self::LOCK ); } }
 	}
@@ -1093,11 +1098,12 @@ final class Migrator {
 		$required[] = '071_post_intro_feedback';
 		$required[] = '072_intro_recurring_slot_override';
 		$required[] = '073_teacher_lesson_notes';
+		$required[] = '074_god_mode_super_tester';
 		$required[] = '075_teacher_booking_declines';
 
 		$completed = (array) get_option( self::COMPLETED, array() );
 		foreach ( $required as $migration ) if ( ! in_array( $migration, $completed, true ) ) throw new \RuntimeException( 'Migration verification failed: completed migration ' . $migration );
-		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_teacher_rate_origin_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema(); self::verify_payment_plan_choice_schema(); self::verify_lesson_reschedule_authority_schema(); self::verify_notification_management_schema(); self::verify_telnyx_provider_events_schema(); self::verify_golden_hour_pay_snapshot_details_schema(); self::verify_golden_hour_iran_global_schema();self::verify_manual_refund_reservations_schema(); self::verify_statement_email_outbox_schema(); self::verify_statement_batch_runs_schema(); self::verify_finance_notification_outbox_schema(); self::verify_teacher_induction_progress_schema(); self::verify_consent_lifecycle_authority_schema(); self::verify_recording_archive_authority_schema(); self::verify_google_meet_classroom_authority_schema(); self::verify_stripe_live_mode_schema(); self::verify_post_intro_feedback_schema(); self::verify_intro_recurring_slot_override_schema(); self::verify_teacher_lesson_notes_schema(); self::verify_teacher_booking_declines_schema();
+		self::verify_schema(); self::verify_principal_invitation_schema(); self::verify_delivery_preparation_schema(); self::verify_teaching_eligibility_schema(); self::verify_teacher_availability_schema(); self::verify_booking_request_schema(); self::verify_booking_request_intake_privacy_schema(); self::verify_coordination_candidate_schema(); self::verify_teacher_availability_assent_schema(); self::verify_proposal_schema(); self::verify_provisional_acceptance_schema(); self::verify_student_identity_acceptance_authority_schema(); self::verify_final_acceptance_arrangement_schema(); self::verify_canonical_enrolment_schema(); self::verify_enrolment_conversion_schema(); self::verify_teacher_assignment_schema(); self::verify_canonical_term_schema(); self::verify_canonical_term_authority_schema(); self::verify_canonical_enrolment_lifecycle_authority_schema(); self::verify_canonical_lesson_authority_schema(); self::verify_canonical_lesson_schedule_authority_schema(); self::verify_canonical_lesson_delivery_authority_schema(); self::verify_canonical_attendance_intake_schema(); self::verify_canonical_continuation_schema(); self::verify_commercial_purchase_schema(); self::verify_renewal_recurring_enrolment_schema(); self::verify_google_calendar_meet_provider_integration_schema(); self::verify_payment_execution_schema(); self::verify_payment_event_decision_claim_schema(); self::verify_finance_payability_rate_statement_schema(); self::verify_portal_facing_services_schema(); self::verify_notification_communications_schema(); self::verify_core_dataset_technical_prerequisites_schema(); self::verify_teacher_onboarding_lifecycle_schema(); self::verify_provider_reference_vault_schema(); self::verify_checkout_session_authority_schema(); self::verify_student_account_claim_invitation_schema(); self::verify_operational_cashbook_schema(); self::verify_finance_administration_schema(); self::verify_intro_payment_authority_schema(); self::verify_teacher_rate_origin_schema(); self::verify_payment_secret_cipher_version_width(); self::verify_notification_cipher_version_width(); self::verify_teacher_principal_projection(); self::verify_booking_teacher_delivery_schema(); self::verify_booking_teacher_response_schema(); self::verify_google_oauth_scope_policy(); self::verify_stripe_canonical_account_reference(); self::verify_post_intro_enrolment_automation_schema(); self::verify_payment_plan_choice_schema(); self::verify_lesson_reschedule_authority_schema(); self::verify_notification_management_schema(); self::verify_telnyx_provider_events_schema(); self::verify_golden_hour_pay_snapshot_details_schema(); self::verify_golden_hour_iran_global_schema();self::verify_manual_refund_reservations_schema(); self::verify_statement_email_outbox_schema(); self::verify_statement_batch_runs_schema(); self::verify_finance_notification_outbox_schema(); self::verify_teacher_induction_progress_schema(); self::verify_consent_lifecycle_authority_schema(); self::verify_recording_archive_authority_schema(); self::verify_google_meet_classroom_authority_schema(); self::verify_stripe_live_mode_schema(); self::verify_post_intro_feedback_schema(); self::verify_intro_recurring_slot_override_schema(); self::verify_teacher_lesson_notes_schema(); self::verify_god_mode_super_tester_schema(); self::verify_teacher_booking_declines_schema();
 	}
 	private static function install(): void {
 		global $wpdb; require_once ABSPATH . 'wp-admin/includes/upgrade.php'; $p = $wpdb->prefix . 'dzn_'; $c = $wpdb->get_charset_collate();
@@ -4054,6 +4060,277 @@ final class Migrator {
 		if(!is_string($engine)||strcasecmp($engine,'InnoDB')!==0)throw new \RuntimeException('Teacher lesson notes must use InnoDB');
 		foreach(array('uid','lesson_id','schedule_version_id','teacher_id','student_id','note_text','note_version','created_at','created_by','updated_at','updated_by')as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'"))throw new \RuntimeException('Teacher lesson notes schema verification failed: '.$column);
 		foreach(array(array($table,'uid',true,array('uid')),array($table,'teacher_lesson',true,array('teacher_id','lesson_id')),array($table,'teacher_student',false,array('teacher_id','student_id')),array($table,'teacher_updated',false,array('teacher_id','updated_at')),array($table,'lesson_id',false,array('lesson_id')))as$spec){if(!self::has_index_columns($spec[0],$spec[1],$spec[2],$spec[3]))throw new \RuntimeException('Teacher lesson notes index missing: '.$spec[1]);}
+	}
+
+	/**
+	 * God Mode / Super Tester (074).
+	 *
+	 * A permanent, explicitly classified testing capability. The designated WordPress user is
+	 * authorised by user id, capability and verified email digest; no assignable role is created.
+	 * Test sessions are a dedicated aggregate so they cannot become a canonical Lesson, Enrolment,
+	 * Term, attendance case, Finance snapshot or provider payment by accident. Test classification
+	 * is carried on the session for the whole lifecycle, independently of current permissions.
+	 *
+	 * Additive only. Existing production rows receive activity_type=production by column default.
+	 */
+	private static function install_god_mode_super_tester():void{
+		global $wpdb; require_once ABSPATH.'wp-admin/includes/upgrade.php'; $p=$wpdb->prefix.'dzn_'; $c=$wpdb->get_charset_collate();
+		$tables=array(
+			"CREATE TABLE {$p}god_mode_authorisations (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				wordpress_user_id bigint unsigned NOT NULL,
+				email_digest char(64) NOT NULL,
+				state varchar(16) NOT NULL,
+				capability_version varchar(16) NOT NULL,
+				granted_at datetime NOT NULL,
+				granted_by bigint unsigned NOT NULL,
+				revoked_at datetime NULL,
+				revoked_by bigint unsigned NULL,
+				revocation_reason varchar(64) NULL,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY(id),
+				UNIQUE KEY uid(uid),
+				UNIQUE KEY wordpress_user(wordpress_user_id),
+				KEY state(state)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}god_mode_sessions (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				reference_code varchar(32) NOT NULL,
+				scenario_code varchar(64) NOT NULL,
+				mode varchar(16) NOT NULL,
+				status varchar(24) NOT NULL,
+				activity_type varchar(16) NOT NULL DEFAULT 'test',
+				result varchar(32) NOT NULL DEFAULT 'not_tested',
+				teacher_id bigint unsigned NOT NULL,
+				student_id bigint unsigned NOT NULL,
+				instrument_id bigint unsigned NULL,
+				course_id bigint unsigned NULL,
+				title varchar(191) NOT NULL,
+				description text NULL,
+				schedule_timezone varchar(64) NOT NULL,
+				local_wall_date date NOT NULL,
+				local_wall_time time NOT NULL,
+				starts_at_utc datetime NOT NULL,
+				ends_at_utc datetime NOT NULL,
+				duration_minutes smallint unsigned NOT NULL,
+				recording_requested tinyint NOT NULL DEFAULT 0,
+				recording_state varchar(24) NOT NULL DEFAULT 'not_requested',
+				meet_state varchar(24) NOT NULL DEFAULT 'not_requested',
+				classroom_id bigint unsigned NULL,
+				conflict_acknowledged tinyint NOT NULL DEFAULT 0,
+				conflict_summary text NULL,
+				notification_plan varchar(191) NULL,
+				workflow_state varchar(24) NULL,
+				current_stage varchar(48) NOT NULL DEFAULT 'booking_created',
+				failure_stage varchar(48) NULL,
+				last_error_code varchar(64) NULL,
+				retention_days smallint unsigned NOT NULL DEFAULT 30,
+				purge_eligible_at datetime NULL,
+				archived_at datetime NULL,
+				completed_at datetime NULL,
+				created_by bigint unsigned NOT NULL,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				updated_by bigint unsigned NOT NULL,
+				PRIMARY KEY(id),
+				UNIQUE KEY uid(uid),
+				UNIQUE KEY reference_code(reference_code),
+				KEY teacher_starts(teacher_id,starts_at_utc),
+				KEY status_starts(status,starts_at_utc),
+				KEY scenario_code(scenario_code),
+				KEY activity_type(activity_type),
+				KEY purge_eligible(purge_eligible_at)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}god_mode_session_events (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				session_id bigint unsigned NOT NULL,
+				stage varchar(48) NOT NULL,
+				state varchar(24) NOT NULL,
+				correlation_id varchar(64) NULL,
+				evidence_json longtext NULL,
+				provider_status int NULL,
+				provider_error_class varchar(64) NULL,
+				error_code varchar(64) NULL,
+				error_detail varchar(255) NULL,
+				retryable tinyint NOT NULL DEFAULT 0,
+				occurred_at datetime NOT NULL,
+				created_at datetime NOT NULL,
+				created_by bigint unsigned NOT NULL,
+				PRIMARY KEY(id),
+				UNIQUE KEY uid(uid),
+				KEY session_stage(session_id,stage,id),
+				KEY created_at(created_at)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}god_mode_scenario_runs (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				scenario_code varchar(64) NOT NULL,
+				session_id bigint unsigned NULL,
+				state varchar(24) NOT NULL,
+				result_summary text NULL,
+				evidence_json longtext NULL,
+				failed_stage varchar(48) NULL,
+				started_at datetime NOT NULL,
+				finished_at datetime NULL,
+				created_by bigint unsigned NOT NULL,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY(id),
+				UNIQUE KEY uid(uid),
+				KEY scenario_started(scenario_code,started_at),
+				KEY session_id(session_id),
+				KEY state(state)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}god_mode_audit_events (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				wordpress_user_id bigint unsigned NOT NULL,
+				action varchar(64) NOT NULL,
+				target_kind varchar(32) NOT NULL,
+				target_id bigint unsigned NULL,
+				reason_code varchar(64) NOT NULL,
+				safe_detail text NULL,
+				request_fingerprint_digest char(64) NOT NULL,
+				occurred_at datetime NOT NULL,
+				created_at datetime NOT NULL,
+				PRIMARY KEY(id),
+				UNIQUE KEY uid(uid),
+				KEY user_time(wordpress_user_id,occurred_at),
+				KEY action_time(action,occurred_at),
+				KEY target(target_kind,target_id)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}god_mode_notification_tests (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				session_id bigint unsigned NULL,
+				scenario_run_id bigint unsigned NULL,
+				channel varchar(16) NOT NULL,
+				recipient_kind varchar(16) NOT NULL,
+				recipient_digest char(64) NOT NULL,
+				template_key varchar(64) NOT NULL,
+				state varchar(24) NOT NULL,
+				provider_key varchar(32) NULL,
+				outcome_code varchar(64) NULL,
+				failure_class varchar(24) NULL,
+				fallback_used tinyint NOT NULL DEFAULT 0,
+				fallback_condition_verified tinyint NOT NULL DEFAULT 0,
+				provider_reference_digest char(64) NULL,
+				attempted_at datetime NOT NULL,
+				created_at datetime NOT NULL,
+				created_by bigint unsigned NOT NULL,
+				PRIMARY KEY(id),
+				UNIQUE KEY uid(uid),
+				KEY session_channel(session_id,channel),
+				KEY state(state),
+				KEY created_at(created_at)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}god_mode_participant_mappings (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				session_id bigint unsigned NOT NULL,
+				participant_digest char(64) NOT NULL,
+				participant_type varchar(16) NOT NULL,
+				role varchar(16) NOT NULL,
+				state varchar(16) NOT NULL,
+				verified_at datetime NOT NULL,
+				verified_by bigint unsigned NOT NULL,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY(id),
+				UNIQUE KEY uid(uid),
+				UNIQUE KEY session_digest(session_id,participant_digest),
+				KEY session_role(session_id,role,state)
+			) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}god_mode_cleanup_receipts (
+				id bigint unsigned NOT NULL AUTO_INCREMENT,
+				uid char(26) NOT NULL,
+				session_id bigint unsigned NOT NULL,
+				action varchar(24) NOT NULL,
+				classification varchar(16) NOT NULL,
+				affected_counts_json text NULL,
+				retained_evidence_json text NULL,
+				executed_at datetime NOT NULL,
+				executed_by bigint unsigned NOT NULL,
+				created_at datetime NOT NULL,
+				PRIMARY KEY(id),
+				UNIQUE KEY uid(uid),
+				KEY session_id(session_id),
+				KEY executed_at(executed_at)
+			) ENGINE=InnoDB $c"
+		);
+		foreach($tables as $sql){dbDelta(self::dbdelta_sql($sql));if($wpdb->last_error!=='')throw new \RuntimeException('God Mode migration failed: '.$wpdb->last_error);}
+		// Explicit test classification on the existing aggregates. A later test-aware policy can
+		// exclude these rows without depending on which user currently holds the capability.
+		foreach(array('lessons','enrolments','booking_requests') as $table){
+			foreach(array('activity_type'=>"varchar(16) NOT NULL DEFAULT 'production'",'god_mode_session_id'=>'bigint unsigned NULL') as $column=>$definition){
+				if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}{$table} LIKE '{$column}'")&&$wpdb->query("ALTER TABLE {$p}{$table} ADD COLUMN {$column} {$definition}")===false)throw new \RuntimeException('God Mode classification column failed: '.$table.'.'.$column);
+			}
+			if(!self::has_index($p.$table,'activity_type',false)&&$wpdb->query("ALTER TABLE {$p}{$table} ADD KEY activity_type(activity_type)")===false)throw new \RuntimeException('God Mode classification index failed: '.$table);
+		}
+		if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}meet_classrooms LIKE 'test_session_id'")&&$wpdb->query("ALTER TABLE {$p}meet_classrooms ADD COLUMN test_session_id bigint unsigned NULL")===false)throw new \RuntimeException('God Mode classroom identity column failed');
+		if(!$wpdb->get_row("SHOW INDEX FROM {$p}meet_classrooms WHERE Key_name='test_session_active'")&&$wpdb->query("ALTER TABLE {$p}meet_classrooms ADD UNIQUE KEY test_session_active(test_session_id,active_slot)")===false)throw new \RuntimeException('God Mode classroom identity index failed');
+		self::bootstrap_god_mode_authorisation();
+	}
+
+	/**
+	 * Resolve the designated account once and grant the dedicated user capability.
+	 *
+	 * The grant is by verified WordPress user id. The email is used only for the initial
+	 * designation lookup; the stored digest is re-checked on every authority decision and the
+	 * account must still hold manage_options. No role is created and no other user is touched.
+	 */
+	private static function bootstrap_god_mode_authorisation():void{
+		$email='hamed.moqadasi@yahoo.com';
+		$user=function_exists('get_user_by')?get_user_by('email',$email):null;
+		if(!$user||empty($user->ID))return;
+		$userId=(int)$user->ID;
+		if(!user_can($user,'manage_options'))return;
+		$digest=self::god_mode_email_digest($email);
+		if($digest==='')return;
+		global $wpdb;$p=$wpdb->prefix.'dzn_';$now=gmdate('Y-m-d H:i:s');
+		$existing=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}god_mode_authorisations WHERE wordpress_user_id=%d",$userId));
+		if($existing&&(string)$existing->state==='revoked'){
+			if($user->has_cap('dzn_access_god_mode'))$user->remove_cap('dzn_access_god_mode');
+			return;
+		}
+		update_option('dzn_god_mode_super_tester_user_id',$userId,false);
+		update_option('dzn_god_mode_super_tester_email_digest',$digest,false);
+		if(!$user->has_cap('dzn_access_god_mode'))$user->add_cap('dzn_access_god_mode');
+		if($existing){
+			$wpdb->update($p.'god_mode_authorisations',array('email_digest'=>$digest,'updated_at'=>$now),array('id'=>(int)$existing->id));
+			return;
+		}
+		$wpdb->insert($p.'god_mode_authorisations',array('uid'=>\Delnavazan\Platform\Core\Support\Identifier::uid(),'wordpress_user_id'=>$userId,'email_digest'=>$digest,'state'=>'active','capability_version'=>'god_mode_v1','granted_at'=>$now,'granted_by'=>0,'revoked_at'=>null,'revoked_by'=>null,'revocation_reason'=>null,'created_at'=>$now,'updated_at'=>$now));
+	}
+	private static function god_mode_email_digest(string $email):string{
+		$email=strtolower(trim($email));
+		if($email==='')return '';
+		return hash_hmac('sha256','god-mode-email:'.$email,function_exists('wp_salt')?wp_salt('dzn_god_mode'):'dzn-god-mode-local');
+	}
+	private static function verify_god_mode_super_tester_schema():void{
+		global $wpdb;$p=$wpdb->prefix.'dzn_';
+		$tables=array(
+			'god_mode_authorisations'=>array('uid','wordpress_user_id','email_digest','state','capability_version','granted_at','granted_by','revoked_at','revoked_by','revocation_reason','created_at','updated_at'),
+			'god_mode_sessions'=>array('uid','reference_code','scenario_code','mode','status','activity_type','result','teacher_id','student_id','instrument_id','course_id','title','description','schedule_timezone','local_wall_date','local_wall_time','starts_at_utc','ends_at_utc','duration_minutes','recording_requested','recording_state','meet_state','classroom_id','conflict_acknowledged','conflict_summary','notification_plan','workflow_state','current_stage','failure_stage','last_error_code','retention_days','purge_eligible_at','archived_at','completed_at','created_by','created_at','updated_at','updated_by'),
+			'god_mode_session_events'=>array('uid','session_id','stage','state','correlation_id','evidence_json','provider_status','provider_error_class','error_code','error_detail','retryable','occurred_at','created_at','created_by'),
+			'god_mode_scenario_runs'=>array('uid','scenario_code','session_id','state','result_summary','evidence_json','failed_stage','started_at','finished_at','created_by','created_at','updated_at'),
+			'god_mode_audit_events'=>array('uid','wordpress_user_id','action','target_kind','target_id','reason_code','safe_detail','request_fingerprint_digest','occurred_at','created_at'),
+			'god_mode_notification_tests'=>array('uid','session_id','scenario_run_id','channel','recipient_kind','recipient_digest','template_key','state','provider_key','outcome_code','failure_class','fallback_used','fallback_condition_verified','provider_reference_digest','attempted_at','created_at','created_by'),
+			'god_mode_cleanup_receipts'=>array('uid','session_id','action','classification','affected_counts_json','retained_evidence_json','executed_at','executed_by','created_at'),
+			'god_mode_participant_mappings'=>array('uid','session_id','participant_digest','participant_type','role','state','verified_at','verified_by','created_at','updated_at')
+		);
+		foreach($tables as $table=>$columns){$physical=$p.$table;if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$physical))!==$physical)throw new \RuntimeException('God Mode migration verification failed: missing '.$table);if(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$physical)),'InnoDB')!==0)throw new \RuntimeException('God Mode migration verification failed: '.$table.' must use InnoDB');foreach($columns as $column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$physical} LIKE '{$column}'"))throw new \RuntimeException('God Mode migration verification failed: missing '.$table.'.'.$column);}
+		foreach(array(array('god_mode_authorisations','wordpress_user',true,array('wordpress_user_id')),array('god_mode_sessions','reference_code',true,array('reference_code')),array('god_mode_sessions','teacher_starts',false,array('teacher_id','starts_at_utc')),array('god_mode_sessions','status_starts',false,array('status','starts_at_utc')),array('god_mode_session_events','session_stage',false,array('session_id','stage','id')),array('god_mode_scenario_runs','scenario_started',false,array('scenario_code','started_at')),array('god_mode_audit_events','user_time',false,array('wordpress_user_id','occurred_at')),array('god_mode_notification_tests','session_channel',false,array('session_id','channel')),array('god_mode_cleanup_receipts','session_id',false,array('session_id')),array('god_mode_participant_mappings','session_digest',true,array('session_id','participant_digest')),array('god_mode_participant_mappings','session_role',false,array('session_id','role','state')))as$spec)if(!self::has_index_columns($p.$spec[0],$spec[1],$spec[2],$spec[3]))throw new \RuntimeException('God Mode migration verification failed: index '.$spec[1]);
+		foreach(array('lessons','enrolments','booking_requests')as$table)foreach(array('activity_type','god_mode_session_id')as$column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}{$table} LIKE '{$column}'"))throw new \RuntimeException('God Mode migration verification failed: classification column '.$table.'.'.$column);
+		if(!$wpdb->get_row("SHOW COLUMNS FROM {$p}meet_classrooms LIKE 'test_session_id'"))throw new \RuntimeException('God Mode migration verification failed: meet classroom test identity');
+		if(!$wpdb->get_row("SHOW INDEX FROM {$p}meet_classrooms WHERE Key_name='test_session_active'"))throw new \RuntimeException('God Mode migration verification failed: meet classroom test identity index');
+		foreach(array(array('god_mode_authorisations','email_digest'),array('god_mode_audit_events','request_fingerprint_digest'),array('god_mode_participant_mappings','participant_digest'))as$shape){$row=$wpdb->get_row("SHOW COLUMNS FROM {$p}{$shape[0]} LIKE '{$shape[1]}'");if(!$row||strtolower((string)$row->Type)!=='char(64)'||$row->Null!=='NO')throw new \RuntimeException('God Mode migration verification failed: digest shape '.$shape[0].'.'.$shape[1]);}
+		if($wpdb->get_row("SHOW COLUMNS FROM {$p}god_mode_session_events LIKE 'updated_at'"))throw new \RuntimeException('God Mode migration verification failed: session events must be append-only');
+		if($wpdb->get_row("SHOW COLUMNS FROM {$p}god_mode_audit_events LIKE 'updated_at'"))throw new \RuntimeException('God Mode migration verification failed: audit events must be append-only');
 	}
 
 }

@@ -44,7 +44,7 @@ $assert(str_contains($files['intro_card'], "'available' : 'outside'") && str_con
 $assert(!str_contains($files['intro_card'], '<dialog') && !str_contains($files['intro_card'], 'aria-haspopup="dialog"'), 'Acceptance/rejection must not open a second confirmation dialog.');
 $assert(str_contains($files['intro_card'], 'response_remaining_label') && !str_contains($files['intro_card'], 'مهلت پاسخ: ۲۴ ساعت'), 'The card must show the dynamic countdown without a duplicated 24-hour deadline label.');
 $assert(str_contains($files['intro_card'], 'data-dzn-tp-accept') && str_contains($files['intro_card'], 'disabled>تأیید درخواست') && str_contains($files['intro_card'], 'برای تأیید، یکی از زمان‌های پیشنهادی را انتخاب کنید.'), 'Acceptance must start disabled until a preference is selected.');
-$assert(str_contains($files['intro_card'], 'فرصت آزاد · هنوز مدرسی برای این درخواست تعیین نشده است') && str_contains($files['intro_card'], 'وضعیت: فرصت آزاد و قابل پذیرش') && preg_match('/if \( \$opportunity \).*?else :/s', $files['intro_card']) === 1, 'Opportunity cards must use the shared card while keeping the response countdown inside the assigned-request branch.');
+$assert(str_contains($files['intro_card'], 'تاریخ درخواست:') && str_contains($files['intro_card'], 'اولویت‌های هنرجو') && preg_match('/if \( \$opportunity \).*?else :/s', $files['intro_card']) === 1, 'Opportunity cards must use the shared card while keeping the response countdown inside the assigned-request branch.');
 
 // Model: student identity, country name, deadline sentence, green/yellow advisory matching.
 foreach (array("'student_name'", "'instrument'", "'country_label'", "'deadline_sentence'", "'response_remaining_label'", "'tone'", "'هماهنگ با برنامهٔ شما'", "'خارج از برنامهٔ زمانی شما'", 'dzn_theme_platform_country_label', 'dzn_theme_platform_teacher_deadline_sentence') as $needle) {
@@ -56,7 +56,7 @@ $assert(str_contains($files['bridge'], "'AU' => 'استرالیا'") && str_cont
 $assert(str_contains($files['bridge'], 'function dzn_theme_platform_teacher_deadline_sentence') && str_contains($files['bridge'], "'، ساعت '") && str_contains($files['bridge'], 'فرصت دارید به این درخواست پاسخ دهید'), 'The deadline sentence must be assembled from the Teacher-local date and start time.');
 
 // The board is bottom-of-classes only and uses the same card.
-$assert(str_contains($files['open'], 'فرصت‌های کلاس آشنایی') && str_contains($files['open'], 'درخواست‌های بدون مدرس برای سازهایی که تدریس می‌کنید') && str_contains($files['open'], "component( 'intro-request-card'"), 'Opportunity board must reuse the one card with the required section copy.');
+$assert(str_contains($files['open'], 'درخواست‌های بدون پاسخ') && str_contains($files['open'], 'این درخواست‌ها هنوز به مدرسی واگذار نشده‌اند') && str_contains($files['open'], "component( 'intro-request-card'"), 'Opportunity board must reuse the one card with the required section copy.');
 $classes_position = strpos($files['shell'], "component( 'classes'");
 $open_position = strpos($files['shell'], "component( 'open-requests'");
 $assert(false !== $classes_position && false !== $open_position && $open_position > $classes_position, 'Opportunity board must be at the bottom of the Classes screen.');

@@ -20,6 +20,7 @@ $expired        = ! $opportunity && ! empty( $item['response_expired'] );
 $student        = trim( (string) ( $item['student_name'] ?? $item['student'] ?? '' ) );
 $instrument     = trim( (string) ( $item['instrument'] ?? '' ) );
 $country        = trim( (string) ( $item['country_label'] ?? $item['country'] ?? '' ) );
+$request_date   = trim( (string) ( $item['request_date_label'] ?? '' ) );
 $deadline       = trim( (string) ( $item['deadline_sentence'] ?? '' ) );
 $deadline_iso   = trim( (string) ( $item['response_deadline_iso'] ?? '' ) );
 $remaining      = ! empty( $item['response_expired'] ) ? 'مهلت پاسخ گذشته است' : (string) ( $item['response_remaining_label'] ?? '' );
@@ -45,13 +46,12 @@ $reject_fields  = $opportunity
 	: '<input type="hidden" name="response_key" value="' . esc_attr( wp_generate_uuid4() ) . '"><input type="hidden" name="delivery_uid" value="' . esc_attr( (string) ( $item['delivery_uid'] ?? '' ) ) . '"><input type="hidden" name="decision" value="decline">';
 ?>
 <article id="<?php echo esc_attr( $card_id ); ?>" class="dzn-tp-attention-card dzn-tp-intro-card <?php echo $opportunity ? 'is-intro_open_request is-opportunity' : 'is-intro_request'; ?><?php echo $expired ? ' is-expired' : ''; ?>" data-dzn-intro-card<?php echo $opportunity ? ' data-dzn-opportunity-card' : ''; ?>>
-	<p class="dzn-tp-state"><span aria-hidden="true">◆</span> <?php echo esc_html( $opportunity ? 'فرصت آزاد' : 'درخواست تازه' ); ?></p>
-	<h3>درخواست جدید کلاس آشنایی</h3>
+	<?php if ( ! $opportunity ) : ?><p class="dzn-tp-state"><span aria-hidden="true">◆</span> درخواست تازه</p><?php endif; ?>
+	<?php if ( ! $opportunity ) : ?><h3>درخواست جدید کلاس آشنایی</h3><?php endif; ?>
 	<p class="dzn-tp-intro-card__student"><?php echo esc_html( $student_line ); ?></p>
 
 	<?php if ( $opportunity ) : ?>
-		<p class="dzn-tp-opportunity-note">فرصت آزاد · هنوز مدرسی برای این درخواست تعیین نشده است</p>
-		<p class="dzn-tp-opportunity-status"><span aria-hidden="true">◷</span> وضعیت: فرصت آزاد و قابل پذیرش</p>
+		<?php if ( '' !== $request_date ) : ?><p class="dzn-tp-intro-card__deadline"><strong>تاریخ درخواست:</strong> <?php echo esc_html( $request_date ); ?></p><?php endif; ?>
 	<?php else : ?>
 		<?php if ( '' !== $deadline ) : ?><p class="dzn-tp-intro-card__deadline"><?php echo esc_html( $deadline ); ?></p><?php endif; ?>
 		<?php if ( '' !== $deadline_iso ) : ?>
@@ -70,7 +70,7 @@ $reject_fields  = $opportunity
 			<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( $nonce ); ?>">
 			<?php echo $accept_fields; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- composed from escaped values above. ?>
 			<fieldset class="dzn-tp-preference-list">
-				<legend>زمان‌های پیشنهادی هنرجو</legend>
+				<legend><?php echo esc_html( $opportunity ? 'اولویت‌های هنرجو' : 'زمان‌های پیشنهادی هنرجو' ); ?></legend>
 				<?php foreach ( $preferences as $preference ) : ?>
 					<?php
 					$preference_id = (int) ( $preference['id'] ?? 0 );

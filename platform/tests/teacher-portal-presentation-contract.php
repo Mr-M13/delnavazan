@@ -189,9 +189,9 @@ namespace {
     );
     $openClasses = $render('classes', $model(array('open_requests' => array($openRequest))));
     $openHome = $render('home', $model(array('open_requests' => array($openRequest))));
-    $check('unassigned opportunities render at the bottom of classes only', str_contains($openClasses, 'id="tp-open-requests"') && str_contains($openClasses, 'فرصت‌های کلاس آشنایی') && str_contains($openClasses, 'درخواست‌های بدون مدرس برای سازهایی که تدریس می‌کنید') && !str_contains($openHome, 'id="tp-open-requests"'));
-    $check('an opportunity is visually distinguished and labelled as unassigned', str_contains($openClasses, 'is-opportunity') && str_contains($openClasses, 'فرصت آزاد · هنوز مدرسی برای این درخواست تعیین نشده است'));
-    $check('opportunity cards show all preferences without a 24-hour countdown', str_contains($openClasses, 'name="requested_time_id" value="31"') && str_contains($openClasses, 'name="requested_time_id" value="32"') && !str_contains($openClasses, 'data-dzn-response-countdown') && str_contains($openClasses, 'وضعیت: فرصت آزاد و قابل پذیرش'));
+    $check('unassigned opportunities render at the bottom of classes only', str_contains($openClasses, 'id="tp-open-requests"') && str_contains($openClasses, 'درخواست‌های بدون پاسخ') && str_contains($openClasses, 'این درخواست‌ها هنوز به مدرسی واگذار نشده‌اند') && !str_contains($openHome, 'id="tp-open-requests"'));
+    $check('an opportunity is visually distinguished and labelled as unassigned', str_contains($openClasses, 'is-opportunity') && str_contains($openClasses, 'اولویت‌های هنرجو'));
+    $check('opportunity cards show all preferences without a 24-hour countdown', str_contains($openClasses, 'name="requested_time_id" value="31"') && str_contains($openClasses, 'name="requested_time_id" value="32"') && !str_contains($openClasses, 'data-dzn-response-countdown') && str_contains($openClasses, 'درخواست‌های بدون پاسخ'));
     $check('unmatched claim form posts its nonce, request and selected preference', str_contains($openClasses, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_booking_claim"') && str_contains($openClasses, 'name="_wpnonce" value="nonce-claim"') && str_contains($openClasses, 'name="request_uid" value="REQUEST-UID"') && str_contains($openClasses, 'name="claim_key"'));
     $check('unmatched claim never reuses the delivered-request form', !str_contains($openClasses, 'name="delivery_uid"') && str_contains($openClasses, 'name="decision" value="accept"') && str_contains($openClasses, 'name="decision" value="decline"'));
 

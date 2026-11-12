@@ -413,12 +413,19 @@ final class IntegrationControlPlaneController {
         if($provider==='google'){
             $health=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceOAuthService())->health();
             $state=(string)($health['state']??'not_connected');
+            $credential=self::googleCredentialStatus($health);
             echo '<h2>Delnavazan Workspace organizer</h2><p>The single organizer account creates every Meet space. Teachers are invited as external co-hosts and never authorize Delnavazan against their personal Google account.</p>';
-            echo '<table class="widefat striped"><tbody><tr><th>Organizer</th><td><code>'.esc_html((string)($health['organizer_email']??'')).'</code></td></tr><tr><th>Connection</th><td>'.esc_html($state).'</td></tr><tr><th>Required scopes</th><td>'.esc_html(!empty($health['scope_match'])?'exact match':'re-consent required').'</td></tr><tr><th>Credential</th><td>'.esc_html(!empty($health['credential_valid'])?'valid':'missing or expired').'</td></tr><tr><th>Last checked</th><td>'.esc_html((string)($health['last_checked_at']??'never')).'</td></tr></tbody></table>';
+            echo '<table class="widefat striped"><tbody><tr><th>Organizer</th><td><code>'.esc_html((string)($health['organizer_email']??'')).'</code></td></tr><tr><th>Connection</th><td>'.esc_html($state).'</td></tr><tr><th>Required scopes</th><td>'.esc_html(!empty($health['scope_match'])?'exact match':'re-consent required').'</td></tr><tr><th>Credential</th><td>'.esc_html($credential['label']).'</td></tr><tr><th>Last checked</th><td>'.esc_html((string)($health['last_checked_at']??'never')).'</td></tr></tbody></table>';
             echo '<p><strong>Authorized redirect URI:</strong> <code>'.esc_html((string)($health['callback_url']??'')).'</code></p>';
             echo '<p>Granted scopes: Calendar events, Meet spaces and members, Meet space settings, Meet conference records, Drive read-only, and organizer e-mail identity. Recording is configured only when all recording-required consent purposes are current.</p>';
             if(in_array($state,array('connected','refresh_failed'),true)){
-                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_meet_connect">';wp_nonce_field('dzn_meet_connect');echo '<button class="button">Re-authorize organizer</button></form> ';
+                if($credential['reauthorization_required']){
+                    echo '<p><strong>Action required:</strong> Google could not renew the organizer connection. Re-authorize it to continue creating and managing classrooms.</p>';
+                    echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_meet_connect">';wp_nonce_field('dzn_meet_connect');echo '<button class="button button-primary">Re-authorize organizer</button></form> ';
+                }else{
+                    echo '<p>Automatic renewal is active. You do not need to re-authorize this organizer for normal access-token expiry.</p>';
+                    echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_meet_connect">';wp_nonce_field('dzn_meet_connect');echo '<button class="button">Replace organizer authorization</button></form> ';
+                }
                 echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_meet_disconnect">';wp_nonce_field('dzn_meet_disconnect');echo '<button class="button">Disconnect locally</button></form> ';
                 echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_meet_revoke">';wp_nonce_field('dzn_meet_revoke');echo '<button class="button button-link-delete">Revoke Google grant</button></form>';
             }else{
@@ -592,13 +599,14 @@ final class IntegrationControlPlaneController {
         $secretStored=false;foreach($redacted as $value)if($value===true){$secretStored=true;break;}
         $health=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceOAuthService())->health();
         $state=(string)($health['state']??'not_connected');
-        $badge=$state==='connected'&&!empty($health['credential_valid'])?'is-ok':($ready?'is-warn':'is-locked');
+        $credential=self::googleCredentialStatus($health);
+        $badge=$state==='connected'&&!$credential['reauthorization_required']?'is-ok':($ready?'is-warn':'is-locked');
         $last=(array)get_option('dzn_integration_test_google',array());
         echo '<section class="dzn-settings-card dzn-integration-card dzn-integration-card--google"><h2>Google Workspace &amp; Meet</h2>';
         echo '<p><span class="dzn-status-badge '.esc_attr($badge).'">'.esc_html($state==='connected'?'Connected':'Needs attention').'</span> <span class="dzn-status-badge '.($ready?'is-warn':'is-locked').'">'.esc_html($ready?'OAuth client configured':'OAuth client not configured').'</span></p>';
         echo '<p>One Delnavazan-owned organizer creates Calendar events and Meet spaces; Teachers are external co-hosts and do not connect personal Google accounts. This is the single management interface for OAuth, Calendar, Meet provisioning, classroom reconciliation and recording status.</p>';
         echo '<p>Organizer <code>'.esc_html((string)($health['organizer_email']??'')).'</code> creates and owns every lesson space. Teachers join as external co-hosts and Students as regular participants.</p>';
-        echo '<p class="dzn-settings-meta">Scopes: '.esc_html(!empty($health['scope_match'])?'exact':'re-consent required').' · Credential: '.esc_html(!empty($health['credential_valid'])?'valid':'missing or expired').' · Last checked: '.esc_html((string)($health['last_checked_at']??'never')).(!empty($health['failure_reason_code'])?' · Last error: <code>'.esc_html((string)$health['failure_reason_code']).'</code>':'').'</p>';
+        echo '<p class="dzn-settings-meta">Scopes: '.esc_html(!empty($health['scope_match'])?'exact':'re-consent required').' · Credential: '.esc_html($credential['label']).' · Last checked: '.esc_html((string)($health['last_checked_at']??'never')).(!empty($health['failure_reason_code'])?' · Last error: <code>'.esc_html((string)$health['failure_reason_code']).'</code>':'').'</p>';
         try{
             $report=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomReconciler())->report(10);
             $counts=(array)($report['counts']??array());
@@ -622,6 +630,18 @@ final class IntegrationControlPlaneController {
 
     private static function canConfigureProvider():bool{
         return current_user_can('manage_options')||current_user_can('dzn_manage_provider_integrations');
+    }
+
+    /** @param array<string,mixed> $health @return array{label:string,reauthorization_required:bool} */
+    private static function googleCredentialStatus(array $health):array{
+        $status=(string)($health['credential_status']??'');
+        $label=match($status){
+            'valid'=>'valid',
+            'renewal_pending'=>'access token expired — automatic renewal pending',
+            'renewal_failed'=>'automatic renewal failed — re-authorization required',
+            default=>'credential missing — re-authorization required',
+        };
+        return array('label'=>$label,'reauthorization_required'=>!empty($health['reauthorization_required']));
     }
 
     private static function friendlyProviderCode(string $code):string{

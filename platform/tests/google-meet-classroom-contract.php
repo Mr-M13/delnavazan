@@ -46,6 +46,7 @@ $integrationSettings = $read('platform/src/Core/Application/IntegrationSettingsS
 $check('Meet OAuth uses the organizer callback action', str_contains($oauthService, "CALLBACK_ACTION='dzn_meet_oauth_callback'"));
 $check('Meet OAuth callback action is registered', str_contains($oauthController, 'admin_post_dzn_meet_oauth_callback'));
 $check('Meet redirect is pinned to the organizer callback', str_contains($oauthService, 'meet_oauth_redirect_mismatch') && str_contains($oauthService, 'hash_equals($expected,$configured)'));
+$check('expired access tokens are renewed without re-consent', str_contains($oauthService, 'refreshIfDue') && str_contains($oauthService, "'renewal_pending'") && str_contains($oauthService, "'reauthorization_required'"));
 $check('Readiness resolves an empty Meet callback to the central callback', str_contains($integrationSettings, '$redirect=$central') && str_contains($integrationSettings, 'action=dzn_meet_oauth_callback'));
 $check('Readiness never accepts the legacy teacher callback', !str_contains($integrationSettings, 'dzn_google_oauth_callback'));
 

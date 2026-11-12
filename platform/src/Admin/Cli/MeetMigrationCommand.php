@@ -25,7 +25,7 @@ final class MeetMigrationCommand {
         $repository=new GoogleWorkspaceRepository();
         $report=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomReconciler($repository))->report(200);
         \WP_CLI::log('Organizer: '.$health['organizer_email']);
-        \WP_CLI::log('Connection: '.$health['state'].' · scopes: '.(!empty($health['scope_match'])?'exact':'mismatch').' · credential: '.(!empty($health['credential_valid'])?'valid':'missing/expired'));
+        \WP_CLI::log('Connection: '.$health['state'].' · scopes: '.(!empty($health['scope_match'])?'exact':'mismatch').' · credential: '.self::credentialStatusLabel($health));
         \WP_CLI::log('Ready classrooms: '.count(array_filter($repository->upcoming(200),static fn($row)=>in_array((string)$row->classroom_state,array('ready','rescheduled'),true))));
         \WP_CLI::log('Missing future lesson classrooms: '.(int)($report['counts']['missing_lesson_classrooms']??0));
         \WP_CLI::log('Missing future booking classrooms: '.(int)($report['counts']['missing_booking_classrooms']??0));
@@ -37,6 +37,16 @@ final class MeetMigrationCommand {
         \WP_CLI::log('Worker scheduled: '.(wp_next_scheduled(\Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceWorker::HOOK)?'yes':'no'));
         \WP_CLI::log('Booking projection worker scheduled: '.(wp_next_scheduled(\Delnavazan\Platform\Integrations\BookingCalendarProjectionWorker::HOOK)?'yes':'no'));
         \WP_CLI::log('Provider evidence actor: '.(ProviderEvidenceSystemActor::isConfigured()?'ready':'unconfigured'));
+    }
+
+    /** @param array<string,mixed> $health */
+    private static function credentialStatusLabel(array $health):string{
+        return match((string)($health['credential_status']??'')){
+            'valid'=>'valid',
+            'renewal_pending'=>'access token expired; automatic renewal pending',
+            'renewal_failed'=>'automatic renewal failed; re-authorize required',
+            default=>'credential missing; re-authorize required',
+        };
     }
 
     /** Provision the narrow actor used only to ingest verified Meet evidence. */

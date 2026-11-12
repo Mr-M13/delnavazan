@@ -106,6 +106,7 @@ try {
         $assert(!str_contains($scheduling, $forbidden), 'Registration/scheduling must not perform provider writes: ' . $forbidden);
     }
     $assert(str_contains($source, "if(GoogleWorkspaceClassroomService::enabled())"), 'Provisioning must remain behind the emergency switch.');
+    $assert(str_contains($source, 'refreshIfDue()'), 'The worker must renew an idle organizer credential before it can be mistaken for a missing authorization.');
     $assert(str_contains($source, "do_action('dzn_meet_provisioning_paused')"), 'A paused provisioning window must be observable.');
     $assert(str_contains($source, 'dueReconciliation'), 'Recording/attendance reconciliation must remain in the worker.');
 

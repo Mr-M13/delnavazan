@@ -1001,6 +1001,7 @@ final class Migrator {
 	private static function verify_teacher_booking_declines_schema():void{
 		global $wpdb;$table=$wpdb->prefix.'dzn_booking_request_teacher_declines';
 		if($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s',$table))!==$table)throw new \RuntimeException('Migration verification failed: missing booking_request_teacher_declines');
+		if(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$table)),'InnoDB')!==0)throw new \RuntimeException('Migration verification failed: teacher booking decline storage must use InnoDB');
 		foreach(array('uid','booking_request_id','delivery_id','teacher_id','source','reason_code','reason_text','state','created_at','updated_at')as $column)if(!$wpdb->get_row("SHOW COLUMNS FROM {$table} LIKE '{$column}'"))throw new \RuntimeException('Migration verification failed: teacher booking decline field '.$column);
 		foreach(array(array('request_teacher',true,array('booking_request_id','teacher_id')),array('teacher_state',false,array('teacher_id','state','created_at')))as $index)if(!self::has_index_columns($table,$index[0],$index[1],$index[2]))throw new \RuntimeException('Migration verification failed: teacher booking decline index '.$index[0]);
 	}

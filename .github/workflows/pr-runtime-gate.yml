@@ -785,6 +785,10 @@ jobs:
           DZN_COMPOSE_PROJECT: dzn-booking-release-runtime
           DZN_WP_PORT: 18088
         run: platform/runtime/bin/run-booking-provisioning-recovery.sh
+      - name: Run Teacher intro opportunity and claim race proof
+        env:
+          DZN_ACCEPTANCE_WP_PORT: 18089
+        run: make -C acceptance teacher-intro-opportunity
       - name: Dispose runtime
         if: always()
         env:

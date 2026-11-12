@@ -33,6 +33,7 @@ $assert(preg_match("/DZN_PLATFORM_SCHEMA_VERSION', '([0-9]+)'/", $files['plugin'
 foreach (array('075_teacher_booking_declines', 'install_teacher_booking_declines', 'verify_teacher_booking_declines_schema', 'booking_request_teacher_declines', "state='active'") as $needle) {
     $assert(str_contains($files['migration'], $needle), 'Teacher decline migration missing: ' . $needle);
 }
+$assert(str_contains($files['migration'], "information_schema.TABLES") && str_contains($files['migration'], "teacher booking decline storage must use InnoDB"), 'Teacher decline migration must fail closed if an existing table is not transactional.');
 $assert(!str_contains($files['migration'], '074_teacher_booking_declines'), 'Migration 074 is reserved for the God Mode super tester branch.');
 
 // One reusable card for both sources, with the required Persian content.

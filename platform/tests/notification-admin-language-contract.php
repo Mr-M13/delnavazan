@@ -21,12 +21,8 @@ $persian = static fn(string $text): bool => preg_match('/[\x{0600}-\x{06FF}]/u',
 $fail('menu label is English', str_contains($menu, "'Notifications', self::NOTIFICATION_MANAGEMENT_CAP"));
 $fail('settings tab is English', str_contains($shell, "'Notifications', 'dzn-notifications'"));
 $fail('page heading is English', str_contains($controller, '<h1>Notifications</h1>'));
-foreach (array(
-    'events' => 'Events', 'templates' => 'Templates',
-) as $slug => $label) {
-    $fail('tab ' . $slug . ' is English', str_contains($controller, "'" . $slug . "'=>'" . $label . "'"));
-}
-$fail('legacy tabs are not separate navigation entries', str_contains($controller, "\$tabs=array('events'=>'Events','templates'=>'Templates')") && str_contains($controller, 'LEGACY_TABS'));
+$fail('the notification catalogue is the only workspace', str_contains($controller, "if(\$tab!=='events')\$tab='events';") && str_contains($controller, 'private static function renderEvents'));
+$fail('legacy tabs are aliases, not navigation entries', str_contains($controller, 'LEGACY_TABS') && str_contains($controller, "'templates'=>'events'"));
 
 /* 2. The admin surface is LTR and contains no Persian UI labels. */
 $fail('admin wrapper is LTR', str_contains($controller, 'dir="ltr"') && str_contains($controller, '.dzn-notif-admin{direction:ltr}'));

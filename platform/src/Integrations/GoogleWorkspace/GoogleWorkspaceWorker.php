@@ -76,6 +76,9 @@ final class GoogleWorkspaceWorker {
         if((string)($health['state']??'')!=='connected')return;
         if(!self::acquireLock())return;
         try{
+            // Keep the short-lived access token current even when there are no imminent classes.
+            // Re-consent is reserved for an actual refresh-grant failure.
+            (new GoogleWorkspaceOAuthService())->refreshIfDue();
             // 1. Provisioning/retries honour the emergency stop. Recording/attendance reconciliation
             //    below remains active so a paused provisioning window does not lose lesson evidence.
             if(GoogleWorkspaceClassroomService::enabled()){

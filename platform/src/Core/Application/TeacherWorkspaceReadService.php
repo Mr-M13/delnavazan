@@ -312,7 +312,7 @@ final class TeacherWorkspaceReadService {
             "SELECT e.id,e.status,e.effective_from,e.effective_until,e.reason_code,
                     c.id course_id,COALESCE(NULLIF(c.name_en,''),c.name_fa,'Course') course_name,c.course_type,c.default_duration_minutes,c.default_buffer_minutes,
                     i.id instrument_id,COALESCE(NULLIF(i.name_en,''),i.name_fa,'Instrument') instrument_name,
-                    (SELECT COUNT(*) FROM {$p}enrolments en WHERE en.teacher_id=e.teacher_id AND en.course_id=e.course_id AND en.archived_at IS NULL AND (en.lifecycle_state IN ('authorised','current','paused') OR (en.record_model='legacy_phase1' AND en.status IN ('active','paused','scheduled')))) current_students
+                    (SELECT COUNT(*) FROM {$p}enrolments en WHERE en.teacher_id=e.teacher_id AND en.course_id=e.course_id AND en.archived_at IS NULL AND en.activity_type<>'test' AND (en.lifecycle_state IN ('authorised','current','paused') OR (en.record_model='legacy_phase1' AND en.status IN ('active','paused','scheduled')))) current_students
              FROM {$p}teacher_course_eligibilities e
              INNER JOIN {$p}courses c ON c.id=e.course_id
              INNER JOIN {$p}instruments i ON i.id=c.instrument_id
@@ -332,8 +332,8 @@ final class TeacherWorkspaceReadService {
                     COALESCE(NULLIF(c.name_en,''),c.name_fa,'Course') course_name,
                     COALESCE(NULLIF(instr.name_en,''),instr.name_fa,'Instrument') instrument_name,
                     t.id term_id,t.sequence_number,t.lifecycle_state term_state,t.lesson_allocation,t.starts_at,t.ends_at,
-                    (SELECT COUNT(*) FROM {$p}lessons l WHERE l.term_id=t.id AND l.lifecycle_state='completed' AND l.archived_at IS NULL) completed_lessons,
-                    (SELECT MIN(v.starts_at_utc) FROM {$p}lessons l2 INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.lesson_id=l2.id AND v.applicable_slot=1 WHERE l2.term_id=t.id AND l2.lifecycle_state='authorised' AND v.starts_at_utc>UTC_TIMESTAMP()) next_lesson_utc
+                    (SELECT COUNT(*) FROM {$p}lessons l WHERE l.term_id=t.id AND l.lifecycle_state='completed' AND l.archived_at IS NULL AND l.activity_type<>'test') completed_lessons,
+                    (SELECT MIN(v.starts_at_utc) FROM {$p}lessons l2 INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.lesson_id=l2.id AND v.applicable_slot=1 WHERE l2.term_id=t.id AND l2.lifecycle_state='authorised' AND l2.activity_type<>'test' AND v.starts_at_utc>UTC_TIMESTAMP()) next_lesson_utc
              FROM {$p}enrolments e
              INNER JOIN {$p}teacher_assignments ta ON ta.enrolment_id=e.id AND ta.applicable_slot=1
              INNER JOIN {$p}students s ON s.id=e.student_id
@@ -762,7 +762,7 @@ final class TeacherWorkspaceReadService {
         foreach ($pendingReschedules as $row) $teachers[(int) $row->teacher_id]['pending_reschedules'] = (int) $row->c;
         $replacementRows = $wpdb->get_results("SELECT teacher_id,COUNT(*) c FROM {$p}lessons WHERE teacher_id IN ({$marks}) AND lesson_type='replacement' AND lifecycle_state='authorised' AND archived_at IS NULL GROUP BY teacher_id") ?: array();
         foreach ($replacementRows as $row) $teachers[(int) $row->teacher_id]['replacement_lessons'] = (int) $row->c;
-        $upcoming = $wpdb->get_results("SELECT l.teacher_id,COUNT(*) c,MIN(v.starts_at_utc) next_at FROM {$p}lessons l INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1 WHERE l.teacher_id IN ({$marks}) AND l.lifecycle_state='authorised' AND l.archived_at IS NULL AND v.starts_at_utc>UTC_TIMESTAMP() GROUP BY l.teacher_id") ?: array();
+        $upcoming = $wpdb->get_results("SELECT l.teacher_id,COUNT(*) c,MIN(v.starts_at_utc) next_at FROM {$p}lessons l INNER JOIN {$p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1 WHERE l.teacher_id IN ({$marks}) AND l.lifecycle_state='authorised' AND l.archived_at IS NULL AND l.activity_type<>'test' AND v.starts_at_utc>UTC_TIMESTAMP() GROUP BY l.teacher_id") ?: array();
         foreach ($upcoming as $row) {
             $teachers[(int) $row->teacher_id]['upcoming'] = (int) $row->c;
             $teachers[(int) $row->teacher_id]['next_lesson_utc'] = (string) $row->next_at;

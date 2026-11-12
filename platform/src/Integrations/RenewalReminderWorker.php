@@ -50,7 +50,7 @@ final class RenewalReminderWorker {
                        teacher.display_name teacher_display_name,teacher.english_name teacher_english_name,teacher.persian_name teacher_persian_name,
                        (SELECT COUNT(*) FROM {$prefix}lessons lesson
                           WHERE lesson.term_id=term.id AND lesson.lesson_type='standard'
-                            AND lesson.status='completed' AND lesson.archived_at IS NULL) completed,
+                            AND lesson.activity_type<>'test' AND lesson.status='completed' AND lesson.archived_at IS NULL) completed,
                        (SELECT offer.plan_kind FROM {$prefix}commercial_term_funding_plans plan
                           JOIN {$prefix}commercial_offers offer ON offer.id=plan.offer_id
                          WHERE plan.term_id=term.id ORDER BY plan.id DESC LIMIT 1) plan_kind,
@@ -67,7 +67,7 @@ final class RenewalReminderWorker {
                           SELECT MAX(version.ends_at_utc) FROM {$prefix}lessons last_lesson
                           JOIN {$prefix}canonical_lesson_schedule_versions version
                             ON version.lesson_id=last_lesson.id AND version.applicable_slot=1
-                          WHERE last_lesson.term_id=term.id AND last_lesson.archived_at IS NULL
+                          WHERE last_lesson.term_id=term.id AND last_lesson.archived_at IS NULL AND last_lesson.activity_type<>'test'
                        )) term_end_utc
                   FROM {$prefix}terms term
                   JOIN {$prefix}enrolments enrolment ON enrolment.id=term.enrolment_id
@@ -76,7 +76,7 @@ final class RenewalReminderWorker {
                   LEFT JOIN {$prefix}teacher_assignments assignment
                     ON assignment.enrolment_id=enrolment.id AND assignment.applicable_slot=1
                   LEFT JOIN {$prefix}teachers teacher ON teacher.id=assignment.teacher_id
-                 WHERE term.record_model='canonical_enrolment_term_v1' AND term.archived_at IS NULL
+                 WHERE term.record_model='canonical_enrolment_term_v1' AND term.archived_at IS NULL AND enrolment.activity_type<>'test'
                    AND term.lifecycle_state='current' AND term.applicable_slot=1
                    AND enrolment.archived_at IS NULL AND enrolment.lifecycle_state IN ('current','authorised')
                    AND student.status='active' AND student.archived_at IS NULL

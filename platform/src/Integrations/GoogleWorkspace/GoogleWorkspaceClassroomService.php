@@ -163,6 +163,113 @@ final class GoogleWorkspaceClassroomService {
     }
 
     /**
+     * Ensure one organizer-owned Meet classroom for an explicitly classified God Mode test session.
+     *
+     * The test session is not a canonical Lesson and never becomes finance-bearing. Provisioning
+     * still uses the same Calendar/Meet/co-host/recording pathway as production, so evidence is
+     * genuine. A requested recording is configured now; activation and availability remain
+     * separately verifiable and are never inferred from this call.
+     */
+    public function ensureForTestSession(int $testSessionId,array $session):array{
+        if(!self::enabled())throw new \RuntimeException('meet_classroom_paused');
+        if((string)($session['activity_type']??'')!=='test')throw new \InvalidArgumentException('god_mode_test_session_required');
+        if($testSessionId<1||(string)($session['starts_at_utc']??'')==='')throw new \InvalidArgumentException('god_mode_test_session_identity_required');
+        $teacherEmail=$this->repository->teacherEmail((int)($session['teacher_id']??0));
+        if(!GoogleWorkspaceClassroomRule::validEmail($teacherEmail))throw new \InvalidArgumentException('meet_teacher_email_required');
+        $studentEmail=(string)($session['tester_email']??'');
+        $recordingOn=!empty($session['recording_requested']);
+        $existing=$this->repository->activeClassroomForTestSession($testSessionId);
+        if($existing){
+            $this->assertNotPermanentlyBlocked($existing);
+            if(in_array((string)$existing->classroom_state,array('ready','rescheduled'),true)
+                &&MeetCoHostRule::isReady((string)$existing->classroom_state,(string)$existing->cohost_state)){
+                $references=$this->openReferences($existing);
+                if($references!==null){
+                    $result=$this->result($existing,$references,true);
+                    $result['recording_configured']=(string)$existing->recording_state==='configured';
+                    return $result;
+                }
+            }
+        }
+        $classroom=$existing?:$this->createClassroomRow(array(
+            'test_session_id'=>$testSessionId,'lesson_id'=>null,'schedule_version_id'=>null,'booking_confirmation_id'=>null,
+            'classroom_kind'=>'god_mode_test','teacher_id'=>(int)$session['teacher_id'],'student_id'=>(int)$session['student_id'],
+            'teacher_email_digest'=>$this->digestEmail($teacherEmail),
+            'student_email_digest'=>GoogleWorkspaceClassroomRule::validEmail($studentEmail)?$this->digestEmail($studentEmail):null,
+            'starts_at_utc'=>(string)$session['starts_at_utc'],'ends_at_utc'=>(string)$session['ends_at_utc'],
+            'schedule_timezone'=>(string)$session['schedule_timezone'],
+        ));
+        $eligibility=array(
+            'eligible'=>$recordingOn,
+            'reason'=>$recordingOn?'god_mode_test_recording_requested':'god_mode_test_recording_not_requested',
+            'evaluated_at'=>gmdate('Y-m-d H:i:s'),
+            'manual_verification_required'=>true,
+        );
+        return $this->provision($classroom,'god-mode-test:'.$testSessionId,array(
+            'summary'=>'Delnavazan TEST class · '.$session['reference_code'],
+            'description'=>'Explicit God Mode test activity · '.$session['reference_code'].' · not a production lesson',
+            'teacher_name'=>(string)($session['teacher_name']??''),
+            'student_name'=>(string)($session['student_name']??'Super Tester'),
+            'course_name'=>(string)($session['course_name']??'Delnavazan test'),
+            'teacher_email'=>$teacherEmail,
+            'student_email'=>$studentEmail,
+            'starts_at_utc'=>(string)$session['starts_at_utc'],
+            'ends_at_utc'=>(string)$session['ends_at_utc'],
+            'timezone'=>(string)$session['schedule_timezone'],
+            'lesson_id'=>null,'schedule_version_id'=>null,'lesson_uid'=>(string)$session['reference_code'],
+        ),$eligibility);
+    }
+
+    /** Cancel a test session's provider event without deleting classroom history or recordings. */
+    public function cancelForTestSession(int $testSessionId):array{
+        $classroom=$this->repository->activeClassroomForTestSession($testSessionId);
+        if(!$classroom)$classroom=$this->repository->latestClassroomForTestSession($testSessionId);
+        if(!$classroom||(string)$classroom->classroom_state==='cancelled')return array('cancelled'=>false,'reason'=>'classroom_not_found');
+        $references=$this->openReferences($classroom);
+        if($references!==null){
+            $response=$this->api->cancelCalendarEvent((string)$references['provider_object_reference']);
+            if(!in_array($response['status'],array(200,204,404,410),true))$this->assertOk($response,'meet_calendar_cancel_failed');
+        }
+        $now=gmdate('Y-m-d H:i:s');
+        $this->repository->updateClassroom((int)$classroom->id,array('classroom_state'=>'cancelled','active_slot'=>null,'cancelled_at'=>$now,'version'=>(int)$classroom->version+1,'updated_at'=>$now,'updated_by'=>0),array('id'=>(int)$classroom->id));
+        $this->audit((int)$classroom->id,'cancel','cancelled','god_mode_test_cancel',null);
+        return array('cancelled'=>true,'classroom_id'=>(int)$classroom->id);
+    }
+
+    /** Move the single test classroom to a new interval; never creates a second Meet space. */
+    public function rescheduleForTestSession(int $testSessionId,string $startsAtUtc,string $endsAtUtc,string $timezone):array{
+        $classroom=$this->repository->activeClassroomForTestSession($testSessionId);
+        if(!$classroom)throw new \InvalidArgumentException('god_mode_test_classroom_required');
+        $references=$this->openReferences($classroom);
+        if($references===null)throw new \InvalidArgumentException('god_mode_test_reference_required');
+        $event=$this->api->updateCalendarEvent((string)$references['provider_object_reference'],array(
+            'start'=>array('dateTime'=>GoogleWorkspaceClassroomRule::rfc3339($startsAtUtc),'timeZone'=>$timezone),
+            'end'=>array('dateTime'=>GoogleWorkspaceClassroomRule::rfc3339($endsAtUtc),'timeZone'=>$timezone),
+        ));
+        if($event['status']<200||$event['status']>=300){
+            $this->recordProviderFailure($classroom,$event,'calendar_projection','calendar_projection_failed');
+            throw new \RuntimeException('god_mode_test_reschedule_failed');
+        }
+        $now=gmdate('Y-m-d H:i:s');
+        $this->repository->updateClassroom((int)$classroom->id,array(
+            'starts_at_utc'=>$startsAtUtc,'ends_at_utc'=>$endsAtUtc,'schedule_timezone'=>$timezone,
+            'classroom_state'=>'rescheduled','version'=>(int)$classroom->version+1,'updated_at'=>$now,'updated_by'=>0,
+        ),array('id'=>(int)$classroom->id));
+        $this->audit((int)$classroom->id,'update','rescheduled','god_mode_test_reschedule',$event);
+        $fresh=$this->repository->classroom((int)$classroom->id);
+        return $this->result($fresh,$references,false);
+    }
+
+    /** Open the vaulted Meet join URI for a test session after the caller re-proved authority. */
+    public function joinUriForTestSession(int $testSessionId):string{
+        $classroom=$this->repository->activeClassroomForTestSession($testSessionId);
+        if(!$classroom||!MeetCoHostRule::isReady((string)$classroom->classroom_state,(string)($classroom->cohost_state??'')))throw new \RuntimeException('meet_classroom_unavailable');
+        $uri=$this->openReferences($classroom);
+        if($uri===null)throw new \RuntimeException('meet_classroom_unavailable');
+        return (string)$uri['join_uri_reference'];
+    }
+
+    /**
      * Explicitly reopen one historical blocked booking classroom.
      *
      * This keeps the existing row, sealed Calendar/Meet references and provider identities. The

@@ -53,7 +53,10 @@ add_action( 'plugins_loaded', static function () {
 	if ( (string) get_option( 'dzn_platform_schema_version' ) !== (string) DZN_PLATFORM_SCHEMA_VERSION ) {
 		Delnavazan\Platform\Core\Infrastructure\Migration\Migrator::maybe_upgrade();
 	}
+	Delnavazan\Platform\Core\Application\GodMode\GodModeAuthority::bootstrap();
 	Delnavazan\Platform\Admin\Controller\Menu::register();
+	Delnavazan\Platform\Admin\Controller\GodModeController::register();
+	Delnavazan\Platform\Admin\Controller\GodModeTeacherController::register();
 	Delnavazan\Platform\Admin\Controller\CommunicationsTemplateController::register();
 	Delnavazan\Platform\Admin\Controller\NotificationManagementController::register();
 	Delnavazan\Platform\Portals\PortalNotificationController::register();

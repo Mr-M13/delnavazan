@@ -47,6 +47,7 @@ final class CanonicalAcademyObligationService {
         if(!in_array($kind,CanonicalAcademyObligationValidator::kinds(),true))throw new \InvalidArgumentException('Controlled academy obligation source required');
         $lesson=$this->lessons->lesson($lessonId,true);
         if(!$lesson||(string)($lesson->record_model??'')!=='canonical_term_lesson_v1')throw new \InvalidArgumentException('canonical_lesson_required');
+        if((string)($lesson->activity_type??'production')==='test')throw new \InvalidArgumentException('canonical_obligation_test_activity_isolated');
         // An occurrence already owed cannot be owed again under a different source kind: conflict is
         // resolved before the new source fact is trusted, so debt can never be double-established.
         // A same-kind call is an idempotent replay only when the supplied source authority and
@@ -91,6 +92,7 @@ final class CanonicalAcademyObligationService {
         $this->capability();
         $lesson=$this->lessons->lesson($lessonId);
         if(!$lesson||(string)($lesson->record_model??'')!=='canonical_term_lesson_v1')throw new \InvalidArgumentException('canonical_lesson_required');
+        if((string)($lesson->activity_type??'production')==='test')throw new \InvalidArgumentException('canonical_obligation_test_activity_isolated');
         if(!CanonicalAcademyObligationValidator::validForLesson($lessonId,$this->repository,$this->lessons,$this->delivery))throw new \InvalidArgumentException('canonical_obligation_integrity_conflict');
         return $this->repository->forLesson($lessonId);
     }

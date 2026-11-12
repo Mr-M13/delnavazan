@@ -13,7 +13,7 @@ trap cleanup EXIT
 DZN_TEACHER_INTRO_RUNTIME=runtime dzn_acceptance_wp eval-file /workspace/platform/tests/teacher-intro-opportunity-runtime.php --user=1
 DZN_TEACHER_INTRO_MIGRATION=runtime dzn_acceptance_wp eval-file /workspace/platform/tests/teacher-intro-migration-runtime.php --user=1
 
-rm -f "$DZN_ACCEPTANCE_WP_DIR/.dzn-opp-ready-0" "$DZN_ACCEPTANCE_WP_DIR/.dzn-opp-ready-1" "$DZN_ACCEPTANCE_WP_DIR/.dzn-opp-go"
+dzn_acceptance_wp_shell 'rm -f /var/www/html/.dzn-opp-ready-0 /var/www/html/.dzn-opp-ready-1 /var/www/html/.dzn-opp-go'
 
 DZN_TEACHER_OPP_WORKER=runtime DZN_TEACHER_OPP_INDEX=0 \
   dzn_acceptance_wp eval-file /workspace/platform/tests/teacher-opportunity-claim-worker.php --user=1 \
@@ -26,14 +26,14 @@ worker1=$!
 
 ready=false
 for _ in $(seq 1 60); do
-  if [ -f "$DZN_ACCEPTANCE_WP_DIR/.dzn-opp-ready-0" ] && [ -f "$DZN_ACCEPTANCE_WP_DIR/.dzn-opp-ready-1" ]; then
+  if dzn_acceptance_wp_shell 'test -f /var/www/html/.dzn-opp-ready-0 && test -f /var/www/html/.dzn-opp-ready-1'; then
     ready=true
     break
   fi
   sleep 1
 done
 [ "$ready" = true ] || { echo 'error: opportunity workers did not reach the barrier.' >&2; exit 1; }
-: > "$DZN_ACCEPTANCE_WP_DIR/.dzn-opp-go"
+dzn_acceptance_wp_shell ': > /var/www/html/.dzn-opp-go'
 wait "$worker0" || { cat "$DZN_ACCEPTANCE_STATE_DIR/opp-worker-0.json" >&2; exit 1; }
 wait "$worker1" || { cat "$DZN_ACCEPTANCE_STATE_DIR/opp-worker-1.json" >&2; exit 1; }
 

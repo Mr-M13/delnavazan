@@ -53,6 +53,15 @@ dzn_acceptance_compose() {
   docker compose --project-directory "$DZN_ACCEPTANCE_DIR" --project-name "$DZN_ACCEPTANCE_COMPOSE_PROJECT" -f "$DZN_ACCEPTANCE_DIR/compose.yaml" "$@"
 }
 
+# Run a shell command inside the disposable WordPress bind mount as root.
+# The container may create root-owned files and directories; host-side writes are
+# not reliable after that. This helper is only for fixed acceptance barrier files.
+dzn_acceptance_wp_shell() {
+  dzn_acceptance_assert_state
+  docker run --rm --pull=never -u 0 -v "$DZN_ACCEPTANCE_WP_DIR:/var/www/html" \
+    --entrypoint sh "$DZN_ACCEPTANCE_CLI_IMAGE" -c "$1"
+}
+
 dzn_acceptance_require_cached_images() {
   command -v docker >/dev/null || { echo 'error: Docker is required.' >&2; exit 1; }
   local image

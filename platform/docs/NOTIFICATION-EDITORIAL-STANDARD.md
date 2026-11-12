@@ -147,3 +147,4 @@ is never used to justify a booking, class, payment or security message.
   translations.
 - An editor may not change the recipient, the channel eligibility, the consent rule or the business
   action. Those are owned by the producing service.
+

@@ -189,6 +189,32 @@ final class GoogleWorkspaceOAuthService {
         $this->audit($connectionId,'oauth_refresh','connected',null,null);
     }
 
+    /**
+     * Renew an expiring access token without asking an administrator to repeat consent.
+     *
+     * Google access tokens are deliberately short-lived. The sealed refresh token is the durable
+     * authorization, so an idle organizer connection must be refreshed by the worker rather than
+     * rendered as though its authorization had disappeared.
+     *
+     * @return array{attempted:bool,status:string}
+     */
+    public function refreshIfDue():array{
+        $connection=$this->repository->activeConnection();
+        if(!$connection||(string)$connection->connection_state!=='connected')return array('attempted'=>false,'status'=>'not_connected');
+        $credential=$this->repository->credential((int)$connection->id);
+        if(!$credential)return array('attempted'=>false,'status'=>'credential_missing');
+        $validUntil=$credential->valid_until_utc===null?0:(int)strtotime((string)$credential->valid_until_utc.' UTC');
+        if($validUntil>time()+90)return array('attempted'=>false,'status'=>'valid');
+        try{
+            $this->refreshConnection((int)$connection->id);
+            return array('attempted'=>true,'status'=>'refreshed');
+        }catch(\Throwable){
+            // refreshConnection records the secret-free reason; the UI can now request consent only
+            // when the renewable grant has actually failed.
+            return array('attempted'=>true,'status'=>'refresh_failed');
+        }
+    }
+
     public function disconnect(bool $revoke=false):array{
         $this->requireManager();
         $connection=$this->repository->activeConnection();
@@ -225,6 +251,10 @@ final class GoogleWorkspaceOAuthService {
             }
             $credential=$this->repository->credential((int)$connection->id);
             $valid=$credential&&($credential->valid_until_utc===null||strtotime((string)$credential->valid_until_utc.' UTC')>time());
+            $failure=(string)($connection->failure_reason_code??'');
+            // "renewal_pending" is normal between a one-hour access-token expiry and the next
+            // worker/provider operation. It is not an instruction to repeat the OAuth flow.
+            $credentialStatus=!$credential?'missing':($valid?'valid':($failure==='credential_refresh_failed'?'renewal_failed':'renewal_pending'));
             return array(
                 'state'=>(string)$connection->connection_state,
                 'organizer_email'=>(string)$connection->organizer_email,
@@ -232,8 +262,10 @@ final class GoogleWorkspaceOAuthService {
                 'callback_url'=>self::callbackUrl(),
                 'scope_match'=>GoogleWorkspaceClassroomRule::scopeSetMatches((string)$connection->scope_snapshot),
                 'credential_valid'=>$valid,
+                'credential_status'=>$credentialStatus,
+                'reauthorization_required'=>!$credential||$failure==='credential_refresh_failed',
                 'last_checked_at'=>$connection->last_checked_at,
-                'failure_reason_code'=>$connection->failure_reason_code,
+                'failure_reason_code'=>$failure!==''?$failure:null,
             );
         }catch(\Throwable){
             return array('state'=>'unavailable','organizer_email'=>GoogleWorkspaceClassroomRule::organizerEmail(),'configured'=>false,'callback_url'=>self::callbackUrl(),'scope_match'=>false,'credential_valid'=>false,'last_checked_at'=>null,'failure_reason_code'=>'meet_health_unavailable');

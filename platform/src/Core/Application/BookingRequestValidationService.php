@@ -5,6 +5,7 @@ namespace Delnavazan\Platform\Core\Application;
 final class BookingRequestValidationService {
     public const MAX_REQUESTED_TIMES = 3;
     public const BOOKING_HORIZON_DAYS = 90;
+    public const BLOCKED_TIME_MESSAGE = 'Requested interval overlaps Iran quiet hours';
 
     public function normalizePublic(array $input): array {
         $allowed = array( 'requested_instrument_id', 'selected_intro_course_id', 'full_name', 'email', 'mobile', 'country', 'city', 'timezone', 'communication_language', 'whatsapp_same_as_mobile', 'whatsapp_number', 'privacy_notice_accepted', 'privacy_notice_version', 'adult_self_attested', 'recording_research_consent_accepted', 'requested_times' );

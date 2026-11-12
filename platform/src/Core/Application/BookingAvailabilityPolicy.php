@@ -90,9 +90,7 @@ final class BookingAvailabilityPolicy {
 
     private static function time( string $value ): string {
         $value = trim( $value );
-        if ( preg_match( '/^([01]?[0-9]|2[0-3]):([0-5][0-9])(?::([0-5][0-9]))?$/D', $value, $matches ) !== 1 ) {
-            throw new \InvalidArgumentException( 'Valid quiet-hours wall time required' );
-        }
-        return sprintf( '%02d:%02d:%02d', (int) $matches[1], (int) $matches[2], isset( $matches[3] ) ? (int) $matches[3] : 0 );
+        if ( preg_match( '/^(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?$/D', $value ) !== 1 ) throw new \InvalidArgumentException( 'Valid quiet-hours wall time required' );
+        return strlen( $value ) === 5 ? $value . ':00' : $value;
     }
 }

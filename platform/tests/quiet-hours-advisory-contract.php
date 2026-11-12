@@ -61,8 +61,8 @@ $expect(!str_contains($assessment, 'overlapsQuiet') && !str_contains($assessment
 $contains($preview, array("'quiet_hours'"), 'The preview response must carry the advisory for each selected time.');
 $contains($day, array('BookingAvailabilityAssessmentService', "status'] === 'blocked'"), 'The day grid must keep using the shared assessment and only omit genuinely blocked candidates.');
 $expect(!str_contains($day, 'quiet'), 'The day grid must not filter Quiet Hours.');
-$expect(!str_contains($validation, 'quiet hours') && !str_contains($validation, 'overlapsIranQuietHours'), 'Submission must not enforce Quiet Hours.');
-$expect(!str_contains($rest, 'blocked_time') && !str_contains($rest, 'quiet'), 'The public submission endpoint must not expose a Quiet Hours block.');
+$expect(!str_contains($validation, 'overlapsIranQuietHours') && !str_contains($validation, 'overlapsAcademyQuietHours') && !str_contains($validation, 'overlapsStudentQuietHours'), 'Submission must not enforce Quiet Hours through the normalization authority.');
+$expect(!str_contains($rest, 'quiet_hours_enabled') && !str_contains($rest, 'overlaps'), 'The public submission endpoint must not consult Quiet Hours.');
 
 $contains($policies, array(
     'ACTION_QUIET_HOURS',

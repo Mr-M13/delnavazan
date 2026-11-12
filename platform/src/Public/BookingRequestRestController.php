@@ -74,7 +74,8 @@ final class BookingRequestRestController {
             return new \WP_REST_Response( array( 'success' => false, 'code' => 'account_authentication_failed', 'login_url' => wp_login_url( home_url( '/enrol/' ) ) ), 401 );
         } catch ( \InvalidArgumentException $e ) {
             if ( $e->getMessage() === 'csrf_invalid' ) return new \WP_REST_Response( array( 'success' => false, 'code' => 'csrf_invalid' ), 403 );
-            return new \WP_REST_Response( array( 'success' => false, 'code' => 'invalid_request' ), 400 );
+            $code = $e->getMessage() === BookingRequestValidationService::BLOCKED_TIME_MESSAGE ? 'blocked_time' : 'invalid_request';
+            return new \WP_REST_Response( array( 'success' => false, 'code' => $code ), 400 );
         } catch ( IdempotencyConflictException ) {
             return new \WP_REST_Response( array( 'success' => false, 'code' => 'idempotency_conflict' ), 409 );
         } catch ( BookingRequestSlotConflictException ) {

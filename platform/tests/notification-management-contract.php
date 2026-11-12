@@ -23,7 +23,7 @@ $fail = static function (string $name, bool $ok): void { if (!$ok) throw new Run
 foreach (array(
     'dzn_notification_copy_save_draft', 'dzn_notification_copy_publish', 'dzn_notification_copy_discard',
     'dzn_notification_copy_restore', 'dzn_notification_copy_restore_default', 'dzn_notification_provider_mapping',
-    'dzn_notification_channel_policy', 'dzn_notification_inbox_prune', 'dzn_notification_inbox_test',
+    'dzn_notification_event_toggle', 'dzn_notification_event_channel_toggle', 'dzn_notification_inbox_prune', 'dzn_notification_inbox_test',
     'dzn_notification_recover_leases',
 ) as $action) {
     $fail('registered action ' . $action, str_contains($controller, "admin_post_" . $action));
@@ -43,11 +43,16 @@ $fail('preview masks one-time secrets', str_contains($library, "foreach(array('c
 $fail('preview test covers all four channels', is_file($root . '/tests/notification-preview-unit.php') && str_contains((string) file_get_contents($root . '/tests/notification-preview-unit.php'), "\$channelsSeen['website']"));
 $fail('delivery status test exists', is_file($root . '/tests/notification-delivery-status-unit.php'));
 
-/* 1c. Notifications opens on the event table organised by business task; templates remain an editor beneath it and old tabs stay aliases. */
+/* 1c. Notifications opens on the single event catalogue; old tabs stay aliases or redirect to Diagnostics. */
 $fail('events is the default workspace', str_contains($controller, "'events'=>'Events'") || str_contains($controller, "sanitize_key(wp_unslash((string)\$_GET['tab'])):'events'"));
-$fail('legacy tab URLs are mapped', str_contains($controller, "'rules'=>'events'") && str_contains($controller, "'monitoring'=>'diagnostics'"));
-$fail('business tasks, not student and teacher tabs, organise events and templates', substr_count($controller, 'name="task"') >= 2 && str_contains($controller, 'Business task') && !str_contains($controller, '>Student notifications</a>'));
-$fail('channel settings are ordered WhatsApp, Email, SMS', strpos($controller, "self::renderChannelCard('whatsapp'") < strpos($controller, "self::renderChannelCard('email'") && strpos($controller, "self::renderChannelCard('email'") < strpos($controller, "self::renderChannelCard('sms'"));
+$fail('legacy tab URLs are mapped', str_contains($controller, "'rules'=>'events'") && str_contains($controller, "'templates'=>'events'"));
+$fail('legacy diagnostics redirects centrally', str_contains($controller, "page=dzn-system-health&component=notifications"));
+$fail('business tasks, not student and teacher tabs, organise the catalogue', str_contains($controller, 'name="task"') && str_contains($controller, 'Business task') && !str_contains($controller, '>Student notifications</a>'));
+$fail('all four delivery methods are rendered together', str_contains($controller, "array('website','email','whatsapp','sms')"));
+$fail('template readiness is a catalogue filter', str_contains($controller, 'name="readiness"') && str_contains($controller, 'Template readiness'));
+$fail('global channel policy editor is removed', !str_contains($controller, 'dzn_notification_channel_policy') && !str_contains($library, 'OPTION_CHANNEL_POLICY'));
+$fail('the retired category override is deleted during admin upgrade', str_contains($library, 'retireLegacyCategoryPolicy') && str_contains($library, "delete_option(\$key)"));
+$fail('generic notification resend surface is removed', !str_contains($controller, 'dzn_notification_manual_retry') && !str_contains($controller, 'Review a specific notification for resend'));
 $fail('provider mapping lives with the WhatsApp template editor', str_contains($controller, 'private static function renderProviderMapping') && str_contains($controller, "if(\$channel!=='whatsapp')return;"));
 $fail('admin and transport share one provider mapping authority', str_contains($library, 'TelnyxTemplateAuthority') && str_contains($adapter, 'TelnyxTemplateAuthority') && str_contains($authority, "count(\$approved)>1") && str_contains($authority, 'CONTRACT_MISMATCH'));
 $fail('discovered mappings do not expose a duplicate manual editor', str_contains($controller, "(\$mapping['source']??'')==='discovery'") && str_contains($controller, 'verified Telnyx template discovery record'));
@@ -69,6 +74,8 @@ foreach (array('CATEGORIES', 'TASKS', 'taskKey', 'AUTHORITIES', 'IMPLEMENTATION'
     $fail('catalogue exposes ' . $needle, str_contains($catalogue, $needle));
 }
 $fail('one-time secret events stay security-only', str_contains($catalogue, "'account.claim_issued.student'") && str_contains($catalogue, "'teacher.invitation_issued.teacher'"));
+$fail('rejected account-claim mobile routes stay blocked', str_contains($library, "$eventKey==='account.claim_issued.student'") && str_contains($library, "'notification_channel_secure_route'"));
+$fail('only Utility provider templates can map transactional messages', str_contains($authority, "$utility=strtoupper") && str_contains($authority, "not a Utility template"));
 
 /* 4. Inbox storage is contact-free and read state is scoped to the linked WordPress user. */
 $fail('migration creates the inbox table', str_contains($migration, 'portal_notifications') && str_contains($migration, 'UNIQUE KEY dedupe_key'));

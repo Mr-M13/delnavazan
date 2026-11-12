@@ -24,7 +24,6 @@ final class NotificationTemplateLibrary {
     public const OPTION_DRAFTS='dzn_notification_copy_drafts';
     public const OPTION_AUDIT='dzn_notification_copy_audit';
     public const OPTION_WHATSAPP='dzn_notification_whatsapp_templates';
-    public const OPTION_CHANNEL_POLICY='dzn_notification_channel_policy';
     public const OPTION_EVENT_ENABLED='dzn_notification_event_enabled';
     public const OPTION_EVENT_CHANNELS='dzn_notification_event_channels';
     public const OPTION_SEEDED='dzn_notification_catalogue_seeded';
@@ -40,6 +39,12 @@ final class NotificationTemplateLibrary {
         if($this->providerAuthority===null&&class_exists(NotificationProviderRepository::class)){
             $this->providerAuthority=new TelnyxTemplateAuthority(new NotificationProviderRepository());
         }
+    }
+
+    /** Retire the superseded category-wide override after the event-level controls are installed. */
+    public static function retireLegacyCategoryPolicy():void{
+        $key='dzn_notification_channel_policy';
+        if(function_exists('get_option')&&function_exists('delete_option')&&get_option($key,null)!==null)delete_option($key);
     }
 
     /** The active copy of one event/channel/locale, or the catalogue default when none is published. */
@@ -108,29 +113,36 @@ final class NotificationTemplateLibrary {
         return $rows;
     }
 
-    /** Whether an event's category policy currently permits this delivery channel. */
-    public function channelPermitted(string $eventKey,string $channel):bool{
+    /** A channel exists only when the closed notification catalogue declares it for this event. */
+    public function channelOffered(string $eventKey,string $channel):bool{
         $event=NotificationCatalogue::get($eventKey);
-        if($event===null||!in_array($channel,(array)$event['channels'],true))return false;
-        $policy=$this->channelPolicy((string)$event['category']);
-        return !empty($policy[$channel])&&$this->eventChannelEnabled($eventKey,$channel);
+        return $event!==null&&in_array($channel,(array)$event['channels'],true);
+    }
+
+    /** Whether a declared channel is currently enabled for this exact event. */
+    public function channelPermitted(string $eventKey,string $channel):bool{
+        return $this->channelOffered($eventKey,$channel)&&$this->eventChannelEnabled($eventKey,$channel);
     }
 
     /** The per-event control supplements category defaults; it never overrides a legal safeguard. */
     public function eventChannelEnabled(string $eventKey,string $channel):bool{
-        $event=NotificationCatalogue::get($eventKey);
-        if($event===null||!in_array($channel,(array)$event['channels'],true))return false;
-        $policy=$this->channelPolicy((string)$event['category']);
+        if(!$this->channelOffered($eventKey,$channel))return false;
         if(NotificationCatalogue::isMandatory($eventKey)&&in_array($channel,array('email','website'),true))return true;
+        if($eventKey==='account.claim_issued.student'&&in_array($channel,array('whatsapp','sms'),true))return false;
         $saved=$this->option(self::OPTION_EVENT_CHANNELS);
         if(isset($saved[$eventKey])&&array_key_exists($channel,(array)$saved[$eventKey]))return !empty($saved[$eventKey][$channel]);
-        return !empty($policy[$channel]);
+        // The catalogue owns defaults. Email and portal begin enabled when an event supports them;
+        // WhatsApp and SMS need an explicit per-event decision after provider/copy verification.
+        return in_array($channel,array('email','website'),true);
     }
 
     public function saveEventChannel(string $eventKey,string $channel,bool $enabled):array{
         $event=NotificationCatalogue::get($eventKey);
         if($event===null||!in_array($channel,(array)$event['channels'],true))throw new \InvalidArgumentException('notification_channel_unknown');
         if(NotificationCatalogue::isMandatory($eventKey)&&in_array($channel,array('email','website'),true)&&!$enabled)throw new \InvalidArgumentException('notification_channel_required');
+        // The discovered account-claim WhatsApp template is rejected. One-time account claims must
+        // remain on their dedicated secure email route until a separately reviewed authority exists.
+        if($enabled&&$eventKey==='account.claim_issued.student'&&in_array($channel,array('whatsapp','sms'),true))throw new \InvalidArgumentException('notification_channel_secure_route');
         $saved=$this->option(self::OPTION_EVENT_CHANNELS);
         $saved[$eventKey]=is_array($saved[$eventKey]??null)?$saved[$eventKey]:array();
         $saved[$eventKey][$channel]=$enabled;
@@ -186,13 +198,10 @@ final class NotificationTemplateLibrary {
         }elseif($channel==='sms'){
             $providerState='restricted_fallback';
         }
-        if(!$permitted){
-            // A forbidden channel is not a readiness failure of the message or provider. Saying that
-            // WhatsApp needs a mapping (or that canonical copy is missing) for a security-only event is
-            // misleading, because no send on that channel can ever be authorised by the current policy.
-            // The provider state stays factual (for example not_mapped); only the actionable warning is
-            // replaced by the policy explanation.
-            $issues=array('Not offered for this event: the '.(string)(NotificationCatalogue::CATEGORIES[(string)($event['category']??'')]['label']??'current').' category disables this channel.');
+        if(!$permitted&&$this->channelOffered($eventKey,$channel)){
+            // Copy for a disabled channel remains editable, but no sender may use it until the
+            // operator explicitly enables that exact event/channel pair.
+            $issues=array('This delivery channel is disabled for this notification.');
         }
         return array(
             'event_key'=>$eventKey,'label'=>(string)($event['label']??$eventKey),'category'=>(string)($event['category']??''),
@@ -474,64 +483,6 @@ final class NotificationTemplateLibrary {
         $this->putOption(self::OPTION_EVENT_ENABLED,$saved);
         $this->audit($enabled?'enable_event':'disable_event',$eventKey,'','',null,$enabled?'Optional event enabled':'Optional event disabled');
         return array('event_key'=>$eventKey,'enabled'=>$enabled,'mandatory'=>NotificationCatalogue::isMandatory($eventKey));
-    }
-
-    // ------------------------------------------------------------------ channel policy
-
-    /** The effective, non-secret channel policy of one category. Mandatory channels stay locked. */
-    public function channelPolicy(string $category):array{
-        $defaults=$this->defaultChannelPolicy($category);
-        $saved=$this->option(self::OPTION_CHANNEL_POLICY);
-        $row=is_array($saved[$category]??null)?$saved[$category]:array();
-        $effective=array_merge($defaults,$row);
-        if(in_array($category,array('security','account','payment'),true)){
-            $effective['email']=true;$effective['website']=true;$effective['mandatory']=true;
-        }
-        // SMS is a fallback-only capability.  Legacy direct-SMS settings are normalised away so no
-        // template, router or admin surface can advertise SMS as an independent primary channel.
-        $effective['sms']=!empty($effective['sms_fallback']);
-        $effective['category']=$category;
-        return $effective;
-    }
-
-    /** @return array<string,array> */
-    public function channelPolicies():array{
-        $rows=array();
-        foreach(array_keys(NotificationCatalogue::CATEGORIES) as $category)$rows[$category]=$this->channelPolicy($category);
-        return $rows;
-    }
-
-    /** @param array<string,array> $input category => flags */
-    public function saveChannelPolicy(array $input):array{
-        $saved=$this->option(self::OPTION_CHANNEL_POLICY);
-        foreach(NotificationCatalogue::CATEGORIES as $category=>$meta){
-            if(!isset($input[$category])||!is_array($input[$category]))continue;
-            $flags=array();
-            foreach(array('email','whatsapp','website') as $channel)$flags[$channel]=!empty($input[$category][$channel]);
-            // SMS is never a primary channel.  Its capability flag is derived from the one fallback
-            // option, so an operator cannot configure direct or capability-based SMS routing.
-            $flags['sms_fallback']=!empty($input[$category]['sms_fallback']);
-            $flags['sms']=$flags['sms_fallback'];
-            if(in_array((string)$meta['policy'],array('security','essential','financial'),true)){
-                $flags['email']=true;$flags['website']=true;
-                if((string)$meta['policy']==='security'){$flags['whatsapp']=false;$flags['sms']=false;$flags['sms_fallback']=false;}
-            }
-            $saved[$category]=$flags;
-        }
-        $this->putOption(self::OPTION_CHANNEL_POLICY,$saved);
-        $this->audit('save_channel_policy','','','',null,'Channel rules updated');
-        return $this->channelPolicies();
-    }
-
-    private function defaultChannelPolicy(string $category):array{
-        $policy=(string)(NotificationCatalogue::CATEGORIES[$category]['policy']??'operational');
-        return match($policy){
-            'security'=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>true),
-            'essential'=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>true),
-            'financial'=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>true),
-            'operational'=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>false),
-            default=>array('email'=>true,'website'=>true,'whatsapp'=>false,'sms'=>false,'sms_fallback'=>false,'mandatory'=>false),
-        };
     }
 
     // ------------------------------------------------------------------ audit

@@ -83,9 +83,11 @@ $contains($bookingJs, array(
     'dzn-booking__quiet-hours',
     'calendarLocale',
     'formatZoneTime',
+    'formatTeacherClock',
     'candidate.timezone',
     'student_quiet_start_at_utc',
-    'می‌توانید همین زمان را ادامه دهید',
+    'زمان انتخابی به وقت',
+    'پیشنهاد می‌کنیم زمانی خارج از بازه زمانی',
 ), 'The student UI must render a non-blocking, localized advisory.');
 $contains($bookingCss, array('.dzn-booking__quiet-hours'), 'The advisory must have a small, non-blocking visual style.');
 $expect(!preg_match('/quiet[^\\n]{0,80}splice/i', $bookingJs), 'Quiet Hours must never remove a selected slot.');

@@ -118,6 +118,17 @@
       return new Intl.DateTimeFormat(calendarLocale, { day: 'numeric', month: 'long', year: 'numeric', timeZone: timezone }).format(new Date(utc.replace(' ', 'T') + 'Z'));
     } catch { return ''; }
   };
+  const formatTeacherClock = (utc, timezone) => {
+    try {
+      const parts = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: timezone }).format(new Date(utc.replace(' ', 'T') + 'Z')).split(':');
+      const hour = Number(parts[0]);
+      const minute = Number(parts[1]);
+      const period = hour < 4 ? 'بامداد' : hour < 12 ? 'صبح' : hour === 12 ? 'ظهر' : hour < 16 ? 'بعدازظهر' : hour < 20 ? 'عصر' : 'شب';
+      const twelveHour = hour % 12 === 0 ? 12 : hour % 12;
+      const clock = minute === 0 ? faDigits(twelveHour) : faDigits(twelveHour) + ':' + faDigits(String(minute).padStart(2, '0'));
+      return clock + ' ' + period;
+    } catch { return ''; }
+  };
   const quietHoursText = (slot) => {
     const advisory = slot.quiet_hours;
     if (!advisory || !advisory.enabled || advisory.scope === 'none' || !Array.isArray(advisory.candidates)) return '';
@@ -128,7 +139,7 @@
     const rangeZones = new Map();
     const studentTimezone = timezone.value;
     affected.forEach((candidate) => {
-      const teacherTime = formatZoneTime(candidate.starts_at_utc, candidate.timezone);
+      const teacherTime = formatTeacherClock(candidate.starts_at_utc, candidate.timezone);
       const teacherLabel = teacherTime
         ? teacherTime + (Number(advisory.candidate_count) > 1 ? ' (' + candidate.timezone.replace(/_/g, ' ') + ')' : '')
         : '';
@@ -141,21 +152,19 @@
       const endDate = formatZoneDate(candidate.student_quiet_end_at_utc, studentTimezone);
       const label = (candidate.student_crosses_midnight && startDate !== endDate)
         ? startDate + ' ' + start + ' تا ' + endDate + ' ' + end
-        : start + '–' + end;
+        : end + '-' + start;
       if (!rangeZones.has(label)) { rangeZones.set(label, new Set()); ranges.push(label); }
       rangeZones.get(label).add(candidate.timezone.replace(/_/g, ' '));
     });
-    const one = Number(advisory.affected_candidate_count) === 1;
-    const lead = advisory.scope === 'all'
-      ? (one ? 'این کلاس برای مدرس بالقوهٔ منطبق در بازهٔ ساعت‌های آرام قرار دارد.' : 'این کلاس برای همهٔ مدرسان بالقوهٔ منطبق در بازهٔ ساعت‌های آرام آن‌ها قرار دارد.')
-      : 'این زمان برای برخی از مدرسان بالقوه در بازهٔ ساعت‌های آرام آن‌ها قرار دارد.';
-    const teacherPart = teacherTimes.length
-      ? ' زمان شروع کلاس به وقت ' + (affected.length > 1 ? 'مدرسان بالقوه' : 'مدرس') + ': ' + teacherTimes.join(' / ') + '.'
+    const teacherClock = teacherTimes.length ? teacherTimes.join(' / ') : '';
+    const rangeText = ranges.length
+      ? ranges.map((label) => label + (ranges.length > 1 ? ' (' + Array.from(rangeZones.get(label)).join('، ') + ')' : '')).join(' و ')
       : '';
-    const rangePart = ranges.length
-      ? ' برای شانس بیشتر در تطبیق، زمانی خارج از ' + ranges.map((label) => label + ' (' + Array.from(rangeZones.get(label)).join('، ') + ')').join('؛ ') + ' به وقت شما پیشنهاد می‌شود.'
-      : '';
-    return lead + teacherPart + rangePart + ' با این حال می‌توانید همین زمان را ادامه دهید.';
+    if (advisory.scope === 'some') {
+      return 'زمان انتخابی برای برخی از مدرسان بالقوه در بازهٔ ساعت‌های آرام است. زمان انتخابی به وقت مدرسان: ' + teacherClock + '. پیشنهاد می‌کنیم زمانی خارج از بازه زمانی ' + rangeText + ' به وقت شما را انتخاب کنید.';
+    }
+    const teacherLabel = affected.length > 1 ? 'مدرسان بالقوه' : 'مدرس';
+    return 'زمان انتخابی به وقت ' + teacherLabel + ' ' + teacherClock + '، پیشنهاد می‌کنیم زمانی خارج از بازه زمانی ' + (rangeText || 'ساعت‌های آرام') + ' به وقت شما را انتخاب کنید.';
   };
   const appendQuietHours = (slot, container) => {
     const text = quietHoursText(slot);

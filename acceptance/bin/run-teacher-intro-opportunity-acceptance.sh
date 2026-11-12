@@ -33,7 +33,9 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 [ "$ready" = true ] || { echo 'error: opportunity workers did not reach the barrier.' >&2; exit 1; }
-: > "$DZN_ACCEPTANCE_WP_DIR/.dzn-opp-go"
+# The WordPress bind mount is populated by a root container; create the shared barrier
+# through WP-CLI so the host runner never needs write access to that root-owned tree.
+dzn_acceptance_wp eval 'file_put_contents(ABSPATH . ".dzn-opp-go", "go");'
 wait "$worker0" || { cat "$DZN_ACCEPTANCE_STATE_DIR/opp-worker-0.json" >&2; exit 1; }
 wait "$worker1" || { cat "$DZN_ACCEPTANCE_STATE_DIR/opp-worker-1.json" >&2; exit 1; }
 

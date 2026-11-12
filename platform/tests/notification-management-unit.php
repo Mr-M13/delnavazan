@@ -423,7 +423,7 @@ namespace {
 
     /* 7. Event controls keep mandatory channels locked and gate optional channels. */
     $fail('security never allows WhatsApp', NotificationChannelPolicy::allows('account.claim_issued.student', 'whatsapp') === false);
-    $fail('security never allows SMS fallback', NotificationChannelPolicy::allowsSmsFallback('account.claim_issued.student') === false);
+    $fail('security never allows SMS', NotificationChannelPolicy::allows('account.claim_issued.student', 'sms') === false);
     $fail('website is allowed for an operational event', NotificationChannelPolicy::allows('booking.confirmed.student', 'website') === true);
     $fail('a channel outside the event is refused', NotificationChannelPolicy::allows('post_intro.activated.student', 'sms') === false);
     $library->saveEventChannel('booking.confirmed.student', 'whatsapp', true);

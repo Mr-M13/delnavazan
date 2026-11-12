@@ -28,7 +28,7 @@ $assert($resolved === array('id' => 7, 'whatsapp' => '+61433333333', 'sms' => '+
 
 $whatsappOnly = (object) array('student_id' => 7, 'student_account_whatsapp' => '+61411111111');
 $resolved = $resolve($whatsappOnly, 'student');
-$assert($resolved === array('id' => 7, 'whatsapp' => '+61411111111', 'sms' => '+61411111111'), 'A WhatsApp-only contact must supply the SMS fallback only when it is a usable number.');
+$assert($resolved === array('id' => 7, 'whatsapp' => '+61411111111', 'sms' => '+61411111111'), 'A usable phone number is available independently to both mobile delivery methods.');
 
 $teacher = (object) array('teacher_id' => 9, 'teacher_whatsapp' => '+61455555555', 'teacher_phone' => '+61466666666');
 $resolved = $resolve($teacher, 'teacher');

@@ -394,7 +394,7 @@ final class IntegrationControlPlaneController {
     private static function authorizeStripeSettings():void{if(!current_user_can(PaymentExecutionController::CAPABILITY)||!current_user_can('dzn_manage_payment_providers'))wp_die('Forbidden',403);}
     private static function settingsForm(string $provider):void{
         self::authorizeSettings();$service=new IntegrationSettingsService();$configs=$service->redacted($provider);$schema=IntegrationSettingsService::providerSchemas()[$provider]??array();
-        $labels=array('email'=>'Email','whatsapp'=>'WhatsApp (Telnyx / Meta WABA)','sms'=>'SMS fallback (Telnyx)','google'=>'Google Workspace & Meet');
+        $labels=array('email'=>'Email','whatsapp'=>'WhatsApp (Telnyx / Meta WABA)','sms'=>'SMS (Telnyx)','google'=>'Google Workspace & Meet');
         $safe=array('email'=>'Sends an explicitly requested TEST email to the entered destination. Mailer acceptance is not mailbox delivery.','whatsapp'=>'Uses the approved Meta WhatsApp Cloud API template through Telnyx. The test sends only after you press the button.','sms'=>'Sends a clearly marked Telnyx test SMS to the entered number only after you press the test button.','google'=>'Tests local OAuth configuration. The organizer connection is authorized separately and only by an administrator.');
         $telnyx=new TelnyxConfiguration($service);
         $last=(array)get_option('dzn_integration_test_'.$provider,array());
@@ -533,7 +533,7 @@ final class IntegrationControlPlaneController {
         echo '<div class="dzn-settings-cards">';
         self::renderProviderCard($settings,'email','Email','Account, security and operational email delivery.','dzn-integration-email',array('Sender name/address','Host mail or SMTP','Write-only password'));
         self::renderProviderCard($settings,'whatsapp','WhatsApp','Business-initiated WhatsApp through the existing Telnyx / Meta WABA route.','dzn-integration-whatsapp',array('Telnyx sender and WABA','Meta approved templates','Provider-template mapping is in Notifications → Templates'));
-        self::renderProviderCard($settings,'sms','SMS','A constrained fallback only after a verified terminal WhatsApp failure. It is never a primary channel.','dzn-integration-sms',array('Telnyx SMS sender/profile','Consent and suppression remain mandatory','Direct SMS is not enabled by a checkbox'));
+        self::renderProviderCard($settings,'sms','SMS','Independent SMS delivery for notification events where SMS is enabled.','dzn-integration-sms',array('Telnyx SMS sender/profile','Consent and suppression remain mandatory','Enable SMS per notification in Notifications'));
         self::renderGoogleCard($settings);
         self::renderStripeCard();
         echo '</div>';

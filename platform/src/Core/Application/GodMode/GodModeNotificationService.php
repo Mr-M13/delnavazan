@@ -58,27 +58,8 @@ final class GodModeNotificationService {
                 $provider='telnyx_whatsapp';$outcome=(string)($result['code']??'unknown');
                 if($state!=='accepted')$failure='whatsapp_transport_failed';
             }catch(\Throwable $error){$state='failed';$provider='telnyx_whatsapp';$outcome='transport_exception';$failure='whatsapp_transport_exception';}
-        }elseif($channel==='sms_fallback'){
-            // The fallback condition is only verified when WhatsApp actually fails and the SMS
-            // hand-off is then accepted. A successful WhatsApp message proves the condition was
-            // not exercised; it is never reported as a passed fallback test.
-            $to=(string)($recipient['phone']??'');
-            try{
-                $wa=(new TelnyxWhatsAppAdapter(new IntegrationSettingsService()))->sendTest($to,'delnavazan_class_access_fa',TelnyxTemplateRegistry::LANGUAGE,TelnyxTemplateRegistry::sampleParameters());
-                $waState=(string)($wa['state']??'failed');
-                if($waState==='success'){
-                    $state='warning';$provider='telnyx_whatsapp';$outcome='whatsapp_succeeded_fallback_not_exercised';$failure=null;$fallbackUsed=false;$fallbackVerified=false;
-                }else{
-                    $sms=(new TelnyxSmsAdapter(new IntegrationSettingsService()))->sendTest($to);
-                    $smsState=(string)($sms['state']??'failed');
-                    $state=$smsState==='success'?'accepted':'failed';
-                    $provider='telnyx_sms';$outcome=(string)($sms['code']??'unknown');
-                    $fallbackUsed=true;$fallbackVerified=$smsState==='success';
-                    if(!$fallbackVerified)$failure='sms_fallback_failed';
-                }
-            }catch(\Throwable $error){$state='failed';$provider='telnyx_sms';$outcome='transport_exception';$failure='sms_fallback_exception';$fallbackUsed=true;}
         }
-        $id=$this->repository->recordNotification($sessionId,$runId,$channel==='sms_fallback'?'sms':$channel,$recipientKind,(string)($recipient['digest_source']??'unknown'),$template,$state,$provider,$outcome,$failure,$fallbackUsed,$fallbackVerified);
+        $id=$this->repository->recordNotification($sessionId,$runId,$channel,$recipientKind,(string)($recipient['digest_source']??'unknown'),$template,$state,$provider,$outcome,$failure,$fallbackUsed,$fallbackVerified);
         if($sessionId>0){
             $this->repository->appendEvent($sessionId,GodModeRule::STAGE_INVITATION_SENT,$state==='accepted'?GodModeRule::EVENT_CONFIRMED:($state==='warning'?GodModeRule::EVENT_UNKNOWN:GodModeRule::EVENT_FAILED),array(
                 'channel'=>$channel,'notification_test_id'=>$id,'recipient_kind'=>$recipientKind,

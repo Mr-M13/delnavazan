@@ -129,7 +129,7 @@ final class IntegrationControlPlaneReadService {
                     'student_consent_filter'=>has_filter('dzn_notification_student_opted_in')?'configured':'not_configured',
                     'student_guardian_filter'=>has_filter('dzn_notification_student_guardian_authority')?'configured':'not_configured',
                     'whatsapp_enabled_events'=>$enabledEvents('whatsapp'),
-                    'sms_fallback_events'=>$enabledEvents('sms'),
+                    'sms_enabled_events'=>$enabledEvents('sms'),
                 ),
             ),
             'generated_at'=>current_time('mysql',true),

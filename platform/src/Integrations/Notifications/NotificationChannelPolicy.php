@@ -17,11 +17,6 @@ final class NotificationChannelPolicy {
         return (new NotificationTemplateLibrary())->channelPermitted($eventKey,$channel);
     }
 
-    /** SMS is only ever a constrained fallback and only when this event explicitly enables it. */
-    public static function allowsSmsFallback(string $eventKey):bool{
-        return self::allows($eventKey,'sms');
-    }
-
     /** A mandatory category (security/account/payment) can never be disabled by a channel preference. */
     public static function isMandatory(string $eventKey):bool{return NotificationCatalogue::isMandatory($eventKey);}
 }

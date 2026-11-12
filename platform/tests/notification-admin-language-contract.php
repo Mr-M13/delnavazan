@@ -9,7 +9,6 @@
 $root = dirname(__DIR__);
 $repo = dirname($root);
 $controller = (string) file_get_contents($root . '/src/Admin/Controller/NotificationManagementController.php');
-$channelPolicy = (string) file_get_contents($root . '/src/Integrations/Notifications/NotificationChannelPolicy.php');
 $menu = (string) file_get_contents($root . '/src/Admin/Controller/Menu.php');
 $shell = (string) file_get_contents($root . '/src/Admin/Controller/AdminShellController.php');
 $catalogueSource = (string) file_get_contents($root . '/src/Integrations/Notifications/NotificationCatalogue.php');
@@ -95,10 +94,10 @@ foreach (array('check_admin_referer(', 'current_user_can(', 'wp_safe_redirect(',
 }
 $fail('template editing still uses the canonical capability', str_contains($controller, "CAP_EDIT='dzn_manage_notification_templates'"));
 
-/* 8. SMS remains an event-specific, verified WhatsApp fallback, never a primary route. */
+/* 8. SMS is an independent event-specific delivery method. */
 $fail('catalogue displays all four delivery methods', str_contains($controller, "array('website','email','whatsapp','sms')"));
-$fail('catalogue explains the SMS fallback restriction', str_contains($controller, 'SMS is fallback-only after a verified terminal WhatsApp failure.'));
-$fail('SMS fallback stays event-gated', str_contains($channelPolicy, 'allowsSmsFallback') && str_contains($channelPolicy, "self::allows($eventKey,'sms')"));
+$fail('catalogue describes independent methods', str_contains($controller, 'Each enabled delivery method is independent for this notification.'));
+$fail('SMS fallback presentation is removed', !str_contains($controller, 'SMS fallback') && !str_contains($controller, 'WhatsApp → SMS'));
 $fail('customer content remains Persian after the label change', $persian(NotificationCatalogue::defaultCopy('booking.confirmed.student', 'sms', 'fa-IR')['body']));
 
 echo "Notification admin language contract passed\n";

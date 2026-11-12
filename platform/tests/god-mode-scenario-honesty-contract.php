@@ -9,7 +9,6 @@ $assert(str_contains($runner,"'test_session_created'=>false"),'A framework-gap s
 $assert(str_contains($runner,"notification_failure_retry"),'Controlled failure/retry must be explicitly identified.');
 $assert(str_contains($runner,"controlled_failure_required'=>true"),'Notification failure/retry must not fabricate a failure or a successful retry.');
 $assert(str_contains($runner,"delivery_confirmed'=>false"),'Transport hand-off must not be reported as confirmed delivery.');
-$assert(str_contains($runner,"fallback_condition_verified"),'SMS fallback must require the observed fallback condition.');
 $assert(str_contains($runner,"activation_verified'=>false"),'Recording configuration must not be reported as actual recording activation.');
 $assert(str_contains($runner,"recording_availability_verification"),'Recording availability must have an independent scenario.');
 $assert(str_contains($runner,"==='verified')".'$state=GodModeRule::RESULT_PASSED'),'Recording availability must require verified artifact evidence.');

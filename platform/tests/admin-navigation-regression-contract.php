@@ -331,7 +331,7 @@ foreach ( array( 'dzn-booking-requests', 'dzn-booking-request-coordination' ) as
 foreach ( array(
     "['Email', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-email'",
     "['Meta WhatsApp Cloud API', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-whatsapp'",
-    "['SMS fallback', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-sms'",
+    "['SMS', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-sms'",
     "['Google Workspace & Meet', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-google'",
     "['Exceptions', 'dzn_manage_exceptions', 'dzn-exception'",
     "['Diagnostics', self::SYSTEM_HEALTH_CAP, 'dzn-system-health'",

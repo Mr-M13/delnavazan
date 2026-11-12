@@ -29,10 +29,8 @@ $row=static function(string $name,array $definition,string $status='APPROVED',?s
         'variable_order'=>$order??implode(',',$definition['variable_order']),'last_verified_at'=>'2026-11-01 00:00:00',
     );
 };
-$all=array();
-foreach(TelnyxTemplateRegistry::definitions() as $name=>$definition)$all[]=$row($name,$definition);
-$authority=new TelnyxTemplateAuthority(new DznTemplateAuthorityRepository($all));
 foreach(TelnyxTemplateRegistry::definitions() as $name=>$definition){
+    $authority=new TelnyxTemplateAuthority(new DznTemplateAuthorityRepository(array($row($name,$definition))));
     $resolved=$authority->resolve($definition['event_key'],'fa-IR');
     if($resolved['state']!==TelnyxTemplateAuthority::MAPPED||$resolved['name']!==$name||$resolved['variable_order']!==$definition['variable_order'])throw new RuntimeException('approved registry mapping did not resolve: '.$name);
 }

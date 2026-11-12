@@ -106,13 +106,12 @@ the clock.
 - Request-local caches only; no persistent coverage snapshot.
 - Golden policy resolution is cached per display date for the request.
 
-## Quiet hours
+## Quiet Hours
 
-Quiet/blackout hours were removed from the booking system, the public day grid,
-the submission validator and the coverage clock. Stored historical policy rows
-that still contain old quiet-hour keys are ignored; no historical record is
-rewritten. An otherwise valid interval is constrained only by Course shape,
-Teacher availability, canonical occupancy, active holds and the booking horizon.
+Quiet Hours are a soft advisory only. They never remove a coverage-clock segment,
+change capacity colours, alter Teacher eligibility or block a booking. The clock
+does not display a Quiet Hours layer; Golden Hour and capacity colours remain
+authoritative and separate. See [QUIET-HOURS-ADVISORY.md](QUIET-HOURS-ADVISORY.md).
 
 ## Known limitations
 

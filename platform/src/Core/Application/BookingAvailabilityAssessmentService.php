@@ -10,14 +10,16 @@ final class BookingAvailabilityAssessmentService {
     public function __construct(
         private int $courseId,
         private ?BookingRequestMatchAssessmentRepository $repo = null,
-        private ?TeacherAvailabilityService $availability = null
+        private ?TeacherAvailabilityService $availability = null,
+        private ?QuietHoursAdvisoryService $quietHours = null
     ) {
         $this->repo ??= new BookingRequestMatchAssessmentRepository();
         $this->availability ??= new TeacherAvailabilityService();
         $this->occupancy = new BookingTeacherOccupancyReadService();
+        $this->quietHours = $quietHours ?? new QuietHoursAdvisoryService();
     }
 
-    /** @return array{status:string,teacher_times:list<array{timezone:string,starts_at_utc:string}>} */
+    /** @return array{status:string,teacher_times:list<array{timezone:string,starts_at_utc:string}>,quiet_hours:array<string,mixed>} */
     public function assess( array $time ): array {
         try {
             $this->teachers ??= $this->repo->eligibleTeachers( $this->courseId, gmdate( 'Y-m-d H:i:s' ) );
@@ -33,7 +35,7 @@ final class BookingAvailabilityAssessmentService {
             } catch ( \Throwable ) {
                 // Operational reporting must never turn a safe blocked response into an offer.
             }
-            return array( 'status' => 'blocked', 'teacher_times' => array() );
+            return array( 'status' => 'blocked', 'teacher_times' => array(), 'quiet_hours' => $this->disabledAdvisory() );
         }
         $best = 'none';
         $timezones = array();
@@ -74,7 +76,7 @@ final class BookingAvailabilityAssessmentService {
                 } catch ( \Throwable ) {
                     // Health reporting must never turn a safe blocked response into an offer.
                 }
-                return array( 'status' => 'blocked', 'teacher_times' => array() );
+                return array( 'status' => 'blocked', 'teacher_times' => array(), 'quiet_hours' => $this->disabledAdvisory() );
             }
             if ( $match === 'strong' && $teacher->accepting_state === 'accepting' ) {
                 if ( $best !== 'strong' ) { $best = 'strong'; $timezones = array(); }
@@ -87,7 +89,16 @@ final class BookingAvailabilityAssessmentService {
         }
         $teacherTimes = array();
         foreach ( array_keys( $timezones ) as $teacherTimezone ) $teacherTimes[] = array( 'timezone' => $teacherTimezone, 'starts_at_utc' => $time['starts_at_utc'] );
-        return array( 'status' => $best, 'teacher_times' => $teacherTimes );
+        return array(
+            'status' => $best,
+            'teacher_times' => $teacherTimes,
+            'quiet_hours' => $this->quietHours->forCandidates( (string) $time['starts_at_utc'], array_keys( $timezones ), (string) ( $time['timezone'] ?? 'UTC' ) ),
+        );
+    }
+
+    /** @return array<string,mixed> */
+    private function disabledAdvisory(): array {
+        return array( 'enabled' => false, 'policy_enabled' => false, 'student_advisory_enabled' => false, 'scope' => 'none', 'candidate_count' => 0, 'affected_candidate_count' => 0, 'candidates' => array() );
     }
 
     private function coverageState( int $teacherId, string $start, string $end ): ?string {

@@ -87,16 +87,17 @@ $policy = BookingAvailabilityPolicy::validate( array(
     'student_quiet_end' => '06:00:00',
     'version' => 2,
 ) );
-if ( isset( $policy['quiet_start'], $policy['quiet_end'], $policy['student_quiet_start'], $policy['student_quiet_end'] ) ) {
-    $fail( 'Quiet hours must be removed from the booking policy and its persisted shape.' );
+if ( ! isset( $policy['quiet_hours_enabled'], $policy['quiet_start'], $policy['quiet_end'], $policy['quiet_timezone_basis'], $policy['quiet_student_advisory'] ) ) {
+    $fail( 'Quiet Hours must be restored as advisory policy fields.' );
+}
+if ( isset( $policy['student_quiet_start'], $policy['student_quiet_end'] ) ) {
+    $fail( 'The obsolete student-local quiet keys must not be restored.' );
+}
+if ( $policy['quiet_start'] !== '01:00:00' || $policy['quiet_end'] !== '06:00:00' || $policy['quiet_timezone_basis'] !== 'teacher_local' ) {
+    $fail( 'Quiet Hours defaults and timezone interpretation must validate.' );
 }
 if ( $policy['academy_timezone'] !== 'Asia/Tehran' || $policy['candidate_interval_minutes'] !== 45 || $policy['version'] !== 2 ) {
     $fail( 'The remaining booking policy fields must stay validated.' );
-}
-if ( method_exists( 'Delnavazan\\Platform\\Core\\Application\\RequestedTimeNormalizer', 'overlapsAcademyQuietHours' )
-    || method_exists( 'Delnavazan\\Platform\\Core\\Application\\RequestedTimeNormalizer', 'overlapsStudentQuietHours' )
-    || method_exists( 'Delnavazan\\Platform\\Core\\Application\\RequestedTimeNormalizer', 'overlapsIranQuietHours' ) ) {
-    $fail( 'Quiet-hour normalization APIs must be deleted, not merely bypassed.' );
 }
 
 $preview = file_get_contents( $root . '/src/Core/Application/BookingAvailabilityPreviewService.php' );

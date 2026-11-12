@@ -14,8 +14,8 @@ require dirname( __DIR__ ) . '/src/Core/Application/RequestedTimeNormalizer.php'
  * The Platform, not the Theme, owns candidate generation. A normal civil day is
  * represented by 45-minute candidate starts from local 00:00 through 23:15.
  * DST gaps/folds are omitted because ambiguous/nonexistent wall times must never
- * become selectable. Quiet/blackout hours were removed; candidate availability is
- * now decided only by the shared Teacher-capacity assessment.
+ * become selectable. Quiet Hours are advisory only; candidate availability is
+ * decided solely by the shared Teacher-capacity assessment.
  */
 $dayCandidates = static function ( string $date, string $timezone, int $duration = 30, int $buffer = 15 ): array {
     $times = array();
@@ -53,8 +53,11 @@ $policy = BookingAvailabilityPolicy::validate( array(
     'student_quiet_end' => '06:00:00',
     'version' => 2,
 ) );
-if ( isset( $policy['quiet_start'], $policy['quiet_end'], $policy['student_quiet_start'], $policy['student_quiet_end'] ) ) {
-    throw new RuntimeException( 'Quiet hours must be removed from the booking availability policy.' );
+if ( ! isset( $policy['quiet_hours_enabled'], $policy['quiet_start'], $policy['quiet_end'], $policy['quiet_timezone_basis'], $policy['quiet_student_advisory'] ) ) {
+    throw new RuntimeException( 'Quiet Hours must remain an advisory policy, not a hard restriction.' );
+}
+if ( isset( $policy['student_quiet_start'], $policy['student_quiet_end'] ) ) {
+    throw new RuntimeException( 'Obsolete student-local quiet keys must not be exposed.' );
 }
 
 $sydneyGap = $dayCandidates( '2026-10-04', 'Australia/Sydney' );

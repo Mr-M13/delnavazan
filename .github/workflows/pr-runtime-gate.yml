@@ -112,7 +112,8 @@ jobs:
           done
           php platform/tests/recording-archive-policy-unit.php
           php platform/tests/recording-archive-contract.php
-          php platform/tests/quiet-hours-removal-contract.php
+          php platform/tests/quiet-hours-advisory-unit.php
+          php platform/tests/quiet-hours-advisory-contract.php
           php platform/tests/phase-2a3-day-availability-contract.php
           php platform/tests/booking-availability-timezone-dst-contract.php
           php platform/tests/golden-hour-coverage-unit.php

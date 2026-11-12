@@ -17,7 +17,7 @@ Each time is labelled:
 - none: no currently matching eligible Teacher coverage exists; the request may still be submitted.
 - blocked: the requested wall time does not exist or is ambiguous at a DST transition; it cannot be submitted.
 
-The response contains the submitted sequence number, one status, and, where current matching coverage exists, the requested UTC start paired with each distinct matching Teacher availability timezone. This is only enough for the Theme to show the student the corresponding local clock time and weekday for a potential Teacher. It never contains Teacher identities, availability facts, candidate lists, contact data or a reservation. A `none` result returns no Teacher time because no matching Teacher timezone is known. It is a non-persisting read and exposes no Teacher identities. Teacher matching remains advisory. `none` remains requestable; a DST-invalid `blocked` candidate is rejected at submission.
+The response contains the submitted sequence number, one status, and, where current matching coverage exists, the requested UTC start paired with each distinct matching Teacher availability timezone. This is only enough for the Theme to show the student the corresponding local clock time and weekday for a potential Teacher. It never contains Teacher identities, availability facts, candidate lists, contact data or a reservation. A `none` result returns no Teacher time because no matching Teacher timezone is known. It is a non-persisting read and exposes no Teacher identities. Teacher matching remains advisory. `none` remains requestable; a DST-invalid `blocked` candidate is rejected at submission. Each preview time also carries a non-blocking `quiet_hours` advisory when the lesson start falls inside a candidate Teacher's configured Quiet Hours; it never changes the slot status or submission eligibility.
 
 ## Existing booking request submission
 
@@ -25,7 +25,7 @@ POST /wp-json/delnavazan-platform/v1/booking-requests remains the only public in
 
 An account-aware submission additionally refuses an occupied interval that overlaps an existing open or already-confirmed introductory booking for the same canonical Student. The check runs inside the intake transaction after the per-Student scheduling root is acquired, so two concurrent duplicate requests cannot both be accepted. A confirmed introductory booking is Student occupancy even before the post-intro workflow creates a canonical Lesson. Contact-only duplicate signals remain non-blocking review flags.
 
-The free introductory meeting carries no payment choice at this stage. Quiet/blackout hours are no longer part of the public booking rule: an otherwise valid interval is constrained only by Course shape, Teacher availability, canonical occupancy and active holds. This adds no database table, migration, new route or booking authority. Later continuation/payment flows remain governed by their separate Platform authorities.
+The free introductory meeting carries no payment choice at this stage. Quiet Hours are restored as a configurable, advisory-only policy: they display a non-blocking notice and never remove a slot or block submission. An otherwise valid interval is constrained only by Course shape, Teacher availability, canonical occupancy and active holds. This adds no database table, migration, new route or booking authority. Later continuation/payment flows remain governed by their separate Platform authorities.
 
 
 ## Planned day-availability read contract

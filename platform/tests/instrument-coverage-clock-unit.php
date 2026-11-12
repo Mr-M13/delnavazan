@@ -166,9 +166,9 @@ $check($segment($violin, 780)['state'] === 'limited' && $segment($violin, 600)['
 $unknown = $build(array('unknown_teacher_count' => 1));
 $check($segment($unknown, 600)['state'] === 'unknown' && $unknown['status'] === 'partial', 'Unknown availability must not be shown as uncovered-with-certainty or covered.');
 
-// Quiet hours were removed: declared availability at 01:00 is now ordinary capacity.
+// Quiet Hours are advisory only and must never grey out actual coverage-clock capacity.
 $overnightCapacity = $build(array('teachers' => array($teacher(10, array($window('2026-11-12', '01:00:00', '04:00:00'))))));
-$check($segment($overnightCapacity, 60)['state'] === 'limited', 'Early-morning availability must be ordinary bookable capacity now that quiet hours are removed.');
+$check($segment($overnightCapacity, 60)['state'] === 'limited', 'Early-morning availability must remain ordinary coverage-clock capacity; advisory Quiet Hours must not grey it.');
 
 // Persian calendar label and gap summary.
 $check($one['date_label'] === '12 Nov 2026', 'Gregorian label must be present.');

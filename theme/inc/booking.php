@@ -90,6 +90,11 @@ function dzn_theme_render_booking_route(): void {
     $booking_mobile = (string) ( $booking_profile['mobile'] ?? '' );
     $booking_timezone = (string) ( $booking_profile['timezone'] ?? '' );
     if ( ! in_array( $booking_timezone, timezone_identifiers_list(), true ) ) { $booking_timezone = ''; }
+    $booking_locale = (string) ( $booking_profile['locale'] ?? get_locale() );
+    $booking_calendar = function_exists( 'dzn_theme_platform_calendar_preference' )
+        ? dzn_theme_platform_calendar_preference( (string) ( $booking_profile['calendar_preference'] ?? '' ), $booking_locale )
+        : 'gregorian';
+    if ( ! in_array( $booking_calendar, array( 'persian', 'gregorian' ), true ) ) { $booking_calendar = 'gregorian'; }
     foreach ( $options as $option ) {
         if ( ( $requested !== '' && $requested === (string) $option['slug'] ) || ( $requested_name !== '' && ( $requested_name === (string) $option['name_fa'] || $requested_name === (string) $option['name_en'] ) ) ) { $selected = $option; break; }
     }
@@ -114,7 +119,7 @@ function dzn_theme_render_booking_route(): void {
                     <a href="<?php echo esc_url( home_url( '/' ) ); ?>">بازگشت به صفحهٔ اصلی</a>
                 </section>
             <?php else : ?>
-                <section class="dzn-booking__card" data-dzn-booking>
+                <section class="dzn-booking__card" data-dzn-booking data-calendar="<?php echo esc_attr( $booking_calendar ); ?>">
                     <nav class="dzn-booking__progress" aria-label="مراحل درخواست">
                         <ol>
                             <li class="is-current" data-progress="instrument"><button type="button" data-progress-target="instrument"><span>۱</span>انتخاب دوره</button></li>

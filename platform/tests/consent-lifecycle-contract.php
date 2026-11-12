@@ -74,9 +74,10 @@ $need(str_contains($worker, 'no_capture_assets'), 'Worker must report truthful r
 /* Administration. */
 $need(str_contains($plugin, 'PoliciesController::register()'), 'The plugin must register Policies');
 $need(str_contains($menu, "'dzn-policies'"), 'Policies must be a registered Settings route');
-$need(str_contains($shell, "'policies' => ['Policies'"), 'Policies must be a visible Settings section');
+$need(str_contains($shell, "'policy' => ['Policy'"), 'Policy must be a visible Settings section');
 $need(str_contains($shell, "'dzn-policies' => 'settings'"), 'Policies must belong to the existing Settings shell');
-$need(str_contains($shell, "'dzn-policies' => 'dzn_manage_consent_policies'"), 'Policies route must be capability-gated');
+$need(str_contains($shell, "'dzn-policies' => Menu::POLICY_ACCESS_CAP"), 'Policies route must be capability-gated');
+$need(str_contains($menu, 'POLICY_ACCESS_CAP') && str_contains($menu, "'dzn_view_consent_evidence'"), 'Policies read-only access must map through the canonical composite capability');
 $need(str_contains($controller, 'ConsentOperationsReadService'), 'Policies must read authoritative counts');
 $need(str_contains($controller, 'dzn_recording_notice_command'), 'Publishing must reuse the canonical publication authority');
 foreach (array('teachers_awaiting', 'students_awaiting', 'guardian_attention', 'recording_authorised_lessons',

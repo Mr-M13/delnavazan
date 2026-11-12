@@ -21,7 +21,7 @@ $check = static function (string $label, bool $condition): void {
 
 $plugin = $read('platform/delnavazan-platform.php');
 $check('Teacher class-note controller is registered', str_contains($plugin, 'TeacherClassNoteController::register'));
-$check('schema revision includes migration 073', str_contains($plugin, "'60'"));
+$check('schema revision includes migration 073', str_contains($plugin, "'61'"));
 
 $migration = $read('platform/src/Core/Infrastructure/Migration/Migrator.php');
 $check('migration 073 is installed and verified', str_contains($migration, '073_teacher_lesson_notes') && str_contains($migration, 'install_teacher_lesson_notes') && str_contains($migration, 'verify_teacher_lesson_notes_schema'));

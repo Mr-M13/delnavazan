@@ -25,7 +25,7 @@ final class TeacherOpenBookingRequestRepository {
         $limit = max(1, min(50, $limit));
         $sql = "SELECT r.id booking_request_id,r.uid request_uid,r.reference_code request_reference,r.created_at,
                        r.requested_instrument_id,r.selected_intro_course_id,
-                       s.full_name,
+                       s.full_name,s.country request_country,
                        COALESCE(NULLIF(i.name_fa,''),i.name_en) instrument_name,
                        COALESCE(NULLIF(c.name_fa,''),c.name_en) course_name,
                        rt.id requested_time_id,rt.sequence_number,rt.local_date,rt.local_start_time,
@@ -62,8 +62,9 @@ final class TeacherOpenBookingRequestRepository {
                   AND NOT EXISTS(SELECT 1 FROM {$this->prefix}booking_request_confirmations confirmation WHERE confirmation.booking_request_id=r.id AND confirmation.state<>'failed')
                   AND NOT EXISTS(SELECT 1 FROM {$this->prefix}booking_request_teacher_deliveries existing WHERE existing.booking_request_id=r.id AND existing.state IN ('accepting','confirmed'))
                   AND NOT EXISTS(SELECT 1 FROM {$this->prefix}booking_allocation_offers prior WHERE prior.booking_request_id=r.id AND prior.teacher_id=%d)
+                  AND NOT EXISTS(SELECT 1 FROM {$this->prefix}booking_request_teacher_declines declined WHERE declined.booking_request_id=r.id AND declined.teacher_id=%d AND declined.state='active')
                 ORDER BY rt.starts_at_utc ASC,r.id ASC LIMIT %d";
-        $rows = $wpdb->get_results($wpdb->prepare($sql, $teacherId, $teacherId, $limit));
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $teacherId, $teacherId, $teacherId, $limit));
         if ($wpdb->last_error !== '') { throw new \RuntimeException('Teacher open booking requests unavailable'); }
         return is_array($rows) ? $rows : array();
     }
@@ -76,7 +77,7 @@ final class TeacherOpenBookingRequestRepository {
                     instructional_ends_at_utc,occupied_ends_at_utc
              FROM {$this->prefix}booking_request_requested_times
              WHERE booking_request_id=%d
-             ORDER BY sequence_number ASC LIMIT 3",
+             ORDER BY sequence_number ASC",
             $requestId
         ), ARRAY_A);
         if ($wpdb->last_error !== '') { throw new \RuntimeException('Teacher open booking preference read unavailable'); }

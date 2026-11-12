@@ -56,9 +56,15 @@ dzn_acceptance_require_cached_images() {
 
 dzn_acceptance_wp() {
   dzn_acceptance_assert_state
+  local -a forwarded=()
+  local name
+  for name in DZN_TEACHER_INTRO_RUNTIME DZN_TEACHER_INTRO_MIGRATION DZN_TEACHER_OPP_WORKER DZN_TEACHER_OPP_INDEX DZN_TEACHER_OPP_VERIFY; do
+    if [ -n "${!name:-}" ]; then forwarded+=(-e "$name=${!name}"); fi
+  done
   docker run --rm --pull=never --network "$DZN_ACCEPTANCE_NETWORK" -u 0 \
     -e WP_ENVIRONMENT_TYPE=local -e WORDPRESS_DB_HOST=db \
     -e "WORDPRESS_DB_NAME=$DZN_ACCEPTANCE_DB_NAME" -e "WORDPRESS_DB_USER=$DZN_ACCEPTANCE_DB_USER" -e "WORDPRESS_DB_PASSWORD=$DZN_ACCEPTANCE_DB_PASSWORD" \
+    ${forwarded[@]+"${forwarded[@]}"} \
     -v "$DZN_ACCEPTANCE_WP_DIR:/var/www/html" -v "$DZN_ACCEPTANCE_SOURCE_DIR:/workspace:ro" \
     --entrypoint php "$DZN_ACCEPTANCE_CLI_IMAGE" -d memory_limit=512M /usr/local/bin/wp --path=/var/www/html --allow-root "$@"
 }

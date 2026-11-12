@@ -58,11 +58,13 @@ foreach ( array_keys( $routeCaps ) as $currentPage ) {
         $adminShown[$slug] = true;
     }
 }
-// Catalogue is linked inside General rather than becoming a fifth Settings section.
+// Catalogue management is a permitted Enrolment destination, not a Settings entry.
 $missing = array_values( array_diff( array_keys( $routeCaps ), array_keys( $adminShown ) ) );
-if ( $missing !== array( 'dzn-catalogue-workspace' )
-    || ! str_contains( (string) file_get_contents( dirname( __DIR__ ) . '/src/Admin/Controller/GeneralSettingsController.php' ), 'admin.php?page=dzn-catalogue-workspace' ) ) {
+if ( $missing !== array() ) {
     throw new RuntimeException( 'Administrator shell lost a permitted destination: ' . implode( ', ', $missing ) );
+}
+if ( str_contains( (string) file_get_contents( dirname( __DIR__ ) . '/src/Admin/Controller/GeneralSettingsController.php' ), 'admin.php?page=dzn-catalogue-workspace' ) ) {
+    throw new RuntimeException( 'General still owns catalogue management.' );
 }
 
 $GLOBALS['dzn_shell_test_caps'] = array( 'dzn_access_catalogue_workspace' );
@@ -70,8 +72,8 @@ $_GET['page'] = 'dzn-catalogue-workspace';
 ob_start();
 \Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
 $catalogueHtml = ob_get_clean();
-if ( ! str_contains( $catalogueHtml, 'page=dzn-catalogue-workspace' ) || ! str_contains( $catalogueHtml, '>Settings<' ) ) {
-    throw new RuntimeException( 'Catalogue-only staff lost the protected Settings entry.' );
+if ( ! str_contains( $catalogueHtml, 'page=dzn-catalogue-workspace' ) || ! str_contains( $catalogueHtml, '>Enrolment<' ) ) {
+    throw new RuntimeException( 'Catalogue-only staff lost the protected Enrolment destination.' );
 }
 
 // A restricted operator with only student authority sees that route and cannot
@@ -123,7 +125,7 @@ foreach ( array(
     }
 }
 
-// Settings is exactly four sections. Legacy provider/staff/recovery routes remain
+// Settings is exactly six sections. Legacy provider/staff/recovery routes remain
 // resolvable but are never rendered as separate Settings entries.
 $GLOBALS['dzn_shell_test_caps'] = array_values( array_unique( array_merge( ...array_values( $routeCaps ) ) ) );
 $_GET['page'] = 'dzn-integration-email';
@@ -132,11 +134,13 @@ ob_start();
 $settingsHtml = ob_get_clean();
 if ( ! str_contains( $settingsHtml, 'Settings sections' )
     || ! str_contains( $settingsHtml, 'General' )
+    || ! str_contains( $settingsHtml, 'Administration & Delegated Access' )
+    || ! str_contains( $settingsHtml, 'Policy' )
     || ! str_contains( $settingsHtml, 'Notifications' )
     || ! str_contains( $settingsHtml, 'Integrations' )
     || ! str_contains( $settingsHtml, 'Diagnostics' )
+    || str_contains( $settingsHtml, 'Recordings' )
     || str_contains( $settingsHtml, 'Messaging' )
-    || str_contains( $settingsHtml, 'Access' )
     || str_contains( $settingsHtml, 'System' )
     || str_contains( $settingsHtml, 'WhatsApp' )
     || str_contains( $settingsHtml, 'SMS' )
@@ -144,7 +148,7 @@ if ( ! str_contains( $settingsHtml, 'Settings sections' )
     || str_contains( $settingsHtml, 'Notification templates' )
     || str_contains( $settingsHtml, 'Portal capabilities' )
     || str_contains( $settingsHtml, 'Advanced Recovery' ) ) {
-    throw new RuntimeException( 'Settings must show exactly four sections and no legacy entries.' );
+    throw new RuntimeException( 'Settings must show exactly six sections and no legacy entries.' );
 }
 
 // A notification-only operator sees Notifications and cannot see General,
@@ -156,6 +160,8 @@ ob_start();
 $restrictedSettings = ob_get_clean();
 if ( ! str_contains( $restrictedSettings, 'Notifications' )
     || str_contains( $restrictedSettings, '>General<' )
+    || str_contains( $restrictedSettings, '>Policy<' )
+    || str_contains( $restrictedSettings, 'Administration & Delegated Access' )
     || str_contains( $restrictedSettings, '>Integrations<' )
     || str_contains( $restrictedSettings, '>Diagnostics<' )
     || str_contains( $restrictedSettings, 'Communications health' )

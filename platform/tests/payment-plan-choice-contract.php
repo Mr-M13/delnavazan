@@ -29,7 +29,7 @@ $theme = $read('../theme/template-parts/portal/post-intro.php');
 $checkoutUi = $read('../theme/assets/js/checkout.js');
 $payments = $read('../theme/template-parts/portal/payments.php');
 
-$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '60'"), 'The current additive schema must remain published');
+$assert(str_contains($plugin, "DZN_PLATFORM_SCHEMA_VERSION', '61'"), 'The current additive schema must remain published');
 $contains($migration, array(
     "'052_payment_plan_choice'", 'install_payment_plan_choice', 'verify_payment_plan_choice_schema',
     'post_intro_plan_choices', 'preparation_active', 'quote_digest', 'funding_target', 'funding_materialised',
@@ -72,8 +72,9 @@ $contains($activation, array('effectiveSessions', 'commercial_funding_not_effect
 // Term-level wording, not an "instalment" label for a full payment.
 $contains($checkoutUi, array('termLabel', 'term_paid', 'پرداخت ترم بعد', 'پرداخت کامل ترم', 'قسط '), 'student account must use term-level payment wording');
 $contains($payments, array('وضعیت پرداخت ترم', 'data-dzn-student-checkout'), 'account summary must use term-level labels and the existing checkout root');
-$assert(strpos($payments, 'data-checkout-list') !== false && strpos($payments, 'data-checkout-list') < strpos($payments, 'dzn-checkout__promotion'), 'the payment action must precede the optional discount field');
-$contains($payments, array('<details class="dzn-checkout__promotion"', 'کد تخفیف دارید؟'), 'the discount field must stay a secondary, collapsed entry point');
+$assert(strpos($payments, 'data-checkout-list') !== false && strpos($payments, 'data-checkout-list') < strpos($payments, 'dzn-checkout__promotion'), 'the payment action must precede the discount field');
+$contains($payments, array('<div class="dzn-checkout__promotion" data-promotion>', 'data-promotion-label', 'کد تخفیف'), 'the discount field must stay inside the checkout payment area rather than a separate collapsible section');
+$assert(strpos($payments, '<details') === false, 'the discount field must not be a separate collapsed section');
 $contains($checkoutUi, array('function stateBadge', "'در انتظار پرداخت'"), 'each instalment row must use one short state badge instead of repeating its title');
 $assert(strpos($checkoutUi, 'innerHTML') === false, 'payment UI must not render untrusted HTML');
 

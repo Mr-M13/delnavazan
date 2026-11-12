@@ -27,7 +27,7 @@ final class TeacherBookingOccupancyQuery {
                  WHERE o.teacher_id=%d AND o.state='pending' AND o.active_slot=1
                    AND r.id<>%d AND r.lifecycle_status='submitted' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL
                    AND rt.starts_at_utc<%s AND rt.occupied_ends_at_utc>%s UNION ALL " : '';
-        $sql = $offerSql . "SELECT 'booking_confirmation',c.id,rt.starts_at_utc,rt.occupied_ends_at_utc
+        $sql = $offerSql . "SELECT 'booking_confirmation' source,c.id conflict_id,rt.starts_at_utc,rt.occupied_ends_at_utc
                   FROM {$p}booking_request_confirmations c
                   INNER JOIN {$p}booking_requests r ON r.id=c.booking_request_id
                   INNER JOIN {$p}booking_request_requested_times rt ON rt.id=c.requested_time_id AND rt.booking_request_id=r.id

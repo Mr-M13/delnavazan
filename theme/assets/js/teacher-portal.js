@@ -139,6 +139,59 @@
       if (banner) banner.hidden = true;
     });
   });
+  // The Teacher must explicitly choose one of the Student's preferences. This is presentation
+  // only: the acceptance authority receives the selected id and revalidates it server-side.
+  document.querySelectorAll('[data-dzn-intro-card]').forEach((card) => {
+    const form = card.querySelector('[data-dzn-tp-intro-accept]');
+    const accept = card.querySelector('[data-dzn-tp-accept]');
+    const hint = card.querySelector('[data-dzn-tp-select-hint]');
+    if (!form || !accept) return;
+    const inputs = Array.from(form.querySelectorAll('[data-dzn-tp-preference-input]'));
+    const sync = () => {
+      const selected = inputs.some((input) => input.checked);
+      accept.disabled = !selected;
+      if (hint) hint.hidden = selected;
+    };
+    inputs.forEach((input) => input.addEventListener('change', sync));
+    sync();
+  });
+  document.querySelectorAll('[data-dzn-tp-reject-toggle]').forEach((button) => {
+    const form = document.getElementById(button.dataset.dznTpRejectToggle || '');
+    if (!form) return;
+    const card = button.closest('[data-dzn-intro-card]');
+    const other = form.querySelector('[data-dzn-tp-other-reason]');
+    const otherInput = form.querySelector('[data-dzn-tp-other-reason-input]');
+    const reasons = Array.from(form.querySelectorAll('input[name="reason_code"]'));
+    const syncOther = () => {
+      const selected = form.querySelector('input[name="reason_code"]:checked');
+      const isOther = selected && selected.value === 'other';
+      if (other) other.hidden = !isOther;
+      if (otherInput) {
+        otherInput.disabled = !isOther;
+        otherInput.required = Boolean(isOther);
+        if (isOther) otherInput.focus();
+      }
+    };
+    const open = () => {
+      form.hidden = false;
+      button.setAttribute('aria-expanded', 'true');
+      const first = reasons[0];
+      if (first) first.focus();
+    };
+    const close = (focus = true) => {
+      form.hidden = true;
+      button.setAttribute('aria-expanded', 'false');
+      form.reset();
+      syncOther();
+      if (focus) button.focus();
+    };
+    button.addEventListener('click', () => { if (form.hidden) open(); else close(); });
+    reasons.forEach((reason) => reason.addEventListener('change', syncOther));
+    form.querySelectorAll('[data-dzn-tp-reject-cancel]').forEach((cancel) => cancel.addEventListener('click', (event) => { event.preventDefault(); close(); }));
+    // Leaving the card via its accept action closes a stale, unsent rejection form.
+    card?.querySelector('[data-dzn-tp-accept]')?.addEventListener('click', () => { if (!form.hidden) close(false); });
+    syncOther();
+  });
   // Teacher booking-request response window. The server owns acceptance; this only shows the
   // remaining time and closes the already-rendered action controls when the window elapses.
   const responseWindows = Array.from(document.querySelectorAll('[data-dzn-response-deadline]'));
@@ -162,16 +215,17 @@
         if (remaining > 0) { active++; return; }
         windowEl.classList.add('is-expired');
         windowEl.dataset.dznResponseExpired = '1';
-        const card = windowEl.closest('.dzn-tp-attention-card');
+        const card = windowEl.closest('[data-dzn-intro-card]') || windowEl.closest('.dzn-tp-attention-card');
         if (!card) return;
-        card.querySelectorAll('form[data-dzn-tp-submit] button[type="submit"]').forEach((button) => {
-          button.disabled = true;
-          button.setAttribute('aria-disabled', 'true');
+        card.classList.add('is-expired');
+        card.querySelectorAll('form[data-dzn-tp-submit] button[type="submit"], form[data-dzn-tp-submit] input[type="radio"]').forEach((control) => {
+          control.disabled = true;
+          if (control.matches('button')) control.setAttribute('aria-disabled', 'true');
         });
         if (!card.querySelector('.dzn-tp-response-expired')) {
           const note = document.createElement('p');
           note.className = 'dzn-tp-help dzn-tp-response-expired';
-          note.textContent = 'مهلت ۲۴ ساعتهٔ پاسخ به پایان رسیده است؛ درخواست برای ارجاع به مدرس در دسترس بعدی در اختیار آموزشگاه است.';
+          note.textContent = 'مهلت پاسخ به پایان رسیده است؛ این درخواست دیگر از پرتال شما قابل پذیرش یا رد نیست و برای ارجاع به مدرس در دسترس بعدی در اختیار آموزشگاه است.';
           windowEl.insertAdjacentElement('afterend', note);
         }
       });

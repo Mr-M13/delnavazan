@@ -4,7 +4,7 @@ $plugin=file_get_contents($root.'/delnavazan-platform.php');
 $migrator=file_get_contents($root.'/src/Core/Infrastructure/Migration/Migrator.php');
 foreach(compact('plugin','migrator') as $name=>$source)if(!is_string($source)||$source==='')throw new RuntimeException('Unable to read migration source: '.$name.'.');
 $assert=static function(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);};
-$assert(str_contains($plugin,"DZN_PLATFORM_SCHEMA_VERSION', '60'"),'The package schema option must remain compatible with the existing release convention.');
+$assert(str_contains($plugin,"DZN_PLATFORM_SCHEMA_VERSION', '61'"),'The package schema option must remain compatible with the existing release convention.');
 $assert(substr_count($migrator,'074_god_mode_super_tester')>=4,'Migration 074 must be registered in the fast path, execution block, required ledger and verifier.');
 $assert(str_contains($migrator,"if ( in_array( '074_god_mode_super_tester', \$completed, true ) ) { self::verify_god_mode_super_tester_schema(); }"),'A completed 074 ledger entry must be verified before the fast path.');
 $assert(str_contains($migrator,'install_god_mode_super_tester'),'The migration installer must exist.');

@@ -25,6 +25,8 @@ $files = array(
     'wizard' => $read($theme . '/template-parts/teacher-portal/onboarding.php'),
     'account' => $read($theme . '/template-parts/teacher-portal/account.php'),
     'attention' => $read($theme . '/template-parts/teacher-portal/attention.php'),
+    'intro_card' => $read($theme . '/template-parts/teacher-portal/intro-request-card.php'),
+    'open_requests' => $read($theme . '/template-parts/teacher-portal/open-requests.php'),
 );
 $checks = array(
     'schema 44+ and migrations are registered' => preg_match("/DZN_PLATFORM_SCHEMA_VERSION', '([0-9]+)'/", $files['plugin'], $schema) && (int) $schema[1] >= 44 && str_contains($files['migration'], '043_booking_teacher_response') && str_contains($files['migration'], '044_booking_notification_recovery') && str_contains($files['migration'], 'verify_booking_teacher_response_schema'),
@@ -42,7 +44,7 @@ $checks = array(
     'projection retries preserve acceptance and never reopen the request' => str_contains($files['projection'], 'MAX_ATTEMPTS') && str_contains($files['projection'], "'failed'") && preg_match("/transitionDelivery\\([^;]*'accepting','pending_request'/", $files['projection']) !== 1 && !str_contains($files['projection'], "referral((int)\$row->booking_request_id"),
     'student notification uses fenced recovery and reports handoff, not delivery' => str_contains($files['notification'], 'lease_token_digest') && str_contains($files['notification'], "'handed_off'") && str_contains($files['notification'], "'recipient_delivery_confirmed'=>false"),
     'student confirmation never depends on or exposes the Meet backup' => !str_contains($files['notification'], 'join_uri_reference') && !str_contains($files['notification'], 'Google Meet') && !str_contains($files['notification'], 'projectionSecret'),
-    'portal actions are nonce protected' => str_contains($files['controller'], "check_admin_referer('dzn_teacher_booking_response')") && str_contains($files['attention'], 'response_nonce') && str_contains($files['attention'], 'delivery_uid'),
+    'portal actions are nonce protected' => str_contains($files['controller'], "check_admin_referer('dzn_teacher_booking_response')") && str_contains($files['intro_card'], 'response_nonce') && str_contains($files['intro_card'], 'delivery_uid') && str_contains($files['intro_card'], 'claim_nonce') && str_contains($files['open_requests'], 'intro-request-card'),
     'Central classroom readiness requires no Teacher Google step in onboarding' => str_contains($files['bridge'], 'dzn_theme_platform_teacher_onboarding_step') && !str_contains($files['account'], "component('google-settings'") && !str_contains($files['wizard'], 'اتصال Google Calendar'),
 );
 foreach ($checks as $name => $ok) {

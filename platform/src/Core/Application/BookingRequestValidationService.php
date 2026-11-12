@@ -40,19 +40,34 @@ final class BookingRequestValidationService {
     }
 
     /**
-     * The public horizon follows the versioned commercial policy when a valid week value is
-     * recorded. The constant remains the safe fallback for an unset, malformed or unavailable
-     * policy read, so booking intake never fails open.
+     * The effective public booking window: a recorded versioned policy when present, otherwise the
+     * built-in default. Administration screens read this same resolution so the displayed value can
+     * never disagree with the horizon the public intake actually enforces.
+     *
+     * @return array{source:string,weeks:?int,days:int,version:?int,read_error:bool,recorded:bool,recorded_value:?string,recorded_value_type:?string}
      */
-    private function bookingHorizonDays(): int {
+    public static function horizonConfiguration(): array {
+        $default = array('source' => 'default', 'weeks' => null, 'days' => self::BOOKING_HORIZON_DAYS, 'version' => null, 'read_error' => false, 'recorded' => false, 'recorded_value' => null, 'recorded_value_type' => null);
         try {
             $policy = (new CommercialPolicyService())->current('INTRO_BOOKING_HORIZON');
-            if (!empty($policy['set']) && (string) ($policy['value_type'] ?? '') === 'weeks') {
-                $weeks = (int) ($policy['value'] ?? 0);
-                if ($weeks >= 1 && $weeks <= 104) return $weeks * 7;
+            if (!empty($policy['set'])) {
+                $default['recorded'] = true;
+                $default['recorded_value'] = (string) ($policy['value'] ?? '');
+                $default['recorded_value_type'] = (string) ($policy['value_type'] ?? '');
+                if ($default['recorded_value_type'] === 'weeks') {
+                    $weeks = (int) $default['recorded_value'];
+                    if ($weeks >= 1 && $weeks <= 104) {
+                        return array('source' => 'policy', 'weeks' => $weeks, 'days' => $weeks * 7, 'version' => isset($policy['version']) ? (int) $policy['version'] : null, 'read_error' => false, 'recorded' => true, 'recorded_value' => $default['recorded_value'], 'recorded_value_type' => 'weeks');
+                    }
+                }
             }
-        } catch (\Throwable) {}
-        return self::BOOKING_HORIZON_DAYS;
+        } catch (\Throwable) {
+            $default['read_error'] = true;
+        }
+        return $default;
+    }
+    private function bookingHorizonDays(): int {
+        return self::horizonConfiguration()['days'];
     }
     /** Reject compound public values before a normalizer or PHP cast can inspect them. */
     private function assertScalarFields(array $input, array $fields): void {

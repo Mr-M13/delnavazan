@@ -22,10 +22,22 @@ final class TeacherBookingClaimController {
         try{
             $post=wp_unslash($_POST);
             $requestUid=(string)($post['request_uid']??'');
+            $decision=sanitize_key((string)($post['decision']??'accept'));
             $requestedTimeId=max(0,(int)($post['requested_time_id']??0));
             $claimKey=(string)($post['claim_key']??'');
+            $reasonCode=isset($post['reason_code'])?sanitize_key((string)$post['reason_code']):'';
+            $reasonText=isset($post['reason_text'])?sanitize_textarea_field((string)$post['reason_text']):'';
             if(!preg_match('/^[a-f0-9-]{36}$/D',$claimKey))throw new \InvalidArgumentException('Booking claim command required');
-            $result=(new BookingTeacherResponseService(null,new BookingCalendarProjectionService()))->claim(
+            $service=new BookingTeacherResponseService(null,new BookingCalendarProjectionService());
+            if('decline'===$decision){
+                if(!in_array($reasonCode,BookingTeacherResponseService::DECLINE_REASONS,true))throw new \InvalidArgumentException('A decline reason is required');
+                if('other'===$reasonCode&&''===trim($reasonText))throw new \InvalidArgumentException('Describe the decline reason');
+                $result=$service->declineOpportunity($requestUid,$reasonCode,$reasonText,'teacher-booking-opportunity-decline:'.get_current_user_id().':'.$requestUid.':'.$claimKey);
+                $state=(string)($result['state']??'declined');
+                self::redirect($state==='declined'?'این فرصت برای شما رد شد و برای مدرسان دیگر باقی می‌ماند.':'پاسخ ثبت نشد یا فرصت دیگر در دسترس نیست.',$state!=='declined');
+            }
+            if($decision!=='accept')throw new \InvalidArgumentException('Unsupported booking response');
+            $result=$service->claim(
                 $requestUid,
                 $requestedTimeId,
                 'teacher-booking-claim:'.get_current_user_id().':'.$requestUid.':'.$requestedTimeId.':'.$claimKey
@@ -48,8 +60,16 @@ final class TeacherBookingClaimController {
 
     private static function errorNotice(string $message):string{
         return match(true){
+            str_contains($message,'A decline reason is required')
+                =>'برای رد درخواست، دلیل را انتخاب کنید.',
+            str_contains($message,'Describe the decline reason')
+                =>'برای گزینهٔ «دلیل دیگر»، توضیح دلیل را بنویسید.',
             str_contains($message,'Booking offer expired or reassigned')
-                =>'مهلت ۲۴ ساعتهٔ پاسخ به پایان رسیده است. این درخواست برای ارجاع به مدرس در دسترس بعدی در اختیار آموزشگاه است.',
+                =>'مهلت پاسخ به پایان رسیده است. این درخواست دیگر برای شما قابل پذیرش نیست.',
+            str_contains($message,'Booking request is no longer available')
+                =>'این فرصت دیگر در دسترس نیست؛ ممکن است مدرس دیگری آن را پذیرفته باشد.',
+            str_contains($message,'Teacher is not eligible for this instrument')
+                =>'این درخواست برای سازی نیست که تدریس آن را در حساب شما تأیید شده است.',
             str_contains($message,'student_slot_conflict')
                 =>'این زمان با کلاس یا درخواست دیگری از این هنرجو تداخل دارد؛ درخواست پذیرفته نشد.',
             str_contains($message,'teacher_slot_conflict')

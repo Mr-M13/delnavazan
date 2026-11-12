@@ -12,6 +12,8 @@
 	const promotionCodeInput = root.querySelector('#dzn-promotion-code');
 	const promotionApplyBtn = root.querySelector('#dzn-promotion-apply');
 	const promotionStatus = root.querySelector('[data-promotion-status]');
+	const promotionPanel = root.querySelector('[data-promotion]');
+	const promotionLabel = root.querySelector('[data-promotion-label]');
 	let promotionBusy = false;
 	let lastObligations = null;
 	const labels = {
@@ -269,8 +271,8 @@
 		const applied = promotionAppliedRow(rows);
 		const payable = payableRow(rows);
 		const eligible = promotionEligibleRow(rows);
-		const summary = root.querySelector('.dzn-checkout__promotion summary');
-		if (summary) summary.textContent = applied ? 'کد تخفیف اعمال شده' : (payable && !eligible ? 'کد تخفیف' : 'کد تخفیف دارید؟');
+		if (promotionPanel) promotionPanel.hidden = !applied && !payable;
+		if (promotionLabel) promotionLabel.textContent = applied ? 'کد تخفیف اعمال شده' : 'کد تخفیف';
 		if (applied) {
 			promotionCodeInput.disabled = true;
 			promotionApplyBtn.disabled = true;

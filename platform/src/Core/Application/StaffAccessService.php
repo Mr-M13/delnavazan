@@ -259,6 +259,57 @@ final class StaffAccessService {
         return array('before' => $before, 'after' => $after, 'added' => $added, 'removed' => $removed);
     }
 
+    /**
+     * Synchronise a caller-owned capability set on a non-administrator account.
+     *
+     * This is the shared mutation seam used by the delegated-access role grants. Only the
+     * capabilities named in $managedCaps are touched; WordPress roles and unrelated portal
+     * capabilities are preserved. The actor must remain a WordPress administrator, the target
+     * may never be the actor and an administrator target is always read-only.
+     *
+     * @param string[] $desiredCaps
+     * @param string[] $managedCaps
+     * @return array{added:string[],removed:string[]}
+     */
+    public function syncCapabilities(int $targetId, array $desiredCaps, array $managedCaps, int $actorId, string $reasonCode, array $safeDetail = array()): array {
+        if (!function_exists('current_user_can') || !current_user_can(self::MANAGE_ACTOR_CAPABILITY)) {
+            throw new \RuntimeException('staff_access_forbidden');
+        }
+        if ($targetId < 1) throw new \InvalidArgumentException('staff_access_account_required');
+        if ($targetId === $actorId) throw new \InvalidArgumentException('staff_access_self_grant_forbidden');
+        $target = function_exists('get_user_by') ? get_user_by('id', $targetId) : false;
+        if (!$target) throw new \InvalidArgumentException('staff_access_account_not_found');
+        if (function_exists('user_can') && user_can($target, self::MANAGE_ACTOR_CAPABILITY)) {
+            throw new \InvalidArgumentException('staff_access_administrator_is_read_only');
+        }
+        $managed = array_values(array_unique(array_diff($managedCaps, array(self::MANAGE_ACTOR_CAPABILITY))));
+        $desired = array_values(array_intersect($managed, array_values(array_unique($desiredCaps))));
+        $current = array();
+        foreach ($managed as $cap) if (method_exists($target, 'has_cap') ? $target->has_cap($cap) : false) $current[] = $cap;
+        $added = array_values(array_diff($desired, $current));
+        $removed = array_values(array_diff($current, $desired));
+        try {
+            foreach ($removed as $cap) $target->remove_cap($cap);
+            foreach ($added as $cap) $target->add_cap($cap);
+            foreach ($managed as $cap) {
+                if ((bool) $target->has_cap($cap) !== in_array($cap, $desired, true)) {
+                    throw new \RuntimeException('staff_access_effective_grant_mismatch');
+                }
+            }
+            $this->auditRaw($actorId, $targetId, 'staff_access.role_assignment', $reasonCode, $safeDetail + array(
+                'added_count' => count($added),
+                'removed_count' => count($removed),
+            ));
+        } catch (\Throwable $error) {
+            foreach ($managed as $cap) {
+                if (in_array($cap, $current, true)) $target->add_cap($cap);
+                else $target->remove_cap($cap);
+            }
+            throw $error;
+        }
+        return array('added' => $added, 'removed' => $removed);
+    }
+
     /** @return array<int,array<string,mixed>> */
     public function history(int $targetId = 0, int $limit = 20): array {
         global $wpdb;
@@ -334,6 +385,29 @@ final class StaffAccessService {
     private function hasAll(object $user, array $caps): bool {
         foreach ($caps as $cap) if (!method_exists($user, 'has_cap') || !$user->has_cap($cap)) return false;
         return true;
+    }
+
+    private function auditRaw(int $actorId, int $targetId, string $eventType, string $reasonCode, array $safeDetail): void {
+        global $wpdb;
+        if (!is_object($wpdb) || !method_exists($wpdb, 'insert')) throw new \RuntimeException('staff_access_audit_unavailable');
+        $now = gmdate('Y-m-d H:i:s');
+        $key = hash_hmac('sha256', $eventType . ':' . $targetId . ':' . $actorId . ':' . $now . ':' . wp_json_encode($safeDetail), function_exists('wp_salt') ? wp_salt('dzn_platform_audit') : 'staff-access');
+        try {
+            $inserted = $wpdb->insert($wpdb->prefix . 'dzn_platform_audit_events', array(
+                'aggregate_type' => self::AUDIT_AGGREGATE,
+                'aggregate_id' => $targetId,
+                'event_type' => $eventType,
+                'actor_type' => 'user',
+                'actor_id' => $actorId,
+                'reason_code' => $reasonCode,
+                'safe_detail' => wp_json_encode($safeDetail),
+                'idempotency_key' => $key,
+                'occurred_at' => $now,
+            ));
+            if ($inserted === false) throw new \RuntimeException('staff_access_audit_failed');
+        } catch (\Throwable $error) {
+            throw new \RuntimeException('staff_access_audit_failed', 0, $error);
+        }
     }
 
     private function audit(int $actorId, int $targetId, array $before, array $after, array $added, array $removed): void {

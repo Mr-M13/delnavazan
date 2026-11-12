@@ -39,7 +39,8 @@ $expect(6 === preg_match_all("/\\n        '([a-z]+)' => \\['(?:Overview|Teachers
 $contains($shell, array(
     "['Overview', 'dzn-academy-dashboard', 'dzn_view_booking_requests']",
     "['Enrolment', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
-    "'dzn-catalogue-workspace' => Menu::CATALOGUE_WORKSPACE_CAP",
+    "['Courses & instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
+    "'dzn-catalogue-workspace' => 'enrolment'",
     "get_theme_file_uri('assets/images/delnavazan-logo.png')",
 ), 'Enrolment must be one operational surface and Overview must use the approved logo.');
 $expect(!str_contains($shell, '<svg viewBox="0 0 24 24"'), 'The improvised dashboard SVG mark must be replaced by the approved logo.');

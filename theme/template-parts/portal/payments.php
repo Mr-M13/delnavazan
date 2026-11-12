@@ -161,10 +161,12 @@ $render_items = static function ( array $rows ): void {
 
 			<?php if ( $payable || $promoApplied ) : ?>
 				<?php $promo_form_enabled = ! $promoApplied && $promo_applicable; ?>
-				<details class="dzn-checkout__promotion">
-					<summary class="dzn-checkout__promotion-label"><?php echo $promoApplied ? esc_html__( 'کد تخفیف اعمال شده', 'delnavazan-theme' ) : ( $payable && ! $promo_applicable ? esc_html__( 'کد تخفیف', 'delnavazan-theme' ) : esc_html__( 'کد تخفیف دارید؟', 'delnavazan-theme' ) ); ?></summary>
+				<div class="dzn-checkout__promotion" data-promotion>
+					<div class="dzn-checkout__promotion-head">
+						<label class="dzn-checkout__promotion-label" for="dzn-promotion-code" data-promotion-label><?php echo $promoApplied ? esc_html__( 'کد تخفیف اعمال شده', 'delnavazan-theme' ) : esc_html__( 'کد تخفیف', 'delnavazan-theme' ); ?></label>
+						<span class="dzn-checkout__promotion-hint"><?php esc_html_e( 'اگر کد تخفیف دارید، پیش از پرداخت این ترم آن را وارد کنید.', 'delnavazan-theme' ); ?></span>
+					</div>
 					<div class="dzn-checkout__promotion-inputs">
-						<label class="screen-reader-text" for="dzn-promotion-code"><?php esc_html_e( 'کد تخفیف', 'delnavazan-theme' ); ?></label>
 						<input type="text" id="dzn-promotion-code" class="dzn-checkout__promotion-code" maxlength="64" autocomplete="off" spellcheck="false" placeholder="<?php esc_attr_e( 'کد تخفیف را وارد کنید', 'delnavazan-theme' ); ?>"<?php echo $promo_form_enabled ? '' : ' disabled'; ?> />
 						<button type="button" id="dzn-promotion-apply" class="dzn-button dzn-button--secondary dzn-checkout__promotion-apply"<?php echo $promo_form_enabled ? '' : ' disabled'; ?>>
 							<?php echo $promoApplied ? esc_html__( 'اعمال شده', 'delnavazan-theme' ) : esc_html__( 'اعمال', 'delnavazan-theme' ); ?>
@@ -182,7 +184,7 @@ $render_items = static function ( array $rows ): void {
 							<?php echo esc_html( $promo_started ? __( 'این طرح آغاز شده است و کد تخفیف فقط پیش از پرداخت اولین قسط قابل اعمال است.', 'delnavazan-theme' ) : __( 'امکان اعمال کد تخفیف برای این طرح وجود ندارد.', 'delnavazan-theme' ) ); ?>
 						<?php endif; ?>
 					</p>
-				</details>
+				</div>
 			<?php endif; ?>
 		</div>
 	<?php else : ?>

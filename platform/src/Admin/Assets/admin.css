@@ -52,12 +52,6 @@ body.dzn-admin-page .wrap > h1.wp-heading-inline {
   letter-spacing: -.01em;
 }
 
-.dzn-account-removal { direction: rtl; max-width: 980px; }
-.dzn-account-removal form { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 20px; background: var(--dzn-surface); border: 1px solid var(--dzn-border); border-radius: var(--dzn-radius); }
-.dzn-account-removal label { font-weight: 700; color: var(--dzn-teal-deep); }
-.dzn-account-removal input, .dzn-account-removal select { min-height: 38px; }
-.dzn-account-removal .widefat { border-color: var(--dzn-border); border-radius: var(--dzn-radius-sm); overflow: hidden; }
-.dzn-account-removal code { direction: ltr; unicode-bidi: isolate; }
 
 body.dzn-admin-page .wrap p {
   color: var(--dzn-muted);
@@ -5120,3 +5114,52 @@ body.dzn-admin-page .dzn-coordination a.button-primary:focus-visible {
 }
 .dzn-mini-stats .dzn-task-chip--danger { border-color: var(--dzn-error); background: var(--dzn-accent-soft); }
 .dzn-mini-stats .dzn-task-chip--danger strong { color: var(--dzn-error); }
+
+/* Settings consolidation: policy cards, delegated access, diagnostics accordion. */
+.dzn-settings-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.dzn-policy-group { margin-block-start: 20px; }
+.dzn-policy-group__head h3 { margin-block-end: 2px; }
+.dzn-policy-group__head p { margin-block-start: 0; color: #50575e; }
+.dzn-policy-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.dzn-policy-card { border: 1px solid #dcdcde; border-inline-start: 4px solid #8c8f94; border-radius: 8px; background: #fff; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.dzn-policy-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.dzn-policy-card h4 { margin: 0; font-size: 1rem; }
+.dzn-policy-card p { margin: 0; color: #50575e; }
+.dzn-policy-card dl { display: grid; gap: 4px; margin: 0; }
+.dzn-policy-card dl div { display: grid; grid-template-columns: 6.5em 1fr; gap: 8px; }
+.dzn-policy-card dt { color: #787c82; }
+.dzn-policy-card dd { margin: 0; font-weight: 600; }
+.dzn-policy-card--operational { border-inline-start-color: #2271b1; }
+.dzn-policy-card--scheduling { border-inline-start-color: #72aee6; }
+.dzn-policy-card--financial { border-inline-start-color: #996800; }
+.dzn-policy-card--attendance { border-inline-start-color: #7a5bb5; }
+.dzn-policy-card--cancellation { border-inline-start-color: #b32d2e; }
+.dzn-policy-card--consent, .dzn-policy-card--legal { border-inline-start-color: #008a20; }
+.dzn-permission-module { border: 1px solid #dcdcde; border-radius: 6px; margin-block-end: 8px; background: #fff; }
+.dzn-permission-module > summary { padding: 10px 12px; cursor: pointer; }
+.dzn-permission-area { border: 0; margin: 0 12px 12px; padding: 10px 12px; border-top: 1px solid #f0f0f1; }
+.dzn-permission-area legend { padding-inline: 4px; }
+.dzn-permission-row { margin: 6px 0 8px 18px; }
+.dzn-permission-row p { margin: 2px 0 0 24px; }
+.dzn-role-checklist { display: grid; gap: 8px; margin-block-end: 16px; }
+.dzn-effective-table td, .dzn-effective-table th { font-size: 12px; }
+.dzn-row-selected { background: #f0f6fc !important; }
+.dzn-diagnostics-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-block: 12px; }
+.dzn-diagnostics-stat { border: 1px solid #dcdcde; border-radius: 8px; background: #fff; padding: 12px; display: grid; gap: 4px; }
+.dzn-diagnostics-stat span { color: #50575e; }
+.dzn-diagnostics-stat strong { font-size: 1.5rem; line-height: 1.1; }
+.dzn-diagnostics-accordion { display: grid; gap: 10px; }
+.dzn-diagnostics-category { border: 1px solid #dcdcde; border-radius: 8px; background: #fff; overflow: hidden; }
+.dzn-diagnostics-category > summary { list-style: none; cursor: pointer; display: flex; gap: 14px; align-items: center; justify-content: space-between; padding: 14px 16px; }
+.dzn-diagnostics-category > summary::-webkit-details-marker { display: none; }
+.dzn-diagnostics-category > summary::before { content: "▸"; color: #787c82; }
+.dzn-diagnostics-category[open] > summary::before { content: "▾"; }
+.dzn-diagnostics-category__title { display: grid; gap: 2px; flex: 1; }
+.dzn-diagnostics-category__status { display: grid; justify-items: end; gap: 2px; text-align: end; }
+.dzn-diagnostics-category__body { padding: 0 16px 16px; border-top: 1px solid #f0f0f1; }
+.dzn-status-badge.is-error { background: #fcf0f1; color: #b32d2e; }
+@media (max-width: 782px) {
+  .dzn-policy-card dl div { grid-template-columns: 1fr; gap: 0; }
+  .dzn-diagnostics-category > summary { flex-direction: column; align-items: flex-start; }
+  .dzn-diagnostics-category__status { justify-items: start; text-align: start; }
+}

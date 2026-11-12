@@ -31,7 +31,7 @@ final class LegalPagesController {
         wp_safe_redirect(
             add_query_arg(
                 array(
-                    'page' => GeneralSettingsController::MENU_SLUG,
+                    'page' => PoliciesController::MENU_SLUG,
                     'dzn_legal_result' => $state,
                     'dzn_legal_created' => (int) $result['created'],
                     'dzn_legal_updated' => (int) $result['updated'],

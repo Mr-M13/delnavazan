@@ -83,7 +83,7 @@ permissions. The classification travels through:
 
 ## 3. Database migration
 
-Migration: `074_god_mode_super_tester`. The package keeps `DZN_PLATFORM_SCHEMA_VERSION = '60'` for
+Migration: `074_god_mode_super_tester`. The package keeps `DZN_PLATFORM_SCHEMA_VERSION = '61'` for
 compatibility with the existing release/runtime convention; the migration ledger carries the new
 `074_god_mode_super_tester` entry, exactly as the preceding `073` migration does.
 
@@ -319,7 +319,7 @@ The review identified and fixed the following:
 - **Migration prefix bug:** `verify_god_mode_super_tester_schema()` passed unprefixed index table
   names to `has_index_columns()`. Every disposable runtime failed activation until this was fixed.
   The verifier now uses the real `$wpdb->prefix . 'dzn_'` table names.
-- **Schema compatibility:** the package constant remains `60`; `074_god_mode_super_tester` is the
+- **Schema compatibility:** the package constant remains `61`; `074_god_mode_super_tester` is the
   ledger entry, exactly like the preceding `073`. The migration is now also verified early whenever
   its ledger entry is present.
 - **Revocation during rerun:** the migration bootstrap no longer re-adds the capability when the

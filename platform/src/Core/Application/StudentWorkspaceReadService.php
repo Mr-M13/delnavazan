@@ -1081,7 +1081,7 @@ final class StudentWorkspaceReadService {
             );
         }
         $discounts = $wpdb->get_results($wpdb->prepare(
-            "SELECT pr.id,pr.state,pr.consumed_at,pr.revoked_at,pr.reason_code,pm.name,pm.kind,pm.percentage_bp,pm.fixed_amount_minor,pm.currency promotion_currency
+            "SELECT pr.id,pr.state,pr.consumed_at,pr.revoked_at,pr.reason_code,pm.name,pm.reference_code promotion_code,pm.kind,pm.percentage_bp,pm.fixed_amount_minor,pm.currency promotion_currency
              FROM {$this->p}commercial_promotion_redemptions pr
              LEFT JOIN {$this->p}commercial_promotions pm ON pm.id=pr.promotion_id
              WHERE pr.beneficiary_student_id=%d ORDER BY pr.id DESC LIMIT 25",

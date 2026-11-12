@@ -283,13 +283,18 @@ final class FinanceAdminController {
             $service = new CommercialPromotionService();
             if ($operation === 'create') {
                 $code = strtoupper(trim((string) ($_POST['promotion_code'] ?? '')));
-                if (preg_match('/^[A-Z0-9._-]{3,64}$/D', $code) !== 1) {
+                if (preg_match('/^[A-Z0-9._-]{3,32}$/D', $code) !== 1) {
                     throw new \InvalidArgumentException('promotion_code_invalid');
                 }
                 $percentage = trim(str_replace(',', '.', (string) ($_POST['promotion_percentage'] ?? '')));
                 $basisPoints = self::promotionPercentageBasisPoints($percentage);
                 $maxRedemptions = self::promotionLimit($_POST['max_redemptions'] ?? '', 1000000, true, 'promotion_limit_invalid');
                 $perBeneficiary = self::promotionLimit($_POST['per_beneficiary_limit'] ?? '1', 100, false, 'promotion_limit_invalid');
+                $validFrom = self::promotionValidityDate($_POST['valid_from'] ?? '', false);
+                $validUntil = self::promotionValidityDate($_POST['valid_until'] ?? '', true);
+                if ($validFrom !== null && $validUntil !== null && $validUntil <= $validFrom) {
+                    throw new \InvalidArgumentException('promotion_validity_invalid');
+                }
                 $created = $service->define(array(
                     'promotion_code' => $code,
                     'name' => 'Student percentage discount',
@@ -299,6 +304,8 @@ final class FinanceAdminController {
                     'max_redemptions' => $maxRedemptions,
                     'per_beneficiary_limit' => $perBeneficiary,
                     'stackable' => isset($_POST['stackable']) ? 1 : 0,
+                    'valid_from' => $validFrom,
+                    'valid_until' => $validUntil,
                     'status' => 'active',
                     'evidence_channel' => 'staff_record',
                     'evidence_reference' => 'admin-promotion-' . strtolower($code) . '-' . gmdate('YmdHis'),
@@ -356,6 +363,25 @@ final class FinanceAdminController {
         $limit = (int) $value;
         if ($limit < 1 || $limit > $max) throw new \InvalidArgumentException($error);
         return $limit;
+    }
+
+    /**
+     * Convert an optional operator date (YYYY-MM-DD) into a UTC validity boundary.
+     *
+     * The form exposes dates, not instants: a start date begins at 00:00:00 UTC and an end date
+     * covers the whole day through 23:59:59 UTC. Empty means "no bound".
+     */
+    private static function promotionValidityDate(mixed $value, bool $endOfDay): ?string {
+        $value = trim((string) $value);
+        if ($value === '') return null;
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/D', $value) !== 1) {
+            throw new \InvalidArgumentException('promotion_validity_invalid');
+        }
+        $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $value, new \DateTimeZone('UTC'));
+        if (!$parsed || $parsed->format('Y-m-d') !== $value) {
+            throw new \InvalidArgumentException('promotion_validity_invalid');
+        }
+        return $parsed->format('Y-m-d') . ($endOfDay ? ' 23:59:59' : ' 00:00:00');
     }
 
     /** Read-only CSV export for payments, refunds or teacher statements. */
@@ -1292,32 +1318,42 @@ final class FinanceAdminController {
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-promotion-form">';
             echo '<input type="hidden" name="action" value="dzn_finance_promotion"><input type="hidden" name="promotion_operation" value="create">';
             wp_nonce_field('dzn_finance_promotion');
-            echo '<label for="dzn-promotion-code">Code <span class="dzn-finance-muted">(3–64 letters, numbers, . _ -)</span><input id="dzn-promotion-code" type="text" name="promotion_code" maxlength="64" pattern="[A-Za-z0-9._-]{3,64}" autocomplete="off" spellcheck="false" required></label>';
+            echo '<label for="dzn-promotion-code">Code <span class="dzn-finance-muted">(3–32 letters, numbers, . _ -)</span><input id="dzn-promotion-code" type="text" name="promotion_code" maxlength="32" pattern="[A-Za-z0-9._-]{3,32}" autocomplete="off" spellcheck="false" required></label>';
             echo '<label for="dzn-promotion-percentage">Discount %<input id="dzn-promotion-percentage" type="number" name="promotion_percentage" min="0.01" max="100" step="0.01" required></label>';
-            echo '<label for="dzn-promotion-max">Total uses <span class="dzn-finance-muted">(blank = unlimited)</span><input id="dzn-promotion-max" type="number" name="max_redemptions" min="1" max="1000000" step="1"></label>';
+            echo '<label for="dzn-promotion-from">Valid from <span class="dzn-finance-muted">(UTC date, optional)</span><input id="dzn-promotion-from" type="date" name="valid_from"></label>';
+            echo '<label for="dzn-promotion-until">Valid until <span class="dzn-finance-muted">(UTC date, optional)</span><input id="dzn-promotion-until" type="date" name="valid_until"></label>';
+            echo '<label for="dzn-promotion-max">Total use limit <span class="dzn-finance-muted">(blank = unlimited)</span><input id="dzn-promotion-max" type="number" name="max_redemptions" min="1" max="1000000" step="1"></label>';
             echo '<label for="dzn-promotion-per">Uses per Student<input id="dzn-promotion-per" type="number" name="per_beneficiary_limit" min="1" max="100" step="1" value="1" required></label>';
             echo '<label class="dzn-finance-checkbox" for="dzn-promotion-stackable"><input id="dzn-promotion-stackable" type="checkbox" name="stackable" value="1"> Can combine with another code</label>';
             echo '<button class="button button-primary">Create discount code</button></form>';
-            echo '<p class="description">The stackable flag is saved on the code. The current payment authority applies one promotion per offer, so a second code is rejected as already applied; true multi-code stacking requires a later schema change. The raw code is never stored and cannot be displayed again — keep a record when you create it.</p>';
+            echo '<p class="description">Validity dates are stored in UTC; a start date begins at 00:00 and an end date covers the whole day. Leave either field blank for no bound. The stackable flag is saved on the code, but the current payment authority applies one promotion per offer, so a second code is rejected as already applied; true multi-code stacking requires a later schema change.</p>';
         }
         try {
             $promotions = (new CommercialPromotionService())->promotions();
         } catch (\Throwable) {
             $promotions = array();
         }
-        echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>ID</th><th>Discount</th><th>Status</th><th>Total uses</th><th>Per Student</th><th>Stackable</th><th>Valid from</th><th>Valid until</th><th>Action</th></tr></thead><tbody>';
-        if (!$promotions) echo '<tr><td colspan="9">No discount codes have been created yet.</td></tr>';
+        echo '<table class="widefat striped dzn-finance-table"><thead><tr><th>ID</th><th>Code</th><th>Discount</th><th>Status</th><th>Use limit</th><th>Per Student</th><th>Stackable</th><th>Valid from</th><th>Valid until</th><th>Action</th></tr></thead><tbody>';
+        if (!$promotions) echo '<tr><td colspan="10">No discount codes have been created yet.</td></tr>';
         foreach ($promotions as $promotion) {
             $id = (int) $promotion['promotion_id'];
+            $code = $promotion['code'] ?? null;
             $discount = $promotion['kind'] === 'percentage' && $promotion['percentage_bp'] !== null
                 ? number_format(((int) $promotion['percentage_bp']) / 100, 2) . '%'
                 : ($promotion['fixed_amount_minor'] !== null ? PricingMoney::format((int) $promotion['fixed_amount_minor'], (string) $promotion['currency']) : '—');
             $status = (string) $promotion['status'];
             if ($promotion['archived_at'] !== null) $status .= ' · archived';
+            $statusLabel = $status;
+            $nowUtc = gmdate('Y-m-d H:i:s');
+            if ($status === 'active' && $promotion['valid_from'] !== null && (string) $promotion['valid_from'] > $nowUtc) {
+                $statusLabel .= ' · scheduled';
+            } elseif ($status === 'active' && $promotion['valid_until'] !== null && (string) $promotion['valid_until'] < $nowUtc) {
+                $statusLabel .= ' · expired';
+            }
             $max = $promotion['max_redemptions'] === null ? 'Unlimited' : (string) $promotion['max_redemptions'];
-            $from = $promotion['valid_from'] ?? '—';
-            $until = $promotion['valid_until'] ?? '—';
-            echo '<tr><td>#' . $id . '</td><td>' . esc_html($discount) . '</td><td><span class="dzn-finance-pill">' . esc_html($status) . '</span></td><td>' . esc_html($max) . '</td><td>' . esc_html((string) (int) $promotion['per_beneficiary_limit']) . '</td><td>' . (!empty($promotion['stackable']) ? 'Yes' : 'No') . '</td><td>' . esc_html((string) $from) . '</td><td>' . esc_html((string) $until) . '</td><td>';
+            $from = $promotion['valid_from'] !== null ? substr((string) $promotion['valid_from'], 0, 10) : '—';
+            $until = $promotion['valid_until'] !== null ? substr((string) $promotion['valid_until'], 0, 10) : '—';
+            echo '<tr><td>#' . $id . '</td><td>' . ($code !== null && $code !== '' ? '<code>' . esc_html((string) $code) . '</code>' : '<span class="dzn-finance-muted">Not stored (legacy)</span>') . '</td><td>' . esc_html($discount) . '</td><td><span class="dzn-finance-pill">' . esc_html($statusLabel) . '</span></td><td>' . esc_html($max) . '</td><td>' . esc_html((string) (int) $promotion['per_beneficiary_limit']) . '</td><td>' . (!empty($promotion['stackable']) ? 'Yes' : 'No') . '</td><td>' . esc_html($from) . '</td><td>' . esc_html($until) . '</td><td>';
             if ($canManage && $status === 'active') {
                 echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">';
                 echo '<input type="hidden" name="action" value="dzn_finance_promotion"><input type="hidden" name="promotion_operation" value="deactivate"><input type="hidden" name="promotion_id" value="' . $id . '">';
@@ -1329,7 +1365,7 @@ final class FinanceAdminController {
             echo '</td></tr>';
         }
         echo '</tbody></table>';
-        echo '<p class="description">Codes are case-insensitive. A code that has reached its total-use limit, its per-Student limit, or its validity window is rejected by the backend. The stackable flag is recorded but is not yet enforced for multi-code offers.</p></section>';
+        echo '<p class="description">Codes are case-insensitive and are stored in uppercase for display; the lookup itself uses a salted digest. A code that has reached its total-use limit, its per-Student limit, or its validity window is rejected by the backend. The stackable flag is recorded but is not yet enforced for multi-code offers. Codes created before this change have no stored display value and appear as “Not stored (legacy)”.</p></section>';
     }
 
     private static function renderInstalmentSchedules(FinanceAdminReadService $read): void {
@@ -1927,7 +1963,7 @@ final class FinanceAdminController {
             echo '<p class="description">Stripe configuration requires payment provider authority.</p>';
         }
         echo '</details>';
-        echo '<p class="description">Booking horizon is an academy scheduling rule and now lives in <a href="' . esc_url(admin_url('admin.php?page=dzn-general') . '#booking-horizon') . '">General Settings</a>. The manual ledger remains independent from every setting on this page.</p>';
+        echo '<p class="description">Booking horizon is an academy scheduling rule and now lives in <a href="' . esc_url(admin_url('admin.php?page=dzn-policies') . '#booking-horizon') . '">Settings → Policies</a>. The manual ledger remains independent from every setting on this page.</p>';
     }
 
     private static function renderTeacherSettings(FinanceAdminReadService $read, FinanceSettingsService $settings): void {
@@ -2212,7 +2248,7 @@ final class FinanceAdminController {
             echo '<tr><td><code>' . esc_html($key) . '</code></td><td>' . esc_html($commercialDescriptions[$key] ?? '') . '</td><td>' . esc_html($current['set'] ? (string) $current['value'] : 'Unset') . '</td><td>' . esc_html($current['version'] === null ? '—' : (string) $current['version']) . '</td></tr>';
         }
         echo '</tbody></table>';
-        echo '<p class="description"><strong>Booking horizon</strong> has moved to <a href="' . esc_url(admin_url('admin.php?page=dzn-general') . '#booking-horizon') . '">General Settings</a> because it is an academy scheduling rule, not a Finance rule.</p>';
+        echo '<p class="description"><strong>Booking horizon</strong> has moved to <a href="' . esc_url(admin_url('admin.php?page=dzn-policies') . '#booking-horizon') . '">Settings → Policies</a> because it is an academy scheduling rule, not a Finance rule.</p>';
         if (current_user_can('dzn_manage_commercial_policies')) {
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form" onsubmit="return confirm(\'Record a new commercial policy version? Existing purchases and payments are not rewritten.\')"><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="save_commercial_policy">';
             wp_nonce_field('dzn_finance_settings');
@@ -2257,6 +2293,7 @@ final class FinanceAdminController {
         (new CommercialPolicyService())->set($key, array(
             'policy_value' => sanitize_text_field((string) ($_POST['policy_value'] ?? '')),
             'value_type' => sanitize_key((string) ($_POST['value_type'] ?? 'policy_reference')),
+            'reason_code' => 'finance_policy_update',
             'evidence_channel' => 'authenticated_platform',
             'evidence_reference' => 'finance-settings:commercial:' . $key . ':' . $now,
             'evidence_at' => $now,
@@ -2435,9 +2472,10 @@ final class FinanceAdminController {
                     'unsafe_template_url' => 'The logo URL must use https.',
                     'template_html_too_large' => 'The template HTML is too large.',
                     'template_css_too_large' => 'The template CSS is too large.',
-                    'promotion_code_invalid' => 'Use 3–64 letters, numbers, dots, underscores or hyphens for the code.',
+                    'promotion_code_invalid' => 'Use 3–32 letters, numbers, dots, underscores or hyphens for the code.',
                     'promotion_percentage_invalid' => 'Enter a discount percentage from 0.01 to 100.',
                     'promotion_limit_invalid' => 'Enter a whole number within the allowed usage range.',
+                    'promotion_validity_invalid' => 'Enter a valid start and end date. The end date cannot be before the start date.',
                     'promotion_code_exists' => 'That code already exists. Choose a different code.',
                     'promotion_required' => 'Choose a discount code to deactivate.',
                     'commercial_promotion_required' => 'The discount code was not found.',

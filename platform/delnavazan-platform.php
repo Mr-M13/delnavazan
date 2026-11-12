@@ -8,7 +8,7 @@
  */
 defined( 'ABSPATH' ) || exit;
 define( 'DZN_PLATFORM_VERSION', '0.1.0' );
-define( 'DZN_PLATFORM_SCHEMA_VERSION', '60' );
+define( 'DZN_PLATFORM_SCHEMA_VERSION', '61' );
 // Package-stamped runtime-validation identity. This is deliberately explicit
 // because production packages do not include Git metadata.
 define( 'DZN_PLATFORM_BUILD_ID', 'stripe-live-mode-20261106.1' );
@@ -57,7 +57,6 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\Menu::register();
 	Delnavazan\Platform\Admin\Controller\GodModeController::register();
 	Delnavazan\Platform\Admin\Controller\GodModeTeacherController::register();
-	Delnavazan\Platform\Admin\Controller\AccountRemovalController::register();
 	Delnavazan\Platform\Admin\Controller\CommunicationsTemplateController::register();
 	Delnavazan\Platform\Admin\Controller\NotificationManagementController::register();
 	Delnavazan\Platform\Portals\PortalNotificationController::register();
@@ -89,16 +88,18 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\EnrolmentWorkspaceController::register();
 	Delnavazan\Platform\Admin\RecordAction\RecordActionController::register();
 	Delnavazan\Platform\Admin\Controller\StaffAccessController::register();
+	Delnavazan\Platform\Admin\Controller\DelegatedAccessController::register();
 	Delnavazan\Platform\Admin\Controller\GeneralSettingsController::register();
 	Delnavazan\Platform\Admin\Controller\DiagnosticsController::register();
 	Delnavazan\Platform\Admin\Controller\LegalPagesController::register();
 	Delnavazan\Platform\Admin\Controller\RecordingNoticeAdminController::register();
 	Delnavazan\Platform\Admin\Controller\PoliciesController::register();
-	Delnavazan\Platform\Admin\Controller\RecordingOperationsController::register();
+	// Retired LiveKit recording operations no longer register an administration route. The
+	// control-plane service and RecordingOperationsReadService remain available to the existing
+	// archive/legal-hold authorities; no Settings tab or emergency-stop UI is exposed.
 	Delnavazan\Platform\Core\Application\ConsentLifecycleWorker::register();
 	Delnavazan\Platform\Admin\Controller\PaymentExecutionController::register();
 	Delnavazan\Platform\Admin\Controller\FinanceAdminController::register();
-	Delnavazan\Platform\Admin\Controller\GeneralSettingsController::register();
 	Delnavazan\Platform\Admin\Controller\CommercialCatalogueController::register();
 	Delnavazan\Platform\Admin\Controller\AcademyCoverageController::register();
 	Delnavazan\Platform\Admin\Controller\FinancePolicyController::register();

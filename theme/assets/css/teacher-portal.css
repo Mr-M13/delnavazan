@@ -499,6 +499,17 @@
 
 .dzn-tp-open-requests {
   margin-block-start: 1.25rem;
+  padding: 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--dzn-color-warning) 50%, var(--dzn-tp-border));
+  border-inline-start: 4px solid var(--dzn-color-warning);
+  border-radius: .9rem;
+  background: color-mix(in srgb, var(--dzn-color-warning-surface) 70%, var(--dzn-tp-card));
+}
+.dzn-tp-open-requests .dzn-tp-intro-card.is-opportunity {
+  background: var(--dzn-tp-card);
+}
+@media (max-width: 600px) {
+  .dzn-tp-open-requests { padding: .75rem; }
 }
 
 /* One card, two sources: assigned introductory requests and unassigned opportunities. */

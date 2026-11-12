@@ -13,7 +13,7 @@ if ( ! $items ) { return; }
 ?>
 <section class="dzn-tp-section dzn-tp-open-requests" aria-labelledby="tp-open-requests">
 	<div class="dzn-tp-heading">
-		<div><p class="dzn-tp-kicker">فرصت‌های آزاد</p><h2 id="tp-open-requests">فرصت‌های کلاس آشنایی</h2><p class="dzn-tp-help">درخواست‌های بدون مدرس برای سازهایی که تدریس می‌کنید</p></div>
+		<div><h2 id="tp-open-requests">درخواست‌های بدون پاسخ</h2><p class="dzn-tp-help">این درخواست‌ها هنوز به مدرسی واگذار نشده‌اند و در زمان‌های پیشنهادی با برنامهٔ اعلام‌شدهٔ شما هماهنگ نشده‌اند. با این حال، می‌توانید آن‌ها را بررسی کرده و در صورت امکان بپذیرید.</p></div>
 		<span class="dzn-tp-count-badge"><?php echo esc_html( sprintf( '%d مورد', count( $items ) ) ); ?></span>
 	</div>
 	<div class="dzn-tp-attention-grid">

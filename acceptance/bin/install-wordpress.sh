@@ -18,17 +18,11 @@ if ! dzn_acceptance_wp core is-installed >/dev/null 2>&1; then
 fi
 
 link_source() {
-  local link="$1" target="$2"
-  if [ -e "$link" ] || [ -L "$link" ]; then
-    [ -L "$link" ] || { echo "error: refusing to replace non-symlink integration asset: $link" >&2; exit 1; }
-    [ "$(readlink "$link")" = "$target" ] || { echo "error: refusing unexpected integration symlink: $link" >&2; exit 1; }
-  else
-    ln -s "$target" "$link"
-  fi
+  local relative="$1" target="$2"
+  dzn_acceptance_wp eval "\$link=ABSPATH . '$relative'; \$target='$target'; if (is_link(\$link)) { if (readlink(\$link) !== \$target) { throw new RuntimeException('Unexpected integration symlink: ' . \$link); } } elseif (file_exists(\$link)) { throw new RuntimeException('Refusing to replace non-symlink integration asset: ' . \$link); } elseif (!symlink(\$target, \$link)) { throw new RuntimeException('Could not create integration symlink: ' . \$link); }"
 }
 
-mkdir -p "$DZN_ACCEPTANCE_WP_DIR/wp-content/plugins" "$DZN_ACCEPTANCE_WP_DIR/wp-content/themes"
-link_source "$DZN_ACCEPTANCE_WP_DIR/wp-content/plugins/delnavazan-platform" /workspace/platform
-link_source "$DZN_ACCEPTANCE_WP_DIR/wp-content/themes/delnavazan" /workspace/theme
+link_source 'wp-content/plugins/delnavazan-platform' /workspace/platform
+link_source 'wp-content/themes/delnavazan' /workspace/theme
 dzn_acceptance_wp plugin activate delnavazan-platform
 dzn_acceptance_wp theme activate delnavazan

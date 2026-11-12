@@ -38,7 +38,14 @@ dzn_acceptance_remove_child() {
   local path="$1"
   case "$path" in "$DZN_ACCEPTANCE_DB_DIR"|"$DZN_ACCEPTANCE_WP_DIR"|"$DZN_ACCEPTANCE_STATE_DIR/cookies"|"$DZN_ACCEPTANCE_STATE_DIR/http") ;; *) echo "error: refusing unknown acceptance cleanup target: $path" >&2; exit 1;; esac
   [ ! -L "$path" ] || { echo "error: refusing symlinked acceptance cleanup target: $path" >&2; exit 1; }
-  [ ! -e "$path" ] || rm -rf "$path"
+  [ ! -e "$path" ] || rm -rf "$path" 2>/dev/null || {
+    # WordPress runs as root in the disposable container and can leave a bind-mounted
+    # tree that the host runner cannot remove. The target has already passed the narrow
+    # allowlist above; use the cached CLI image only to remove that exact child tree.
+    docker run --rm --pull=never -u 0 -v "$path:/cleanup" --entrypoint sh "$DZN_ACCEPTANCE_CLI_IMAGE" -c 'find /cleanup -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +'
+    rmdir "$path" 2>/dev/null || true
+    [ ! -e "$path" ] || { echo "error: acceptance cleanup target remains: $path" >&2; exit 1; }
+  }
 }
 
 dzn_acceptance_compose() {

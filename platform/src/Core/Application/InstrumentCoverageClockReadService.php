@@ -89,10 +89,9 @@ final class InstrumentCoverageClockReadService {
         $timezone = self::safeTimezone((string) ($profile->timezone ?? (BookingAvailabilityPolicy::current()['academy_timezone'] ?? 'Asia/Tehran')));
         $mode = 'week';
         $today = (new \DateTimeImmutable('now', new \DateTimeZone($timezone)))->format('Y-m-d');
-        $weekStart = self::date($input['week_start'] ?? null, $today);
-        $date = self::date($input['date'] ?? null, $weekStart);
-        if ($date < $weekStart || $date > InstrumentCoverageWeek::end($weekStart)) $weekStart = $date;
+        $date = self::date($input['date'] ?? null, $today);
         $weekday = self::weekdayOf($date);
+        $weekStart = InstrumentCoverageWeek::start($date);
         $academyTimezone = self::safeTimezone((string) (BookingAvailabilityPolicy::current()['academy_timezone'] ?? 'Asia/Tehran'));
         try {
             $authorized = $this->authorizedInstrumentIds($teacherId);
@@ -281,7 +280,7 @@ final class InstrumentCoverageClockReadService {
             'weekday' => $weekday,
             'week_start' => $weekStart,
             'week_end' => InstrumentCoverageWeek::end($weekStart),
-            'week_order' => array_keys(InstrumentCoverageWeek::dates($weekStart)),
+            'week_order' => $context['scope'] === 'admin' ? array_keys(InstrumentCoverageWeek::dates($weekStart)) : InstrumentCoverageWeek::ORDER,
             'period_key' => $period['key'],
             'period_label' => $period['label'],
             'gap_period_label' => $period['gap_label'],

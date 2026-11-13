@@ -66,6 +66,8 @@
 		if (!data || !Array.isArray(data.week) || !data.week.length) return;
 		var labels = data.labels || {};
 		var isFa = data.scope === 'teacher';
+		var isAdmin = data.scope === 'admin';
+		var angleOffset = isAdmin ? ANGLE_OFFSET : 0;
 		var faDigits = function (value) { return String(value).replace(/[0-9]/g, function (digit) { return '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]; }); };
 		var clockLabel = function (minute) { var value = minuteLabel(minute); return isFa ? faDigits(value) : value; };
 		var timeLabel = function (value) { return isFa ? faDigits(value) : String(value); };
@@ -378,13 +380,15 @@
 			svg.appendChild(defs);
 
 			for (var hour = 0; hour < 24; hour++) {
-				var a = hour * 15 + ANGLE_OFFSET;
+				var a = hour * 15 + angleOffset;
 				var majorHour = hour % 6 === 0;
 				var t1 = polar(346, a), t2 = polar(342, a);
 				svg.appendChild(el('line', { x1: t1[0], y1: t1[1], x2: t2[0], y2: t2[1], class: 'dzn-clock__tick' + (majorHour ? ' is-major' : '') }));
-				var point = polar(majorHour ? 360 : 350, a);
-				var hourText = String(hour).padStart(2, '0');
-				svg.appendChild(el('text', { x: point[0], y: point[1], class: 'dzn-clock__hour' + (majorHour ? ' is-major' : ' is-minor'), 'text-anchor': 'middle', 'dominant-baseline': 'middle' }, [isFa ? faDigits(hourText) : hourText]));
+				if (isAdmin || majorHour) {
+					var point = polar(majorHour ? 360 : 350, a);
+					var hourText = String(hour).padStart(2, '0');
+					svg.appendChild(el('text', { x: point[0], y: point[1], class: 'dzn-clock__hour' + (majorHour ? ' is-major' : ' is-minor'), 'text-anchor': 'middle', 'dominant-baseline': 'middle' }, [isFa ? faDigits(hourText) : hourText]));
+				}
 			}
 
 			for (var i = 0; i < SEGMENTS; i++) {
@@ -398,7 +402,7 @@
 					'aria-label': (labels.golden || 'Golden Hours') + ', ' + clockLabel(i * 30) + '–' + clockLabel(i * 30 + 30) + ', ' + ((golden.regions || []).length) + ' ' + (labels.regions || 'regions')
 				});
 				group.appendChild(el('title', null, [clockLabel(i * 30) + '–' + clockLabel(i * 30 + 30)]));
-				var goldenArc = arcPath(GOLD_OUTER, GOLD_INNER, i * DEGREES + ANGLE_OFFSET + 0.18, (i + 1) * DEGREES + ANGLE_OFFSET - 0.18);
+				var goldenArc = arcPath(GOLD_OUTER, GOLD_INNER, i * DEGREES + angleOffset + 0.18, (i + 1) * DEGREES + angleOffset - 0.18);
 				group.appendChild(el('path', { d: goldenArc, class: 'dzn-clock__golden-base' }));
 				group.appendChild(el('path', {
 					d: goldenArc,
@@ -424,8 +428,8 @@
 					ring.appendChild(el('circle', { cx: CENTER, cy: CENTER, r: inner - 1.5, class: 'dzn-clock__today-outline' }));
 				}
 				day.segments.forEach(function (segment, segIndex) {
-					var start = segIndex * DEGREES + ANGLE_OFFSET + 0.22;
-					var end = (segIndex + 1) * DEGREES + ANGLE_OFFSET - 0.22;
+					var start = segIndex * DEGREES + angleOffset + 0.22;
+					var end = (segIndex + 1) * DEGREES + angleOffset - 0.22;
 					var mid = (start + end) / 2;
 					var group = el('g', {
 						class: 'dzn-clock__seg' + (segment[5] ? ' is-past' : ''),
@@ -460,15 +464,17 @@
 					});
 					ring.appendChild(group);
 				});
-				var labelPoint = polar((outer + inner) / 2, RING_LABEL_ANGLE);
-				ring.appendChild(el('text', {
-					x: labelPoint[0],
-					y: labelPoint[1],
-					class: 'dzn-clock__ring-label',
-					'text-anchor': 'middle',
-					'dominant-baseline': 'middle',
-					'aria-hidden': 'true'
-				}, [shortWeekdayLabel(day)]));
+				if (isAdmin) {
+					var labelPoint = polar((outer + inner) / 2, RING_LABEL_ANGLE);
+					ring.appendChild(el('text', {
+						x: labelPoint[0],
+						y: labelPoint[1],
+						class: 'dzn-clock__ring-label',
+						'text-anchor': 'middle',
+						'dominant-baseline': 'middle',
+						'aria-hidden': 'true'
+					}, [shortWeekdayLabel(day)]));
+				}
 				ringGroups.push(ring);
 				svg.appendChild(ring);
 			});
@@ -486,7 +492,7 @@
 				var y = (event.clientY - rect.top) / rect.height * SIZE - CENTER;
 				var radius = Math.sqrt(x * x + y * y);
 				var angle = (Math.atan2(y, x) * 180 / Math.PI + 90 + 360) % 360;
-				var logicalAngle = (angle - ANGLE_OFFSET + 360) % 360;
+				var logicalAngle = (angle - angleOffset + 360) % 360;
 				var index = Math.floor(logicalAngle / DEGREES) % SEGMENTS;
 				if (radius >= GOLD_INNER && radius <= GOLD_OUTER) { selectGolden(index, true); return; }
 				if (radius > HUB_RADIUS && radius <= RING_OUTER + 2) {

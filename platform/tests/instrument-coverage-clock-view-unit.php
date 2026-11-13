@@ -154,6 +154,9 @@ $assert(str_contains($teacher, 'data-dzn-clock-use'), 'A Teacher must be able to
 $assert(str_contains($teacher, 'ساعت‌های طلایی بدون پوشش'), 'The Teacher Golden-gap label must use the corrected wording.');
 $assert(str_contains($teacher, 'ذخیره نمی‌شود'), 'The Teacher must be told that clicking a segment does not save availability.');
 $assert(!str_contains($teacher, 'تضمین پاداش'), 'The Teacher view must not promise a bonus.');
+$assert(str_contains($teacher, '<select name="coverage_instrument"'), 'The Teacher account must keep its existing instrument control.');
+$assert(!str_contains($teacher, 'dzn-clock__instruments') && !str_contains($teacher, 'coverage_week_start'), 'Admin-only icon and rolling-window controls must not reach the Teacher account.');
+$assert(str_contains($teacher, 'name="coverage_date" value="2026-11-12"'), 'The Teacher date control must keep the selected day.');
 
 $theme = dirname($root) . '/theme';
 $teacherTemplate = file_get_contents($theme . '/template-parts/teacher-portal/coverage-clock.php');

@@ -87,7 +87,7 @@ final class InstrumentCoverageClockView {
             }
             echo '</select></label>';
         }
-        echo '<label>' . esc_html($labels['weekOf']) . '<input type="date" name="coverage_date" value="' . esc_attr($weekStart !== '' ? $weekStart : $date) . '"></label>';
+        echo '<label>' . esc_html($labels['weekOf']) . '<input type="date" name="coverage_date" value="' . esc_attr($scope === 'admin' && $weekStart !== '' ? $weekStart : $date) . '"></label>';
         echo '<label>' . esc_html($labels['calendar']) . '<select name="coverage_calendar"><option value="gregorian"' . selected($calendar, 'gregorian', false) . '>' . esc_html($labels['gregorian']) . '</option><option value="persian"' . selected($calendar, 'persian', false) . '>' . esc_html($labels['persian']) . '</option></select></label>';
         echo '<button class="button button-primary" type="submit">' . esc_html($labels['apply']) . '</button>';
         echo '</form></header>';
@@ -478,7 +478,7 @@ final class InstrumentCoverageClockView {
         $args['coverage_calendar'] = $calendar;
         $args['coverage_date'] = $date;
         if ($focus !== '') $args['coverage_focus'] = $focus;
-        if ($week !== '') $args['coverage_week_start'] = $week;
+        if ($week !== '' && $scope === 'admin') $args['coverage_week_start'] = $week;
         return add_query_arg($args, $base);
     }
 

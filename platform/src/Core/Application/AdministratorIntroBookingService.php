@@ -132,7 +132,7 @@ final class AdministratorIntroBookingService {
         }
         $conflict = $this->occupancy->overlapping($teacherId, $interval['starts_at_utc'], $interval['occupied_ends_at_utc']);
         if ($conflict) return array('state' => 'conflict', 'label' => 'Teacher has a real schedule collision', 'detail' => 'Choose another slot; the booking will not be double-booked.');
-        $covered = $this->covered($teacherId, $interval['starts_at_utc'], $interval['ends_at_utc']);
+        $covered = $this->covered($teacherId, $interval['starts_at_utc'], $interval['ends_at_utc'], $courseId);
         return array(
             'state' => $covered ? 'available' : 'override_required',
             'label' => $covered ? 'Teacher is available' : 'Outside normal availability — explicit override required',
@@ -175,9 +175,9 @@ final class AdministratorIntroBookingService {
         );
     }
 
-    private function covered(int $teacherId, string $start, string $end): bool {
+    private function covered(int $teacherId, string $start, string $end, ?int $courseId = null): bool {
         $cursor = $start;
-        foreach ($this->availability->effective($teacherId, $start, $end) as $segment) {
+        foreach ($this->availability->effective($teacherId, $start, $end, $courseId ? $this->availability->instrumentIdForCourse($courseId) : null) as $segment) {
             if ((string) $segment['starts_at_utc'] > $cursor) return false;
             if (!in_array((string) $segment['state'], array('preferred', 'requestable'), true)) return false;
             if ((string) $segment['ends_at_utc'] > $cursor) $cursor = min($end, (string) $segment['ends_at_utc']);

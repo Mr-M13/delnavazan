@@ -78,7 +78,7 @@ final class LessonRescheduleService {
             });
         };
         $this->clock=$clock??static fn():int=>time();
-        $this->availability=$availability??fn(int $teacherId,string $starts,string $ends):bool=>$this->teacherAvailabilityCovers($teacherId,$starts,$ends);
+        $this->availability=$availability??function(int $teacherId,string $starts,string $ends,?int $courseId=null):bool{return $this->teacherAvailabilityCovers($teacherId,$starts,$ends,$courseId);};
         $this->exception=$exception??static function(string $type,string $code,string $summary,int $lessonId):void{
             if(!class_exists(ExceptionService::class)||!isset($GLOBALS['wpdb']))return;
             try{
@@ -164,13 +164,13 @@ final class LessonRescheduleService {
             $occupied=$wall->modify('+'.($duration+$buffer).' minutes')->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
             if($starts<=$now)throw new \InvalidArgumentException('reschedule_start_not_future');
             if($starts===(string)$context->starts_at_utc)throw new \InvalidArgumentException('reschedule_unchanged');
-            if(!($this->availability)((int)$context->teacher_id,$starts,$ends)){
+            if(!($this->availability)((int)$context->teacher_id,$starts,$ends,(int)($context->course_id??0))){
                 if(empty($input['confirm_outside_availability']))throw new \InvalidArgumentException('teacher_availability_confirmation_required');
                 $localEnd=$wall->modify('+'.$duration.' minutes');
                 ($this->availabilityConfirmation)((int)$context->teacher_id,$localDate,$localTime,$localEnd->format('Y-m-d'),$localEnd->format('H:i:s'),$timezone);
                 // A stronger block, such as an explicit day off, still wins. The caller-owned
                 // transaction rolls the new availability row back when coverage is not achieved.
-                if(!($this->availability)((int)$context->teacher_id,$starts,$ends))throw new \InvalidArgumentException('teacher_availability_confirmation_blocked');
+                if(!($this->availability)((int)$context->teacher_id,$starts,$ends,(int)($context->course_id??0)))throw new \InvalidArgumentException('teacher_availability_confirmation_blocked');
                 $outsideAvailabilityConfirmed=true;
             }
             if(strtotime($starts.' UTC')>(($this->clock)()+self::MAX_HORIZON_DAYS*86400))throw new \InvalidArgumentException('reschedule_horizon_exceeded');
@@ -553,8 +553,8 @@ final class LessonRescheduleService {
     }
 
     /** The proposed replacement must already be inside the Teacher's effective availability. */
-    private function teacherAvailabilityCovers(int $teacherId,string $starts,string $ends):bool{
-        try{$segments=(new TeacherAvailabilityService())->effective($teacherId,$starts,$ends);}catch(\Throwable){return false;}
+    private function teacherAvailabilityCovers(int $teacherId,string $starts,string $ends,?int $courseId=null):bool{
+        try{$availability=new TeacherAvailabilityService();$segments=$availability->effective($teacherId,$starts,$ends,$courseId?$availability->instrumentIdForCourse($courseId):null);}catch(\Throwable){return false;}
         $cursor=$starts;
         foreach((array)$segments as $segment){
             if((string)($segment['state']??'')==='blocked')continue;

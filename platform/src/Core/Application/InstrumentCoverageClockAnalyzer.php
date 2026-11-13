@@ -139,11 +139,9 @@ final class InstrumentCoverageClockAnalyzer {
                 elseif ($state === self::STATE_UNKNOWN) $unknownSegments++;
                 else $uncovered++;
             }
-            if ($state === self::STATE_UNCOVERED) {
-                if (!$isPast) {
-                    $uncoveredMinutes += self::SLOT_MINUTES;
-                    if ($isGolden) $goldenUncoveredMinutes += self::SLOT_MINUTES;
-                }
+            if ($state === self::STATE_UNCOVERED && !$isPast) {
+                $uncoveredMinutes += self::SLOT_MINUTES;
+                if ($isGolden) $goldenUncoveredMinutes += self::SLOT_MINUTES;
             }
             if ($isGolden && !$isPast) {
                 $goldenCount++;

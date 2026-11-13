@@ -42,7 +42,7 @@ final class BookingAvailabilityAssessmentService {
         foreach ( $this->teachers as $teacher ) {
             $teacherTimezone = null;
             try {
-                $match = $this->coverageState( (int) $teacher->teacher_id, $time['starts_at_utc'], $time['occupied_ends_at_utc'] );
+                $match = $this->coverageState( (int) $teacher->teacher_id, $time['starts_at_utc'], $time['occupied_ends_at_utc'], $this->availability->instrumentIdForCourse($this->courseId) );
                 if ( $match === null ) continue;
                 $teacherTimezone = $this->availability->profileTimezone( (int) $teacher->teacher_id );
                 if ( $teacherTimezone === null ) continue;
@@ -101,10 +101,10 @@ final class BookingAvailabilityAssessmentService {
         return array( 'enabled' => false, 'policy_enabled' => false, 'student_advisory_enabled' => false, 'scope' => 'none', 'candidate_count' => 0, 'affected_candidate_count' => 0, 'candidates' => array() );
     }
 
-    private function coverageState( int $teacherId, string $start, string $end ): ?string {
+    private function coverageState( int $teacherId, string $start, string $end, ?int $instrumentId = null ): ?string {
         $cursor = $start;
         $state = 'strong';
-        foreach ( $this->availability->effective( $teacherId, $start, $end ) as $segment ) {
+        foreach ( $this->availability->effective( $teacherId, $start, $end, $instrumentId ) as $segment ) {
             if ( $segment['starts_at_utc'] > $cursor || ! in_array( $segment['state'], array( 'preferred', 'requestable' ), true ) ) return null;
             if ( $segment['state'] === 'requestable' ) $state = 'possible';
             if ( $segment['ends_at_utc'] > $cursor ) $cursor = min( $end, $segment['ends_at_utc'] );

@@ -82,7 +82,7 @@ final class BookingRequestMatchAssessmentService {
         $result = $this->emptyCoverage( $times );
         foreach ( $times as $index => $time ) foreach ( $teachers as $teacher ) {
             if ( $result[$index]['covered'] && $result[$index]['limited'] ) continue;
-            if ( ! $this->covers( (int) $teacher->teacher_id, (string) $time->starts_at_utc, (string) $time->occupied_ends_at_utc ) ) continue;
+            if ( ! $this->covers( (int) $teacher->teacher_id, (string) $time->starts_at_utc, (string) $time->occupied_ends_at_utc, $this->availability->instrumentIdForCourse($courseId) ) ) continue;
             $result[$index]['covered'] = true;
             if ( $teacher->accepting_state === 'limited' ) $result[$index]['limited'] = true;
         }
@@ -91,9 +91,9 @@ final class BookingRequestMatchAssessmentService {
 
     /** @param list<object> $times @return list<array{sequence:int,covered:bool,limited:bool}> */
     private function emptyCoverage(array $times): array { return array_map( static fn( object $time ): array => array( 'sequence' => (int) $time->sequence_number, 'covered' => false, 'limited' => false ), $times ); }
-    private function covers(int $teacherId, string $start, string $end): bool {
+    private function covers(int $teacherId, string $start, string $end, ?int $instrumentId = null): bool {
         $cursor = $start;
-        foreach ( $this->availability->effective( $teacherId, $start, $end ) as $segment ) {
+        foreach ( $this->availability->effective( $teacherId, $start, $end, $instrumentId ) as $segment ) {
             if ( $segment['starts_at_utc'] > $cursor ) return false;
             if ( ! in_array( $segment['state'], array( 'preferred', 'requestable' ), true ) ) return false;
             if ( $segment['ends_at_utc'] > $cursor ) $cursor = min( $end, $segment['ends_at_utc'] );

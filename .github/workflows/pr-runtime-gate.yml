@@ -135,6 +135,7 @@ jobs:
           php platform/tests/booking-public-window-contract.php
           php platform/tests/operations-dashboard-source-contract.php
           php platform/tests/teacher-availability-lifecycle-contract.php
+          php platform/tests/teacher-availability-instrument-contract.php
           php platform/tests/launch-portal-hardening-contract.php
           php platform/tests/phase-opreadiness-core-operator-entrypoint-contract.php
           php platform/tests/phase-opreadiness-core-operator-entrypoint-unit.php
@@ -682,6 +683,35 @@ jobs:
           DZN_RUNTIME_STATE_DIR: /tmp/dzn-god-mode-runtime
           DZN_COMPOSE_PROJECT: dzn-god-mode-runtime
           DZN_WP_PORT: 18094
+        run: platform/runtime/bin/destroy.sh YES || true
+
+  teacher-availability-instrument-runtime:
+    name: Teacher instrument availability runtime
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Preload disposable runtime images
+        run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - name: Prove persisted instrument clearing and per-card coverage scopes
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-teacher-availability-instrument-runtime
+          DZN_COMPOSE_PROJECT: dzn-teacher-availability-instrument-runtime
+          DZN_WP_PORT: 18096
+        run: platform/runtime/bin/run-teacher-availability-instrument-runtime.sh
+      - name: Dispose runtime
+        if: always()
+        env:
+          DZN_RUNTIME_STATE_DIR: /tmp/dzn-teacher-availability-instrument-runtime
+          DZN_COMPOSE_PROJECT: dzn-teacher-availability-instrument-runtime
+          DZN_WP_PORT: 18096
         run: platform/runtime/bin/destroy.sh YES || true
 
   finance-runtime:

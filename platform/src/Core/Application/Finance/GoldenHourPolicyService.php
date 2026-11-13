@@ -179,6 +179,27 @@ final class GoldenHourPolicyService {
         }
     }
 
+    /**
+     * Erase the editable Golden Hour policy and every one of its prior versions.
+     * This deliberately does not touch `finance_golden_hour_details`: those are immutable facts
+     * captured for completed lessons and statement reconciliation, not configuration history.
+     */
+    public function removeAll(): array {
+        FinanceSupport::requireCapability(self::CAPABILITY);
+        $actor = FinanceSupport::actor(); $now = FinanceSupport::now();
+        $key = $this->key(GoldenHourRule::GLOBAL_IRAN_KEY);
+        $this->settings->begin();
+        try {
+            $removed = $this->settings->deleteByKey($key);
+            $this->settings->audit(0, $key, 'golden_hour_policy_history_removed', $actor, $now, 'versions=' . $removed);
+            $this->settings->commit();
+            return array('removed' => true, 'versions_removed' => $removed);
+        } catch (\Throwable $error) {
+            $this->settings->rollback();
+            throw $error;
+        }
+    }
+
     public function preview(int $baseMinor, string $currency, string $area, array $input): string {
         $normalized = GoldenHourRule::normalizePolicy($area, $input, $this->definitions()[$area]);
         return GoldenHourRule::previewText($baseMinor, $currency, (int) $normalized['bonus_basis_points'], (string) $normalized['timezone']);

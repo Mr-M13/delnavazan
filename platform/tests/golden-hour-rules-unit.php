@@ -14,6 +14,7 @@ use Delnavazan\Platform\Core\Application\GoldenHourClockProjection;
 $fail = array();
 $check = static function (bool $ok, string $message) use (&$fail): void { if (!$ok) $fail[] = $message; };
 $defaults = GoldenHourRule::globalDefinition();
+$check($defaults['rules_configured'] === true, 'A fresh global policy must not present a default golden-hour rule');
 
 $policy = GoldenHourRule::normalizePolicy(GoldenHourRule::GLOBAL_IRAN_KEY, array(
     'enabled' => '1', 'timezone' => GoldenHourRule::GLOBAL_IRAN_TIMEZONE,

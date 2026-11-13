@@ -207,14 +207,8 @@ final class FinanceAdminController {
                 ));
                 $result = $rules === array() ? 'golden_hour_rules_cleared' : 'golden_hour_rule_retired';
             } elseif ($operation === 'clear_golden_hour_rules') {
-                (new GoldenHourPolicyService())->save(GoldenHourRule::GLOBAL_IRAN_KEY, array(
-                    'enabled' => '',
-                    'timezone' => GoldenHourRule::GLOBAL_IRAN_TIMEZONE,
-                    'rules' => array(),
-                    'effective_from' => gmdate('Y-m-d H:i:s'),
-                    'effective_until' => '',
-                ));
-                $result = 'golden_hour_rules_cleared';
+                (new GoldenHourPolicyService())->removeAll();
+                $result = 'golden_hour_history_cleared';
             } elseif ($operation === 'save_global_teacher_rate') {
                 (new FinanceSettingsService())->saveGlobalTeacherRate(array(
                     'amount' => (string) ($_POST['teacher_global_amount'] ?? ''),
@@ -2084,7 +2078,7 @@ final class FinanceAdminController {
             echo '<p class="description">Time zone: <strong>' . esc_html(GoldenHourRule::GLOBAL_IRAN_TIMEZONE) . '</strong>. Each row’s effective date is honoured; earlier committed lesson details are never rewritten. A blank row is ignored.</p>';
             echo '<p><button class="button button-primary">Save golden-hour rules</button></p></form>';
             if ($rules !== array()) {
-                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form" onsubmit="return confirm(\'Remove every golden-hour rule and disable the bonus? Committed compensation will not be rewritten.\')"><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="clear_golden_hour_rules">' . wp_nonce_field('dzn_finance_settings', '_wpnonce', true, false) . '<button class="button button-link-delete">Remove all golden-hour rules</button></form>';
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form" onsubmit="return confirm(\'Remove every golden-hour rule and its policy history? This cannot be undone. Committed compensation will not be rewritten.\')"><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="clear_golden_hour_rules">' . wp_nonce_field('dzn_finance_settings', '_wpnonce', true, false) . '<button class="button button-link-delete">Remove all golden-hour rules and history</button></form>';
             }
             echo '<div class="dzn-finance-split"><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-region-card"><h4>Copy a row to selected days</h4><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="copy_golden_hour_rule">';
             wp_nonce_field('dzn_finance_settings');
@@ -2399,6 +2393,8 @@ final class FinanceAdminController {
             'intro_payability_saved' => array('success', 'The introductory-lesson teacher-payability policy was recorded as a new version. Student introductory pricing was not changed.'),
             'golden_hour_rule_copied' => array('success', 'The golden-hour row was copied to the selected days in a new policy version.'),
             'golden_hour_rule_retired' => array('success', 'The golden-hour row was retired in a new policy version. Committed compensation was not rewritten.'),
+            'golden_hour_rules_cleared' => array('success', 'The final golden-hour row was retired. The bonus is now disabled; previous policy versions were retained.'),
+            'golden_hour_history_cleared' => array('success', 'All golden-hour rules and policy history were removed. Committed compensation was retained.'),
             'statement_workflow_generated' => array('success', 'Draft statements were generated. No statement was issued and no email was sent. Review the drafts, then issue and send separately.'),
             'statement_workflow_issued' => array('success', 'Each selected draft passed its own issuance gate or reported its own controlled failure. No email was sent.'),
             'statement_workflow_sent' => array('success', 'Issued statements were queued for their own recorded Teacher addresses. Transport acceptance is not the same as confirmed delivery.'),

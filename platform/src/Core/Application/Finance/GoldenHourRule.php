@@ -44,6 +44,9 @@ final class GoldenHourRule {
             'end' => '21:00',
             'periods' => array(array('start'=>'16:00','end'=>'21:00')),
             'bonus_basis_points' => 0,
+            // A fresh/cleared policy deliberately has no payable windows. Older saved policies
+            // without this marker still use their legacy period fields when decoded.
+            'rules_configured' => true,
             'effective_from' => self::DEFAULT_EFFECTIVE_FROM,
             'effective_until' => null,
             'configured' => false,

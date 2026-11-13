@@ -37,7 +37,7 @@ $contains($readService, array(
     'TeacherAvailabilityService $availability', '->effective(', 'BookingTeacherOccupancyReadService $occupancy', '->range(',
     'CanonicalContinuationCapacityAuthority::activeHoldsInRange(', 'BookingAvailabilityPolicy::current()',
     'PublicBookingOptionsReadService', 'GoldenHourPolicyService', 'GoldenHourClockProjection',
-    'InstrumentCoverageWeek::start(', 'InstrumentCoverageWeek::dates(', 'regionalGoldenOccurrences(', 'goldenRing(', 'goldenBonus(', 'InstrumentCoverageMetrics', 'InstrumentCoverageGapList', 'InstrumentCoverageUnknownData', 'priority_gaps', 'unknown_data', 'period_key', 'visual_segments', 'golden_details', 'golden_ring', 'payOccurrences(', 'bonus_applies',
+    'InstrumentCoverageWeek::dates', 'regionalGoldenOccurrences(', 'goldenRing(', 'goldenBonus(', 'InstrumentCoverageMetrics', 'InstrumentCoverageGapList', 'InstrumentCoverageUnknownData', 'priority_gaps', 'unknown_data', 'period_key', 'week_start', 'array_keys(InstrumentCoverageWeek::dates(', 'visual_segments', 'golden_details', 'golden_ring', 'payOccurrences(', 'bonus_applies',
 ), 'The read service must compose authoritative availability, occupancy, holds, catalogue, regional Golden data and the seven-day week.');
 $expect(!preg_match('/\b(INSERT INTO|UPDATE\s+\{?\$p|DELETE FROM)\b/i', $readService), 'Coverage must remain read-only.');
 $expect(!str_contains($readService, 'TeacherBookingOccupancyQuery::conflicts('), 'Coverage must use the batched range seam.');
@@ -56,7 +56,7 @@ $contains($analyzer, array(
     "if (\$segment['state'] !== 'blocked') continue;", 'declared_teacher_count', 'fully_booked', 'fully_held', 'one_teacher', 'partial_15_minute', 'nonexistent_local_time', 'available >= 2',
 ), 'The analyzer must keep 15-minute booking precision and expose 48 visual 30-minute segments.');
 $contains($metrics, array('period(', 'summarize(', "'actionable'", "'all'", 'golden_uncovered_minutes', 'coverage_percent'), 'One metric period must drive percentages, Golden gaps and uncovered durations.');
-$contains($gapList, array('InstrumentCoverageWeek::ORDER', 'STATE_UNCOVERED', 'STATE_LIMITED', 'rank', 'visual_indexes', 'regions', 'duration_minutes', '$b[\'duration_minutes\'] <=> $a[\'duration_minutes\']'), 'Priority gaps must derive from the same 15-minute clock facts and sort longer gaps first.');
+$contains($gapList, array('array_keys($clocks)', 'STATE_UNCOVERED', 'STATE_LIMITED', 'rank', 'visual_indexes', 'regions', 'duration_minutes', '$b[\'duration_minutes\'] <=> $a[\'duration_minutes\']'), 'Priority gaps must derive from the same 15-minute clock facts and sort longer gaps first.');
 $contains($unknownData, array('STATE_UNKNOWN', 'reason', 'interval_count', 'visual_indexes', 'duration_minutes', 'segment_count'), 'Unknown intervals must remain a separate inspectable data-quality projection.');
 $expect(!preg_match('/\b(INSERT INTO|UPDATE\s+|DELETE FROM)\b/i', $metrics . $gapList), 'Metrics and gap ranking must remain read-only.');
 
@@ -65,7 +65,7 @@ $contains($readService, array('coverageWindows()', 'GoldenHourClockProjection::a
 $expect(!str_contains($readService, 'country'), 'The clock must use service regions for demand aggregation, not country tagging.');
 
 $expect(!str_contains($controller, 'AcademyCoverageView') && !str_contains($controller, 'Regional demand-window atlas'), 'The legacy regional atlas must be retired from the admin coverage route.');
-$contains($controller, array('InstrumentCoverageClockReadService', 'InstrumentCoverageClockView::render', 'coverage_focus'), 'The primary clock must render on the academy overview and pass gap focus.');
+$contains($controller, array('InstrumentCoverageClockReadService', 'InstrumentCoverageClockView::render', 'coverage_focus', 'coverage_week_start'), 'The primary clock must render on the academy overview and pass gap focus.');
 $contains($shell, array("get_theme_file_uri('assets/css/coverage-clock.css')", "get_theme_file_uri('assets/js/coverage-clock.js')"), 'The admin shell must load the shared clock assets.');
 $contains($teacherAssets, array('delnavazan-coverage-clock', 'assets/css/coverage-clock.css', 'assets/js/coverage-clock.js'), 'The Teacher portal must load the shared clock assets.');
 $contains($teacherTemplate, array('InstrumentCoverageClockView', "'scope' => 'teacher'", "'base_url'", "'teacher-view'"), 'The Teacher template must reuse the shared seven-ring view.');
@@ -73,13 +73,13 @@ $expect(!str_contains($teacherTemplate, 'golden-hours') && !str_contains($teache
 $contains($teacherAccount, array("dzn_theme_teacher_portal_component( 'coverage-clock'", 'data-dzn-availability-form'), 'The clock must sit above the existing availability selector.');
 $contains($bridge, array('dzn_theme_platform_teacher_coverage_clock', "'coverage_clock'"), 'The Teacher model must carry aggregate coverage only.');
 $contains($view, array("'goldenGaps' => 'ساعت‌های طلایی بدون پوشش'", 'InstrumentCoverageWeek::ORDER', 'seven-ring', 'Golden Hours'), 'The Teacher label must be corrected and the shared view must expose seven rings.');
-$contains($view, array('data-dzn-clock-ring', 'data-dzn-clock-canvas', 'data-dzn-clock-details', 'golden_ring', 'visual_segments', 'data-dzn-gap', 'data-dzn-unknown', 'unknown_data', 'priorityGaps', 'unknownData', 'gap_period_label', 'period_label', 'reasonFullyBooked', 'instrumentWide'), 'The view must render the seven-ring controls, priority list, data-quality indicator, period and compact payload.');
+$contains($view, array('data-dzn-clock-ring', 'data-dzn-clock-canvas', 'data-dzn-clock-details', 'golden_ring', 'visual_segments', 'data-dzn-gap', 'data-dzn-unknown', 'unknown_data', 'priorityGaps', 'unknownData', 'gap_period_label', 'period_label', 'reasonFullyBooked', 'instrumentWide', 'dzn-clock__instruments', 'instrumentPicker', 'coverage_week_start', 'weekdaysShort'), 'The view must render the seven-ring controls, priority list, data-quality indicator, period and compact payload.');
 
-$contains($js, array('SEGMENTS = 48', 'WEEK_ORDER = [6, 7, 1, 2, 3, 4, 5]', 'dzn-clock__ring', 'dzn-clock__golden-seg', 'dzn-clock__seg-half', 'data-dzn-clock-teacher', 'data-dzn-clock-use', 'ArrowRight', 'ArrowUp', 'aria-pressed', 'is-proposed', 'causeText', 'paintGapList', 'paintQualityList', 'unknownRangeFor', 'firstGapSegment', 'data-dzn-gap', 'data-dzn-unknown', 'is-gap-selected', 'is-unknown-selected'), 'The shared clock JavaScript must render seven rings, carry reasons and keep the priority list in sync.');
+$contains($js, array('SEGMENTS = 48', 'WEEK_ORDER = [6, 7, 1, 2, 3, 4, 5]', 'dzn-clock__ring', 'dzn-clock__golden-seg', 'dzn-clock__seg-half', 'data-dzn-clock-teacher', 'data-dzn-clock-use', 'ArrowRight', 'ArrowUp', 'aria-pressed', 'is-proposed', 'causeText', 'paintGapList', 'paintQualityList', 'unknownRangeFor', 'firstGapSegment', 'data-dzn-gap', 'data-dzn-unknown', 'is-gap-selected', 'is-unknown-selected', 'ANGLE_OFFSET = -90', 'dzn-clock__ring-label', 'weekdaysShort', 'is-minor'), 'The shared clock JavaScript must render seven rings, carry reasons and keep the priority list in sync.');
 $expect(!str_contains($js, 'now-hand') && !str_contains($js, 'now-dot'), 'The unexplained green now marker must remain removed.');
 $contains($css, array('--dzn-day-6', '--dzn-day-7', '--dzn-day-1', '--dzn-day-2', '--dzn-day-3', '--dzn-day-4', '--dzn-day-5', '.dzn-clock__ring--6', '.dzn-clock__seg-half.is-uncovered', '.dzn-clock__seg-half.is-limited', 'is-clock-target'), 'The seven weekday colour progression and non-colour state cues must be styled.');
 $expect(str_contains($css, '.dzn-clock__seg-half.is-covered') && str_contains($css, 'var(--ring-color)'), 'Capacity must remain distinguishable from weekday colours.');
-$contains($css, array('.dzn-clock__priority', '.dzn-clock__gap {', '.dzn-clock__seg.is-gap-selected', '.dzn-clock__seg.is-unknown-selected', '.dzn-clock__quality', '.dzn-clock__period-label'), 'The priority list, unknown indicator, gap highlights and metric period must be styled.');
+$contains($css, array('.dzn-clock__priority', '.dzn-clock__gap {', '.dzn-clock__seg.is-gap-selected', '.dzn-clock__seg.is-unknown-selected', '.dzn-clock__quality', '.dzn-clock__period-label', '.dzn-clock__instruments', '.dzn-clock__ring-label', '.dzn-clock__hour.is-minor'), 'The priority list, unknown indicator, gap highlights and metric period must be styled.');
 
 $contains($assessment, array('->overlapping(', 'assertNoActiveHold(', 'requestable'), 'The booking assessment must remain the authoritative eligibility/conflict predicate.');
 $expect(str_contains($occupancy, 'return $this->range(') || str_contains($occupancy, '$this->range('), 'The clock range must delegate to the same occupancy authority.');

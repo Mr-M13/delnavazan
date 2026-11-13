@@ -26,6 +26,14 @@
 .dzn-clock__intro p { margin: 0; color: var(--dzn-clock-muted); font-size: .86rem; }
 .dzn-clock__controls { display: flex; flex-wrap: wrap; gap: .5rem .7rem; align-items: flex-end; }
 .dzn-clock__controls label { display: grid; gap: .18rem; color: var(--dzn-clock-muted); font-size: .72rem; font-weight: 700; }
+.dzn-clock__instruments { display: flex; flex: 1 1 100%; flex-wrap: wrap; gap: .3rem; align-items: stretch; }
+.dzn-clock__instrument { display: grid; inline-size: 3.9rem; justify-items: center; gap: .08rem; padding: .22rem .28rem .3rem; border: 1px solid var(--dzn-clock-line); border-radius: 9px; background: var(--dzn-clock-surface); color: var(--dzn-clock-ink); font: inherit; cursor: pointer; }
+.dzn-clock__instrument:hover { border-color: #b9accd; background: var(--dzn-clock-soft); }
+.dzn-clock__instrument:focus-visible { outline: 2px solid var(--dzn-clock-focus); outline-offset: 1px; }
+.dzn-clock__instrument.is-selected { border-color: #6d3bd1; background: #f3edff; box-shadow: inset 0 0 0 1px #6d3bd1; }
+.dzn-clock__instrument img { inline-size: 1.9rem; block-size: 1.9rem; object-fit: contain; }
+.dzn-clock__instrument-fallback { display: grid; inline-size: 1.9rem; block-size: 1.9rem; place-items: center; border-radius: 50%; background: var(--dzn-clock-soft); font-size: .8rem; font-weight: 800; }
+.dzn-clock__instrument-name { max-inline-size: 100%; overflow: hidden; color: var(--dzn-clock-muted); font-size: .53rem; font-weight: 700; line-height: 1.2; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .dzn-clock__controls select,
 .dzn-clock__controls input[type="date"] { min-height: 2.15rem; padding: .3rem .45rem; border: 1px solid var(--dzn-clock-line); border-radius: 8px; background: var(--dzn-clock-surface); color: var(--dzn-clock-ink); font: inherit; }
 .dzn-clock__weekline { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; justify-content: space-between; padding: .45rem .7rem; margin-block-end: .8rem; border-radius: 9px; background: var(--dzn-clock-soft); }
@@ -108,7 +116,9 @@
 .dzn-clock__svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: manipulation; }
 .dzn-clock__tick { stroke: #d9d2e5; stroke-width: .8; }
 .dzn-clock__tick.is-major { stroke: #a89fb9; stroke-width: 1.2; }
-.dzn-clock__hour { fill: var(--dzn-clock-muted); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dzn-clock__hour { fill: var(--dzn-clock-muted); font-family: inherit; font-variant-numeric: tabular-nums; }
+.dzn-clock__hour.is-major { font-size: 13px; font-weight: 700; }
+.dzn-clock__hour.is-minor { font-size: 9px; font-weight: 600; opacity: .55; }
 .dzn-clock__golden-base { fill: #efeaf6; }
 .dzn-clock__golden-arc { fill: var(--dzn-clock-gold); pointer-events: none; }
 .dzn-clock__golden-seg { cursor: pointer; outline: none; }
@@ -140,6 +150,7 @@
 .dzn-clock__seg.is-gap-selected .dzn-clock__seg-half { filter: saturate(1.2) brightness(1.04); }
 .dzn-clock__seg.is-unknown-selected .dzn-clock__seg-outline { stroke: #5d5470; stroke-width: 3; stroke-dasharray: 2 3; }
 .dzn-clock__seg.is-unknown-selected .dzn-clock__seg-half { filter: saturate(.7) brightness(1.02); }
+.dzn-clock__ring-label { fill: var(--dzn-clock-ink); font-family: inherit; font-size: 9px; font-weight: 800; letter-spacing: .02em; opacity: .78; paint-order: stroke; stroke: rgba(255,255,255,.82); stroke-linejoin: round; stroke-width: 2.6px; pointer-events: none; }
 .dzn-clock__seg.is-proposed .dzn-clock__seg-outline { stroke: #0f7a63; stroke-dasharray: 3 2; }
 .dzn-clock__today-outline { fill: none; stroke: var(--dzn-clock-ink); stroke-width: 1.1; opacity: .22; pointer-events: none; }
 .dzn-clock__hub-disc { fill: var(--dzn-clock-surface); stroke: var(--dzn-clock-line); stroke-width: .8; }
@@ -191,6 +202,10 @@
 	.dzn-clock__gap-meta,
 	.dzn-clock__gap-cause { grid-column: 1 / -1; grid-row: auto; text-align: start; }
 	.dzn-clock__ring-row { min-block-size: 2.9rem; }
+	.dzn-clock__instruments { grid-column: 1 / -1; }
+	.dzn-clock__instrument { inline-size: 3.35rem; }
+	.dzn-clock__instrument img,
+	.dzn-clock__instrument-fallback { inline-size: 1.65rem; block-size: 1.65rem; }
 	.dzn-clock__quality-row { grid-template-columns: minmax(0, 1fr); }
 	.dzn-clock__quality-when,
 	.dzn-clock__quality-time,

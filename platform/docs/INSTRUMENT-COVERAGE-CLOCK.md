@@ -6,14 +6,19 @@ availability, booking and remuneration authorities.
 
 ## Structure
 
-- Saturday → Friday, outside → inside.
+- Outside → inside, starting with **today** and continuing through the next six
+  days. Ended days are not part of the initial window.
 - The single Golden Hours ring is outside the seven weekday rings.
-- 00:00 at the top, 06:00 right, 12:00 bottom, 18:00 left.
+- **06:00 at the top**, 12:00 right, 18:00 bottom, 00:00 left.
+- Every hour is labelled; the 6-hour major marks are larger and the hours between
+  them are smaller.
 - 48 visual 30-minute segments per ring.
-- The current Saturday–Friday week is the default. Choosing a date shows the
-  Saturday–Friday week containing that date.
+- The rolling seven-day window starts on the selected date (today by default).
+  Choosing a new date starts a new window; previous/next moves by seven days.
 - The current day gets a subtle ring outline and a compact “Today” marker in the
   ring key; it never obscures capacity.
+- Every ring carries a low-key short weekday caption so the concentric bands stay
+  identifiable without relying on the side key.
 - The ring key identifies every weekday, its date and its coverage percentage.
 - The date control is always a **Gregorian** browser date input; the chosen week is
   then labelled in the selected Gregorian or Persian calendar.
@@ -112,7 +117,7 @@ past/future week.
 
 ## Capacity colours
 
-The weekday rings use a muted Saturday→Friday progression:
+The weekday rings use a muted day-colour progression; the order follows the rolling window:
 
 | Day | Colour |
 |---|---|
@@ -188,7 +193,7 @@ separately in the detail panel, alongside the instrument-wide count.
 ## Integration
 
 - **Admin:** the Academy Overview panel renders the priority-gap list, the compact
-  seven-ring clock, an instrument selector, a labelled Gregorian week date,
+  seven-ring clock, a compact instrument icon row, a labelled Gregorian week date,
   calendar toggle and week navigation. The list, ring selection and detail panel
   stay in sync; on narrow screens the list rows and day buttons are the primary
   large tap targets.

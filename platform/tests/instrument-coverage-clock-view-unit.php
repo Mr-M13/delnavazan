@@ -11,6 +11,8 @@ if (!function_exists('esc_attr')) { function esc_attr($value): string { return h
 if (!function_exists('esc_url')) { function esc_url($value): string { return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); } }
 if (!function_exists('admin_url')) { function admin_url(string $path = ''): string { return 'https://example.test/wp-admin/' . $path; } }
 if (!function_exists('home_url')) { function home_url(string $path = ''): string { return 'https://example.test' . $path; } }
+if (!function_exists('get_theme_file_uri')) { function get_theme_file_uri(string $path = ''): string { return 'https://example.test/theme/' . $path; } }
+if (!function_exists('get_theme_file_path')) { function get_theme_file_path(string $path = ''): string { return dirname(__DIR__, 2) . '/theme/' . $path; } }
 if (!function_exists('add_query_arg')) { function add_query_arg(array $args, string $url = ''): string { return $url . (str_contains($url, '?') ? '&' : '?') . http_build_query($args); } }
 if (!function_exists('selected')) { function selected($selected, $current = true, bool $display = true): string { $result = (string) $selected === (string) $current ? ' selected="selected"' : ''; if ($display) echo $result; return $result; } }
 if (!function_exists('number_format_i18n')) { function number_format_i18n($number, int $decimals = 0): string { return number_format((float) $number, $decimals); } }
@@ -48,13 +50,18 @@ $instrument = array(
     'clocks' => $clocks, 'clock' => $clocks[4], 'golden_ring' => $goldenRing,
     'metrics' => array('coverage_percent' => 60, 'golden_coverage_percent' => 50, 'golden_uncovered_minutes' => 180, 'uncovered_minutes' => 600, 'single_teacher_minutes' => 300),
 );
+$instrument2 = $instrument;
+$instrument2['id'] = 2;
+$instrument2['name'] = 'Violin';
+$instrument2['name_en'] = 'Violin';
+$instrument2['slug'] = 'violin';
 $data = array(
     'status' => 'ok', 'scope' => 'admin', 'mode' => 'week', 'date' => '2026-11-12', 'weekday' => 4,
     'week_start' => $weekStart, 'week_end' => '2026-11-13', 'week_order' => InstrumentCoverageWeek::ORDER,
     'period_key' => 'current', 'period_label' => 'Remaining this week · elapsed slots excluded', 'gap_period_label' => 'Priority gaps this week',
     'metric_source' => 'actionable', 'as_of_local' => '12 Nov 2026 12:00',
     'display_timezone' => 'UTC', 'timezone_label' => 'UTC', 'calendar' => 'gregorian',
-    'selected_instrument' => 1, 'instruments' => array($instrument), 'golden_bonus' => array('enabled' => true, 'percent' => 20, 'timezone' => 'Asia/Tehran', 'label' => 'Golden Hours'), 'message' => '',
+    'selected_instrument' => 1, 'instruments' => array($instrument, $instrument2), 'golden_bonus' => array('enabled' => true, 'percent' => 20, 'timezone' => 'Asia/Tehran', 'label' => 'Golden Hours'), 'message' => '',
     'priority_gaps' => array(
         array('instrument_id' => 1, 'instrument_name' => 'Piano', 'weekday' => 4, 'date' => '2026-11-12', 'date_label' => '12 Nov 2026', 'date_label_fa' => '۲۱ آبان ۱۴۰۵', 'rank' => 0, 'golden' => true, 'reason' => 'fully_booked', 'duration_minutes' => 60, 'start_minute' => 600, 'start_time' => '10:00', 'end_time' => '11:00', 'time_label' => '10:00–11:00', 'visual_start_index' => 20, 'visual_indexes' => array(20, 21), 'regions' => array(array('key' => 'AU', 'label' => 'Australia')), 'booked_teacher_count' => 1, 'held_teacher_count' => 0),
         array('instrument_id' => 2, 'instrument_name' => 'Violin', 'weekday' => 5, 'date' => '2026-11-13', 'date_label' => '13 Nov 2026', 'date_label_fa' => '۲۲ آبان ۱۴۰۵', 'rank' => 2, 'golden' => false, 'reason' => 'one_teacher', 'duration_minutes' => 30, 'start_minute' => 540, 'start_time' => '09:00', 'end_time' => '09:30', 'time_label' => '09:00–09:30', 'visual_start_index' => 18, 'visual_indexes' => array(18), 'regions' => array(), 'booked_teacher_count' => 0, 'held_teacher_count' => 0),
@@ -99,6 +106,11 @@ $assert(str_contains($html, 'Fully booked'), 'A booked gap must show its authori
 $assert(str_contains($html, '1 booked'), 'A booked gap must show the booked teacher count.');
 $assert(str_contains($html, 'Australia'), 'A Golden gap must show its relevant region.');
 $assert(str_contains($html, 'Week of (Gregorian date)'), 'The Gregorian date input must be labelled accurately.');
+$assert(str_contains($html, 'dzn-clock__instruments') && substr_count($html, 'name="coverage_instrument"') === 2, 'The admin instrument selector must be a compact icon row.');
+$assert(str_contains($html, 'C-Piano.webp') && str_contains($html, 'C-Violin.webp'), 'Known instruments must reuse the homepage instrument artwork.');
+$assert(!str_contains($html, '<select name="coverage_instrument"'), 'The admin instrument list must not use the full-width select.');
+$assert(str_contains($html, 'aria-pressed="true"') && str_contains($html, 'aria-pressed="false"'), 'The icon row must expose the selected instrument.');
+$assert(str_contains($html, 'name="coverage_week_start" value="2026-11-07"'), 'Instrument switches must preserve the rolling week start.');
 $assert(str_contains($html, 'Data quality') && str_contains($html, '2 unknown intervals · 1h 30m'), 'Unknown data must be summarised separately from confirmed gaps.');
 $assert(substr_count($html, 'data-dzn-unknown ') === 3, 'The data-quality summary and every unknown interval must be inspectable.');
 $assert(str_contains($html, 'dzn-clock__quality-summary'), 'Clicking the data-quality indicator must inspect the first unknown interval.');
@@ -121,6 +133,7 @@ $assert(count($payload['golden_ring']) === 48, 'The Golden Hours ring must conta
 $assert($payload['period_key'] === 'current' && $payload['metric_source'] === 'actionable', 'The payload must expose the metric period.');
 $assert(count($payload['priority_gaps']) === 2, 'The payload must expose the priority-gap list for list-to-ring sync.');
 $assert(count($payload['unknown_data']['ranges']) === 2 && (int) $payload['unknown_data']['duration_minutes'] === 90, 'The payload must expose unknown ranges without merging them into gaps.');
+$assert(isset($payload['labels']['weekdaysShort']['2']) && $payload['labels']['weekdaysShort']['2'] === 'Tue', 'The payload must carry short weekday labels for the ring captions.');
 $assert((int) $payload['week'][0]['segments'][0][13] === 1, 'Compact segments must carry the authoritative reason code, not infer it from colour.');
 $assert(!isset($payload['week'][0]['segments'][0]['teacher_name']), 'No private teacher field may be serialized.');
 
@@ -174,6 +187,9 @@ $assert(str_contains($js, 'dayGoldenDemand') && str_contains($js, 'noDayGoldenDe
 $assert(str_contains($js, 'revealDetails'), 'Narrow screens must reveal the shared detail panel after a large-target selection.');
 $assert(str_contains($js, 'data-dzn-unknown') && str_contains($js, 'paintQualityList') && str_contains($js, 'unknownRangeFor'), 'Unknown intervals must remain independently inspectable on the clock.');
 $assert(str_contains($js, 'is-unknown-selected'), 'Unknown selection must have its own ring highlight, separate from confirmed gaps.');
+$assert(str_contains($js, 'ANGLE_OFFSET = -90') && str_contains($js, '06:00 at the top'), 'The clock must start at 06:00 at the top.');
+$assert(str_contains($js, 'dzn-clock__ring-label') && str_contains($js, 'weekdaysShort'), 'Every ring must carry a low-key weekday label.');
+$assert(str_contains($js, 'is-minor'), 'Hours between the major marks must be labelled smaller.');
 
 $assert(str_contains($css, ':focus-visible'), 'The SVG segments must have a visible focus style.');
 $assert(str_contains($css, '--dzn-day-6') && str_contains($css, '--dzn-day-5'), 'The seven weekday colour progression must be defined.');

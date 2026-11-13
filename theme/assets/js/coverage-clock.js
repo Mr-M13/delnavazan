@@ -1,7 +1,7 @@
 /**
  * Seven-day, 24-hour instrument coverage clock.
  *
- * One Golden Hours ring, then seven weekday rings in Saturday–Friday order.
+ * One Golden Hours ring, then seven weekday rings in rolling order from today.
  * The server sends 48 visual 30-minute segments per weekday; each segment keeps
  * both 15-minute halves so partial availability stays visible. Booking precision
  * remains in the server-side analyzer.
@@ -14,6 +14,8 @@
 	var CENTER = SIZE / 2;
 	var SEGMENTS = 48;
 	var DEGREES = 360 / SEGMENTS;
+	var ANGLE_OFFSET = -90; // 06:00 at the top
+	var RING_LABEL_ANGLE = 45;
 	var GOLD_OUTER = 342;
 	var GOLD_INNER = 334;
 	var RING_OUTER = 322;
@@ -82,6 +84,7 @@
 
 		function dayFor(index) { return week[index] || null; }
 		function weekdayLabel(day) { return (labels.weekdays || {})[String(day.weekday)] || ''; }
+		function shortWeekdayLabel(day) { return (labels.weekdaysShort || {})[String(day.weekday)] || weekdayLabel(day).slice(0, 3); }
 		function dateLabel(day) {
 			try {
 				var locale = isFa ? (data.calendar === 'persian' ? 'fa-IR-u-ca-persian' : 'fa-IR-u-ca-gregory') : (data.calendar === 'persian' ? 'en-GB-u-ca-persian' : 'en-GB');
@@ -375,14 +378,14 @@
 			svg.appendChild(defs);
 
 			for (var hour = 0; hour < 24; hour++) {
-				var a = hour * 15;
+				var a = hour * 15 + ANGLE_OFFSET;
+				var majorHour = hour % 6 === 0;
 				var t1 = polar(346, a), t2 = polar(342, a);
-				svg.appendChild(el('line', { x1: t1[0], y1: t1[1], x2: t2[0], y2: t2[1], class: 'dzn-clock__tick' + (hour % 6 === 0 ? ' is-major' : '') }));
+				svg.appendChild(el('line', { x1: t1[0], y1: t1[1], x2: t2[0], y2: t2[1], class: 'dzn-clock__tick' + (majorHour ? ' is-major' : '') }));
+				var point = polar(majorHour ? 360 : 350, a);
+				var hourText = String(hour).padStart(2, '0');
+				svg.appendChild(el('text', { x: point[0], y: point[1], class: 'dzn-clock__hour' + (majorHour ? ' is-major' : ' is-minor'), 'text-anchor': 'middle', 'dominant-baseline': 'middle' }, [isFa ? faDigits(hourText) : hourText]));
 			}
-			[[0, '00'], [6, '06'], [12, '12'], [18, '18']].forEach(function (entry) {
-				var point = polar(358, entry[0] * 15);
-				svg.appendChild(el('text', { x: point[0], y: point[1], class: 'dzn-clock__hour', 'text-anchor': 'middle', 'dominant-baseline': 'middle' }, [isFa ? faDigits(entry[1]) : entry[1]]));
-			});
 
 			for (var i = 0; i < SEGMENTS; i++) {
 				var golden = goldenRing[i] || {};
@@ -395,7 +398,7 @@
 					'aria-label': (labels.golden || 'Golden Hours') + ', ' + clockLabel(i * 30) + '–' + clockLabel(i * 30 + 30) + ', ' + ((golden.regions || []).length) + ' ' + (labels.regions || 'regions')
 				});
 				group.appendChild(el('title', null, [clockLabel(i * 30) + '–' + clockLabel(i * 30 + 30)]));
-				var goldenArc = arcPath(GOLD_OUTER, GOLD_INNER, i * DEGREES + 0.18, (i + 1) * DEGREES - 0.18);
+				var goldenArc = arcPath(GOLD_OUTER, GOLD_INNER, i * DEGREES + ANGLE_OFFSET + 0.18, (i + 1) * DEGREES + ANGLE_OFFSET - 0.18);
 				group.appendChild(el('path', { d: goldenArc, class: 'dzn-clock__golden-base' }));
 				group.appendChild(el('path', {
 					d: goldenArc,
@@ -421,8 +424,8 @@
 					ring.appendChild(el('circle', { cx: CENTER, cy: CENTER, r: inner - 1.5, class: 'dzn-clock__today-outline' }));
 				}
 				day.segments.forEach(function (segment, segIndex) {
-					var start = segIndex * DEGREES + 0.22;
-					var end = (segIndex + 1) * DEGREES - 0.22;
+					var start = segIndex * DEGREES + ANGLE_OFFSET + 0.22;
+					var end = (segIndex + 1) * DEGREES + ANGLE_OFFSET - 0.22;
 					var mid = (start + end) / 2;
 					var group = el('g', {
 						class: 'dzn-clock__seg' + (segment[5] ? ' is-past' : ''),
@@ -457,6 +460,15 @@
 					});
 					ring.appendChild(group);
 				});
+				var labelPoint = polar((outer + inner) / 2, RING_LABEL_ANGLE);
+				ring.appendChild(el('text', {
+					x: labelPoint[0],
+					y: labelPoint[1],
+					class: 'dzn-clock__ring-label',
+					'text-anchor': 'middle',
+					'dominant-baseline': 'middle',
+					'aria-hidden': 'true'
+				}, [shortWeekdayLabel(day)]));
 				ringGroups.push(ring);
 				svg.appendChild(ring);
 			});
@@ -474,7 +486,8 @@
 				var y = (event.clientY - rect.top) / rect.height * SIZE - CENTER;
 				var radius = Math.sqrt(x * x + y * y);
 				var angle = (Math.atan2(y, x) * 180 / Math.PI + 90 + 360) % 360;
-				var index = Math.floor(angle / DEGREES) % SEGMENTS;
+				var logicalAngle = (angle - ANGLE_OFFSET + 360) % 360;
+				var index = Math.floor(logicalAngle / DEGREES) % SEGMENTS;
 				if (radius >= GOLD_INNER && radius <= GOLD_OUTER) { selectGolden(index, true); return; }
 				if (radius > HUB_RADIUS && radius <= RING_OUTER + 2) {
 					var ringIndex = Math.floor((RING_OUTER - radius) / (RING_THICKNESS + RING_GAP));
@@ -557,6 +570,15 @@
 				revealDetails();
 			});
 		});
+
+		var controls = root.querySelector('form.dzn-clock__controls');
+		var dateField = controls && controls.querySelector('[name="coverage_date"]');
+		var weekField = controls && controls.querySelector('[name="coverage_week_start"]');
+		if (dateField && weekField) {
+			var releaseWeek = function () { weekField.disabled = true; };
+			dateField.addEventListener('input', releaseWeek);
+			dateField.addEventListener('change', releaseWeek);
+		}
 
 		var form = document.querySelector('[data-dzn-availability-form]');
 		if (form && root.hasAttribute('data-dzn-clock-teacher')) {

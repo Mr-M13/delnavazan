@@ -196,7 +196,7 @@ final class NotificationTemplateLibrary {
                 $issues[]='Local copy changed after the last mapping; the template must be reviewed and approved again in Meta.';
             }else{$providerState='mapped';}
         }elseif($channel==='sms'){
-            $providerState='restricted_fallback';
+            $providerState='not_configured';
         }
         if(!$permitted&&$this->channelOffered($eventKey,$channel)){
             // Copy for a disabled channel remains editable, but no sender may use it until the

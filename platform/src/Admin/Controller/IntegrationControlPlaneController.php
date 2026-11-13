@@ -53,7 +53,7 @@ final class IntegrationControlPlaneController {
                 $routing=(array)$_POST['sms_routing'];$validated=array();
                 foreach(array('iran','international') as $region){
                     $selected=sanitize_key((string)($routing[$region]??''));
-                    if(!in_array($selected,array('sms_ir','telnyx'),true))wp_die('Invalid SMS routing selection',400);
+                    if(!in_array($selected,array('sms_ir','telnyx','off'),true))wp_die('Invalid SMS routing selection',400);
                     $validated[$region]=$selected;
                 }
                 update_option(\Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy::OPTION,$validated,false);
@@ -72,12 +72,13 @@ final class IntegrationControlPlaneController {
             }
             update_option('dzn_integration_test_'.$provider,$record,false);
         }
-        wp_safe_redirect(add_query_arg(array('page'=>'dzn-integration-'.$provider,'integration_result'=>$result),admin_url('admin.php')));exit;
+        $page=$provider==='sms_ir'?'dzn-integration-sms':'dzn-integration-'.$provider;
+        wp_safe_redirect(add_query_arg(array('page'=>$page,'integration_result'=>$result),admin_url('admin.php')));exit;
     }
     private static function authorizeSettings():void{if(!current_user_can('manage_options')&&!current_user_can('dzn_manage_provider_integrations'))wp_die('Forbidden',403);}
     public static function googleSettings():void{self::settingsForm('google');}
     public static function whatsAppSettings():void{self::settingsForm('whatsapp');}
-    public static function smsSettings():void{self::settingsForm('sms');}
+    public static function smsSettings():void{self::settingsForm('sms');self::settingsForm('sms_ir');}
     public static function emailSettings():void{self::settingsForm('email');}
 
     /** Stripe configuration/readiness remains with Payment Execution. */
@@ -231,7 +232,7 @@ final class IntegrationControlPlaneController {
             echo '<fieldset><legend><strong>SMS provider selection</strong></legend>';
             foreach(array('iran'=>'Iranian mobile numbers (+98)','international'=>'All other destinations') as $region=>$label){
                 echo '<p><label>'.esc_html($label).' <select name="sms_routing['.esc_attr($region).']">';
-                foreach(array('sms_ir'=>'SMS.ir','telnyx'=>'Telnyx') as $value=>$name)echo '<option value="'.esc_attr($value).'"'.selected($routing[$region],$value,false).'>'.esc_html($name).'</option>';
+                foreach(array('sms_ir'=>'SMS.ir','telnyx'=>'Telnyx','off'=>'Off') as $value=>$name)echo '<option value="'.esc_attr($value).'"'.selected($routing[$region],$value,false).'>'.esc_html($name).'</option>';
                 echo '</select></label></p>';
             }
             echo '<p class="description">Selecting an unconfigured provider does not send through another provider. SMS.ir connection and activation will be added after account setup.</p></fieldset>';
@@ -416,8 +417,8 @@ final class IntegrationControlPlaneController {
     private static function authorizeStripeSettings():void{if(!current_user_can(PaymentExecutionController::CAPABILITY)||!current_user_can('dzn_manage_payment_providers'))wp_die('Forbidden',403);}
     private static function settingsForm(string $provider):void{
         self::authorizeSettings();$service=new IntegrationSettingsService();$configs=$service->redacted($provider);$schema=IntegrationSettingsService::providerSchemas()[$provider]??array();
-        $labels=array('email'=>'Email','whatsapp'=>'WhatsApp (Telnyx / Meta WABA)','sms'=>'SMS (Telnyx / SMS.ir)','google'=>'Google Workspace & Meet');
-        $safe=array('email'=>'Sends an explicitly requested TEST email to the entered destination. Mailer acceptance is not mailbox delivery.','whatsapp'=>'Uses the approved Meta WhatsApp Cloud API template through Telnyx. The test sends only after you press the button.','sms'=>'Sends a clearly marked Telnyx test SMS to the entered number only after you press the test button.','google'=>'Tests local OAuth configuration. The organizer connection is authorized separately and only by an administrator.');
+        $labels=array('email'=>'Email','whatsapp'=>'WhatsApp (Telnyx / Meta WABA)','sms'=>'SMS (Telnyx)','sms_ir'=>'SMS.ir','google'=>'Google Workspace & Meet');
+        $safe=array('email'=>'Sends an explicitly requested TEST email to the entered destination. Mailer acceptance is not mailbox delivery.','whatsapp'=>'Uses the approved Meta WhatsApp Cloud API template through Telnyx. The test sends only after you press the button.','sms'=>'Sends a clearly marked Telnyx test SMS to the entered number only after you press the test button.','sms_ir'=>'Sends a clearly marked SMS.ir test SMS only after you press the test button.','google'=>'Tests local OAuth configuration. The organizer connection is authorized separately and only by an administrator.');
         $telnyx=new TelnyxConfiguration($service);
         $last=(array)get_option('dzn_integration_test_'.$provider,array());
         echo '<div class="wrap"><h1>'.esc_html($labels[$provider]??$provider).'</h1><p>Credentials are encrypted at rest and never displayed. Leave a secret blank to keep its current value.</p>';
@@ -426,9 +427,10 @@ final class IntegrationControlPlaneController {
         if($last){$lastCode=(string)($last['code']??'');echo ' · Last explicit test: '.esc_html((string)($last['state']??'unknown')).' ('.esc_html($provider==='email'?self::emailCodeMessage($lastCode):$lastCode).') at '.esc_html((string)($last['at']??''));}echo '</p>';
         if($provider==='sms'){
             $routing=\Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy::settings();
-            echo '<h2>SMS provider routing</h2><p>Iranian mobile numbers default to SMS.ir; other numbers default to Telnyx. Each SMS uses only its selected provider. SMS.ir remains unavailable until a verified adapter and account are configured. No automatic provider or WhatsApp fallback.</p>';
+            echo '<h2>SMS provider routing</h2><p>Iranian mobile numbers default to SMS.ir; other numbers default to Telnyx. Each SMS uses only its selected provider. SMS.ir remains unavailable until its account credentials and sender are configured. No automatic provider or WhatsApp fallback.</p>';
             echo '<p><strong>Current preferences:</strong> Iran: '.esc_html($routing['iran']).' · International: '.esc_html($routing['international']).'</p>';
         }
+        if($provider==='sms_ir')echo '<h2>SMS.ir connection</h2><p>SMS.ir is an independent provider. Credentials are write-only, readiness is provider-specific, and a failed or unavailable SMS.ir connection never switches a destination to Telnyx.</p>';
         if($provider==='whatsapp'){
             echo '<h2>WhatsApp via Telnyx and Meta WABA</h2><p>These are the existing WhatsApp provider fields. Saved values are preserved and secrets remain write-only. The fields below describe provider configuration only and never enable a send by themselves.</p>';
             echo '<div class="notice notice-warning inline"><p><strong>Twilio WhatsApp is not implemented in this platform.</strong> No Twilio WhatsApp credentials are read, stored or validated here, and this page cannot enable a Twilio WhatsApp send. The configured WhatsApp route uses Telnyx and approved Meta WABA templates.</p></div>';
@@ -482,7 +484,7 @@ final class IntegrationControlPlaneController {
             if($sync)echo '<p>Last refresh: '.esc_html(($sync['ok']??false)?'succeeded':'failed').' · code '.esc_html((string)($sync['code']??'')).' · '.esc_html((string)(int)($sync['discovered']??0)).' discovered, '.esc_html((string)(int)($sync['mapped']??0)).' mapped · '.esc_html((string)($sync['at']??'')).'</p>';
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_telnyx_template_sync">';wp_nonce_field('dzn_telnyx_template_sync');echo '<p><button class="button" name="refresh_templates" value="1">Refresh approved templates</button> <span class="description">Read-only provider call; no message is sent.</span></p></form>';
         }
-        if(in_array($provider,array('whatsapp','sms'),true)&&!empty($last['diagnostic'])&&is_array($last['diagnostic'])){
+        if(in_array($provider,array('whatsapp','sms','sms_ir'),true)&&!empty($last['diagnostic'])&&is_array($last['diagnostic'])){
             echo '<h2>Safe provider test detail</h2><p>Destination, phone numbers and credentials are never stored or shown.</p><table class="widefat striped"><tbody>';
             foreach(array('http'=>'HTTP status','template'=>'Template','language'=>'Language','provider_code'=>'Provider code','provider_title'=>'Provider title','provider_detail'=>'Provider detail','reason'=>'Reason') as $key=>$label){
                 $value=$last['diagnostic'][$key]??null;if($value===null||$value==='')continue;
@@ -502,7 +504,7 @@ final class IntegrationControlPlaneController {
         }
         echo '</tbody></table><p><button class="button button-primary">Save settings</button></p></form>';
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_integration_settings_test"><input type="hidden" name="provider" value="'.esc_attr($provider).'">';wp_nonce_field('dzn_integration_test_'.$provider);
-        if(in_array($provider,array('email','whatsapp','sms'),true))echo '<p><label>Test destination <input required class="regular-text" name="test[destination]" type="'.($provider==='email'?'email':'tel').'" autocomplete="off"></label></p>';
+        if(in_array($provider,array('email','whatsapp','sms','sms_ir'),true))echo '<p><label>Test destination <input required class="regular-text" name="test[destination]" type="'.($provider==='email'?'email':'tel').'" autocomplete="off"></label></p>';
         echo '<p>'.esc_html($safe[$provider]??'').'</p><p><button class="button" name="run_test" value="1">Send explicit test</button></p></form></div>';
     }
     private static function emailResultMessage(string $result):string{

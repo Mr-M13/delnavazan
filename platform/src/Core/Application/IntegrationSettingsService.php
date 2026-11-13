@@ -7,7 +7,7 @@ final class IntegrationSettingsService {
     private const KEY_VERSION='dzn_integration_settings_v1';
     private const SECRET_FIELDS=array(
         'email'=>array('password'), 'whatsapp'=>array('access_token','app_secret','verify_token'),
-        'sms'=>array('api_key'), 'google'=>array('client_secret'),
+        'sms'=>array('api_key'), 'sms_ir'=>array('api_key'), 'google'=>array('client_secret'),
     );
 
     /** Save only known fields; blank secret fields preserve the current value. */
@@ -56,10 +56,11 @@ final class IntegrationSettingsService {
                 $key=$v('webhook_public_key');
                 if($key===''&&defined('DZN_TELNYX_WEBHOOK_PUBLIC_KEY'))$key=(string)constant('DZN_TELNYX_WEBHOOK_PUBLIC_KEY');
                 if($key===''){$env=getenv('TELNYX_WEBHOOK_PUBLIC_KEY');if(is_string($env))$key=$env;}
-                $telnyx=$this->value('sms','api_key')!==''&&$v('sender_id')!==''&&($v('waba_id')!==''||$v('business_account_id')!=='')&&($v('messaging_profile_id')!==''||$this->value('sms','messaging_profile_id')!=='')&&trim((string)$key)!=='';
+                $telnyx=$this->value('sms','api_key')!==''&&$v('sender_id')!==''&&($v('waba_id')!==''||$v('business_account_id')!=='')&&$v('messaging_profile_id')!==''&&trim((string)$key)!=='';
                 return $meta||$telnyx;
             }
             if($provider==='sms')return $v('api_key')!==''&&($v('messaging_profile_id')!==''||$v('sender_id')!=='');
+            if($provider==='sms_ir')return $v('api_key')!==''&&$v('sender_id')!=='';
             if($provider==='google'){
                 $client=$v('client_id')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_ID'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_ID'):'');
                 $secret=$v('client_secret')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_SECRET'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_SECRET'):'');
@@ -79,6 +80,7 @@ final class IntegrationSettingsService {
         'email'=>array('mode'=>'text','host'=>'text','port'=>'text','encryption'=>'text','username'=>'text','password'=>'secret','from_name'=>'text','from_email'=>'email'),
         'whatsapp'=>array('app_id'=>'text','business_account_id'=>'text','phone_number_id'=>'text','sender_id'=>'text','waba_id'=>'text','messaging_profile_id'=>'text','webhook_public_key'=>'text','test_template_name'=>'text','test_template_language'=>'text','access_token'=>'secret','app_secret'=>'secret','verify_token'=>'secret'),
         'sms'=>array('messaging_profile_id'=>'text','sender_id'=>'text','webhook_public_key'=>'text','api_key'=>'secret'),
+        'sms_ir'=>array('endpoint'=>'url','sender_id'=>'text','api_key'=>'secret'),
         'google'=>array('client_id'=>'text','client_secret'=>'secret','redirect_uri'=>'url','meet_redirect_uri'=>'url'),
     );}
     private function valueRaw(string $provider,string $field):string{$all=(array)get_option(self::OPTION,array());$row=(array)($all[$provider]??array());return (string)($row[$field]??'');}

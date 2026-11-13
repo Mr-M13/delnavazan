@@ -8,7 +8,7 @@ final class SmsProviderRoutingPolicy {
  public static function settings():array{
   $saved=function_exists('get_option')?get_option(self::OPTION,array()):array();
   $saved=is_array($saved)?$saved:array();$out=self::defaults();
-  foreach($out as $region=>$default)if(in_array($saved[$region]??null,array('sms_ir','telnyx'),true))$out[$region]=$saved[$region];
+  foreach($out as $region=>$default)if(in_array($saved[$region]??null,array('sms_ir','telnyx','off'),true))$out[$region]=$saved[$region];
   return $out;
  }
  public static function select(string $number,?array $settings=null):string{

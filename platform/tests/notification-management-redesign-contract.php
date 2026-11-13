@@ -7,6 +7,7 @@ $student = file_get_contents($root . '/src/Integrations/BookingStudentNotificati
 $mobile = file_get_contents($root . '/src/Integrations/BookingNotificationMobileDispatcher.php');
 $whatsapp = file_get_contents($root . '/src/Integrations/TelnyxWhatsAppAdapter.php');
 $config = file_get_contents($root . '/src/Integrations/Notifications/TelnyxConfiguration.php');
+$renderer = file_get_contents($root . '/src/Integrations/Notifications/DelnavazanEmailRenderer.php');
 $fail = static function (string $name, bool $ok): void {
     if (!$ok) throw new RuntimeException('Notification redesign contract failed: ' . $name);
 };
@@ -20,4 +21,6 @@ $fail('effective state fails closed', str_contains($controller, 'effectiveChanne
 $fail('global email appearance removed', !str_contains($controller, 'EmailAppearance') && !str_contains($controller, 'dzn_notification_email_appearance'));
 $fail('booking email consults event switch', str_contains($student, "eventChannelEnabled(\$eventKey,'email')") && str_contains($student, 'email_disabled_by_administrator'));
 $fail('student WhatsApp failure never fans out SMS', str_contains($mobile, '$studentWhatsAppPreferred') && str_contains($mobile, '!$studentWhatsAppPreferred'));
+$fail('teacher WhatsApp is independently eligible', str_contains($mobile, '$whatsappEligible') && str_contains($mobile, "audience === 'student'"));
+$fail('email shell ignores global appearance', str_contains($renderer, 'Email presentation is code-owned') && !str_contains($renderer, 'EmailAppearance'));
 $fail('WhatsApp has no SMS profile fallback', !str_contains($whatsapp, "value('sms','messaging_profile_id')") && !str_contains($config, "value('sms','messaging_profile_id'))}"));

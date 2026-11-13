@@ -8,6 +8,7 @@ use Delnavazan\Platform\Integrations\Notifications\TelnyxConfiguration;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateDiscoveryService;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxWhatsAppTestTemplate;
+use Delnavazan\Platform\Integrations\SmsIrAdapter;
 
 /** Explicit, operator initiated provider checks. Results are deliberately reduced to safe codes. */
 final class IntegrationTestRunner {
@@ -20,6 +21,7 @@ final class IntegrationTestRunner {
                 'email'=>$this->email($input),
                 'whatsapp'=>$this->whatsapp($settings,$input),
                 'sms'=>$this->sms($settings,$input),
+                'sms_ir'=>(new SmsIrAdapter($settings))->sendTest((string)($input['destination']??'')),
                 'google'=>array('state'=>'failed','code'=>'provider_unknown'),
                 default=>array('state'=>'failed','code'=>'provider_unknown'),
             };

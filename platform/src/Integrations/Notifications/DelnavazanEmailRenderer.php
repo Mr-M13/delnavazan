@@ -41,10 +41,11 @@ final class DelnavazanEmailRenderer {
         $subject = self::oneLine($subject);
         $cta = self::cta($options['cta'] ?? array(), $english);
         $preheader = self::oneLine((string) ($options['preheader'] ?? ''));
-        $appearance = class_exists(EmailAppearance::class) ? EmailAppearance::values() : array();
-        $logo = self::logoUrl((string) ($options['logo_url'] ?? ($appearance['logo_url'] ?? '')));
-        $note = self::oneLine((string) ($options['footer_note'] ?? ($appearance['footer_note'] ?? '')));
-        $font = class_exists(EmailAppearance::class) ? EmailAppearance::fontStack((string) ($appearance['font'] ?? EmailAppearance::DEFAULT_FONT)) : Tokens::FONT_EMAIL;
+        // Email presentation is code-owned. Per-event copy may supply a note, but no global
+        // appearance option can alter the logo, font or shell used by future sends.
+        $logo = self::logoUrl('');
+        $note = self::oneLine((string) ($options['footer_note'] ?? ''));
+        $font = Tokens::FONT_EMAIL;
         $details = array();
         foreach ((array) ($options['footer_details'] ?? array()) as $detail) {
             $detail = self::oneLine((string) $detail);
@@ -178,12 +179,6 @@ final class DelnavazanEmailRenderer {
     }
 
     private static function logoUrl(string $override): string {
-        if ($override !== '') return $override;
-        if (function_exists('get_theme_file_uri')) {
-            $uri = (string) get_theme_file_uri('assets/images/delnavazan-logo.png');
-            if ($uri !== '') return $uri;
-        }
-        if (function_exists('apply_filters')) return (string) apply_filters('dzn_email_logo_url', BrandIdentity::SITE_URL . '/wp-content/themes/delnavazan/assets/images/delnavazan-logo.png');
         return BrandIdentity::SITE_URL . '/wp-content/themes/delnavazan/assets/images/delnavazan-logo.png';
     }
 

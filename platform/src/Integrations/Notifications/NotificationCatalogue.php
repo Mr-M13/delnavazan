@@ -480,7 +480,7 @@ final class NotificationCatalogue {
         if(!isset(self::AUTHORITIES[$authority]))throw new \InvalidArgumentException('notification_authority_invalid');
         foreach($variables as $variable)if(preg_match('/^[a-z][a-z0-9_]{0,63}$/',$variable)!==1)throw new \InvalidArgumentException('notification_variable_invalid');
         return array(
-            'key'=>$key,'label'=>$label,'purpose'=>'This message tells the recipient what happened and what they may need to do next.','category'=>$category,'audience'=>$audience,'producer'=>$producer,
+            'key'=>$key,'label'=>$label,'purpose'=>'This message explains the “'.$label.'” outcome and any next step for the recipient.','category'=>$category,'audience'=>$audience,'producer'=>$producer,
             'authority'=>$authority,'channels'=>$channels,'consent'=>$consent,'mandatory'=>$mandatory,
             'variables'=>array_values(array_unique($variables)),'template_key'=>$templateKey,
             'implementation'=>str_starts_with($producer,'canonical:')?'declared':'implemented',

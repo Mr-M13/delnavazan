@@ -25,6 +25,7 @@ final class NotificationTransportRouter {
   if($channel==='sms'){
    // One configured provider per destination. Never switch provider after failure or unavailability.
    $preferred=SmsProviderRoutingPolicy::select((string)($contact['sms']??''));
+   if($preferred==='off')return array();
    $binding=$this->binding('sms',$preferred);
    return $binding&&$binding['configured']?array($binding):array();
   }

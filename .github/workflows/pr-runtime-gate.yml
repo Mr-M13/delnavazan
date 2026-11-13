@@ -121,6 +121,7 @@ jobs:
           php platform/tests/instrument-coverage-clock-week-unit.php
           php platform/tests/instrument-coverage-metrics-unit.php
           php platform/tests/instrument-coverage-gap-list-unit.php
+          php platform/tests/instrument-coverage-unknown-data-unit.php
           php platform/tests/instrument-coverage-clock-unit.php
           php platform/tests/instrument-coverage-clock-view-unit.php
           php platform/tests/instrument-coverage-clock-contract.php

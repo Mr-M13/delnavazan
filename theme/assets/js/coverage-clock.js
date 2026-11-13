@@ -167,13 +167,14 @@
 			useButton.setAttribute('data-dzn-clock-use-seg', state.segment === null ? '' : String(state.segment));
 		}
 
-		function selectWeekday(ringIndex, segmentIndex, focus, gapRange) {
+		function selectWeekday(ringIndex, segmentIndex, focus, gapRange, unknownRange) {
 			var day = dayFor(ringIndex);
 			if (!day) return;
 			var segment = day.segments[segmentIndex];
 			if (!segment) return;
 			state.ring = ringIndex; state.segment = segmentIndex; state.golden = false;
 			state.gapRange = gapRange && gapRange.length ? gapRange : null;
+			state.unknownRange = unknownRange && unknownRange.length ? unknownRange : null;
 			if (!detailsBody) return;
 			detailsBody.replaceChildren();
 			var head = document.createElement('div'); head.className = 'dzn-clock__detail-head';
@@ -187,24 +188,26 @@
 			addDetail(list, (labels.eligibleTeachers || 'Eligible teachers') + ' (' + (labels.instrumentWide || 'instrument-wide') + ')', numberLabel(Number(data.eligible_teacher_count || 0)) + ' ' + (labels.teachers || 'eligible teachers'));
 			if (Number(segment[0]) !== STATE.COVERED) addDetail(list, labels.reason || 'Cause', causeText(segment));
 			var goldenEntries = (day.golden_details || {})[String(segmentIndex)] || [];
-			addDetail(list, labels.goldenTitle || 'Golden Hours', segment[3] ? (labels.dayGoldenDemand || 'Golden Hours demand on this day') : (labels.noDayGoldenDemand || 'Not a Golden Hour on this day'));
-			if (goldenEntries.length) {
-				goldenEntries.slice(0, 5).forEach(function (entry) {
-					addDetail(list, (labels.regions || 'Regions') + ' · ' + (entry.label || entry.region), timeLabel(entry.local_start) + '–' + timeLabel(entry.local_end));
+			var outerDemand = !!(goldenRing[segmentIndex] && goldenRing[segmentIndex].golden);
+			if (segment[3]) {
+				var goldenParts = goldenEntries.slice(0, 5).map(function (entry) {
+					return (entry.label || entry.region) + ' ' + timeLabel(entry.local_start) + '–' + timeLabel(entry.local_end);
 				});
+				addDetail(list, labels.goldenTitle || 'Golden Hours', goldenParts.length ? goldenParts.join(' · ') : (labels.dayGoldenDemand || 'Golden Hours demand on this day'));
+			} else if (outerDemand) {
+				addDetail(list, labels.goldenTitle || 'Golden Hours', labels.noDayGoldenDemand || 'Not a Golden Hour on this day');
 			}
-			if (Number(segment[4])) addDetail(list, labels.partial || 'Partial', labels.goldenTitle || 'Golden Hours');
 			if (goldenBonus.enabled && Number(segment[12])) addDetail(list, labels.bonus || 'Bonus', numberLabel(goldenBonus.percent) + '% · ' + (labels.bonusConditional || 'only if the booking falls within the global bonus window'));
 			if (segment[5]) addDetail(list, labels.past || 'Past', '');
 			detailsBody.appendChild(list);
 			if (useButton) { useButton.disabled = false; useButton.setAttribute('data-dzn-clock-use-ring', String(ringIndex)); useButton.setAttribute('data-dzn-clock-use-seg', String(segmentIndex)); }
-			syncTabindex(); paintSelection(); paintGapList(); updateHub();
+			syncTabindex(); paintSelection(); paintGapList(); paintQualityList(); updateHub();
 			if (focus) focusSegment(ringIndex, segmentIndex, false);
 		}
 
 		function selectGolden(segmentIndex, focus) {
 			var segment = goldenRing[segmentIndex] || {};
-			state.golden = true; state.ring = null; state.segment = segmentIndex; state.gapRange = null;
+			state.golden = true; state.ring = null; state.segment = segmentIndex; state.gapRange = null; state.unknownRange = null;
 			if (!detailsBody) return;
 			detailsBody.replaceChildren();
 			var head = document.createElement('div'); head.className = 'dzn-clock__detail-head';
@@ -227,7 +230,7 @@
 			if (goldenBonus.enabled && payApplies) addDetail(list, labels.bonus || 'Bonus', numberLabel(goldenBonus.percent) + '% · ' + (labels.bonusConditional || 'only if the booking falls within the global bonus window'));
 			detailsBody.appendChild(list);
 			if (useButton) useButton.disabled = true;
-			syncTabindex(); paintSelection(); paintGapList(); updateHub();
+			syncTabindex(); paintSelection(); paintGapList(); paintQualityList(); updateHub();
 			if (focus) focusSegment(null, segmentIndex, true);
 		}
 
@@ -237,6 +240,18 @@
 				var gap = gaps[index] || {};
 				if (Number(gap.instrument_id) !== Number(data.selected_instrument) || Number(gap.weekday) !== Number(weekday)) continue;
 				var indexes = (gap.visual_indexes || []).map(Number);
+				if (indexes.indexOf(Number(segmentIndex)) !== -1) return indexes;
+			}
+			return null;
+		}
+
+		function unknownRangeFor(weekday, segmentIndex) {
+			var dataQuality = data.unknown_data || {};
+			var ranges = Array.isArray(dataQuality.ranges) ? dataQuality.ranges : [];
+			for (var index = 0; index < ranges.length; index++) {
+				var range = ranges[index] || {};
+				if (Number(range.instrument_id) !== Number(data.selected_instrument) || Number(range.weekday) !== Number(weekday)) continue;
+				var indexes = (range.visual_indexes || []).map(Number);
 				if (indexes.indexOf(Number(segmentIndex)) !== -1) return indexes;
 			}
 			return null;
@@ -270,8 +285,10 @@
 				var seg = Number(group.getAttribute('data-dzn-seg'));
 				var selected = !state.golden && ring === state.ring && seg === state.segment;
 				var inGap = !state.golden && ring === state.ring && state.gapRange && state.gapRange.indexOf(seg) !== -1;
+				var inUnknown = !state.golden && ring === state.ring && state.unknownRange && state.unknownRange.indexOf(seg) !== -1;
 				group.classList.toggle('is-selected', selected);
 				group.classList.toggle('is-gap-selected', inGap);
+				group.classList.toggle('is-unknown-selected', inUnknown);
 				group.setAttribute('aria-pressed', selected ? 'true' : 'false');
 			});
 			canvas.querySelectorAll('[data-dzn-golden-seg]').forEach(function (group) {
@@ -299,6 +316,22 @@
 			root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (button) {
 				var ringIndex = Number(button.getAttribute('data-dzn-clock-ring'));
 				button.classList.toggle('is-active', !state.golden && ringIndex === state.ring);
+			});
+		}
+
+		function paintQualityList() {
+			var rows = root.querySelectorAll('[data-dzn-unknown]');
+			if (!rows.length) return;
+			var day = !state.golden && state.ring !== null ? dayFor(state.ring) : null;
+			var activeDate = day ? String(day.date) : '';
+			var indexes = day && state.unknownRange ? state.unknownRange : [];
+			rows.forEach(function (row) {
+				var sameInstrument = Number(row.getAttribute('data-dzn-unknown-instrument')) === Number(data.selected_instrument);
+				var sameDate = String(row.getAttribute('data-dzn-unknown-date') || '') === activeDate;
+				var listed = String(row.getAttribute('data-dzn-unknown-visual-indexes') || '').split(',').map(Number);
+				var hit = sameInstrument && sameDate && listed.some(function (index) { return indexes.indexOf(index) !== -1; });
+				row.classList.toggle('is-active', hit);
+				if (hit) row.setAttribute('aria-current', 'true'); else row.removeAttribute('aria-current');
 			});
 		}
 
@@ -480,7 +513,7 @@
 				if (!day) return;
 				var target = firstGapSegment(day);
 				if (target === null) target = state.ring === ringIndex && state.segment !== null ? state.segment : 0;
-				selectWeekday(ringIndex, target, true, gapRangeFor(day.weekday, target));
+				selectWeekday(ringIndex, target, true, gapRangeFor(day.weekday, target), null);
 				revealDetails();
 			});
 		});
@@ -495,7 +528,27 @@
 				var target = indexes.length ? indexes[0] : Number(row.getAttribute('data-dzn-gap-visual-start') || 0);
 				if (!dayFor(ringIndex) || !dayFor(ringIndex).segments[target]) return;
 				event.preventDefault();
-				selectWeekday(ringIndex, target, true, indexes.length ? indexes : null);
+				selectWeekday(ringIndex, target, true, indexes.length ? indexes : null, null);
+				root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (ringButton) {
+					var active = Number(ringButton.getAttribute('data-dzn-clock-ring')) === ringIndex;
+					ringButton.classList.toggle('is-active', active);
+					ringButton.setAttribute('aria-pressed', active ? 'true' : 'false');
+				});
+				revealDetails();
+			});
+		});
+
+		root.querySelectorAll('[data-dzn-unknown]').forEach(function (row) {
+			row.addEventListener('click', function (event) {
+				if (Number(row.getAttribute('data-dzn-unknown-instrument')) !== Number(data.selected_instrument)) return;
+				var weekday = Number(row.getAttribute('data-dzn-unknown-weekday'));
+				var ringIndex = week.findIndex(function (day) { return Number(day.weekday) === weekday; });
+				if (ringIndex < 0) return;
+				var indexes = String(row.getAttribute('data-dzn-unknown-visual-indexes') || '').split(',').map(Number).filter(function (index) { return index >= 0; });
+				var target = indexes.length ? indexes[0] : Number(row.getAttribute('data-dzn-unknown-visual-start') || 0);
+				if (!dayFor(ringIndex) || !dayFor(ringIndex).segments[target]) return;
+				event.preventDefault();
+				selectWeekday(ringIndex, target, true, null, indexes.length ? indexes : null);
 				root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (ringButton) {
 					var active = Number(ringButton.getAttribute('data-dzn-clock-ring')) === ringIndex;
 					ringButton.classList.toggle('is-active', active);
@@ -552,7 +605,8 @@
 			var focusSegment = Number(focusMatch[2]);
 			var focusRing = week.findIndex(function (day) { return Number(day.weekday) === focusWeekday; });
 			if (focusRing >= 0 && dayFor(focusRing).segments[focusSegment]) {
-				selectWeekday(focusRing, focusSegment, false, gapRangeFor(focusWeekday, focusSegment));
+				var unknownIndexes = unknownRangeFor(focusWeekday, focusSegment);
+				selectWeekday(focusRing, focusSegment, false, unknownIndexes ? null : gapRangeFor(focusWeekday, focusSegment), unknownIndexes);
 				root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (button) {
 					var active = Number(button.getAttribute('data-dzn-clock-ring')) === focusRing;
 					button.classList.toggle('is-active', active);
@@ -561,6 +615,7 @@
 			}
 		}
 		paintGapList();
+		paintQualityList();
 	}
 
 	document.querySelectorAll('[data-dzn-clock-root]').forEach(render);

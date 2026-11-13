@@ -80,7 +80,7 @@ final class InstrumentCoverageGapList {
             }
             self::close($gaps, $open);
         }
-        usort($gaps, static fn(array $a, array $b): int => ($a['rank'] <=> $b['rank']) ?: ($a['date'] <=> $b['date']) ?: ($a['start_minute'] <=> $b['start_minute']));
+        usort($gaps, static fn(array $a, array $b): int => ($a['rank'] <=> $b['rank']) ?: ($b['duration_minutes'] <=> $a['duration_minutes']) ?: ($a['date'] <=> $b['date']) ?: ($a['start_minute'] <=> $b['start_minute']));
         foreach ($gaps as &$gap) {
             unset($gap['signature']);
             $gap['start_time'] = InstrumentCoverageClockAnalyzer::clock((int) $gap['start_minute']);

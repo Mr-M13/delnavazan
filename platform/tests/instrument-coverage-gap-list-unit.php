@@ -84,9 +84,14 @@ $unknownSegments = array_filter($unknown['segments'], static fn(array $segment):
 $assert(count($unknownSegments) === 96, 'Unknown data must be reported as unknown, never inferred from colour.');
 $assert($find($gaps, '2026-11-13', '00:00', 'unknown_data') === null, 'Unknown intervals are not ranked as confirmed coverage gaps.');
 
+$assert($gaps[0]['reason'] === 'fully_booked' && $gaps[0]['duration_minutes'] === 60, 'Within the first priority, the longer gap must appear first.');
 $ordered = array_map(static fn(array $gap): int => (int) $gap['rank'], $gaps);
 $sorted = $ordered;
 sort($sorted);
 $assert($ordered === $sorted, 'Gaps must be ordered Golden uncovered, other uncovered, then one-teacher.');
+for ($index = 1; $index < count($gaps); $index++) {
+    if ($gaps[$index - 1]['rank'] !== $gaps[$index]['rank']) continue;
+    $assert($gaps[$index - 1]['duration_minutes'] >= $gaps[$index]['duration_minutes'], 'Within one priority, durations must sort longest first.');
+}
 
 echo "instrument-coverage-gap-list: OK\n";

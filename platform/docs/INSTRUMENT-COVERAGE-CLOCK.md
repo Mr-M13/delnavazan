@@ -85,6 +85,31 @@ opens the same detail panel as the ring. A cross-instrument row navigates with
 any scheduling fact. The list links to the existing teacher-availability admin
 page; it never assigns a Teacher, edits availability or creates a booking.
 
+Within each priority, gaps sort by **longest duration first**, then date and start
+time. No demand score, revenue estimate or other financial assumption is used.
+
+## Unknown data
+
+Unknown intervals are **excluded from confirmed priority gaps**, because they are
+not evidence of an uncovered period. They are not silently dropped either:
+
+- `InstrumentCoverageUnknownData` builds a separate, read-only data-quality
+  projection from the same 15-minute segments.
+- The administrator view shows a compact **Data quality** indicator with the
+  number of unknown intervals, total duration, affected instruments and dates.
+  An interval is one contiguous range; the projection also keeps its exact
+  15-minute segment count.
+- Each affected range is independently inspectable. Selecting it highlights that
+  range on the clock with a distinct style and opens the normal detail panel.
+- The reason is retained where known: incomplete availability data or a
+  nonexistent local time across a DST transition.
+- Unknown capacity is never counted as available, never counted as uncovered and
+  never presented as a confirmed gap.
+
+The data-quality projection follows the same metric period as the confirmed gaps:
+elapsed unknown slots are excluded in the current week and included in a full
+past/future week.
+
 ## Capacity colours
 
 The weekday rings use a muted Saturday→Friday progression:
@@ -208,7 +233,7 @@ interval.
 ## Known limitations
 
 - The outer Golden ring is a week/region aggregate, not a promise of remuneration.
-- Unknown intervals stay visible on the ring but are not ranked as confirmed
-  priority gaps.
+- Unknown intervals stay visible on the ring and in the Data quality indicator,
+  but are not ranked as confirmed priority gaps.
 - DST fold boundaries are shown as `unknown` rather than guessed.
 - The clock is a coverage aid; the booking-time services remain authoritative.

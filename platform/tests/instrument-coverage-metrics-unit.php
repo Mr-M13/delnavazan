@@ -60,4 +60,34 @@ $assert($future['source'] === 'all' && (int) $future['percent'] === 8, 'A future
 $past = InstrumentCoverageMetrics::day($clock, 'past', '2026-11-12');
 $assert($past['source'] === 'all' && (int) $past['percent'] === 8, 'A past week must display the full-day metric.');
 
+$assert(InstrumentCoverageMetrics::period('2026-11-07', '2026-11-13', '2026-11-07')['key'] === 'current', 'Saturday must start the current week.');
+$assert(InstrumentCoverageMetrics::period('2026-11-07', '2026-11-13', '2026-11-13')['key'] === 'current', 'Friday must remain in the current week.');
+$assert(InstrumentCoverageMetrics::period('2026-11-07', '2026-11-13', '2026-11-14')['key'] === 'past', 'The next Saturday must close the week.');
+$assert(InstrumentCoverageMetrics::period('2026-11-07', '2026-11-13', '2026-11-06')['key'] === 'future', 'The preceding Friday must be before the week.');
+
+$boundaryDay = static function (string $now): array {
+    return InstrumentCoverageClockAnalyzer::build(array(
+        'mode' => 'date', 'date' => '2026-11-12', 'weekday' => 4, 'display_timezone' => 'UTC',
+        'lesson_minutes' => 15, 'buffer_minutes' => 0,
+        'teachers' => array(array('id' => 10, 'available' => array(array('state' => 'preferred') + AvailabilityLocalTime::interval('2026-11-12', '00:00:00', '24:00:00', 'UTC')), 'occupied' => array(), 'holds' => array())),
+        'now_utc' => $now,
+    ));
+};
+$ten = $boundaryDay('2026-11-12 10:00:00');
+$assert($ten['segments'][39]['past'] === true && $ten['segments'][40]['past'] === false, 'The interval ending exactly now must be past; the interval starting now must remain actionable.');
+$assert((int) $ten['summary']['measured_segments'] === 56, 'A 10:00 cut-off must leave 56 of 96 slots actionable.');
+$midnight = $boundaryDay('2026-11-12 00:00:00');
+$assert((int) $midnight['summary']['measured_segments'] === 96, 'Midnight must leave the complete day actionable.');
+$late = $boundaryDay('2026-11-12 23:59:59');
+$assert((int) $late['summary']['measured_segments'] === 1, '23:59 must leave only the final slot actionable.');
+
+$tehran = InstrumentCoverageClockAnalyzer::build(array(
+    'mode' => 'date', 'date' => '2026-11-12', 'weekday' => 4, 'display_timezone' => 'Asia/Tehran',
+    'lesson_minutes' => 15, 'buffer_minutes' => 0,
+    'teachers' => array(array('id' => 10, 'available' => array(array('state' => 'preferred') + AvailabilityLocalTime::interval('2026-11-12', '00:00:00', '24:00:00', 'Asia/Tehran')), 'occupied' => array(), 'holds' => array())),
+    'now_utc' => '2026-11-11 21:00:00',
+));
+$assert((int) $tehran['summary']['measured_segments'] === 94, 'Timezone conversion must exclude the two local slots that have already ended.');
+$assert($tehran['segments'][1]['past'] === true && $tehran['segments'][2]['past'] === false, 'A 00:30 academy-time cut-off must keep the 00:30 slot actionable.');
+
 echo "instrument-coverage-metrics: OK\n";

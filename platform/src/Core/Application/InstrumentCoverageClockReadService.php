@@ -216,6 +216,7 @@ final class InstrumentCoverageClockReadService {
             $row['clock'] = $clocks[$weekday] ?? reset($clocks);
             $row['metrics'] = InstrumentCoverageMetrics::summarize($clocks, $period['source']);
             $row['priority_gaps'] = InstrumentCoverageGapList::build($clocks, $period['source'], 10);
+            $row['unknown_data'] = InstrumentCoverageUnknownData::build($clocks, $period['source']);
             $row['golden_ring'] = $this->goldenRing($clocks, $weekStart, $timezone);
             if ($selected < 1 && isset($row['clock'])) $selected = $id;
             $instruments[] = $row;
@@ -235,8 +236,37 @@ final class InstrumentCoverageClockReadService {
                 $priority[] = $gap;
             }
         }
-        usort($priority, static fn(array $a, array $b): int => ($a['rank'] <=> $b['rank']) ?: ($a['date'] <=> $b['date']) ?: ($a['start_minute'] <=> $b['start_minute']));
+        usort($priority, static fn(array $a, array $b): int => ($a['rank'] <=> $b['rank']) ?: ($b['duration_minutes'] <=> $a['duration_minutes']) ?: ($a['date'] <=> $b['date']) ?: ($a['start_minute'] <=> $b['start_minute']));
         $priority = array_slice($priority, 0, 12);
+
+        $unknownRanges = array();
+        $unknownInstruments = array();
+        $unknownDates = array();
+        $unknownSegments = 0;
+        $unknownMinutes = 0;
+        foreach ($instruments as $row) {
+            $data = (array) ($row['unknown_data'] ?? array());
+            $instrumentName = trim((string) ($row['name_en'] ?? '')) !== '' ? (string) $row['name_en'] : (string) $row['name'];
+            foreach ((array) ($data['ranges'] ?? array()) as $range) {
+                $range['instrument_id'] = (int) $row['id'];
+                $range['instrument_name'] = $instrumentName;
+                $unknownRanges[] = $range;
+                $unknownInstruments[(int) $row['id']] = $instrumentName;
+                $unknownDates[(string) ($range['date'] ?? '')] = (string) ($range['date_label'] ?? '');
+            }
+            $unknownSegments += (int) ($data['segment_count'] ?? 0);
+            $unknownMinutes += (int) ($data['duration_minutes'] ?? 0);
+        }
+        usort($unknownRanges, static fn(array $a, array $b): int => ($a['date'] <=> $b['date']) ?: ($a['start_minute'] <=> $b['start_minute']) ?: ($a['instrument_id'] <=> $b['instrument_id']));
+        ksort($unknownDates);
+        $unknownData = array(
+            'interval_count' => count($unknownRanges),
+            'segment_count' => $unknownSegments,
+            'duration_minutes' => $unknownMinutes,
+            'instruments' => array_values($unknownInstruments),
+            'dates' => array_values($unknownDates),
+            'ranges' => $unknownRanges,
+        );
 
         return array(
             'status' => 'ok',
@@ -253,6 +283,7 @@ final class InstrumentCoverageClockReadService {
             'metric_source' => $period['source'],
             'as_of_local' => $asOfLocal,
             'priority_gaps' => $priority,
+            'unknown_data' => $unknownData,
             'golden_bonus' => $this->goldenBonus(),
             'display_timezone' => $timezone,
             'timezone_label' => str_replace('_', ' ', $timezone),
@@ -590,7 +621,7 @@ final class InstrumentCoverageClockReadService {
 
     /** @return array<string,mixed> */
     private static function unavailable(string $message): array {
-        return array('status' => 'unavailable', 'scope' => '', 'mode' => '', 'date' => '', 'weekday' => 0, 'week_start' => '', 'week_end' => '', 'week_order' => InstrumentCoverageWeek::ORDER, 'period_key' => '', 'period_label' => '', 'gap_period_label' => '', 'metric_source' => '', 'as_of_local' => '', 'priority_gaps' => array(), 'golden_bonus' => array('enabled' => false, 'percent' => 0, 'timezone' => 'Asia/Tehran', 'label' => 'Golden Hours'), 'display_timezone' => '', 'timezone_label' => '', 'calendar' => 'gregorian', 'selected_instrument' => 0, 'instruments' => array(), 'message' => $message);
+        return array('status' => 'unavailable', 'scope' => '', 'mode' => '', 'date' => '', 'weekday' => 0, 'week_start' => '', 'week_end' => '', 'week_order' => InstrumentCoverageWeek::ORDER, 'period_key' => '', 'period_label' => '', 'gap_period_label' => '', 'metric_source' => '', 'as_of_local' => '', 'priority_gaps' => array(), 'unknown_data' => array('interval_count' => 0, 'segment_count' => 0, 'duration_minutes' => 0, 'instruments' => array(), 'dates' => array(), 'ranges' => array()), 'golden_bonus' => array('enabled' => false, 'percent' => 0, 'timezone' => 'Asia/Tehran', 'label' => 'Golden Hours'), 'display_timezone' => '', 'timezone_label' => '', 'calendar' => 'gregorian', 'selected_instrument' => 0, 'instruments' => array(), 'message' => $message);
     }
 
     /** @return array<string,mixed> */

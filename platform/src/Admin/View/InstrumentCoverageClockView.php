@@ -50,6 +50,7 @@ final class InstrumentCoverageClockView {
             return;
         }
         self::priorityGaps($data, $options, $labels, $calendar, $selected, $scope);
+        self::unknownData($data, $options, $labels, $calendar, $scope);
         echo '<div class="dzn-clock__layout">';
         self::ringKey($data, $selected, $labels, $calendar, $scope);
         echo '<div class="dzn-clock__main">';
@@ -147,6 +148,55 @@ final class InstrumentCoverageClockView {
         echo '</ol></section>';
     }
 
+    /**
+     * Compact data-quality indicator. Unknown intervals stay outside the confirmed
+     * gap list but remain inspectable on the clock.
+     *
+     * @param array<string,mixed> $data @param array<string,mixed> $options @param array<string,string|array> $labels
+     */
+    private static function unknownData(array $data, array $options, array $labels, string $calendar, string $scope): void {
+        if ($scope !== 'admin') return;
+        $unknown = (array) ($data['unknown_data'] ?? array());
+        $ranges = (array) ($unknown['ranges'] ?? array());
+        if (!$ranges) return;
+        $base = (string) ($options['base_url'] ?? admin_url('admin.php'));
+        $page = (string) ($options['page'] ?? 'dzn-academy-dashboard');
+        $preserve = array_merge((array) ($options['preserve'] ?? array()), self::currentPreserve($scope));
+        $count = (int) ($unknown['interval_count'] ?? count($ranges));
+        $countLabel = $count === 1 ? (string) ($labels['unknownInterval'] ?? 'unknown interval') : (string) ($labels['unknownIntervals'] ?? 'unknown intervals');
+        $scopeBits = array();
+        if (!empty($unknown['instruments'])) $scopeBits[] = implode(', ', array_map('strval', (array) $unknown['instruments']));
+        $scopeDates = array();
+        foreach ($ranges as $range) {
+            $scopeDates[(string) ($range['date'] ?? '')] = $calendar === 'persian' ? self::persianDate((string) ($range['date'] ?? '')) : (string) ($range['date_label'] ?? '');
+        }
+        if ($scopeDates) $scopeBits[] = implode(', ', array_values($scopeDates));
+        $first = (array) $ranges[0];
+        $firstInstrument = (int) ($first['instrument_id'] ?? 0);
+        $firstWeekday = (int) ($first['weekday'] ?? 0);
+        $firstDate = (string) ($first['date'] ?? '');
+        $firstStart = (int) ($first['visual_start_index'] ?? 0);
+        $firstIndexes = implode(',', array_map('intval', (array) ($first['visual_indexes'] ?? array())));
+        $firstHref = self::url($base, $scope, $page, $preserve, $firstInstrument, $calendar, $firstDate, $firstWeekday . ':' . $firstStart);
+        echo '<section class="dzn-clock__quality" aria-labelledby="dzn-clock-quality-title"><a class="dzn-clock__quality-summary" href="' . esc_url($firstHref) . '" data-dzn-unknown data-dzn-unknown-instrument="' . $firstInstrument . '" data-dzn-unknown-weekday="' . $firstWeekday . '" data-dzn-unknown-date="' . esc_attr($firstDate) . '" data-dzn-unknown-visual-start="' . $firstStart . '" data-dzn-unknown-visual-indexes="' . esc_attr($firstIndexes) . '"><span class="dzn-clock__quality-head"><span class="dzn-clock__quality-title" id="dzn-clock-quality-title">' . esc_html($labels['dataQuality']) . '</span><strong>' . esc_html($count . ' ' . $countLabel . ' · ' . self::duration((int) ($unknown['duration_minutes'] ?? 0))) . '</strong>' . ($scopeBits ? '<span class="dzn-clock__quality-scope">' . esc_html(implode(' · ', $scopeBits)) . '</span>' : '') . '<span class="dzn-clock__quality-note">' . esc_html($labels['unknownHelp']) . '</span></span></a><ul class="dzn-clock__quality-list">';
+        foreach ($ranges as $range) {
+            $instrument = (int) ($range['instrument_id'] ?? 0);
+            $weekday = (int) ($range['weekday'] ?? 0);
+            $date = (string) ($range['date'] ?? '');
+            $visualStart = (int) ($range['visual_start_index'] ?? 0);
+            $visualIndexes = implode(',', array_map('intval', (array) ($range['visual_indexes'] ?? array())));
+            $href = self::url($base, $scope, $page, $preserve, $instrument, $calendar, $date, $weekday . ':' . $visualStart);
+            $dateLabel = $calendar === 'persian' ? self::persianDate($date) : (string) ($range['date_label'] ?? '');
+            $reason = self::reasonLabel((string) ($range['reason'] ?? ''), $labels);
+            echo '<li><a class="dzn-clock__quality-row" href="' . esc_url($href) . '" data-dzn-unknown data-dzn-unknown-instrument="' . $instrument . '" data-dzn-unknown-weekday="' . $weekday . '" data-dzn-unknown-date="' . esc_attr($date) . '" data-dzn-unknown-visual-start="' . $visualStart . '" data-dzn-unknown-visual-indexes="' . esc_attr($visualIndexes) . '">';
+            echo '<span class="dzn-clock__quality-when">' . esc_html((string) ($range['instrument_name'] ?? '')) . ' · ' . esc_html((string) ($labels['weekdays'][$weekday] ?? '')) . ' · ' . esc_html($dateLabel) . '</span>';
+            echo '<span class="dzn-clock__quality-time"><bdi dir="ltr">' . esc_html((string) ($range['time_label'] ?? '')) . '</bdi> · ' . esc_html(self::duration((int) ($range['duration_minutes'] ?? 0))) . '</span>';
+            echo '<span class="dzn-clock__quality-reason">' . esc_html($reason) . '</span>';
+            echo '</a></li>';
+        }
+        echo '</ul></section>';
+    }
+
     /** @param array<string,string|array> $labels */
     private static function reasonLabel(string $reason, array $labels): string {
         return match ($reason) {
@@ -197,7 +247,8 @@ final class InstrumentCoverageClockView {
     }
 
     private static function metric(string $label, string $value, string $key, string $help = ''): void {
-        echo '<div class="dzn-clock__metric dzn-clock__metric--' . esc_attr($key) . '" role="listitem"' . ($help !== '' ? ' title="' . esc_attr($help) . '"' : '') . '><span>' . esc_html($label) . '</span><strong>' . esc_html($value) . '</strong>' . ($help !== '' ? '<small>' . esc_html($help) . '</small>' : '') . '</div>';
+        $description = $help !== '' ? ' title="' . esc_attr($help) . '" aria-label="' . esc_attr($label . '. ' . $help) . '"' : '';
+        echo '<div class="dzn-clock__metric dzn-clock__metric--' . esc_attr($key) . '" role="listitem"' . $description . '><span>' . esc_html($label) . '</span><strong>' . esc_html($value) . '</strong></div>';
     }
 
     /** @param array<string,mixed> $data @param array<string,mixed> $selected @param array<string,string|array> $labels */
@@ -250,6 +301,7 @@ final class InstrumentCoverageClockView {
             'as_of_local' => (string) ($data['as_of_local'] ?? ''),
             'focus' => isset($options['focus']) && is_string($options['focus']) ? $options['focus'] : '',
             'priority_gaps' => (array) ($data['priority_gaps'] ?? array()),
+            'unknown_data' => (array) ($data['unknown_data'] ?? array()),
             'selected_instrument' => (int) $selected['id'],
             'instrument_name' => self::instrumentName($selected, $preferEnglishNames),
             'lesson_minutes' => (int) ($selected['lesson_minutes'] ?? 0),
@@ -395,9 +447,13 @@ final class InstrumentCoverageClockView {
                 'remainingAtTime' => 'باقی‌مانده در این بازه',
                 'instrumentWide' => 'کل ساز',
                 'priorityGaps' => 'شکاف‌های اولویت‌دار این هفته',
-                'priorityGapsHelp' => 'بر پایهٔ همان دادهٔ پوشش ۱۵ دقیقه‌ای.',
+                'priorityGapsHelp' => 'ابتدا ساعت طلایی، سپس بیشترین مدت بدون پوشش، سپس تک‌مدرس.',
                 'openTeachers' => 'دسترسی مدرسان',
                 'noGaps' => 'شکاف قابل‌اقدامی در این بازه نیست.',
+                'dataQuality' => 'کیفیت داده',
+                'unknownInterval' => 'بازهٔ نامشخص',
+                'unknownIntervals' => 'بازهٔ نامشخص',
+                'unknownHelp' => 'نه به‌عنوان ظرفیت آزاد و نه به‌عنوان شکاف تأییدشده شمرده می‌شود.',
                 'reasonNoAvailability' => 'بدون اعلام دسترسی',
                 'reasonFullyBooked' => 'کاملاً رزرو شده',
                 'reasonFullyHeld' => 'در انتظار رزرو دیگر',
@@ -470,9 +526,13 @@ final class InstrumentCoverageClockView {
             'remainingAtTime' => 'Remaining at this interval',
             'instrumentWide' => 'instrument-wide',
             'priorityGaps' => 'Priority gaps this week',
-            'priorityGapsHelp' => 'Derived from the same 15-minute coverage data, ranked by uncovered Golden Hours, other uncovered time, then one-teacher dependency.',
+            'priorityGapsHelp' => 'Golden first, then longest uncovered, then single-teacher.',
             'openTeachers' => 'Open teacher availability',
             'noGaps' => 'No actionable coverage gaps in this period.',
+            'dataQuality' => 'Data quality',
+            'unknownInterval' => 'unknown interval',
+            'unknownIntervals' => 'unknown intervals',
+            'unknownHelp' => 'Not counted as available or as a confirmed gap.',
             'reasonNoAvailability' => 'No declared availability',
             'reasonFullyBooked' => 'Fully booked',
             'reasonFullyHeld' => 'Held by another booking',
@@ -543,7 +603,8 @@ final class InstrumentCoverageClockView {
         $minutes = max(0, $minutes);
         if ($minutes === 0) return '0m';
         $hours = intdiv($minutes, 60);
-        return ($hours > 0 ? $hours . 'h ' : '') . ($minutes % 60) . 'm';
+        if ($hours === 0) return $minutes . 'm';
+        return $hours . 'h' . ($minutes % 60 > 0 ? ' ' . ($minutes % 60) . 'm' : '');
     }
 
     /** @param mixed $value */

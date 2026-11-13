@@ -1863,6 +1863,30 @@ function dzn_theme_platform_teacher_golden_bonus( $teacher_timezone, $calendar =
  * This never records a visit or completion and never affects access. If the educational service
  * is unavailable, the portal omits the card instead of inventing progress.
  */
+/**
+ * Configured Golden Hour windows in the Teacher's local timezone.
+ *
+ * The planner must show the actual effective-dated policy an administrator
+ * configured, not the structural coverage defaults. `bonusOnly=false` keeps the
+ * designated windows visible even while the pay bonus itself is disabled.
+ */
+function dzn_theme_platform_teacher_golden_windows( $teacher_timezone, $days = 7 ) {
+	$timezone = trim( (string) $teacher_timezone );
+	$fallback = array( 'state' => 'unavailable', 'enabled' => false, 'percentage_label' => '0', 'timezone' => $timezone, 'days' => array() );
+	$policy_class = '\\Delnavazan\\Platform\\Core\\Application\\Finance\\GoldenHourPolicyService';
+	$rule_class = '\\Delnavazan\\Platform\\Core\\Application\\Finance\\GoldenHourRule';
+	$projection_class = '\\Delnavazan\\Platform\\Core\\Application\\Finance\\GoldenHourTeacherWindowProjection';
+	if ( ! class_exists( $policy_class ) || ! class_exists( $rule_class ) || ! class_exists( $projection_class ) ) { return $fallback; }
+	try {
+		$policy = ( new $policy_class() )->resolveAt( $rule_class::GLOBAL_IRAN_KEY, gmdate( 'Y-m-d H:i:s' ) );
+		$data = $projection_class::forPolicy( $policy, $timezone, new DateTimeImmutable( 'today', new DateTimeZone( $timezone ) ), max( 1, min( 14, (int) $days ) ), false );
+		$data['timezone'] = $timezone;
+		return $data;
+	} catch ( Throwable $error ) {
+		return $fallback;
+	}
+}
+
 function dzn_theme_platform_teacher_induction_hub(): ?array {
 	$class = '\\Delnavazan\\Platform\\Core\\Application\\Induction\\TeacherInductionService';
 	if ( ! class_exists( $class ) ) { return null; }
@@ -2068,9 +2092,10 @@ function dzn_theme_platform_teacher_availability_planner( $teacher_id, array $ca
 		$weekly_minutes[ $instrument_id ] = $total;
 	}
 
+	$golden_windows = dzn_theme_platform_teacher_golden_windows( (string) ( $golden['timezone'] ?? 'UTC' ) );
 	$golden_by_day = array();
 	for ( $weekday = 1; $weekday <= 7; $weekday++ ) { $golden_by_day[ $weekday ] = array(); }
-	foreach ( (array) ( $golden['days'] ?? array() ) as $day ) {
+	foreach ( (array) ( $golden_windows['days'] ?? array() ) as $day ) {
 		if ( ! is_array( $day ) ) { continue; }
 		$weekday = (int) ( $day['weekday'] ?? 0 );
 		if ( $weekday < 1 || $weekday > 7 ) { continue; }
@@ -2105,12 +2130,6 @@ function dzn_theme_platform_teacher_availability_planner( $teacher_id, array $ca
 				if ( ! is_array( $segment ) ) { continue; }
 				$start = (int) ( $segment['minute'] ?? ( $index * 30 ) );
 				$end = $start + 30;
-				// The shared clock's Golden flag comes from the structural demand
-				// windows, so it still marks the academy's priority hours when the
-				// pay bonus is disabled. Merge it with the Teacher-local projection.
-				if ( ! empty( $segment['golden'] ) ) {
-					$golden_by_day[ $weekday ][] = array( 'start' => $planner_class::clock( $start ), 'end' => $planner_class::clock( $end ) );
-				}
 				$state = (int) ( $segment['state'] ?? 2 );
 				$level = 0 === $state ? 'gap' : ( 1 === $state ? 'limited' : ( 4 === $state ? 'partial' : '' ) );
 				if ( '' === $level ) { continue; }
@@ -2144,7 +2163,7 @@ function dzn_theme_platform_teacher_availability_planner( $teacher_id, array $ca
 		'overview' => $overview,
 		'weekly_minutes' => array_sum( $weekly_minutes ),
 		'timezone_label' => $timezone_label,
-		'golden_label' => (string) ( $golden['percentage_label'] ?? '' ),
+		'golden_label' => (string) ( $golden_windows['percentage_label'] ?? $golden['percentage_label'] ?? '' ),
 		'gap_available' => ! empty( $coverage_instruments ),
 		'week_label' => function_exists( 'wp_date' ) ? wp_date( 'j M' ) : '',
 	);

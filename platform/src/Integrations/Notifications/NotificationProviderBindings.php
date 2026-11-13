@@ -43,7 +43,7 @@ final class NotificationProviderBindings {
         $to=trim((string)($command['to']??''));$subject=trim((string)($command['subject']??''));$body=(string)($command['body']??'');
         if(!is_email($to))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
         if($subject===''||trim($body)==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused');
-        $accepted=DelnavazanEmailRenderer::send($to,$subject,$body,array('locale'=>(string)($command['locale']??NotificationCatalogue::PRIMARY_LOCALE)));
+        $accepted=DelnavazanEmailRenderer::send($to,$subject,$body,array('locale'=>(string)($command['locale']??NotificationCatalogue::PRIMARY_LOCALE),'audience'=>(string)($command['audience']??'')));
         return array('acknowledged'=>$accepted,'permanent_failure'=>$accepted?null:'send_refused');
     }
     public static function filter($bindings):array{

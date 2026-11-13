@@ -28,8 +28,8 @@ final class LessonRescheduleNotificationService {
         ?callable $clock=null
     ){
         $this->store??=new LessonRescheduleRepository();
-        $this->transport=$transport??static function(string $email,string $subject,string $body):bool{
-            if(class_exists(DelnavazanEmailRenderer::class))return DelnavazanEmailRenderer::send($email,$subject,$body,array('locale'=>NotificationCatalogue::PRIMARY_LOCALE));
+        $this->transport=$transport??static function(string $email,string $subject,string $body,string $audience=''):bool{
+            if(class_exists(DelnavazanEmailRenderer::class))return DelnavazanEmailRenderer::send($email,$subject,$body,array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'audience'=>$audience));
             return (bool)wp_mail($email,$subject,$body);
         };
         $this->recipient=$recipient??array(__CLASS__,'defaultRecipient');
@@ -49,7 +49,7 @@ final class LessonRescheduleNotificationService {
                 if(!$recipient||empty($recipient['email']))throw new \RuntimeException('reschedule_recipient_unresolved');
                 $rendered=$this->render($proposal,(string)$locked->event_type,(string)$locked->audience,(string)($recipient['name']??''),$recipient);
                 $this->recordInbox($proposal,(string)$locked->event_type,(string)$locked->audience,$rendered['variables']);
-                $ok=(bool)($this->transport)((string)$recipient['email'],$rendered['subject'],$rendered['body']);
+                $ok=(bool)($this->transport)((string)$recipient['email'],$rendered['subject'],$rendered['body'],(string)$locked->audience);
                 $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
                 if($ok){
                     $this->store->updateNotification((int)$locked->id,array('state'=>'sent','attempt_count'=>(int)$locked->attempt_count+1,'sent_at'=>$now,'last_error_code'=>null,'updated_at'=>$now));

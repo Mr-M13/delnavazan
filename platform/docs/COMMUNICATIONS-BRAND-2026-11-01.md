@@ -25,6 +25,11 @@ and provider-approved domain configuration remain unchanged in integration setti
 The display form of the number is `+61 413 413 004`. Machine-readable values are isolated with
 `dir="ltr"` / `unicode-bidi: isolate` in RTL copy.
 
+Teacher-facing pages and teacher email footers also show the Iran artistic-director contact
+**مدیر هنری دلنوازان (ایران) · `09101401910`** (`tel:+989101401910`). It is defined as
+`BrandIdentity::TEACHER_CONTACT_*` and passed to the email shell with `audience: teacher`; public and
+student messages do not include it.
+
 ## 2. Colour tokens
 
 The visual authority is `theme/assets/css/theme.css`. The renderer projection is

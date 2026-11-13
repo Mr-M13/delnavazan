@@ -303,7 +303,7 @@ final class PostIntroActivationService {
             }
             $renderer = '\\Delnavazan\\Platform\\Integrations\\Notifications\\DelnavazanEmailRenderer';
             $sent = class_exists($renderer)
-                ? $renderer::send((string) $teacher->email, $copy['subject'], $copy['body'], array('locale' => 'fa-IR', 'cta' => array('url' => (string) ($copy['cta_url'] ?? $portal), 'label' => 'رفتن به پرتال مدرس')))
+                ? $renderer::send((string) $teacher->email, $copy['subject'], $copy['body'], array('locale' => 'fa-IR', 'audience' => 'teacher', 'cta' => array('url' => (string) ($copy['cta_url'] ?? $portal), 'label' => 'رفتن به پرتال مدرس')))
                 : wp_mail((string) $teacher->email, $copy['subject'], $copy['body']);
             if (!$sent) throw new \RuntimeException('teacher_notification_failed');
             $this->repository->updatePreparation((int) $preparation->id, array('teacher_notified_at' => $now, 'updated_at' => $now));

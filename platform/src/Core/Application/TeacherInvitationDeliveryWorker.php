@@ -49,6 +49,7 @@ final class TeacherInvitationDeliveryWorker {
             $message=TeacherInvitationPresentation::render($copy['body'],$claimUrl,(string)$payload['secret']);
             $sent=DelnavazanEmailRenderer::send((string)$payload['recipient'],$subject,$message,array(
                 'locale'=>'fa-IR',
+                'audience'=>'teacher',
                 'cta'=>array('label'=>'باز کردن صفحهٔ دعوت','url'=>$claimUrl),
                 'footer_note'=>'این دعوت‌نامه فقط برای شما صادر شده است. کد یک‌بارمصرف را با دیگران به اشتراک نگذارید.',
             ));

@@ -70,6 +70,7 @@ namespace {
     $fail( 'the guide shows no progress or highlight machinery', ! str_contains( $hub_html, 'role="progressbar"' ) && ! str_contains( $hub_html, 'data-dzn-auto-highlight' ) );
     $fail( 'stable anchors remain for contextual help', str_contains( $hub_html, 'id="tp-step-today"' ) && str_contains( $hub_html, 'id="tp-step-join"' ) );
     $fail( 'the guide returns to the portal and keeps support', str_contains( $hub_html, 'بازگشت به حساب کاربری' ) && str_contains( $hub_html, 'نیاز به کمک دارم' ) );
+    $fail( 'the guide shows the Iran artistic-director contact', str_contains( $hub_html, 'مدیر هنری دلنوازان (ایران)' ) && str_contains( $hub_html, '09101401910' ) );
     $fail( 'shell is RTL and exposes real navigation targets', str_contains( $hub_html, 'dir="rtl"' ) && str_contains( $hub_html, 'data-dzn-nav-screen="classes"' ) && str_contains( $hub_html, 'dzn-tp-tabs' ) );
 
     ob_start();

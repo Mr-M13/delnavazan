@@ -4,9 +4,12 @@
  * overnight windows and overlap refusal.
  */
 require __DIR__ . '/../src/Core/Application/AcademyDemandWindowRule.php';
+require __DIR__ . '/../src/Core/Application/AvailabilityLocalTime.php';
 require __DIR__ . '/../src/Core/Application/Finance/Pricing/PricingMoney.php';
 require __DIR__ . '/../src/Core/Application/Finance/GoldenHourRule.php';
+require __DIR__ . '/../src/Core/Application/GoldenHourClockProjection.php';
 use Delnavazan\Platform\Core\Application\Finance\GoldenHourRule;
+use Delnavazan\Platform\Core\Application\GoldenHourClockProjection;
 
 $fail = array();
 $check = static function (bool $ok, string $message) use (&$fail): void { if (!$ok) $fail[] = $message; };
@@ -56,6 +59,14 @@ $legacy = GoldenHourRule::normalizePolicy(GoldenHourRule::GLOBAL_IRAN_KEY, array
     'bonus_percentage' => '12.5', 'effective_from' => '2026-11-01 00:00:00',
 ), $defaults);
 $check($legacy['rules'] === array() && $legacy['bonus_basis_points'] === 1250, 'A legacy period submission must remain accepted without inventing rule rows');
+
+$empty = GoldenHourRule::normalizePolicy(GoldenHourRule::GLOBAL_IRAN_KEY, array(
+    'enabled' => '1', 'timezone' => GoldenHourRule::GLOBAL_IRAN_TIMEZONE,
+    'effective_from' => '2026-11-20 00:00:00', 'rules' => array(),
+), $defaults);
+$check($empty['rules'] === array() && $empty['rules_configured'] === true, 'An explicit empty row list must remain an empty rule set');
+$check($empty['periods'] === array() && $empty['weekdays'] === array() && $empty['enabled'] === false, 'An empty rule set must disable the bonus without recreating a default window');
+$check(GoldenHourClockProjection::forDate($empty, '2026-11-20') === array(), 'An explicit empty rule set must not project a fallback coverage window');
 
 $bad = false;
 try {

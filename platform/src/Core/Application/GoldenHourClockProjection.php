@@ -31,6 +31,7 @@ final class GoldenHourClockProjection {
             }
             if (!$periods) return array();
         } else {
+            if (!empty($policy['rules_configured'])) return array();
             $weekdays = array_values(array_unique(array_map('intval', (array) ($policy['weekdays'] ?? array(1,2,3,4,5,6,7)))));
             if ($weekdays && !in_array($weekday, $weekdays, true)) return array();
             $periods = self::periods($policy);

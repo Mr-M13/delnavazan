@@ -204,6 +204,7 @@ final class GoldenHourPolicyService {
         $decoded['start'] = (string) ($decoded['periods'][0]['start'] ?? $fallback['start']);
         $decoded['end'] = (string) ($decoded['periods'][0]['end'] ?? $fallback['end']);
         $decoded['bonus_basis_points'] = (int) ($decoded['bonus_basis_points'] ?? 0);
+        $decoded['rules_configured'] = !empty($decoded['rules_configured']);
         $rules = $decoded['rules'] ?? array();
         $decoded['rules'] = array();
         if (is_array($rules)) {
@@ -236,6 +237,7 @@ final class GoldenHourPolicyService {
             'start' => (string) $policy['start'],
             'end' => (string) $policy['end'],
             'rules' => array_values((array) ($policy['rules'] ?? array())),
+            'rules_configured' => !empty($policy['rules_configured']),
             'bonus_basis_points' => (int) $policy['bonus_basis_points'],
             'effective_from' => (string) $policy['effective_from'],
             'effective_until' => $policy['effective_until'] === null ? null : (string) $policy['effective_until'],
@@ -249,6 +251,7 @@ final class GoldenHourPolicyService {
             . ',days=' . implode('', array_map('intval', (array) $policy['weekdays']))
             . ',periods=' . implode('|', array_map(static fn(array $period): string => $period['start'] . '-' . $period['end'], (array) ($policy['periods'] ?? array())))
             . ',rules=' . implode('|', array_map(static fn(array $rule): string => implode('', array_map('intval', (array) ($rule['weekdays'] ?? array()))) . ':' . (string) ($rule['start'] ?? '') . '-' . (string) ($rule['end'] ?? '') . '@' . (string) ($rule['bonus_basis_points'] ?? 0) . '/' . (string) ($rule['effective_from'] ?? ''), (array) ($policy['rules'] ?? array())))
+            . ',rules_configured=' . (!empty($policy['rules_configured']) ? '1' : '0')
             . ',from=' . (string) $policy['effective_from']
             . ',until=' . ($policy['effective_until'] === null ? '' : (string) $policy['effective_until']);
     }

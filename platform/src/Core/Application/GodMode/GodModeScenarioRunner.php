@@ -33,20 +33,18 @@ final class GodModeScenarioRunner {
         if($code==='notification_failure_retry'){
             return array('state'=>GodModeRule::RESULT_AWAITING_MANUAL,'summary'=>'A controlled transport failure must be induced with a disposable recipient, then retried and verified. The platform will not fabricate a failure or a successful retry.','evidence'=>array('prerequisites'=>$scenario['prerequisites'],'steps'=>$scenario['steps'],'controlled_failure_required'=>true,'delivery_confirmed'=>false),'session_id'=>null);
         }
-        if(in_array($code,array('portal_notification','email_notification','whatsapp_notification','primary_sms','sms_fallback'),true)){
-            $channel=match($code){'portal_notification'=>'portal','email_notification'=>'email','whatsapp_notification'=>'whatsapp','primary_sms'=>'sms','sms_fallback'=>'sms_fallback'};
+        if(in_array($code,array('portal_notification','email_notification','whatsapp_notification','primary_sms'),true)){
+            $channel=match($code){'portal_notification'=>'portal','email_notification'=>'email','whatsapp_notification'=>'whatsapp','primary_sms'=>'sms'};
             $sessionId=(int)($input['session_id']??0);
             $result=(new GodModeNotificationService($this->repository))->sendTest($sessionId,$channel,(string)($input['recipient_kind']??'owner'),$runId);
             $state=match(true){
                 $channel==='portal'&&$result['state']==='accepted'=>GodModeRule::RESULT_PASSED,
-                $channel==='sms_fallback'&&!empty($result['fallback_condition_verified'])&&$result['state']==='accepted'=>GodModeRule::RESULT_PASSED,
-                $channel==='sms_fallback'&&$result['state']==='warning'=>GodModeRule::RESULT_WARNING,
                 $result['state']==='accepted'=>GodModeRule::RESULT_WARNING,
                 default=>GodModeRule::RESULT_FAILED,
             };
             $summary=match($state){
                 GodModeRule::RESULT_PASSED=>'Transport hand-off verified for this channel.',
-                GodModeRule::RESULT_WARNING=>$channel==='sms_fallback'?'WhatsApp succeeded, so the SMS fallback condition was not exercised.':'Transport accepted the test message; recipient delivery is not confirmed and requires manual verification.',
+                GodModeRule::RESULT_WARNING=>'Transport accepted the test message; recipient delivery is not confirmed and requires manual verification.',
                 default=>'Notification transport did not accept the test message.',
             };
             return array('state'=>$state,'summary'=>$summary,'evidence'=>array('notification'=>$result,'delivery_confirmed'=>false),'session_id'=>$sessionId>0?$sessionId:null,'failed_stage'=>$state===GodModeRule::RESULT_FAILED?GodModeRule::STAGE_INVITATION_SENT:null);

@@ -110,10 +110,10 @@ $has($readService, array(
     'attendanceCaseOptions',
     'rescheduleProposalOptions',
     'Checkout initiated — not paid',
-    'SMS fallback is available only after an eligible, evidenced WhatsApp failure',
+    'SMS is available only for notification events where it is enabled',
     'A queued or handed-off message is not evidence of delivery',
     'No canonical storage or processing workflow exists in this release',
-), 'Payment, consent, SMS fallback and delivery reads must use evidence-backed wording.');
+), 'Payment, consent, SMS and delivery reads must use evidence-backed wording.');
 
 $assert(!str_contains($controller, 'wp_set_password'), 'The interface must never set a password.');
 $assert(!str_contains($controller, 'api_key') && !str_contains($controller, 'access_token') && !str_contains($controller, 'secret_digest'), 'The interface must never expose provider secrets or token digests.');

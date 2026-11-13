@@ -202,7 +202,7 @@ final class Menu {
             ['Integrations', self::INTEGRATIONS_OVERVIEW_CAP, 'dzn-integrations', [IntegrationControlPlaneController::class, 'screen'], null],
             ['Email', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-email', [IntegrationControlPlaneController::class, 'emailSettings'], null],
             ['Meta WhatsApp Cloud API', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-whatsapp', [IntegrationControlPlaneController::class, 'whatsAppSettings'], null],
-            ['SMS fallback', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-sms', [IntegrationControlPlaneController::class, 'smsSettings'], null],
+            ['SMS', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-sms', [IntegrationControlPlaneController::class, 'smsSettings'], null],
             ['Google Workspace & Meet', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-google', [IntegrationControlPlaneController::class, 'googleSettings'], null],
             ['Diagnostics', self::SYSTEM_HEALTH_CAP, 'dzn-system-health', [DiagnosticsController::class, 'screen'], null],
             ['Exceptions', 'dzn_manage_exceptions', 'dzn-exception', static fn() => ScreenController::screen('exception'), static fn() => ScreenController::handlePost('exception')],

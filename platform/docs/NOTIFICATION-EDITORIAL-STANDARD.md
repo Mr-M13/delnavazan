@@ -81,7 +81,7 @@ If a message does not need action, say so explicitly instead of inventing a butt
 - One idea, one action, ≤ 2 segments.
 - Persian is UCS-2: 70 characters for one part, 67 per part thereafter. Keep links short.
 - No one-time code in SMS unless the security policy explicitly permits that channel.
-- SMS is a constrained fallback, never an automatic consequence of a WhatsApp failure.
+- SMS is an independent event-owned delivery method; it is sent only when enabled for that notification and the recipient is eligible.
 
 ### Website inbox
 

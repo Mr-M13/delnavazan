@@ -56,7 +56,7 @@ $fail('template discovery is explicit and read-only',str_contains($discovery,'/v
 $fail('settings expose Telnyx webhook key and WABA',str_contains($settings,"'webhook_public_key'=>'text'")&&str_contains($settings,"'waba_id'=>'text'")&&str_contains($settings,"'sender_id'=>'text'"));
 $fail('admin shows verified webhook and discovery',str_contains($admin,'Verified webhook')&&str_contains($admin,'Refresh approved templates')&&str_contains($admin,'dzn_telnyx_template_sync')&&str_contains($admin,'Webhook URL'));
 $fail('admin readiness is secret-free',str_contains($readService,"'telnyx'=>array")&&str_contains($readService,'webhook_signature')&&str_contains($readService,'dispatch_actor'));
-$fail('fallback is policy-gated',str_contains($composite,'channelPolicy')&&str_contains($composite,'allowed(')&&str_contains($composite,'fallback'));
+$fail('mobile channels are independently policy-gated',str_contains($composite,'channelPolicy')&&str_contains($composite,'allowed(')&&str_contains($composite,'foreach'));
 $fail('no webhook code sends a live message',strpos($service,'wp_remote_post')===false&&strpos($controller,'wp_remote_post')===false);
 $fail('no provider secret is rendered by admin',strpos($admin,'api_key')===false||strpos($admin,'value(\'sms\',\'api_key\')')===false);
 $providerSection=substr($migration,(int)strpos($migration,'install_telnyx_provider_events'),(int)strpos($migration,'verify_telnyx_provider_events_schema')-(int)strpos($migration,'install_telnyx_provider_events'));

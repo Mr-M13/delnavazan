@@ -47,7 +47,6 @@ final class GodModeScenarioLibrary {
             array('email_notification','Email Notification','Verify the real email hand-off to an approved recipient.'),
             array('whatsapp_notification','WhatsApp Notification','Verify the real WhatsApp transport to an approved recipient.'),
             array('primary_sms','Primary SMS','Verify the primary SMS transport to an approved recipient.'),
-            array('sms_fallback','SMS Fallback','Verify that SMS is used only after an observed WhatsApp failure.'),
             array('notification_failure_retry','Notification Failure and Retry','Verify a failed notification is recorded and a safe retry is available.'),
         ) as $item)$add($item[0],'Notifications',$item[1],$item[2],$testRecipient,array('Select channel','Send test notification','Record transport outcome','Confirm delivery evidence'),GodModeRule::MODE_DIRECT,true);
 

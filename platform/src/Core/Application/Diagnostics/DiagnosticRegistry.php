@@ -86,14 +86,14 @@ final class DiagnosticRegistry {
             ),
             'notifications' => array(
                 'label' => 'Notifications & Delivery',
-                'description' => 'Provider connectivity, queue state, failures, retries, template mapping and fallback eligibility.',
+                'description' => 'Provider connectivity, queue state, failures, retries, template mapping and event-owned channel readiness.',
                 'owner' => 'Notifications',
                 'checks' => array(
                     $this->check('notifications.queue', 'Notification queue', 'Queued work is progressing and no lease is stuck.', 'dzn_view_notification_authority', array($this, 'checkNotificationQueue')),
                     $this->check('notifications.failed', 'Failed notifications', 'Delivery failures are visible with a safe reason code.', 'dzn_view_notification_authority', array($this, 'checkNotificationFailures')),
                     $this->check('notifications.providers', 'Email, SMS and WhatsApp readiness', 'Provider configuration is present and locally valid.', 'dzn_view_notification_authority', array($this, 'checkNotificationProviders'), 'dzn-integrations'),
                     $this->check('notifications.templates', 'Template mapping and approval', 'Every active notification workflow points at an active template and no duplicate active mapping exists.', 'dzn_view_notification_authority', array($this, 'checkNotificationTemplates'), 'dzn-notifications'),
-                    $this->check('notifications.fallback', 'SMS fallback safeguards', 'WhatsApp failures are eligible for the canonical SMS fallback.', 'dzn_view_notification_authority', array($this, 'checkNotificationFallback')),
+                    $this->check('notifications.sms', 'SMS readiness', 'SMS is configured for independently enabled notification events.', 'dzn_view_notification_authority', array($this, 'checkNotificationSms')),
                 ),
             ),
             'portals' => array(
@@ -155,7 +155,7 @@ final class DiagnosticRegistry {
                 'checks' => array(
                     $this->check('integrations.email', 'Email / SMTP', 'Email delivery configuration is readable.', 'dzn_view_provider_integrations', array($this, 'checkEmailProvider'), 'dzn-integrations'),
                     $this->check('integrations.whatsapp', 'WhatsApp', 'WhatsApp provider configuration and template mapping are readable.', 'dzn_view_provider_integrations', array($this, 'checkWhatsAppProvider'), 'dzn-integrations'),
-                    $this->check('integrations.sms', 'SMS / Telnyx', 'SMS fallback configuration is readable.', 'dzn_view_provider_integrations', array($this, 'checkSmsProvider'), 'dzn-integrations'),
+                    $this->check('integrations.sms', 'SMS / Telnyx', 'SMS delivery configuration is readable.', 'dzn_view_provider_integrations', array($this, 'checkSmsProvider'), 'dzn-integrations'),
                     $this->check('integrations.payment', 'Payment provider', 'Payment provider readiness is recorded without exposing secrets.', 'dzn_view_provider_integrations', array($this, 'checkFinanceProvider'), 'dzn-integrations'),
                 ),
             ),
@@ -507,18 +507,18 @@ final class DiagnosticRegistry {
         return array('state' => 'healthy', 'detail' => $active . ' active workflow mapping(s) point at active templates with no duplicate.', 'technical_code' => 'notification_templates_ready');
     }
 
-    private function checkNotificationFallback(): array {
+    private function checkNotificationSms(): array {
         $report = (new NotificationDiagnosticsReadService())->report();
         $exhausted = (int) ($report['retry_exhausted'] ?? 0);
         $settings = new IntegrationSettingsService();
         $smsReady = false;
         try { $smsReady = $settings->ready('sms'); } catch (\Throwable) {}
         if (!$smsReady) {
-            return array('state' => 'not_configured', 'detail' => 'The SMS fallback provider is not ready. WhatsApp failures cannot fall back successfully.', 'technical_code' => 'sms_fallback_not_configured', 'related' => array('page=dzn-integrations'));
+            return array('state' => 'not_configured', 'detail' => 'The SMS provider is not ready. SMS-enabled notifications cannot be delivered.', 'technical_code' => 'sms_not_configured', 'related' => array('page=dzn-integrations'));
         }
         return $exhausted > 0
-            ? array('state' => 'degraded', 'detail' => $exhausted . ' notification(s) exhausted retries. SMS fallback eligibility must be reviewed in the notification register.', 'technical_code' => 'sms_fallback_review', 'related' => array('page=dzn-notifications'))
-            : array('state' => 'healthy', 'detail' => 'SMS fallback provider is configured and no notification exhausted retries.', 'technical_code' => 'sms_fallback_ready');
+            ? array('state' => 'degraded', 'detail' => $exhausted . ' notification(s) exhausted retries. Review their enabled delivery methods.', 'technical_code' => 'sms_delivery_review', 'related' => array('page=dzn-notifications'))
+            : array('state' => 'healthy', 'detail' => 'The SMS provider is configured and no notification exhausted retries.', 'technical_code' => 'sms_ready');
     }
 
     private function checkPortalIdentity(): array {

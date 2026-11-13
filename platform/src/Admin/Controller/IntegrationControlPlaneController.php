@@ -47,7 +47,19 @@ final class IntegrationControlPlaneController {
         self::authorizeSettings();$provider=sanitize_key((string)($_POST['provider']??''));
         check_admin_referer('dzn_integration_'.$operation.'_'.$provider);
         $service=new IntegrationSettingsService();
-        if($operation==='save'){$service->save($provider,(array)($_POST['settings']??array()));$result='saved';}
+        if($operation==='save'){
+            $service->save($provider,(array)($_POST['settings']??array()));
+            if($provider==='sms'&&isset($_POST['sms_routing'])&&is_array($_POST['sms_routing'])){
+                $routing=(array)$_POST['sms_routing'];$validated=array();
+                foreach(array('iran','international') as $region){
+                    $selected=sanitize_key((string)($routing[$region]??''));
+                    if(!in_array($selected,array('sms_ir','telnyx'),true))wp_die('Invalid SMS routing selection',400);
+                    $validated[$region]=$selected;
+                }
+                update_option(\Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy::OPTION,$validated,false);
+            }
+            $result='saved';
+        }
         else{
             if(!isset($_POST['run_test']))wp_die('Explicit test action required',400);
             $evidence=(new IntegrationTestRunner())->run($provider,(array)($_POST['test']??array()));
@@ -214,7 +226,17 @@ final class IntegrationControlPlaneController {
         }else{
             echo '<p>Secret values are encrypted with the existing payment-secret vault and are write-only. Test and live credentials are separate. Saving credentials invalidates prior live verification and stops live charging until activation is repeated.</p>';
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" onsubmit="return confirm(\'Save these Stripe live credentials? Live payments will remain inactive until you confirm activation.\')"><input type="hidden" name="action" value="dzn_stripe_live_settings_save">'.($embedded?'<input type="hidden" name="return_to_finance" value="1">':'').wp_nonce_field('dzn_stripe_live_settings_save', '_wpnonce', true, false);
-            echo '<table class="form-table"><tbody>';
+            if($provider==='sms'){
+            $routing=\Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy::settings();
+            echo '<fieldset><legend><strong>SMS provider selection</strong></legend>';
+            foreach(array('iran'=>'Iranian mobile numbers (+98)','international'=>'All other destinations') as $region=>$label){
+                echo '<p><label>'.esc_html($label).' <select name="sms_routing['.esc_attr($region).']">';
+                foreach(array('sms_ir'=>'SMS.ir','telnyx'=>'Telnyx') as $value=>$name)echo '<option value="'.esc_attr($value).'"'.selected($routing[$region],$value,false).'>'.esc_html($name).'</option>';
+                echo '</select></label></p>';
+            }
+            echo '<p class="description">Selecting an unconfigured provider does not send through another provider. SMS.ir connection and activation will be added after account setup.</p></fieldset>';
+        }
+        echo '<table class="form-table"><tbody>';
             echo '<tr><th><label for="stripe-live-pk">Live publishable key</label></th><td><input class="regular-text" id="stripe-live-pk" name="settings[publishable_key]" value="'.esc_attr($live->publishableKey()).'" placeholder="pk_live_…" autocomplete="off"></td></tr>';
             foreach(array('secret_key'=>'Live secret key','webhook_signing_secret'=>'Live webhook signing secret') as $field=>$label){
                 $has=$field==='secret_key'?$saved['secret']:$saved['webhook'];
@@ -394,7 +416,7 @@ final class IntegrationControlPlaneController {
     private static function authorizeStripeSettings():void{if(!current_user_can(PaymentExecutionController::CAPABILITY)||!current_user_can('dzn_manage_payment_providers'))wp_die('Forbidden',403);}
     private static function settingsForm(string $provider):void{
         self::authorizeSettings();$service=new IntegrationSettingsService();$configs=$service->redacted($provider);$schema=IntegrationSettingsService::providerSchemas()[$provider]??array();
-        $labels=array('email'=>'Email','whatsapp'=>'WhatsApp (Telnyx / Meta WABA)','sms'=>'SMS fallback (Telnyx)','google'=>'Google Workspace & Meet');
+        $labels=array('email'=>'Email','whatsapp'=>'WhatsApp (Telnyx / Meta WABA)','sms'=>'SMS (Telnyx / SMS.ir)','google'=>'Google Workspace & Meet');
         $safe=array('email'=>'Sends an explicitly requested TEST email to the entered destination. Mailer acceptance is not mailbox delivery.','whatsapp'=>'Uses the approved Meta WhatsApp Cloud API template through Telnyx. The test sends only after you press the button.','sms'=>'Sends a clearly marked Telnyx test SMS to the entered number only after you press the test button.','google'=>'Tests local OAuth configuration. The organizer connection is authorized separately and only by an administrator.');
         $telnyx=new TelnyxConfiguration($service);
         $last=(array)get_option('dzn_integration_test_'.$provider,array());
@@ -402,6 +424,11 @@ final class IntegrationControlPlaneController {
         if(isset($_GET['integration_result'])){$result=sanitize_text_field((string)$_GET['integration_result']);echo '<div class="notice notice-info"><p>'.esc_html($provider==='email'?self::emailResultMessage($result):$result).'</p></div>';}
         echo '<p>Readiness: <strong>'.esc_html($service->ready($provider)?'Ready':'Needs configuration').'</strong>';
         if($last){$lastCode=(string)($last['code']??'');echo ' · Last explicit test: '.esc_html((string)($last['state']??'unknown')).' ('.esc_html($provider==='email'?self::emailCodeMessage($lastCode):$lastCode).') at '.esc_html((string)($last['at']??''));}echo '</p>';
+        if($provider==='sms'){
+            $routing=\Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy::settings();
+            echo '<h2>SMS provider routing</h2><p>Iranian mobile numbers default to SMS.ir; other numbers default to Telnyx. Each SMS uses only its selected provider. SMS.ir remains unavailable until a verified adapter and account are configured. No automatic provider or WhatsApp fallback.</p>';
+            echo '<p><strong>Current preferences:</strong> Iran: '.esc_html($routing['iran']).' · International: '.esc_html($routing['international']).'</p>';
+        }
         if($provider==='whatsapp'){
             echo '<h2>WhatsApp via Telnyx and Meta WABA</h2><p>These are the existing WhatsApp provider fields. Saved values are preserved and secrets remain write-only. The fields below describe provider configuration only and never enable a send by themselves.</p>';
             echo '<div class="notice notice-warning inline"><p><strong>Twilio WhatsApp is not implemented in this platform.</strong> No Twilio WhatsApp credentials are read, stored or validated here, and this page cannot enable a Twilio WhatsApp send. The configured WhatsApp route uses Telnyx and approved Meta WABA templates.</p></div>';
@@ -533,7 +560,7 @@ final class IntegrationControlPlaneController {
         echo '<div class="dzn-settings-cards">';
         self::renderProviderCard($settings,'email','Email','Account, security and operational email delivery.','dzn-integration-email',array('Sender name/address','Host mail or SMTP','Write-only password'));
         self::renderProviderCard($settings,'whatsapp','WhatsApp','Business-initiated WhatsApp through the existing Telnyx / Meta WABA route.','dzn-integration-whatsapp',array('Telnyx sender and WABA','Meta approved templates','Provider-template mapping is in Notifications → Templates'));
-        self::renderProviderCard($settings,'sms','SMS','A constrained fallback only after a verified terminal WhatsApp failure. It is never a primary channel.','dzn-integration-sms',array('Telnyx SMS sender/profile','Consent and suppression remain mandatory','Direct SMS is not enabled by a checkbox'));
+        self::renderProviderCard($settings,'sms','SMS','Independent SMS delivery for notification events where SMS is enabled.','dzn-integration-sms',array('Telnyx SMS sender/profile','Consent and suppression remain mandatory','Enable SMS per notification in Notifications'));
         self::renderGoogleCard($settings);
         self::renderStripeCard();
         echo '</div>';

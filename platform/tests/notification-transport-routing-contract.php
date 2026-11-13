@@ -1,18 +1,26 @@
 <?php
 require_once dirname(__DIR__).'/src/Core/Application/NotificationTransportPort.php';
+require_once dirname(__DIR__).'/src/Core/Application/SmsProviderRoutingPolicy.php';
 require_once dirname(__DIR__).'/src/Core/Application/NotificationTransportRouter.php';
 use Delnavazan\Platform\Core\Application\NotificationTransportPort;use Delnavazan\Platform\Core\Application\NotificationTransportRouter;
 final class FakeTransport implements NotificationTransportPort{public function handoff(array $c):array{return array('acknowledged'=>true,'permanent_failure'=>null);}}
 $p=new FakeTransport();$r=new NotificationTransportRouter(array(array('channel'=>'whatsapp','configured'=>true,'port'=>$p),array('channel'=>'sms','configured'=>true,'port'=>$p),array('channel'=>'email','configured'=>true,'port'=>$p)));$ch=fn($xs)=>array_map(fn($x)=>$x['channel'],$xs);
-$digest=str_repeat('a',64);
-$fallback=array('whatsapp_terminal_failure_digest'=>$digest,'sms_fallback_authorised'=>true);
-if($ch($r->route('mobile',array('whatsapp_eligible'=>true,'sms_eligible'=>true)))!==array('whatsapp'))throw new RuntimeException('WhatsApp must be the only direct mobile route');
-if($r->route('mobile',array('whatsapp_eligible'=>false,'sms_eligible'=>true))!==array())throw new RuntimeException('An unavailable WhatsApp must never select SMS');
+if($ch($r->route('mobile',array('whatsapp_eligible'=>true,'sms_eligible'=>true)))!==array('whatsapp','sms'))throw new RuntimeException('Enabled mobile methods must route independently');
+if($ch($r->route('mobile',array('whatsapp_eligible'=>false,'sms_eligible'=>true)))!==array('sms'))throw new RuntimeException('SMS must not depend on WhatsApp eligibility');
 if($r->route('mobile',array('whatsapp_eligible'=>false,'sms_eligible'=>false))!==array())throw new RuntimeException('An ineligible mobile recipient must not select SMS');
-if($ch($r->route('mobile',$fallback+array('whatsapp_eligible'=>false,'sms_eligible'=>true)))!==array('sms'))throw new RuntimeException('An authorised verified fallback must select SMS');
-if($r->route('mobile',array('sms_fallback_authorised'=>true,'whatsapp_eligible'=>false,'sms_eligible'=>true))!==array())throw new RuntimeException('A fallback without a verified failure digest must be refused');
-if($r->fallbackAfter('whatsapp','contact_unusable',array('sms_eligible'=>true))!==array())throw new RuntimeException('A permanent failure alone must never duplicate through SMS');
-if($ch($r->fallbackAfter('whatsapp','contact_unusable',$fallback+array('sms_eligible'=>true)))!==array('sms'))throw new RuntimeException('An explicitly authorised fallback must return SMS');
-if($r->fallbackAfter('whatsapp',null,array('sms_eligible'=>true))!==array())throw new RuntimeException('Transient failure must not duplicate');
 if($ch($r->route('email',array('email_eligible'=>true)))!==array('email'))throw new RuntimeException('Email route failed');
+$telnyx=new FakeTransport();$iran=new FakeTransport();
+$providers=new NotificationTransportRouter(array(
+ array('channel'=>'sms','provider'=>'telnyx','configured'=>true,'port'=>$telnyx),
+ array('channel'=>'sms','provider'=>'sms_ir','configured'=>true,'port'=>$iran)
+));
+$chosen=fn($kind,$number)=>$providers->route('mobile',array('recipient_kind'=>$kind,'sms'=>$number,'sms_eligible'=>true));
+if(($chosen('teacher','+989121234567')[0]['provider']??'')!=='sms_ir')throw new RuntimeException('Iranian teacher must use SMS.ir');
+if(($chosen('student','+989121234567')[0]['provider']??'')!=='sms_ir')throw new RuntimeException('Iranian destination must use SMS.ir regardless of role');
+if(($chosen('teacher','+61400123456')[0]['provider']??'')!=='telnyx')throw new RuntimeException('Overseas teacher must use Telnyx');
+$notReady=new NotificationTransportRouter(array(array('channel'=>'sms','provider'=>'telnyx','configured'=>true,'port'=>$telnyx),array('channel'=>'sms','provider'=>'sms_ir','configured'=>false,'port'=>$iran)));
+if($notReady->route('mobile',array('recipient_kind'=>'teacher','sms'=>'+989121234567','sms_eligible'=>true))!==array())throw new RuntimeException('Unconfigured SMS.ir must fail closed without provider fallback');
+$unavailable=new NotificationTransportRouter(array(array('channel'=>'sms','provider'=>'sms_ir','configured'=>true,'port'=>$iran)));
+if(($unavailable->route('mobile',array('recipient_kind'=>'student','sms'=>'+989121234567','sms_eligible'=>true))[0]['provider']??'')!=='sms_ir')throw new RuntimeException('Iranian student must use SMS.ir');
+if(\Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy::select('+989121234567',array('iran'=>'telnyx','international'=>'sms_ir'))!=='telnyx')throw new RuntimeException('Admin override must select Telnyx for Iran');
 echo "Notification transport routing contract passed\n";

@@ -43,7 +43,7 @@ namespace {
     $requestedVariables = array('name' => 'باران', 'course' => 'تار', 'when' => 'شنبه ۱۰ آبان، ۱۷:۰۰', 'portal_url' => 'https://delnavazan.com/student-portal/');
     $teacherVariables = array('teacher' => 'استاد ندا', 'course' => 'تار', 'student' => 'باران', 'when' => 'شنبه ۱۰ آبان، ۱۷:۰۰', 'teacher_portal_url' => 'https://delnavazan.com/teacher-portal/', 'response_window' => '۲۴ ساعت', 'response_deadline' => 'یکشنبه ۱۱ آبان، ۱۷:۰۰');
 
-    $policy = static fn(string $eventKey, string $channel, bool $fallback): bool => true;
+    $policy = static fn(string $eventKey, string $channel): bool => $channel === 'whatsapp';
     $notSuppressed = static fn(string $audience, int $id, string $eventKey): bool => false;
     $noSms = static function () use ($assert): array { throw new RuntimeException('SMS must not be attempted'); };
 
@@ -55,7 +55,7 @@ namespace {
     };
     $dispatcher = new BookingNotificationMobileDispatcher($settings, $configuration, $policy, $notSuppressed, $wa, $noSms);
     $result = $dispatcher->dispatch($student, 'booking.confirmed.student', $confirmedVariables);
-    $assert(($result['state'] ?? '') === 'accepted' && ($result['channel'] ?? '') === 'whatsapp', 'confirmed event must hand off to WhatsApp');
+    $assert(($result['state'] ?? '') === 'accepted' && isset($result['channels']['whatsapp']), 'confirmed event must hand off to WhatsApp');
     $assert(count($sent) === 1 && $sent[0]['to'] === '+989123456789', 'student WhatsApp number must be normalised to E.164');
     $assert($sent[0]['notificationId'] === 81 && $sent[0]['eventKey'] === 'booking.confirmed.student', 'booking notification identity must be preserved');
     foreach (array('name', 'teacher', 'course', 'when') as $code) $assert(isset($sent[0]['parameters'][$code]), 'confirmed parameters must include ' . $code);
@@ -68,20 +68,21 @@ namespace {
     $assert($sent[0]['eventKey'] === 'booking.new.teacher', 'teacher event key must be preserved');
     foreach (array('teacher', 'course', 'student', 'when') as $code) $assert(isset($sent[0]['parameters'][$code]), 'teacher parameters must include ' . $code);
 
-    // 3. A permanent WhatsApp refusal may use SMS when the category explicitly enables it.
+    // 3. SMS is independently sent when its event switch is enabled, even if WhatsApp refuses.
     $sms = array();
     $waRejected = static fn(string $to, int $notificationId, string $eventKey, array $parameters): array => array('acknowledged' => false, 'permanent_failure' => 'send_refused', 'provider_attempted' => true);
     $smsAccepted = static function (string $to, int $notificationId, string $body) use (&$sms): array {
         $sms[] = compact('to', 'notificationId', 'body');
         return array('acknowledged' => true, 'permanent_failure' => null, 'channel' => 'sms');
     };
-    $dispatcher = new BookingNotificationMobileDispatcher($settings, $configuration, $policy, $notSuppressed, $waRejected, $smsAccepted);
+    $allChannels = static fn(string $eventKey, string $channel): bool => true;
+    $dispatcher = new BookingNotificationMobileDispatcher($settings, $configuration, $allChannels, $notSuppressed, $waRejected, $smsAccepted);
     $result = $dispatcher->dispatch($student, 'booking.requested.student', $requestedVariables);
-    $assert(($result['state'] ?? '') === 'accepted' && ($result['channel'] ?? '') === 'sms', 'permanent WhatsApp refusal must use the SMS fallback');
+    $assert(($result['state'] ?? '') === 'accepted' && isset($result['channels']['sms']), 'SMS must remain independently available');
     $assert(count($sms) === 1 && $sms[0]['to'] === '+989123456789', 'SMS must use the E.164 mobile number');
     $assert(str_contains($sms[0]['body'], 'تار') && str_contains($sms[0]['body'], 'شنبه'), 'SMS copy must be rendered from the catalogue');
 
-    // 4. A transient WhatsApp failure is retried by the queue, never fanned out to SMS.
+    // 4. A transient WhatsApp failure remains retryable when SMS is disabled for the event.
     $waTransient = static fn(string $to, int $notificationId, string $eventKey, array $parameters): array => array('acknowledged' => false, 'permanent_failure' => null, 'ambiguous' => true);
     $dispatcher = new BookingNotificationMobileDispatcher($settings, $configuration, $policy, $notSuppressed, $waTransient, $noSms);
     $result = $dispatcher->dispatch($student, 'booking.requested.student', $requestedVariables);
@@ -94,15 +95,15 @@ namespace {
     $assert(($result['state'] ?? '') === 'skipped' && ($result['reason'] ?? '') === 'suppressed', 'an active suppression must skip mobile delivery');
 
     // 6. Policy-disabled WhatsApp never reaches the provider.
-    $blocked = static fn(string $eventKey, string $channel, bool $fallback): bool => false;
+    $blocked = static fn(string $eventKey, string $channel): bool => false;
     $dispatcher = new BookingNotificationMobileDispatcher($settings, $configuration, $blocked, $notSuppressed, $wa, $noSms);
     $result = $dispatcher->dispatch($student, 'booking.confirmed.student', $confirmedVariables);
-    $assert(($result['state'] ?? '') === 'skipped' && ($result['reason'] ?? '') === 'whatsapp_policy_blocked', 'category policy must block WhatsApp');
+    $assert(($result['state'] ?? '') === 'skipped' && ($result['reason'] ?? '') === 'no_enabled_mobile_channel', 'event policy must block mobile delivery');
 
     // 7. A missing catalogue variable cannot produce a partial template.
     $dispatcher = new BookingNotificationMobileDispatcher($settings, $configuration, $policy, $notSuppressed, $wa, $noSms);
     $result = $dispatcher->dispatch($student, 'booking.confirmed.student', array('name' => 'باران'));
-    $assert(($result['state'] ?? '') === 'skipped' && ($result['reason'] ?? '') === 'variable_contract_mismatch', 'missing parameters must fail closed');
+    $assert(($result['state'] ?? '') === 'failed', 'missing parameters must fail closed');
 
     // 8. An event that does not offer WhatsApp is never sent on the mobile route.
     $dispatcher = new BookingNotificationMobileDispatcher($settings, $configuration, $policy, $notSuppressed, $wa, $noSms);

@@ -390,30 +390,28 @@ namespace {
     try{$discoveredLibrary->saveProviderMapping('booking.new.teacher','whatsapp','fa-IR','legacy_teacher_booking_fa','fa');}catch(InvalidArgumentException){$conflictingMap=true;}
     $fail('manual mapping cannot contradict approved discovery', $conflictingMap);
 
+    $provider->upsertTemplate(array(
+        'uid'=>'01TESTMARKETINGTEMPLATE001','provider'=>'telnyx','template_name'=>'delnavazan_teacher_new_booking_fa','language'=>'fa',
+        'provider_template_id'=>'meta-marketing','category'=>'MARKETING','status'=>'APPROVED','event_key'=>'booking.new.teacher','audience'=>'teacher',
+        'variable_order'=>'teacher,course,student,when','last_verified_at'=>'2026-11-01 00:00:00','created_at'=>'2026-11-01 00:00:00','updated_at'=>'2026-11-01 00:00:00',
+    ));
+    $marketingLibrary = new NotificationTemplateLibrary(null,null,new TelnyxTemplateAuthority($provider));
+    $fail('approved Marketing provider templates cannot map transactional notifications', $marketingLibrary->status('booking.new.teacher','whatsapp','fa-IR')['provider_state'] === 'contract_mismatch');
+
     $library->publish($event, 'whatsapp', 'fa-IR', 'عنوان واتس‌اپ', "سلام {{name}} {{when}} {{portal_url}}\nمتن تازهٔ واتس‌اپ");
     $fail('whatsapp copy requires provider approval after publication', $library->status($event, 'whatsapp', 'fa-IR')['provider_state'] === 'approval_required');
 
-    /* 5. Channel policy cannot disable mandatory channels. */
-    $policies = $library->saveChannelPolicy(array(
-        'security' => array('email' => false, 'website' => false, 'whatsapp' => true, 'sms' => true, 'sms_fallback' => true),
-        'optional' => array('email' => true, 'website' => true, 'whatsapp' => false, 'sms' => false, 'sms_fallback' => false),
-    ));
-    $fail('security channels stay locked', $policies['security']['email'] === true && $policies['security']['website'] === true && $policies['security']['whatsapp'] === false && $policies['security']['sms'] === false);
-    $fail('claim event offers only email', $library->permittedChannels('account.claim_issued.student') === array('email'));
+    /* 5. Per-event channel controls cannot disable mandatory channels. */
+    $claimEmail = false;
+    try { $library->saveEventChannel('account.claim_issued.student', 'email', false); } catch (InvalidArgumentException $error) { $claimEmail = true; }
+    $fail('mandatory email stays locked', $claimEmail && $library->eventChannelEnabled('account.claim_issued.student', 'email') === true);
+    $fail('claim event declares WhatsApp and SMS for explicit future activation', $library->channelOffered('account.claim_issued.student', 'whatsapp') && $library->channelOffered('account.claim_issued.student', 'sms'));
     $claimWhatsApp = $library->status('account.claim_issued.student', 'whatsapp', 'fa-IR');
-    $fail('a policy-disabled channel is not advertised', $library->catalogueRows('whatsapp', 'fa-IR') === array());
-    $fail('a policy-disabled channel keeps its factual provider state', $claimWhatsApp['permitted'] === false && $claimWhatsApp['provider_state'] === 'not_mapped');
-    $fail('a policy-disabled channel does not demand a Meta mapping', !str_contains(implode(' ', $claimWhatsApp['issues']), 'Meta-approved template'));
+    $fail('a disabled channel is not advertised as active', !in_array('whatsapp', $library->permittedChannels('account.claim_issued.student'), true));
+    $fail('a disabled channel keeps its factual provider state', $claimWhatsApp['permitted'] === false && $claimWhatsApp['provider_state'] === 'not_mapped');
+    $fail('a disabled channel reports its own state rather than a provider demand', str_contains(implode(' ', $claimWhatsApp['issues']), 'disabled'));
     $operational = $library->permittedChannels('booking.confirmed.student');
     $fail('operational events default to email and portal', $operational === array('website', 'email'));
-
-    /* 5b. SMS is fallback-only: a direct SMS flag cannot survive save or policy read. */
-    $direct = $library->saveChannelPolicy(array('booking' => array('sms' => true, 'sms_fallback' => false)));
-    $fail('direct SMS alone is refused', $direct['booking']['sms'] === false && $direct['booking']['sms_fallback'] === false);
-    $fallback = $library->saveChannelPolicy(array('booking' => array('sms_fallback' => true)));
-    $fail('SMS fallback enables the derived SMS capability', $fallback['booking']['sms_fallback'] === true && $fallback['booking']['sms'] === true);
-    $library->saveChannelPolicy(array('booking' => array('email' => true, 'website' => true, 'whatsapp' => false, 'sms_fallback' => false)));
-    $fail('SMS fallback and SMS capability stay in sync', $library->channelPolicy('booking')['sms'] === false && $library->channelPolicy('booking')['sms_fallback'] === false);
 
     /* 6. Resolver: published copy wins, missing variables and unknown events fall back. */
     $resolved = NotificationCopyResolver::email($event, 'fa-IR', array('name' => 'باران', 'when' => 'شنبه', 'portal_url' => 'https://delnavazan.com/student-portal/', 'teacher' => 'استاد', 'course' => 'تار', 'join_url' => 'https://example.invalid/join'), array('subject' => 'fallback', 'body' => 'fallback'));
@@ -423,11 +421,13 @@ namespace {
     $unknown = NotificationCopyResolver::email('not.a.real.event', 'fa-IR', array(), array('subject' => 's', 'body' => 'b'));
     $fail('resolver falls back for an unknown event', $unknown['source'] === 'fallback');
 
-    /* 7. Channel policy keeps mandatory categories locked and gates optional channels. */
+    /* 7. Event controls keep mandatory channels locked and gate optional channels. */
     $fail('security never allows WhatsApp', NotificationChannelPolicy::allows('account.claim_issued.student', 'whatsapp') === false);
-    $fail('security never allows SMS fallback', NotificationChannelPolicy::allowsSmsFallback('account.claim_issued.student') === false);
+    $fail('security never allows SMS', NotificationChannelPolicy::allows('account.claim_issued.student', 'sms') === false);
     $fail('website is allowed for an operational event', NotificationChannelPolicy::allows('booking.confirmed.student', 'website') === true);
     $fail('a channel outside the event is refused', NotificationChannelPolicy::allows('post_intro.activated.student', 'sms') === false);
+    $library->saveEventChannel('booking.confirmed.student', 'whatsapp', true);
+    $fail('an event-scoped WhatsApp decision enables only that event', NotificationChannelPolicy::allows('booking.confirmed.student', 'whatsapp') === true);
 
     /* 8. Website inbox: dedupe, ownership and read state. */
     $GLOBALS['wpdb']->seed('dzn_students', array(array('id' => 9, 'wordpress_user_id' => 7, 'status' => 'active', 'archived_at' => null, 'locale' => 'fa_IR')));

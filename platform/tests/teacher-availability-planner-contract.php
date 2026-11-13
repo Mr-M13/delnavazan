@@ -35,11 +35,13 @@ $assert(str_contains($script, 'pointerdown'), 'The planner dial must accept dire
 $assert(str_contains($script, "step = '900'"), 'The native time inputs must keep 15-minute precision.');
 $assert(str_contains($script, 'is-golden') && str_contains($script, 'is-gap'), 'The planner must render Golden Hour and coverage-gap overlays.');
 $assert(str_contains($script, 'is-booked'), 'The planner must render the existing-classes inner ring.');
+$assert(str_contains($script, 'drawBlocks'), 'The planner must render time segments as discrete blocks like the admin coverage clock.');
 $assert(str_contains($script, 'ranges.push'), 'The planner must serialize multiple ranges per instrument.');
 
 $assert(str_contains($style, '.dzn-ap__band.is-selected'), 'The planner stylesheet must style selected ranges.');
 $assert(str_contains($style, '.dzn-ap__band.is-golden'), 'The planner stylesheet must style Golden Hour bands.');
 $assert(str_contains($style, '.dzn-ap__band.is-booked'), 'The planner stylesheet must style the existing-classes inner ring.');
+$assert(str_contains($style, '@media (max-width: 40rem)') && str_contains($style, '.dzn-ap__hour.is-minor'), 'Mobile captions must reduce to readable major labels.');
 $assert(str_contains($style, '.dzn-ap__band.is-gap'), 'The planner stylesheet must style coverage-gap bands.');
 
 $assert(str_contains($service, 'replaceOwnWeeklySchedule'), 'The canonical service must expose the atomic weekly-schedule replacement.');
@@ -49,5 +51,6 @@ $assert(str_contains($controller, 'dzn_teacher_availability_schedule'), 'The sel
 $assert(str_contains($bridge, 'dzn_theme_platform_teacher_availability_planner'), 'The portal model must build the planner payload.');
 $assert(str_contains($bridge, 'dzn_theme_platform_teacher_coverage_clock'), 'The planner must reuse the canonical teacher coverage clock data.');
 $assert(str_contains($bridge, 'dzn_theme_platform_teacher_booked_bands') && str_contains($bridge, "'booked_bands'"), 'The planner must expose the Teacher-local existing-class bands.');
+$assert(str_contains($bridge, 'dzn_theme_platform_teacher_golden_windows'), 'Golden Hour bands must come from the configured effective-dated policy.');
 
 echo "teacher-availability-planner-contract: OK\n";

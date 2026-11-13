@@ -274,26 +274,39 @@
 			});
 		}
 
+		function drawBlocks(svg, outer, inner, start, end, className, step, gap) {
+			step = step || 30;
+			gap = gap === undefined ? 0.2 : gap;
+			var cursor = Number(start);
+			var stop = Number(end);
+			while (cursor < stop) {
+				var blockEnd = Math.min(cursor + step, stop);
+				var startAngle = angleForMinute(cursor);
+				var endAngle = startAngle + (blockEnd - cursor) / 1440 * 360;
+				if (endAngle - startAngle > gap * 2.2) {
+					svg.appendChild(el('path', {
+						d: arcPath(outer, inner, startAngle + gap, endAngle - gap),
+						class: className
+					}));
+				}
+				cursor = blockEnd;
+			}
+		}
+
 		function drawBands(svg, day, instrument) {
 			var goldenBands = golden[day] || [];
 			goldenBands.forEach(function (range) {
 				var start = minute(range.start);
 				var end = minute(range.end);
 				if (start === null || end === null || end <= start) return;
-				svg.appendChild(el('path', {
-					d: arcFor(334, 322, start, end),
-					class: 'dzn-ap__band is-golden'
-				}));
+				drawBlocks(svg, 316, 304, start, end, 'dzn-ap__band is-golden', 30, 0.2);
 			});
 			var bookedBands = booked[day] || [];
 			bookedBands.forEach(function (range) {
 				var start = minute(range.start);
 				var end = minute(range.end);
 				if (start === null || end === null || end <= start) return;
-				svg.appendChild(el('path', {
-					d: arcFor(244, 232, start, end),
-					class: 'dzn-ap__band is-booked'
-				}));
+				drawBlocks(svg, 230, 218, start, end, 'dzn-ap__band is-booked', 30, 0.2);
 			});
 			var gapBands = (gaps[instrument] && gaps[instrument][day]) || [];
 			gapBands.forEach(function (range) {
@@ -303,10 +316,7 @@
 				// The gap overlay is a preview: a range the Teacher is currently
 				// drawing would itself cover that gap, so subtract it immediately.
 				subtractIntervals([{ start: start, end: end, level: range.level || 'gap' }], activeSchedule()).forEach(function (part) {
-					svg.appendChild(el('path', {
-						d: arcFor(260, 248, part.start, part.end),
-						class: 'dzn-ap__band is-gap is-' + String(part.level || 'gap')
-					}));
+					drawBlocks(svg, 248, 236, part.start, part.end, 'dzn-ap__band is-gap is-' + String(part.level || 'gap'), 30, 0.18);
 				});
 			});
 		}
@@ -320,16 +330,16 @@
 			pattern.appendChild(el('line', { x1: 0, y1: 0, x2: 0, y2: 6, stroke: '#b45a2a', 'stroke-width': 2 }));
 			defs.appendChild(pattern);
 			svg.appendChild(defs);
-			svg.appendChild(el('circle', { cx: CX, cy: CY, r: 344, class: 'dzn-ap__face' }));
-			svg.appendChild(el('circle', { cx: CX, cy: CY, r: 240, class: 'dzn-ap__inner' }));
+			svg.appendChild(el('circle', { cx: CX, cy: CY, r: 336, class: 'dzn-ap__face' }));
+			svg.appendChild(el('circle', { cx: CX, cy: CY, r: 205, class: 'dzn-ap__inner' }));
 
 			for (var hour = 0; hour < 24; hour++) {
 				var degrees = angleForMinute(hour * 60);
 				var major = hour % 6 === 0;
-				var from = point(major ? 330 : 336, degrees);
-				var to = point(350, degrees);
+				var from = point(major ? 318 : 322, degrees);
+				var to = point(332, degrees);
 				svg.appendChild(el('line', { x1: from[0], y1: from[1], x2: to[0], y2: to[1], class: 'dzn-ap__tick' + (major ? ' is-major' : '') }));
-				var labelPoint = point(352, degrees);
+				var labelPoint = point(348, degrees);
 				svg.appendChild(el('text', {
 					x: labelPoint[0], y: labelPoint[1],
 					class: 'dzn-ap__hour' + (major ? ' is-major' : ' is-minor'),
@@ -340,10 +350,7 @@
 			drawBands(svg, state.day, state.instrument);
 
 			activeSchedule().forEach(function (interval) {
-				svg.appendChild(el('path', {
-					d: arcFor(314, 274, interval.start, interval.end),
-					class: 'dzn-ap__band is-selected'
-				}));
+				drawBlocks(svg, 296, 258, interval.start, interval.end, 'dzn-ap__band is-selected', 15, 0.12);
 			});
 
 			if (state.pendingStart !== null) {
@@ -352,12 +359,12 @@
 				var previewTo = Math.max(state.pendingStart, previewEnd);
 				if (previewTo > previewFrom) {
 					svg.appendChild(el('path', {
-						d: arcFor(314, 274, previewFrom, previewTo),
+						d: arcFor(296, 258, previewFrom, previewTo),
 						class: 'dzn-ap__band is-pending'
 					}));
 				}
 			}
-			var cursorPoint = point(294, angleForMinute(state.cursor));
+			var cursorPoint = point(276, angleForMinute(state.cursor));
 			svg.appendChild(el('circle', { cx: cursorPoint[0], cy: cursorPoint[1], r: 7, class: 'dzn-ap__cursor' }));
 
 			var total = totalMinutes(activeSchedule());

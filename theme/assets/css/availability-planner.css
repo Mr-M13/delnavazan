@@ -329,7 +329,7 @@
 
 .dzn-ap__range {
 	display: grid;
-	grid-template-columns: 1fr 1fr auto;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
 	gap: .5rem;
 	align-items: end;
 	padding: .6rem;
@@ -341,12 +341,15 @@
 .dzn-ap__range label {
 	display: grid;
 	gap: .25rem;
+	min-width: 0;
 	color: var(--dzn-ap-muted);
 	font-size: .75rem;
 }
 
 .dzn-ap__range input[type="time"] {
 	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
 	padding: .45rem .5rem;
 	border: 1px solid var(--dzn-ap-line);
 	border-radius: .55rem;
@@ -406,15 +409,43 @@
 	}
 }
 
+@media (max-width: 52rem) {
+	.dzn-ap__overview {
+		grid-template-columns: 1fr;
+	}
+}
+
 @media (max-width: 40rem) {
+	.dzn-ap__hour.is-minor {
+		display: none;
+	}
+	.dzn-ap__hour.is-major {
+		font-size: 20px;
+	}
+	.dzn-ap__legend {
+		font-size: .86rem;
+	}
+	.dzn-ap__day small,
+	.dzn-ap__instrument-tab small {
+		font-size: .76rem;
+	}
+	.dzn-ap__overview span,
+	.dzn-ap__overview small {
+		font-size: .82rem;
+	}
 	.dzn-ap__overview {
 		grid-template-columns: 1fr;
 	}
 	.dzn-ap__range {
-		grid-template-columns: 1fr 1fr;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 	}
-	.dzn-ap__remove {
+	.dzn-ap__range .dzn-ap__remove {
 		grid-column: 1 / -1;
+		width: 100%;
+	}
+	.dzn-ap__instrument-tab,
+	.dzn-ap__day {
+		min-width: 5.2rem;
 	}
 	.dzn-ap__save-row {
 		display: grid;

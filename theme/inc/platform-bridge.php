@@ -2164,6 +2164,10 @@ function dzn_theme_platform_teacher_availability_planner( $teacher_id, array $ca
 		'weekly_minutes' => array_sum( $weekly_minutes ),
 		'timezone_label' => $timezone_label,
 		'golden_label' => (string) ( $golden_windows['percentage_label'] ?? $golden['percentage_label'] ?? '' ),
+		'golden_policy_timezone' => (string) ( $golden_windows['policy_timezone'] ?? '' ),
+		'golden_enabled' => ! empty( $golden_windows['enabled'] ),
+		'golden_configured' => ! empty( $golden_windows['configured'] ),
+		'golden_effective_from' => (string) ( $golden_windows['effective_from'] ?? '' ),
 		'gap_available' => ! empty( $coverage_instruments ),
 		'week_label' => function_exists( 'wp_date' ) ? wp_date( 'j M' ) : '',
 	);

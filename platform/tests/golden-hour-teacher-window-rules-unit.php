@@ -22,6 +22,7 @@ $policy = array(
 		array('weekdays' => array(1), 'start' => '18:00', 'end' => '20:00', 'bonus_basis_points' => 2000),
 	),
 	'rules_configured' => true,
+	'configured' => true,
 );
 
 $projection = GoldenHourTeacherWindowProjection::forPolicy(
@@ -35,6 +36,7 @@ $projection = GoldenHourTeacherWindowProjection::forPolicy(
 $byWeekday = array();
 foreach ($projection['days'] as $day) $byWeekday[(int) $day['weekday']] = $day;
 
+$assert(!empty($projection['configured']), 'A resolved policy must be marked configured.');
 $assert(isset($byWeekday[6]) && $byWeekday[6]['intervals'][0]['start'] === '10:00' && $byWeekday[6]['intervals'][0]['end'] === '12:00', 'Saturday must use its own configured rule.');
 $assert(isset($byWeekday[7]) && $byWeekday[7]['intervals'][0]['start'] === '10:00', 'Sunday must receive the weekend rule, not the first rule only.');
 $assert(isset($byWeekday[1]) && $byWeekday[1]['intervals'][0]['start'] === '18:00' && $byWeekday[1]['intervals'][0]['end'] === '20:00', 'Monday must use its own configured rule.');

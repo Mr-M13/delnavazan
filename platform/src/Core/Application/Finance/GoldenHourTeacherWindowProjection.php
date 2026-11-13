@@ -132,6 +132,9 @@ final class GoldenHourTeacherWindowProjection {
             'timezone_label'=>$teacherTimezone,
             'policy_timezone'=>$policyTimezone,
             'label'=>(string)($policy['label']??''),
+            'configured'=>!empty($policy['configured']),
+            'effective_from'=>(string)($policy['effective_from']??''),
+            'setting_version'=>(int)($policy['setting_version']??0),
             'has_windows'=>$hasWindows,
             'days'=>$days,
         );

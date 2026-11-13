@@ -337,25 +337,19 @@ final class InstrumentCoverageClockReadService {
         if (isset($this->goldenCache[$cacheKey])) return $this->goldenCache[$cacheKey];
         $out = array();
         try {
-            $windows = (new GoldenHourPolicyService())->coverageWindows();
+            // Use the effective-dated policy the administrator actually set.
+            // The structural demand defaults are only a fallback when the policy
+            // cannot be resolved.
+            $policy = (new GoldenHourPolicyService())->resolveAt(GoldenHourRule::GLOBAL_IRAN_KEY, $date . ' 12:00:00');
         } catch (\Throwable) {
-            $windows = GoldenHourRule::defaults();
+            $defaults = GoldenHourRule::defaults();
+            $policy = $defaults[GoldenHourRule::GLOBAL_IRAN_KEY] ?? array();
         }
-        foreach ($windows as $region => $window) {
-            if (!is_array($window)) continue;
-            $policy = array(
-                'timezone' => (string) ($window['timezone'] ?? 'UTC'),
-                'weekdays' => (array) ($window['weekdays'] ?? array(1,2,3,4,5,6,7)),
-                'start' => (string) ($window['start'] ?? '16:00'),
-                'end' => (string) ($window['end'] ?? '21:00'),
-                'periods' => (array) ($window['periods'] ?? array(array('start' => (string) ($window['start'] ?? '16:00'), 'end' => (string) ($window['end'] ?? '21:00')))),
+        foreach (GoldenHourClockProjection::aroundDate($policy, $date) as $occurrence) {
+            $out[] = $occurrence + array(
+                'region' => GoldenHourRule::GLOBAL_IRAN_KEY,
+                'label' => (string) ($policy['label'] ?? 'Golden Hours'),
             );
-            foreach (GoldenHourClockProjection::aroundDate($policy, $date) as $occurrence) {
-                $out[] = $occurrence + array(
-                    'region' => (string) $region,
-                    'label' => (string) ($window['label'] ?? $region),
-                );
-            }
         }
         usort($out, static fn(array $a, array $b): int => $a['starts_at_utc'] <=> $b['starts_at_utc'] ?: strcmp((string) $a['region'], (string) $b['region']));
         $this->goldenCache[$cacheKey] = $out;

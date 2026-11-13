@@ -60,7 +60,7 @@ $contains($unknownData, array('STATE_UNKNOWN', 'reason', 'interval_count', 'visu
 $expect(!preg_match('/\b(INSERT INTO|UPDATE\s+|DELETE FROM)\b/i', $metrics . $gapList), 'Metrics and gap ranking must remain read-only.');
 
 $contains($projection, array('GoldenHourRule::GLOBAL_IRAN_TIMEZONE', 'forDate(', 'aroundDate(', 'weekdays', 'periods'), 'Golden Hour projection must use the finance-owned policy.');
-$contains($readService, array('coverageWindows()', 'GoldenHourClockProjection::aroundDate', "'region'", "'label'", "'local_start'", "'local_end'", 'intensity'), 'The outer ring must aggregate configured regional demand windows with local times.');
+$contains($readService, array('resolveAt(GoldenHourRule::GLOBAL_IRAN_KEY', 'GoldenHourClockProjection::aroundDate', "'region'", "'label'", "'local_start'", "'local_end'", 'intensity'), 'The outer ring must use the configured effective-dated Golden Hour policy with local times.');
 $expect(!str_contains($readService, 'country'), 'The clock must use service regions for demand aggregation, not country tagging.');
 
 $expect(!str_contains($controller, 'AcademyCoverageView') && !str_contains($controller, 'Regional demand-window atlas'), 'The legacy regional atlas must be retired from the admin coverage route.');

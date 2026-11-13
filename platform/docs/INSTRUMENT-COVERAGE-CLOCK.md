@@ -123,10 +123,11 @@ Colour is never the only cue.
 
 ## Golden Hours ring
 
-The outer ring aggregates the existing regional structural demand windows from
-`GoldenHourPolicyService::coverageWindows()` across the seven displayed dates.
-It does not create a second region authority and does not replace the global pay
-policy.
+The outer ring aggregates the effective-dated Golden Hour policy resolved by
+`GoldenHourPolicyService::resolveAt(GoldenHourRule::GLOBAL_IRAN_KEY)` across the
+seven displayed dates. It does not create a second policy authority: the same
+configured rules drive the Teacher planner, the Coverage clock and the pay
+eligibility projection.
 
 Selecting a Golden ring segment shows:
 
@@ -139,7 +140,7 @@ Selecting a Golden ring segment shows:
 
 The outer ring is an **aggregate**; exact weekday eligibility is shown by a thin
 gold inner edge on the relevant weekday-ring segment and in the day-specific
-detail. The regional demand windows are not automatically remuneration windows.
+detail. The Golden Hour designation is a policy window; actual bonus eligibility still follows the enabled global pay policy.
 
 On a weekday ring the detail panel states whether that day is a Golden Hour and
 lists the contributing regions. Bonus eligibility is shown only when the existing
@@ -162,7 +163,7 @@ separately in the detail panel, alongside the instrument-wide count.
 | Active pre-payment holds | `CanonicalContinuationCapacityAuthority::activeHoldsInRange()` |
 | Lesson duration and buffer | active introductory Course shape |
 | Teacher eligibility and status | eligibility, onboarding/readiness and accepting state |
-| Regional demand windows | `GoldenHourPolicyService::coverageWindows()` |
+| Golden Hour windows | `GoldenHourPolicyService::resolveAt(GoldenHourRule::GLOBAL_IRAN_KEY)` |
 | Global pay/bonus | `GoldenHourPolicyService` (`GLOBAL_IRAN`) |
 | Bookable catalogue shape | `PublicBookingOptionsReadService` |
 | Week arithmetic | `InstrumentCoverageWeek` |

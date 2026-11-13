@@ -195,6 +195,7 @@
 		var days = labels.days || {};
 		var golden = data.golden || {};
 		var gaps = data.gaps || {};
+		var booked = data.booked || {};
 		var intake = Number(data.intake || 0);
 		var dragging = null;
 
@@ -282,6 +283,16 @@
 				svg.appendChild(el('path', {
 					d: arcFor(334, 322, start, end),
 					class: 'dzn-ap__band is-golden'
+				}));
+			});
+			var bookedBands = booked[day] || [];
+			bookedBands.forEach(function (range) {
+				var start = minute(range.start);
+				var end = minute(range.end);
+				if (start === null || end === null || end <= start) return;
+				svg.appendChild(el('path', {
+					d: arcFor(244, 232, start, end),
+					class: 'dzn-ap__band is-booked'
 				}));
 			});
 			var gapBands = (gaps[instrument] && gaps[instrument][day]) || [];

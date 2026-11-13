@@ -52,6 +52,7 @@ $payload = array(
 	'instruments' => $instruments,
 	'golden' => (array) ( $planner['golden_bands'] ?? array() ),
 	'gaps' => (array) ( $planner['gap_bands'] ?? array() ),
+	'booked' => (array) ( $planner['booked_bands'] ?? array() ),
 	'overview' => $overview,
 	'labels' => array( 'days' => $days, 'statuses' => $status_labels ),
 	'selected' => $selected,
@@ -70,7 +71,7 @@ $empty_url = admin_url( 'admin-post.php?action=dzn_teacher_availability_instrume
 		</div>
 		<span class="dzn-ap__tz"><bdi><?php echo esc_html( (string) ( $planner['timezone_label'] ?? $timezone ) ); ?></bdi></span>
 	</div>
-	<p class="dzn-tp-help">روز را انتخاب کنید، سپس روی ساعت بکشید یا دو نقطه را بزنید. هر روز می‌تواند چند بازهٔ جدا داشته باشد. ساعت طلایی و کم‌پوشش‌ها همان‌جا نشان داده می‌شوند تا بدانید کدام ساعت‌ها برای آکادمی مهم‌ترند.</p>
+	<p class="dzn-tp-help">روز را انتخاب کنید، سپس روی ساعت بکشید یا دو نقطه را بزنید. هر روز می‌تواند چند بازهٔ جدا داشته باشد. حلقهٔ داخلی کلاس‌های ثبت‌شدهٔ همین هفته را نشان می‌دهد؛ ساعت طلایی و کم‌پوشش‌ها هم همان‌جا مشخص‌اند تا بدانید کدام ساعت‌ها برای آکادمی مهم‌ترند.</p>
 
 	<div class="dzn-ap__overview" role="group" aria-label="خلاصهٔ برنامهٔ هفتگی">
 		<div><span>اختصاص‌یافته به دلنوازان</span><strong data-dzn-ap-metric="allocated"><?php echo esc_html( number_format_i18n( (int) ( $overview['allocated_minutes'] ?? 0 ) / 60, 1 ) ); ?></strong><small>ساعت در هفته</small></div>
@@ -104,6 +105,7 @@ $empty_url = admin_url( 'admin-post.php?action=dzn_teacher_availability_instrume
 			<div class="dzn-ap__dial" data-dzn-ap-dial role="application" aria-label="ساعت انتخاب زمان تدریس. با کلیدهای جهت‌دار حرکت کنید و با Enter شروع یا پایان بازه را ثبت کنید." tabindex="0"></div>
 			<div class="dzn-ap__legend" aria-label="راهنمای ساعت">
 				<span class="is-selected"><i aria-hidden="true"></i>زمان شما</span>
+				<span class="is-booked"><i aria-hidden="true"></i>کلاس ثبت‌شده</span>
 				<span class="is-golden"><i aria-hidden="true"></i>ساعت طلایی / تقاضای بالا</span>
 				<span class="is-gap"><i aria-hidden="true"></i>کم‌پوشش</span>
 			</div>

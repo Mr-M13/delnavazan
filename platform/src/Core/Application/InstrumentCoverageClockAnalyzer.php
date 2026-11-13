@@ -16,6 +16,8 @@ namespace Delnavazan\Platform\Core\Application;
 final class InstrumentCoverageClockAnalyzer {
     public const SLOT_MINUTES = 15;
     public const SEGMENTS_PER_DAY = 96;
+    public const VISUAL_SLOT_MINUTES = 30;
+    public const VISUAL_SEGMENTS_PER_DAY = 48;
 
     public const MODE_WEEKLY = 'weekly';
     public const MODE_DATE = 'date';
@@ -24,6 +26,7 @@ final class InstrumentCoverageClockAnalyzer {
     public const STATE_LIMITED = 'limited';
     public const STATE_COVERED = 'covered';
     public const STATE_UNKNOWN = 'unknown';
+    public const STATE_PARTIAL = 'partial';
 
     public const REASON_NONE = '';
     public const REASON_NO_AVAILABILITY = 'no_availability';
@@ -189,6 +192,70 @@ final class InstrumentCoverageClockAnalyzer {
             'golden_gaps' => self::ranges($segments, static fn(array $segment): bool => $segment['state'] === self::STATE_UNCOVERED && $segment['golden']),
             'selected_segment' => null,
         );
+    }
+
+    /**
+     * Aggregate the authoritative 15-minute analysis into 48 visual 30-minute
+     * segments. No booking precision is lost: each visual segment carries both
+     * halves and a partial state when the halves differ. The ring visualisation is
+     * presentation only; the full interval validation remains in `build()`.
+     *
+     * @param array<string,mixed> $clock
+     * @return list<array<string,mixed>>
+     */
+    public static function visualize(array $clock): array {
+        $source = array_values((array) ($clock['segments'] ?? array()));
+        $visual = array();
+        for ($index = 0; $index < self::VISUAL_SEGMENTS_PER_DAY; $index++) {
+            $first = $source[$index * 2] ?? null;
+            $second = $source[$index * 2 + 1] ?? null;
+            if (!is_array($first) || !is_array($second)) continue;
+            $firstBookable = in_array($first['state'], array(self::STATE_COVERED, self::STATE_LIMITED), true);
+            $secondBookable = in_array($second['state'], array(self::STATE_COVERED, self::STATE_LIMITED), true);
+            $firstCount = (int) ($first['teacher_count'] ?? 0);
+            $secondCount = (int) ($second['teacher_count'] ?? 0);
+            $firstState = (string) $first['state'];
+            $secondState = (string) $second['state'];
+            $unknown = $firstState === self::STATE_UNKNOWN || $secondState === self::STATE_UNKNOWN;
+            if ($unknown) {
+                $state = self::STATE_UNKNOWN;
+            } elseif ($firstBookable && $secondBookable) {
+                $state = min($firstCount, $secondCount) >= 2 ? self::STATE_COVERED : self::STATE_LIMITED;
+            } elseif ($firstBookable || $secondBookable) {
+                $state = self::STATE_PARTIAL;
+            } else {
+                $state = self::STATE_UNCOVERED;
+            }
+            $partial = $firstState !== $secondState || $firstCount !== $secondCount || ($firstBookable xor $secondBookable);
+            $reason = (string) ($first['reason'] ?? '');
+            if ($reason === '' && ($second['reason'] ?? '') !== '') $reason = (string) $second['reason'];
+            $visual[] = array(
+                'index' => $index,
+                'minute' => $index * self::VISUAL_SLOT_MINUTES,
+                'time' => self::clock($index * self::VISUAL_SLOT_MINUTES),
+                'end_time' => self::clock(($index + 1) * self::VISUAL_SLOT_MINUTES),
+                'starts_at_utc' => $first['starts_at_utc'],
+                'ends_at_utc' => $second['ends_at_utc'],
+                'state' => $state,
+                'partial' => $partial,
+                'golden' => !empty($first['golden']) || !empty($second['golden']),
+                'golden_partial' => !empty($first['golden']) !== !empty($second['golden']),
+                'past' => !empty($first['past']) && !empty($second['past']),
+                'bookable' => in_array($state, array(self::STATE_COVERED, self::STATE_LIMITED, self::STATE_PARTIAL), true),
+                'teacher_count' => max($firstCount, $secondCount),
+                'min_teacher_count' => min($firstCount, $secondCount),
+                'max_teacher_count' => max($firstCount, $secondCount),
+                'declared_teacher_count' => max((int) ($first['declared_teacher_count'] ?? 0), (int) ($second['declared_teacher_count'] ?? 0)),
+                'reason' => $reason,
+                'first_state' => $firstState,
+                'second_state' => $secondState,
+                'first_teacher_count' => $firstCount,
+                'second_teacher_count' => $secondCount,
+                'first_golden' => !empty($first['golden']),
+                'second_golden' => !empty($second['golden']),
+            );
+        }
+        return $visual;
     }
 
     /** @param list<array<string,mixed>> $segments */

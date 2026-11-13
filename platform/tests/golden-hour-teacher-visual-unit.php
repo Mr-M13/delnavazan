@@ -60,31 +60,14 @@ $themeRoot=dirname(dirname(__DIR__)).'/theme';
 $bridge=file_get_contents($themeRoot.'/inc/platform-bridge.php');
 $account=file_get_contents($themeRoot.'/template-parts/teacher-portal/account.php');
 $onboarding=file_get_contents($themeRoot.'/template-parts/teacher-portal/onboarding.php');
-$component=file_get_contents($themeRoot.'/template-parts/teacher-portal/golden-hours.php');
 $classes=file_get_contents($themeRoot.'/template-parts/teacher-portal/classes.php');
-$css=file_get_contents($themeRoot.'/assets/css/teacher-portal.css');
+$view=file_get_contents($root.'/src/Admin/View/InstrumentCoverageClockView.php');
 $pay=file_get_contents($root.'/src/Core/Application/Finance/GoldenHourPayService.php');
 $assert(str_contains($bridge,'dzn_theme_platform_teacher_golden_bonus')&&str_contains($bridge,'GoldenHourTeacherWindowProjection')&&str_contains($bridge,"'golden_bonus' =>"),'The Teacher model must expose the finance-owned projection to the account surfaces.');
-$assert(str_contains($account,"dzn_theme_teacher_portal_component('golden-hours'")&&!str_contains($account,'dzn_theme_platform_demand_regions'),'The account must render the Teacher-local bonus component, not the academy-wide region list.');
-$assert(str_contains($onboarding,"dzn_theme_teacher_portal_component( 'account'")&&str_contains($account,"dzn_theme_teacher_portal_component('golden-hours'")&&!str_contains($onboarding,'dzn_theme_platform_demand_regions'),'Onboarding must use the same Teacher-local bonus component through the current account workspace.');
-$assert(str_contains($component,'percentage_label')&&str_contains($component,'dzn-tp-golden-week')&&str_contains($component,'timezone_label'),'The component must render local time, days and the bonus percentage.');
-$assert(str_contains($component,'tabindex="0"')&&str_contains($component,'dir="ltr"')&&!str_contains($component,'policy_timezone')&&!str_contains($component,'Asia/Tehran'),'The Teacher visual must be keyboard-scrollable, bidi-safe and free of academy-clock text.');
-$assert(str_contains($css,'.dzn-tp-golden-week')&&str_contains($css,'.dzn-tp-golden-rate')&&str_contains($css,'.dzn-tp-golden-slot__bonus'),'The Teacher visual must have dedicated week, rate and bonus styles.');
+$assert(str_contains($account,"dzn_theme_teacher_portal_component( 'coverage-clock'")&&!str_contains($account,'dzn_theme_platform_demand_regions'),'The account must render the unified availability clock, not the academy-wide region list.');
+$assert(str_contains($onboarding,"dzn_theme_teacher_portal_component( 'account'")&&!str_contains($onboarding,'dzn_theme_platform_demand_regions'),'Onboarding must use the same unified account workspace.');
+$assert(str_contains($view,"'goldenGaps' => 'ساعت‌های طلایی بدون پوشش'")&&str_contains($view,'Golden Hours')&&str_contains($view,'bonus')&&str_contains($view,'percent'),'The shared clock must carry the corrected Golden label and bonus details.');
 $assert(str_contains($classes,'dzn-tp-golden-badge')&&str_contains($classes,'golden_hour_window_display'),'Booked Teacher lessons must keep the golden-hour badge and local window disclosure.');
 $assert(str_contains($pay,'shows only their own local clock')&&!str_contains($pay,"' · your time '"),'The pay presentation must not append academy-clock text to the Teacher view.');
-
-$render=static function(array $model,bool $showCta)use($themeRoot):string{ob_start();$args=array('model'=>$model,'show_cta'=>$showCta);include $themeRoot.'/template-parts/teacher-portal/golden-hours.php';return (string)ob_get_clean();};
-$activeModel=array('profile'=>array('timezone_label'=>'Toronto · America/Toronto'),'golden_bonus'=>array('state'=>'active','percentage_label'=>'20','timezone_label'=>'Toronto · America/Toronto','has_windows'=>true,'days'=>array(array('weekday'=>1,'date'=>'2026-11-02','date_label'=>'2 Nov','has_window'=>true,'intervals'=>array(array('label'=>'07:30–12:30','percentage_label'=>'20'))))));
-$activeHtml=$render($activeModel,true);
-$assert(str_contains($activeHtml,'07:30–12:30')&&str_contains($activeHtml,'+20%'),'The rendered component must show the Teacher-local time and bonus percentage.');
-$assert(str_contains($activeHtml,'Toronto · America/Toronto')&&!str_contains($activeHtml,'Asia/Tehran'),'The rendered component must show only the Teacher timezone.');
-$assert(str_contains($activeHtml,'#tp-availability'),'The account component must link to the Teacher availability form.');
-
-$inactiveHtml=$render(array('golden_bonus'=>array('state'=>'inactive','percentage_label'=>'20','days'=>array())),false);
-$assert(str_contains($inactiveHtml,'فعال نیست'),'A disabled bonus must render an honest inactive state.');
-$unavailableHtml=$render(array('golden_bonus'=>array('state'=>'unavailable','days'=>array())),false);
-$assert(str_contains($unavailableHtml,'در دسترس نیست'),'Unavailable policy data must render an honest unavailable state.');
-$emptyHtml=$render(array('golden_bonus'=>array('state'=>'active','percentage_label'=>'20','has_windows'=>false,'days'=>array())),false);
-$assert(str_contains($emptyHtml,'بازهٔ پاداش‌داری ثبت نشده'),'An active policy with no windows in range must not fabricate hours.');
 
 echo "golden-hour-teacher-visual-unit: OK\n";

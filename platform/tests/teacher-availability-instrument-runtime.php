@@ -27,12 +27,16 @@ $instrumentA = (int) $first['instrument_id'];
 $instrumentB = (int) $second['instrument_id'];
 $courseA = (int) $first['introductory_course_id'];
 $courseB = (int) $second['introductory_course_id'];
+$third = $catalogue->setupInstrument(array('name' => 'Runtime Scope C ' . $suffix, 'standard_duration_minutes' => 30, 'gap_between_lessons_minutes' => 0, 'introductory_lesson_billing' => 'free'));
+$instrumentC = (int) $third['instrument_id'];
+$courseC = (int) $third['introductory_course_id'];
 
 $teacher = (new TeacherService())->create(array('display_name' => 'Runtime instrument scope ' . $suffix, 'email' => 'runtime-scope-' . $suffix . '@example.invalid', 'timezone' => 'UTC'));
 $now = gmdate('Y-m-d H:i:s');
 $assert($wpdb->insert($p . 'teacher_onboarding_states', array('teacher_id' => $teacher, 'state' => 'active', 'readiness_state' => 'ready', 'version' => 1, 'created_at' => $now, 'updated_at' => $now, 'created_by' => $admin, 'updated_by' => $admin)) === 1, 'Unable to persist ready Teacher state.');
 (new TeachingEligibilityService())->setEligibility(array('teacher_id' => $teacher, 'course_id' => $courseA, 'status' => 'active', 'reason_code' => 'runtime_fixture'));
 (new TeachingEligibilityService())->setEligibility(array('teacher_id' => $teacher, 'course_id' => $courseB, 'status' => 'active', 'reason_code' => 'runtime_fixture'));
+(new TeachingEligibilityService())->setEligibility(array('teacher_id' => $teacher, 'course_id' => $courseC, 'status' => 'active', 'reason_code' => 'runtime_fixture'));
 (new TeacherAcceptingStateService())->set(array('teacher_id' => $teacher, 'state' => 'accepting', 'reason_code' => 'runtime_fixture'));
 
 $availability = new TeacherAvailabilityService();
@@ -84,7 +88,7 @@ $assert($selectedBAtThirteen !== null && (int) $selectedBAtThirteen['teacher_cou
 // preserve legacy inheritance rules for instruments that are not configured.
 wp_set_current_user($admin);
 $availability->setRecurringRule(array('teacher_id' => $teacher, 'weekday' => 1, 'local_start_time' => '06:00:00', 'local_end_time' => '07:00:00', 'state' => 'preferred', 'timezone' => 'UTC', 'status' => 'active', 'reason_code' => 'runtime_legacy'));
-$assert($availability->coverage($teacher, $monday . ' 06:15:00', $monday . ' 06:45:00', $instrumentB) === 'preferred', 'An unconfigured instrument must inherit the legacy unscoped schedule.');
+$assert($availability->coverage($teacher, $monday . ' 06:15:00', $monday . ' 06:45:00', $instrumentC) === 'preferred', 'An unconfigured instrument must inherit the legacy unscoped schedule.');
 
 wp_set_current_user((int) $teacherUser);
 $availability->replaceOwnWeeklySchedule($instrumentB, array(
@@ -98,7 +102,11 @@ $assert($activeB === 2 && $configuredB === 1, 'The planner save must persist bot
 $assert($availability->coverage($teacher, $tuesday . ' 08:30:00', $tuesday . ' 09:00:00', $instrumentB) === 'preferred', 'The first planner range must be effective.');
 $assert($availability->coverage($teacher, $tuesday . ' 15:30:00', $tuesday . ' 16:00:00', $instrumentB) === 'preferred', 'The second planner range must be effective.');
 $assert($availability->coverage($teacher, $tuesday . ' 11:00:00', $tuesday . ' 11:30:00', $instrumentB) === null, 'A gap between planner ranges must remain unavailable.');
-$assert($availability->coverage($teacher, $monday . ' 06:15:00', $monday . ' 06:45:00', $instrumentB) === null, 'An explicit instrument schedule must stop legacy inheritance for that instrument.');
+$availability->replaceOwnWeeklySchedule($instrumentC, array());
+$assert($availability->coverage($teacher, $monday . ' 06:15:00', $monday . ' 06:45:00', $instrumentC) === null, 'An explicit instrument schedule must stop legacy inheritance for that instrument.');
+$availability->replaceOwnWeeklySchedule($instrumentC, array(array('weekday' => 3, 'start' => '10:00', 'end' => '12:00')));
+$wednesday = (new DateTimeImmutable('next wednesday', new DateTimeZone('UTC')))->format('Y-m-d');
+$assert($availability->coverage($teacher, $wednesday . ' 10:30:00', $wednesday . ' 11:00:00', $instrumentC) === 'preferred', 'An instrument must return to an explicit schedule after its empty state is cleared.');
 
 $availability->replaceOwnWeeklySchedule($instrumentB, array());
 $activeB = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_availability_rules WHERE teacher_id=%d AND instrument_id=%d AND status='active'", $teacher, $instrumentB));

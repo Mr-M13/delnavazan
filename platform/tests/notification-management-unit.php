@@ -38,6 +38,18 @@ namespace {
     if (!function_exists('delete_option')) {
         function delete_option($key) { unset($GLOBALS['dzn_test_options'][$key]); return true; }
     }
+    if (!function_exists('sanitize_text_field')) {
+        function sanitize_text_field($value) { return trim(strip_tags((string) $value)); }
+    }
+    if (!function_exists('sanitize_key')) {
+        function sanitize_key($value) { return preg_replace('/[^a-z0-9_-]/', '', strtolower((string) $value)); }
+    }
+    if (!function_exists('wp_unslash')) {
+        function wp_unslash($value) { return is_string($value) ? stripslashes($value) : $value; }
+    }
+    if (!function_exists('admin_url')) {
+        function admin_url($path = '') { return 'https://academy.example/wp-admin/' . $path; }
+    }
     if (!function_exists('wp_kses')) {
         function wp_kses($text, $allowed) { return strip_tags($text); }
     }
@@ -255,6 +267,9 @@ namespace {
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/NotificationCopyResolver.php';
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/DelnavazanEmailRenderer.php';
     require_once dirname(__DIR__) . '/src/Portals/PortalNotificationInbox.php';
+    require_once dirname(__DIR__) . '/src/Core/Application/IntegrationSettingsService.php';
+    require_once dirname(__DIR__) . '/src/Core/Application/SmsProviderRoutingPolicy.php';
+    require_once dirname(__DIR__) . '/src/Admin/Controller/NotificationManagementController.php';
 
     use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
     use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
@@ -443,6 +458,27 @@ namespace {
     $fail('mark read succeeds for the owner', $inbox->markRead(7, $inboxId) === true);
     $fail('unread count drops after read', $inbox->unreadCount(7) === 0);
     $fail('admin summary stays separate', isset($inbox->adminSummary()['student']) && $inbox->adminSummary()['admin']['total'] === 0);
+
+    /* 9. The catalogue's displayed result set uses every filter after editor return, and blockers
+     * remain visible even while an event channel is switched off. */
+    $controllerClass = 'Delnavazan\\Platform\\Admin\\Controller\\NotificationManagementController';
+    $matches = new \ReflectionMethod($controllerClass, 'tableFilterMatches');
+    $matches->setAccessible(true);
+    $visibleRow = array('event'=>array('category'=>'booking','audience'=>'student'),'offered'=>array('email','sms'),'states'=>array('email'=>array('state'=>'enabled')),'search_text'=>'booking confirmed lesson');
+    $hiddenRow = array('event'=>array('category'=>'finance','audience'=>'admin'),'offered'=>array('email'),'states'=>array('email'=>array('state'=>'enabled')),'search_text'=>'statement');
+    $allFilters = array('search'=>'lesson','category'=>'booking','recipient'=>'student','channel'=>'email','status'=>'enabled');
+    $fail('displayed table rows apply all preserved filters', $matches->invoke(null,$visibleRow,$allFilters)===true && $matches->invoke(null,$hiddenRow,$allFilters)===false);
+    $stateMethod = new \ReflectionMethod($controllerClass, 'effectiveChannelState');
+    $stateMethod->setAccessible(true);
+    $library->saveEventChannel($event, 'whatsapp', false);
+    $offWhatsApp = $stateMethod->invoke(null, $library, $event, 'whatsapp');
+    $fail('off WhatsApp still shows approval blocker', $offWhatsApp['state']==='disabled' && !empty($offWhatsApp['enable_blocked']) && str_contains($offWhatsApp['reason'], 'Provider approval'));
+    $smsEvent = 'booking.new.teacher';
+    $library->saveEventChannel($smsEvent, 'sms', false);
+    $offSms = $stateMethod->invoke(null, $library, $smsEvent, 'sms');
+    $fail('off SMS still shows unavailable selected routes', $offSms['state']==='disabled' && !empty($offSms['enable_blocked']) && str_contains($offSms['reason'], 'unavailable'));
+    $controllerSource=(string)file_get_contents(dirname(__DIR__).'/src/Admin/Controller/NotificationManagementController.php');
+    $fail('server rejects enabling blocked channels', str_contains($controllerSource, "notification_channel_unavailable") && str_contains($controllerSource, 'channelBlocker'));
 
     echo "Notification management unit passed\n";
 }

@@ -13,7 +13,7 @@ final class InstrumentCoverageUnknownData {
     public static function build(array $clocks, string $source = 'actionable'): array {
         $ranges = array();
         $segments = 0;
-        foreach (InstrumentCoverageWeek::ORDER as $weekday) {
+        foreach (array_keys($clocks) as $weekday) {
             $clock = $clocks[$weekday] ?? null;
             if (!is_array($clock)) continue;
             $date = (string) ($clock['date'] ?? '');

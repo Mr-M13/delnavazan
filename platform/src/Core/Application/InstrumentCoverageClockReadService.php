@@ -47,9 +47,10 @@ final class InstrumentCoverageClockReadService {
         $timezone = self::requestTimezone($input['timezone'] ?? null, $academyTimezone);
         $mode = 'week';
         $today = (new \DateTimeImmutable('now', new \DateTimeZone($timezone)))->format('Y-m-d');
-        $date = self::date($input['date'] ?? null, $today);
+        $weekStart = self::date($input['week_start'] ?? null, $today);
+        $date = self::date($input['date'] ?? null, $weekStart);
+        if ($date < $weekStart || $date > InstrumentCoverageWeek::end($weekStart)) $weekStart = $date;
         $weekday = self::weekdayOf($date);
-        $weekStart = InstrumentCoverageWeek::start($date);
         return $this->projection(array(
             'scope' => 'admin',
             'mode' => $mode,
@@ -279,7 +280,7 @@ final class InstrumentCoverageClockReadService {
             'weekday' => $weekday,
             'week_start' => $weekStart,
             'week_end' => InstrumentCoverageWeek::end($weekStart),
-            'week_order' => InstrumentCoverageWeek::ORDER,
+            'week_order' => $context['scope'] === 'admin' ? array_keys(InstrumentCoverageWeek::dates($weekStart)) : InstrumentCoverageWeek::ORDER,
             'period_key' => $period['key'],
             'period_label' => $period['label'],
             'gap_period_label' => $period['gap_label'],

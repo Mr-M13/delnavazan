@@ -10,7 +10,7 @@ final class InstrumentCoverageGapList {
     /** @param array<int,array<string,mixed>> $clocks @return list<array<string,mixed>> */
     public static function build(array $clocks, string $source = 'actionable', int $limit = 20): array {
         $gaps = array();
-        foreach (InstrumentCoverageWeek::ORDER as $weekday) {
+        foreach (array_keys($clocks) as $weekday) {
             $clock = $clocks[$weekday] ?? null;
             if (!is_array($clock)) continue;
             $date = (string) ($clock['date'] ?? '');

@@ -29,10 +29,12 @@ final class AcademyCoverageController {
     /** @return array<string,mixed> */
     private static function clockFilters(string $page):array{
         $dateInput=isset($_GET['coverage_date'])&&is_scalar($_GET['coverage_date'])?sanitize_text_field(wp_unslash((string)$_GET['coverage_date'])):'';
+        $weekInput=isset($_GET['coverage_week_start'])&&is_scalar($_GET['coverage_week_start'])?sanitize_text_field(wp_unslash((string)$_GET['coverage_week_start'])):'';
         $instrument=isset($_GET['coverage_instrument'])&&is_scalar($_GET['coverage_instrument'])?absint($_GET['coverage_instrument']):0;
         $calendarInput=isset($_GET['coverage_calendar'])&&is_scalar($_GET['coverage_calendar'])?sanitize_key(wp_unslash((string)$_GET['coverage_calendar'])):'gregorian';
         return array(
             'date'=>$dateInput,
+            'week_start'=>$weekInput,
             'instrument_id'=>$instrument,
             'calendar'=>in_array($calendarInput,array('persian','gregorian'),true)?$calendarInput:'gregorian',
             'page'=>$page,

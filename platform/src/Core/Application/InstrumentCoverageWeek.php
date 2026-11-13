@@ -1,7 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
 
-/** Pure Saturday–Friday week arithmetic for the seven-ring coverage clock. */
+/** Pure seven-day arithmetic for the coverage clock. */
 final class InstrumentCoverageWeek {
     /** Saturday, Sunday, Monday, Tuesday, Wednesday, Thursday, Friday as ISO weekdays. */
     public const ORDER = array(6, 7, 1, 2, 3, 4, 5);

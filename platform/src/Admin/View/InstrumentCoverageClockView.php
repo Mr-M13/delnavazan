@@ -77,22 +77,27 @@ final class InstrumentCoverageClockView {
         echo '<form method="get" action="' . esc_url($base) . '" class="dzn-clock__controls">';
         if ($scope === 'admin') echo '<input type="hidden" name="page" value="' . esc_attr($page) . '">';
         foreach ($preserve as $key => $value) if (is_string($key) && is_scalar($value) && (string) $value !== '') echo '<input type="hidden" name="' . esc_attr($key) . '" value="' . esc_attr((string) $value) . '">';
-        echo '<label>' . esc_html($labels['instrument']) . '<select name="coverage_instrument" data-dzn-clock-instrument>';
-        foreach ((array) ($data['instruments'] ?? array()) as $instrument) {
-            echo '<option value="' . (int) $instrument['id'] . '"' . selected($selectedId, (int) $instrument['id'], false) . '>' . esc_html(self::instrumentName($instrument, $scope === 'admin')) . '</option>';
+        if ($scope === 'admin' && $weekStart !== '') echo '<input type="hidden" name="coverage_week_start" value="' . esc_attr($weekStart) . '">';
+        if ($scope === 'admin') {
+            self::instrumentPicker((array) ($data['instruments'] ?? array()), $labels, $selectedId);
+        } else {
+            echo '<label>' . esc_html($labels['instrument']) . '<select name="coverage_instrument" data-dzn-clock-instrument>';
+            foreach ((array) ($data['instruments'] ?? array()) as $instrument) {
+                echo '<option value="' . (int) $instrument['id'] . '"' . selected($selectedId, (int) $instrument['id'], false) . '>' . esc_html(self::instrumentName($instrument, $scope === 'admin')) . '</option>';
+            }
+            echo '</select></label>';
         }
-        echo '</select></label>';
-        echo '<label>' . esc_html($labels['weekOf']) . '<input type="date" name="coverage_date" value="' . esc_attr($date) . '"></label>';
+        echo '<label>' . esc_html($labels['weekOf']) . '<input type="date" name="coverage_date" value="' . esc_attr($scope === 'admin' && $weekStart !== '' ? $weekStart : $date) . '"></label>';
         echo '<label>' . esc_html($labels['calendar']) . '<select name="coverage_calendar"><option value="gregorian"' . selected($calendar, 'gregorian', false) . '>' . esc_html($labels['gregorian']) . '</option><option value="persian"' . selected($calendar, 'persian', false) . '>' . esc_html($labels['persian']) . '</option></select></label>';
         echo '<button class="button button-primary" type="submit">' . esc_html($labels['apply']) . '</button>';
         echo '</form></header>';
         $prev = $weekStart !== '' ? InstrumentCoverageWeek::shift($weekStart, -1) : '';
         $next = $weekStart !== '' ? InstrumentCoverageWeek::shift($weekStart, 1) : '';
         echo '<div class="dzn-clock__weekline"><div class="dzn-clock__week-nav">';
-        if ($prev !== '') echo '<a href="' . esc_url(self::url($base, $scope, $page, $preserve, $selectedId, $calendar, $prev)) . '" aria-label="' . esc_attr($labels['prevWeek']) . '">‹</a>';
+        if ($prev !== '') echo '<a href="' . esc_url(self::url($base, $scope, $page, $preserve, $selectedId, $calendar, $prev, '', $prev)) . '" aria-label="' . esc_attr($labels['prevWeek']) . '">‹</a>';
         $weekLabel = self::weekLabel($data, $calendar, $scope);
         echo '<strong>' . ($calendar === 'gregorian' && $scope === 'admin' ? '<bdi dir="ltr">' . esc_html($weekLabel) . '</bdi>' : esc_html($weekLabel)) . '</strong>';
-        if ($next !== '') echo '<a href="' . esc_url(self::url($base, $scope, $page, $preserve, $selectedId, $calendar, $next)) . '" aria-label="' . esc_attr($labels['nextWeek']) . '">›</a>';
+        if ($next !== '') echo '<a href="' . esc_url(self::url($base, $scope, $page, $preserve, $selectedId, $calendar, $next, '', $next)) . '" aria-label="' . esc_attr($labels['nextWeek']) . '">›</a>';
         echo '</div>';
         $periodLabel = (string) ($data['period_label'] ?? '');
         $asOf = (string) ($data['as_of_local'] ?? '');
@@ -127,7 +132,7 @@ final class InstrumentCoverageClockView {
             $date = (string) ($gap['date'] ?? '');
             $visualStart = (int) ($gap['visual_start_index'] ?? 0);
             $visualIndexes = implode(',', array_map('intval', (array) ($gap['visual_indexes'] ?? array())));
-            $href = self::url($base, $scope, $page, $preserve, $gapInstrument, $calendar, $date, $weekday . ':' . $visualStart);
+            $href = self::url($base, $scope, $page, $preserve, $gapInstrument, $calendar, $date, $weekday . ':' . $visualStart, (string) ($data['week_start'] ?? ''));
             $isGolden = !empty($gap['golden']);
             $cause = self::reasonLabel((string) ($gap['reason'] ?? ''), $labels);
             if (!empty($gap['booked_teacher_count']) || !empty($gap['held_teacher_count'])) {
@@ -177,7 +182,7 @@ final class InstrumentCoverageClockView {
         $firstDate = (string) ($first['date'] ?? '');
         $firstStart = (int) ($first['visual_start_index'] ?? 0);
         $firstIndexes = implode(',', array_map('intval', (array) ($first['visual_indexes'] ?? array())));
-        $firstHref = self::url($base, $scope, $page, $preserve, $firstInstrument, $calendar, $firstDate, $firstWeekday . ':' . $firstStart);
+        $firstHref = self::url($base, $scope, $page, $preserve, $firstInstrument, $calendar, $firstDate, $firstWeekday . ':' . $firstStart, (string) ($data['week_start'] ?? ''));
         echo '<section class="dzn-clock__quality" aria-labelledby="dzn-clock-quality-title"><a class="dzn-clock__quality-summary" href="' . esc_url($firstHref) . '" data-dzn-unknown data-dzn-unknown-instrument="' . $firstInstrument . '" data-dzn-unknown-weekday="' . $firstWeekday . '" data-dzn-unknown-date="' . esc_attr($firstDate) . '" data-dzn-unknown-visual-start="' . $firstStart . '" data-dzn-unknown-visual-indexes="' . esc_attr($firstIndexes) . '"><span class="dzn-clock__quality-head"><span class="dzn-clock__quality-title" id="dzn-clock-quality-title">' . esc_html($labels['dataQuality']) . '</span><strong>' . esc_html($count . ' ' . $countLabel . ' · ' . self::duration((int) ($unknown['duration_minutes'] ?? 0))) . '</strong>' . ($scopeBits ? '<span class="dzn-clock__quality-scope">' . esc_html(implode(' · ', $scopeBits)) . '</span>' : '') . '<span class="dzn-clock__quality-note">' . esc_html($labels['unknownHelp']) . '</span></span></a><ul class="dzn-clock__quality-list">';
         foreach ($ranges as $range) {
             $instrument = (int) ($range['instrument_id'] ?? 0);
@@ -185,7 +190,7 @@ final class InstrumentCoverageClockView {
             $date = (string) ($range['date'] ?? '');
             $visualStart = (int) ($range['visual_start_index'] ?? 0);
             $visualIndexes = implode(',', array_map('intval', (array) ($range['visual_indexes'] ?? array())));
-            $href = self::url($base, $scope, $page, $preserve, $instrument, $calendar, $date, $weekday . ':' . $visualStart);
+            $href = self::url($base, $scope, $page, $preserve, $instrument, $calendar, $date, $weekday . ':' . $visualStart, (string) ($data['week_start'] ?? ''));
             $dateLabel = $calendar === 'persian' ? self::persianDate($date) : (string) ($range['date_label'] ?? '');
             $reason = self::reasonLabel((string) ($range['reason'] ?? ''), $labels);
             echo '<li><a class="dzn-clock__quality-row" href="' . esc_url($href) . '" data-dzn-unknown data-dzn-unknown-instrument="' . $instrument . '" data-dzn-unknown-weekday="' . $weekday . '" data-dzn-unknown-date="' . esc_attr($date) . '" data-dzn-unknown-visual-start="' . $visualStart . '" data-dzn-unknown-visual-indexes="' . esc_attr($visualIndexes) . '">';
@@ -215,7 +220,9 @@ final class InstrumentCoverageClockView {
     private static function ringKey(array $data, array $selected, array $labels, string $calendar, string $scope): void {
         echo '<div class="dzn-clock__ring-key" role="list" aria-label="' . esc_attr($labels['rings']) . '">';
         $ringIndex = 0;
-        foreach (InstrumentCoverageWeek::ORDER as $weekday) {
+        $order = array_keys((array) ($selected['clocks'] ?? array()));
+        if (!$order) $order = InstrumentCoverageWeek::ORDER;
+        foreach ($order as $weekday) {
             $clock = (array) ($selected['clocks'][$weekday] ?? array());
             if (!$clock) continue;
             $isToday = !empty($clock['is_today']);
@@ -281,7 +288,9 @@ final class InstrumentCoverageClockView {
         $selected = self::selectedInstrument($data);
         if ($selected === null) return array('week' => array(), 'golden_ring' => array(), 'labels' => $labels);
         $week = array();
-        foreach (InstrumentCoverageWeek::ORDER as $weekday) {
+        $order = array_keys((array) ($selected['clocks'] ?? array()));
+        if (!$order) $order = InstrumentCoverageWeek::ORDER;
+        foreach ($order as $weekday) {
             $clock = (array) ($selected['clocks'][$weekday] ?? array());
             if (!$clock) continue;
             $week[] = self::compactDay($clock);
@@ -293,7 +302,7 @@ final class InstrumentCoverageClockView {
             'calendar' => (string) ($data['calendar'] ?? 'gregorian'),
             'week_start' => (string) ($data['week_start'] ?? ''),
             'week_end' => (string) ($data['week_end'] ?? ''),
-            'week_order' => InstrumentCoverageWeek::ORDER,
+            'week_order' => $order,
             'period_key' => (string) ($data['period_key'] ?? ''),
             'period_label' => (string) ($data['period_label'] ?? ''),
             'gap_period_label' => (string) ($data['gap_period_label'] ?? ''),
@@ -370,6 +379,57 @@ final class InstrumentCoverageClockView {
         return $fallback;
     }
 
+    /** @param list<array<string,mixed>> $instruments @param array<string,string|array> $labels */
+    private static function instrumentPicker(array $instruments, array $labels, int $selectedId): void {
+        echo '<div class="dzn-clock__instruments" role="group" aria-label="' . esc_attr($labels['instrument']) . '">';
+        foreach ($instruments as $instrument) {
+            $id = (int) ($instrument['id'] ?? 0);
+            if ($id < 1) continue;
+            $name = self::instrumentName($instrument, true);
+            $icon = self::instrumentIcon($instrument);
+            $active = $id === $selectedId;
+            echo '<button type="submit" name="coverage_instrument" value="' . $id . '" class="dzn-clock__instrument' . ($active ? ' is-selected' : '') . '" aria-pressed="' . ($active ? 'true' : 'false') . '" title="' . esc_attr($name) . '">';
+            if ($icon !== '') echo '<img src="' . esc_url($icon) . '" alt="" width="34" height="34" loading="lazy" decoding="async">';
+            else echo '<span class="dzn-clock__instrument-fallback" aria-hidden="true">' . esc_html(self::initial($name)) . '</span>';
+            echo '<span class="dzn-clock__instrument-name">' . esc_html($name) . '</span></button>';
+        }
+        echo '</div>';
+    }
+
+    /** @param array<string,mixed> $instrument */
+    private static function instrumentIcon(array $instrument): string {
+        $files = array(
+            'tar' => 'C-Tar.webp', 'تار' => 'C-Tar.webp',
+            'tombak' => 'C-Tombak.webp', 'tonbak' => 'C-Tombak.webp', 'تنبک' => 'C-Tombak.webp',
+            'setar' => 'C-Setar.webp', 'سه‌تار' => 'C-Setar.webp',
+            'piano' => 'C-Piano.webp', 'پیانو' => 'C-Piano.webp',
+            'santur' => 'C-santour.webp', 'santour' => 'C-santour.webp', 'سنتور' => 'C-santour.webp',
+            'kamancheh' => 'C-Kamancheh.webp', 'kamanche' => 'C-Kamancheh.webp', 'کمانچه' => 'C-Kamancheh.webp',
+            'daf' => 'C-Daf.webp', 'دف' => 'C-Daf.webp',
+            'avaz' => 'C-Avaz.webp', 'آواز' => 'C-Avaz.webp',
+            'tanboor' => 'C-Tanboor.webp', 'tanbur' => 'C-Tanboor.webp', 'تنبور' => 'C-Tanboor.webp',
+            'ney' => 'C-Ney.webp', 'نی' => 'C-Ney.webp',
+            'violin' => 'C-Violin.webp', 'ویولن' => 'C-Violin.webp',
+            'guitar' => 'C-Guitar.webp', 'گیتار' => 'C-Guitar.webp',
+        );
+        $candidates = array((string) ($instrument['slug'] ?? ''), (string) ($instrument['name_en'] ?? ''), (string) ($instrument['name'] ?? ''));
+        foreach ($candidates as $candidate) {
+            $key = strtolower(trim($candidate));
+            if ($key === '' || !isset($files[$key])) continue;
+            $relative = 'assets/images/' . $files[$key];
+            if (!function_exists('get_theme_file_uri')) return '';
+            if (function_exists('get_theme_file_path') && !is_file(get_theme_file_path($relative))) return '';
+            return (string) get_theme_file_uri($relative);
+        }
+        return '';
+    }
+
+    private static function initial(string $name): string {
+        $name = trim($name);
+        if ($name === '') return '·';
+        return function_exists('mb_substr') ? mb_substr($name, 0, 1) : substr($name, 0, 1);
+    }
+
     /** @param array<string,mixed> $instrument */
     private static function instrumentName(array $instrument, bool $english = true): string {
         $name = (string) ($instrument['name'] ?? 'Instrument');
@@ -411,13 +471,14 @@ final class InstrumentCoverageClockView {
         return $out;
     }
 
-    private static function url(string $base, string $scope, string $page, array $preserve, int $instrument, string $calendar, string $date, string $focus = ''): string {
+    private static function url(string $base, string $scope, string $page, array $preserve, int $instrument, string $calendar, string $date, string $focus = '', string $week = ''): string {
         $args = $preserve;
         if ($scope === 'admin') $args['page'] = $page;
         $args['coverage_instrument'] = $instrument;
         $args['coverage_calendar'] = $calendar;
         $args['coverage_date'] = $date;
         if ($focus !== '') $args['coverage_focus'] = $focus;
+        if ($week !== '' && $scope === 'admin') $args['coverage_week_start'] = $week;
         return add_query_arg($args, $base);
     }
 
@@ -437,6 +498,7 @@ final class InstrumentCoverageClockView {
                 'nextWeek' => 'هفتهٔ بعد',
                 'rings' => 'روزهای هفته',
                 'weekdays' => array(6=>'شنبه',7=>'یکشنبه',1=>'دوشنبه',2=>'سه‌شنبه',3=>'چهارشنبه',4=>'پنجشنبه',5=>'جمعه'),
+                'weekdaysShort' => array(6=>'شنبه',7=>'یکشنبه',1=>'دوشنبه',2=>'سه‌شنبه',3=>'چهارشنبه',4=>'پنجشنبه',5=>'جمعه'),
                 'today' => 'امروز',
                 'coverage' => 'پوشش',
                 'goldenCoverage' => 'پوشش ساعت طلایی',
@@ -516,6 +578,7 @@ final class InstrumentCoverageClockView {
             'nextWeek' => 'Next week',
             'rings' => 'Weekday rings',
             'weekdays' => array(6=>'Saturday',7=>'Sunday',1=>'Monday',2=>'Tuesday',3=>'Wednesday',4=>'Thursday',5=>'Friday'),
+            'weekdaysShort' => array(6=>'Sat',7=>'Sun',1=>'Mon',2=>'Tue',3=>'Wed',4=>'Thu',5=>'Fri'),
             'today' => 'Today',
             'coverage' => 'Coverage',
             'goldenCoverage' => 'Golden coverage',

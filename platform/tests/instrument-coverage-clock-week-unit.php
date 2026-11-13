@@ -18,6 +18,9 @@ if (InstrumentCoverageWeek::shift('2026-11-07', 1) !== '2026-11-14') $fail('Next
 $dates = InstrumentCoverageWeek::dates('2026-11-07');
 if (array_keys($dates) !== array(6,7,1,2,3,4,5)) $fail('Weekday rings must be ordered Saturday–Friday.');
 if ($dates[6] !== '2026-11-07' || $dates[5] !== '2026-11-13') $fail('Week dates are incorrect.');
+$rolling = InstrumentCoverageWeek::dates('2026-11-10');
+if (array_keys($rolling) !== array(2,3,4,5,6,7,1)) $fail('A rolling seven-day window must start on the selected day.');
+if ($rolling[2] !== '2026-11-10' || $rolling[1] !== '2026-11-16') $fail('A rolling window must span today plus the next six days.');
 
 $window = static fn(string $start, string $end): array => array('state' => 'preferred') + AvailabilityLocalTime::interval('2026-11-12', $start, $end, 'UTC');
 $clock = InstrumentCoverageClockAnalyzer::build(array(

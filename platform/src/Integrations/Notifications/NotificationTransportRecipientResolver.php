@@ -22,6 +22,8 @@ final class NotificationTransportRecipientResolver {
   $expires=(string)($r['contact_expires_at']??'');if($expires===''||$expires<=NotificationSupport::now())return null;
   $contact=NotificationSupport::decryptEnvelope($r['contact_envelope']??null,$r['contact_cipher_version']??null);
   if(!is_array($contact))return null;
+  // Recipient classification comes from the authorised notification, not mutable contact data.
+  $contact['recipient_kind']=(string)$n->recipient_kind;
   return $contact;
  }
 }

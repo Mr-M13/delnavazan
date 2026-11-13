@@ -40,7 +40,7 @@ final class AdminShellController {
     ];
 
     /**
-     * The visible Settings navigation is exactly six sections. Legacy protected routes that still
+     * The visible Settings navigation is exactly five sections. Legacy protected routes that still
      * belong to a section (staff access, recording notices, provider details, recovery controls)
      * remain resolvable and highlight their canonical section. Retired recording-operations and
      * account-removal routes are no longer registered.
@@ -238,7 +238,7 @@ final class AdminShellController {
         echo '</nav>';
     }
 
-    /** Settings is exactly four work sections; legacy routes stay resolvable but are never separate entries. */
+    /** Settings routes stay resolvable while notifications remain a primary workspace. */
     private static function renderSettingsNavigation(string $page): void {
         $visible = [];
         foreach (self::SETTINGS_SECTIONS as $key => [$label, $routes]) {

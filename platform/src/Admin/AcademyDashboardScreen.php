@@ -15,15 +15,10 @@ final class AcademyDashboardScreen {
     /** @return array<string, string> */
     public static function sections(): array {
         return array(
-            'quick' => 'Quick actions',
-            'kpis' => 'Key numbers',
-            'actions' => 'Pending work',
-            'schedule' => 'Today’s classes',
-            'pipeline' => 'Learner pipeline',
-            'activity' => '30-day activity',
+            'actions' => 'Needs Attention',
+            'schedule' => 'Today’s and introductory classes',
             'finance' => 'Finance snapshot',
-            'coverage' => 'Golden-hour coverage',
-            'queue' => 'Learner journeys',
+            'coverage' => 'Coverage Clock',
         );
     }
 

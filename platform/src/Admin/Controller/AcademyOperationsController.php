@@ -30,26 +30,15 @@ final class AcademyOperationsController {
 
     public static function screen(): void {
         if (!current_user_can(self::CAP)) wp_die('Forbidden', 403);
-        $query = isset($_GET['q']) && is_scalar($_GET['q']) ? sanitize_text_field(wp_unslash((string) $_GET['q'])) : '';
-        $stage = isset($_GET['stage']) && is_scalar($_GET['stage']) ? sanitize_key(wp_unslash((string) $_GET['stage'])) : 'needs_action';
-        $view = isset($_GET['view']) && is_scalar($_GET['view']) ? sanitize_key(wp_unslash((string) $_GET['view'])) : 'overview';
-        if (!in_array($view, array('overview', 'upcoming', 'attention'), true)) $view = 'overview';
-        $page = isset($_GET['paged']) && is_scalar($_GET['paged']) ? max(1, absint($_GET['paged'])) : 1;
-        $result = (new AcademyJourneyReadService())->search($query, $stage, $page);
         $summary = (new AcademyDashboardReadService())->summary();
-
         echo '<div class="wrap dzn-academy-dashboard">';
-        self::hero();
-        self::overviewCategories();
-        if (AcademyDashboardScreen::shows('quick')) self::quickActions();
-        if (AcademyDashboardScreen::shows('kpis')) self::kpiCards($summary);
-        if (AcademyDashboardScreen::shows('schedule')) self::todayClasses();
         if (AcademyDashboardScreen::shows('actions')) self::pendingActions();
-        if (AcademyDashboardScreen::shows('pipeline')) self::pipelinePanel($summary);
-        if (AcademyDashboardScreen::shows('activity')) self::activityPanel($summary);
+        if (AcademyDashboardScreen::shows('schedule')) {
+            self::todayClasses();
+            self::scheduledIntroClasses();
+        }
         if (AcademyDashboardScreen::shows('finance')) self::financePanel($summary);
         if (AcademyDashboardScreen::shows('coverage')) self::coveragePanel();
-        if (AcademyDashboardScreen::shows('queue')) self::journeyQueue($result, $query, $stage, $page, $view);
         echo '</div>';
     }
 
@@ -159,11 +148,8 @@ final class AcademyOperationsController {
     /** All actionable Overview work in one capability-gated pending-work area. */
     private static function pendingActions(): void {
         $items = array_values(array_filter(self::pendingActionItems(), static fn(array $item): bool => (int) $item['count'] > 0));
-        echo '<section class="dzn-panel" id="dzn-pending-work"><div class="dzn-panel__head"><div><h2>Pending work</h2><p>Every actionable queue shown on the Overview is collected here once. Class scheduling, class time, learner, finance and operational decisions link to their existing authority.</p></div></div>';
-        if (!$items) {
-            echo '<p class="dzn-all-clear"><span aria-hidden="true">✓</span> No pending operational decisions in your work areas.</p></section>';
-            return;
-        }
+        if (!$items) return;
+        echo '<section class="dzn-panel" id="dzn-pending-work"><div class="dzn-panel__head"><h2>Needs Attention</h2></div>';
         echo '<div class="dzn-action-grid">';
         foreach ($items as $item) {
             $url = add_query_arg(array_merge(array('page' => $item['page']), $item['args']), admin_url('admin.php'));
@@ -171,7 +157,6 @@ final class AcademyOperationsController {
             echo '<article class="dzn-action-card' . (!empty($item['urgent']) ? ' is-urgent' : '') . '"><div class="dzn-action-card__top"><span class="dzn-action-card__count">' . esc_html(number_format_i18n((int) $item['count'])) . '</span><span class="dzn-badge' . (!empty($item['urgent']) ? ' dzn-badge--red' : ' dzn-badge--gold') . '">' . (!empty($item['urgent']) ? 'Needs attention' : 'Waiting') . '</span></div><h3>' . esc_html($item['label']) . '</h3><p>' . esc_html($item['description']) . '</p><a class="button' . (!empty($item['urgent']) ? ' button-primary' : '') . '" href="' . esc_url($url) . '">' . esc_html($item['action']) . '</a></article>';
         }
         echo '</div>';
-        self::rescheduleQueue();
         echo '</section>';
     }
 
@@ -184,10 +169,6 @@ final class AcademyOperationsController {
         if (current_user_can('dzn_manage_onboarding')) {
             $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}teacher_onboarding_states WHERE state='pending_review'");
             $items[] = array('label' => 'Teacher onboarding submissions', 'count' => $count, 'page' => 'dzn-teachers-menu', 'action' => 'Review and decide', 'args' => array('view' => 'onboarding'), 'description' => 'Profiles and availability submitted for an explicit staff decision.', 'urgent' => $count > 0, 'anchor' => 'teacher-onboarding');
-        }
-        if (current_user_can('dzn_manage_booking_request_coordination')) {
-            $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_teacher_deliveries d INNER JOIN {$p}booking_requests r ON r.id=d.booking_request_id WHERE d.state='pending_request' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL");
-            $items[] = array('label' => 'Teacher booking requests pending response', 'count' => $count, 'page' => 'dzn-booking-requests', 'action' => 'Review request delivery', 'args' => array(), 'description' => 'A teacher has not yet answered a booking request.', 'urgent' => false, 'anchor' => '');
         }
         if (current_user_can('dzn_manage_post_intro_automation')) {
             $outcomesDue = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_confirmations c INNER JOIN {$p}booking_requests r ON r.id=c.booking_request_id LEFT JOIN {$p}booking_request_intro_outcomes o ON o.confirmation_id=c.id WHERE c.state='confirmed' AND c.ends_at_utc<UTC_TIMESTAMP() AND r.privacy_erased_at IS NULL AND o.id IS NULL");
@@ -220,10 +201,9 @@ final class AcademyOperationsController {
             }
             if ($ready > 0) $items[] = array('label' => 'Classes ready to schedule', 'count' => $ready, 'page' => 'dzn-lesson', 'action' => 'Open class resolutions', 'args' => array('class_queue' => 'ready'), 'description' => 'Canonical classes have no applicable schedule and need staff action.', 'urgent' => false, 'anchor' => '');
             if ($review > 0) $items[] = array('label' => 'Classes needing schedule or integrity review', 'count' => $review, 'page' => 'dzn-lesson', 'action' => 'Open class resolutions', 'args' => array('class_queue' => 'review'), 'description' => 'Class schedule pointers, legacy records or canonical integrity checks need review.', 'urgent' => true, 'anchor' => '');
-            $pendingReschedules = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}lesson_reschedule_proposals WHERE state='pending' AND (expires_at IS NULL OR expires_at>UTC_TIMESTAMP())");
             $escalated = (int) $wpdb->get_var("SELECT COUNT(*) FROM (SELECT lesson_id FROM {$p}lesson_reschedule_proposals WHERE state='rejected' GROUP BY lesson_id HAVING COUNT(*)>=3) escalated");
-            $timeChanges = $pendingReschedules + $escalated;
-            if ($timeChanges > 0) $items[] = array('label' => 'Class time changes needing a decision', 'count' => $timeChanges, 'page' => self::PAGE, 'action' => 'Review class time changes', 'args' => array(), 'description' => 'Negotiated time changes and three-rejection escalations are in the class time decisions below.', 'urgent' => $escalated > 0, 'anchor' => 'dzn-pending-reschedules');
+            $timeChanges = $escalated;
+            if ($timeChanges > 0) $items[] = array('label' => 'Class time changes needing a decision', 'count' => $timeChanges, 'page' => 'dzn-lesson', 'action' => 'Review class resolutions', 'args' => array('class_queue' => 'resolutions'), 'description' => 'Repeatedly rejected time changes require administrator review.', 'urgent' => true, 'anchor' => '');
         }
         self::$pendingCache = $items;
         return $items;
@@ -242,6 +222,27 @@ final class AcademyOperationsController {
         }
         echo '<ul class="dzn-list dzn-class-list">';
         foreach (array_slice($state['today'], 0, 12) as $row) self::classRow($row);
+        echo '</ul></section>';
+    }
+
+    /** Upcoming confirmed introductory bookings from the canonical class projection. */
+    private static function scheduledIntroClasses(): void {
+        $state = self::classSnapshot();
+        if (!$state['available']) return;
+        $now = current_time('timestamp', true);
+        $rows = array_values(array_filter($state['rows'], static function (object $row) use ($now): bool {
+            if (($row->record_model ?? '') !== 'confirmed_intro_booking_v1') return false;
+            $instant = self::scheduleUtcInstant((string) ($row->schedule_starts_at_utc ?? ''));
+            return $instant !== null && $instant->getTimestamp() >= $now;
+        }));
+        usort($rows, static fn(object $a, object $b): int => strcmp((string) ($a->schedule_starts_at_utc ?? ''), (string) ($b->schedule_starts_at_utc ?? '')));
+        echo '<section class="dzn-panel" id="dzn-scheduled-intros"><div class="dzn-panel__head"><h2>Scheduled Introductory Classes</h2></div>';
+        if (!$rows) {
+            echo '<p class="dzn-empty">No upcoming introductory classes are scheduled.</p></section>';
+            return;
+        }
+        echo '<ul class="dzn-list dzn-class-list">';
+        foreach (array_slice($rows, 0, 12) as $row) self::classRow($row);
         echo '</ul></section>';
     }
 
@@ -466,7 +467,7 @@ final class AcademyOperationsController {
 
     /** Academy-wide golden-hour coverage now lives on Overview, not in Teachers. */
     private static function coveragePanel(): void {
-        echo '<section class="dzn-panel" id="dzn-golden-hour-overview"><div class="dzn-panel__head"><div><h2>Golden-hour coverage</h2><p>Seven-day, 24-hour instrument capacity clock with one aggregated Golden Hours ring. Select a segment for capacity, regional demand and bonus details.</p></div><a class="dzn-panel__link" href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=settings#golden-hour-pay')) . '">Golden-hour settings →</a></div>';
+        echo '<section class="dzn-panel" id="dzn-golden-hour-overview"><div class="dzn-panel__head"><div><h2>Coverage Clock</h2></div></div>';
         if (current_user_can('dzn_view_booking_requests')) AcademyCoverageController::renderAtlas('dzn-academy-dashboard');
         else echo '<p class="dzn-empty">Coverage requires booking-request visibility.</p>';
         echo '</section>';
@@ -485,20 +486,6 @@ final class AcademyOperationsController {
         self::manualFinanceSource($finance);
         self::monthlyFinanceSource($finance);
         echo '</div>';
-        if ($openWork > 0) {
-            echo '<details class="dzn-finance-work"><summary>Open finance work <span class="dzn-badge dzn-badge--gold">' . esc_html(number_format_i18n($openWork)) . '</span></summary><div class="dzn-finance-cards">';
-            if (!empty($finance['payments_available']) && $payments > 0) {
-                echo '<a class="dzn-finance-card" href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=payments')) . '"><strong>' . esc_html(number_format_i18n($payments)) . '</strong><span>Checkout sessions awaiting an outcome</span></a>';
-            }
-            if (!empty($finance['available'])) {
-                if ($statements > 0) echo '<a class="dzn-finance-card" href="' . esc_url(admin_url('admin.php?page=dzn-finance&tab=statements')) . '"><strong>' . esc_html(number_format_i18n($statements)) . '</strong><span>Open Teacher statements</span></a>';
-                if ($payability > 0) echo '<a class="dzn-finance-card" href="' . esc_url(admin_url('admin.php?page=dzn-finance-payability')) . '"><strong>' . esc_html(number_format_i18n($payability)) . '</strong><span>Lessons with pending payability</span></a>';
-                if ($exceptions > 0) echo '<a class="dzn-finance-card" href="' . esc_url(admin_url('admin.php?page=dzn-finance-reconciliation')) . '"><strong>' . esc_html(number_format_i18n($exceptions)) . '</strong><span>Open finance exceptions</span></a>';
-            }
-            echo '</div></details>';
-        } else {
-            echo '<p class="dzn-all-clear"><span aria-hidden="true">✓</span> No payment, statement, payability or finance-exception work is waiting.</p>';
-        }
         echo '</section>';
     }
 

@@ -1,22 +1,27 @@
 /**
- * Delnavazan 24-hour instrument coverage clock.
+ * Seven-day, 24-hour instrument coverage clock.
  *
- * Progressive enhancement only: the server renders the summary, legend and a
- * compact JSON payload. This file turns the payload into an accessible SVG clock
- * with roving keyboard focus, segment details and (in the Teacher portal) an
- * unsaved availability preview.
+ * One Golden Hours ring, then seven weekday rings in Saturday–Friday order.
+ * The server sends 48 visual 30-minute segments per weekday; each segment keeps
+ * both 15-minute halves so partial availability stays visible. Booking precision
+ * remains in the server-side analyzer.
  */
 (function () {
 	'use strict';
 
 	var NS = 'http://www.w3.org/2000/svg';
-	var SIZE = 440;
+	var SIZE = 720;
 	var CENTER = SIZE / 2;
-	var SEGMENTS = 96;
-	var SLOT_MINUTES = 15;
+	var SEGMENTS = 48;
 	var DEGREES = 360 / SEGMENTS;
-	var STATE = { UNCOVERED: 0, LIMITED: 1, COVERED: 2, UNKNOWN: 3 };
-	var REASON = { NONE: 0, NO_AVAILABILITY: 1, FULLY_BOOKED: 2, NONEXISTENT: 3, UNKNOWN: 4 };
+	var GOLD_OUTER = 342;
+	var GOLD_INNER = 334;
+	var RING_OUTER = 322;
+	var RING_THICKNESS = 29;
+	var RING_GAP = 4;
+	var HUB_RADIUS = 86;
+	var STATE = { UNCOVERED: 0, LIMITED: 1, COVERED: 2, UNKNOWN: 3, PARTIAL: 4 };
+	var WEEK_ORDER = [6, 7, 1, 2, 3, 4, 5];
 
 	function el(name, attributes, children) {
 		var node = document.createElementNS(NS, name);
@@ -48,68 +53,7 @@
 
 	function minuteLabel(minute) {
 		if (minute >= 1440) return '24:00';
-		var hours = Math.floor(minute / 60);
-		var minutes = minute % 60;
-		return String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
-	}
-
-	function parseTime(value) {
-		if (!value || !/^\d{2}:\d{2}/.test(value)) return null;
-		var parts = value.slice(0, 5).split(':');
-		return Number(parts[0]) * 60 + Number(parts[1]);
-	}
-
-	function dateInZone(zone) {
-		try {
-			var formatter = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' });
-			return formatter.format(new Date());
-		} catch (error) {
-			var now = new Date();
-			return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-		}
-	}
-
-	function localNowMinutes(zone) {
-		try {
-			var formatter = new Intl.DateTimeFormat('en-GB', { timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: false });
-			return parseTime(formatter.format(new Date()));
-		} catch (error) {
-			var now = new Date();
-			return now.getHours() * 60 + now.getMinutes();
-		}
-	}
-
-	function stateKey(code) {
-		return code === STATE.COVERED ? 'covered' : code === STATE.LIMITED ? 'limited' : code === STATE.UNKNOWN ? 'unknown' : 'uncovered';
-	}
-
-	function reasonKey(code) {
-		return code === REASON.FULLY_BOOKED ? 'booked' : code === REASON.NONEXISTENT ? 'nonExistent' : code === REASON.UNKNOWN ? 'unknown' : code === REASON.NO_AVAILABILITY ? 'noAvailability' : '';
-	}
-
-	function teacherLabel(count, labels) {
-		return count + ' ' + (count === 1 ? labels.teacher : labels.teachers);
-	}
-
-	function segmentLabel(segment, clock, labels, index) {
-		var state = stateKey(segment[0]);
-		var count = segment[1];
-		var golden = !!segment[3];
-		var past = !!segment[4];
-		var reason = reasonKey(segment[5]);
-		var start = minuteLabel(index * SLOT_MINUTES);
-		var end = minuteLabel(index * SLOT_MINUTES + SLOT_MINUTES);
-		var parts = [start + '–' + end, labels[state] || state];
-		if (state === 'covered' || state === 'limited') parts.push(teacherLabel(count, labels));
-		if (reason && labels[reason]) parts.push(labels[reason]);
-		if (golden) parts.push(labels.golden);
-		if (past) parts.push(labels.past);
-		return parts.join(', ');
-	}
-
-	function summaryText(clock) {
-		var summary = clock.summary || {};
-		return summary;
+		return String(Math.floor(minute / 60)).padStart(2, '0') + ':' + String(minute % 60).padStart(2, '0');
 	}
 
 	function render(root) {
@@ -117,309 +61,326 @@
 		if (!dataNode) return;
 		var data;
 		try { data = JSON.parse(dataNode.textContent || '{}'); } catch (error) { return; }
-		if (!data || !data.instruments || !data.instruments.length) return;
+		if (!data || !Array.isArray(data.week) || !data.week.length) return;
 		var labels = data.labels || {};
+		var isFa = data.scope === 'teacher';
+		var faDigits = function (value) { return String(value).replace(/[0-9]/g, function (digit) { return '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]; }); };
+		var clockLabel = function (minute) { var value = minuteLabel(minute); return isFa ? faDigits(value) : value; };
+		var timeLabel = function (value) { return isFa ? faDigits(value) : String(value); };
+		var numberLabel = function (value) { return isFa ? faDigits(value) : String(value); };
 		var canvas = root.querySelector('[data-dzn-clock-canvas]');
 		var details = root.querySelector('[data-dzn-clock-details]');
+		var detailsBody = root.querySelector('[data-dzn-clock-details-body]');
+		var useButton = root.querySelector('[data-dzn-clock-use]');
 		if (!canvas) return;
 
-		var state = {
-			instrumentId: Number(data.selected_instrument || data.instruments[0].id),
-			weekday: Number(data.weekday || 1),
-			selectedIndex: null,
-			proposed: null
-		};
+		var state = { ring: null, segment: null, golden: false, proposed: null };
+		var week = data.week.slice();
+		var goldenRing = Array.isArray(data.golden_ring) ? data.golden_ring : [];
+		var goldenBonus = data.golden_bonus || {};
+		var ringGroups = [];
 
-		function instrument() {
-			var found = data.instruments[0];
-			data.instruments.forEach(function (item) { if (Number(item.id) === state.instrumentId) found = item; });
-			return found;
+		function dayFor(index) { return week[index] || null; }
+		function weekdayLabel(day) { return (labels.weekdays || {})[String(day.weekday)] || ''; }
+		function dateLabel(day) {
+			try {
+				var locale = isFa ? (data.calendar === 'persian' ? 'fa-IR-u-ca-persian' : 'fa-IR-u-ca-gregory') : (data.calendar === 'persian' ? 'en-GB-u-ca-persian' : 'en-GB');
+				return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(day.date + 'T12:00:00Z'));
+			} catch (error) { return data.calendar === 'persian' ? (day.date_label_fa || day.date_label) : (day.date_label || day.date_label_fa); }
+		}
+		function stateName(code) {
+			return code === STATE.COVERED ? (labels.covered || 'Capacity')
+				: code === STATE.LIMITED ? (labels.limited || 'One teacher')
+				: code === STATE.PARTIAL ? (labels.partial || 'Partial')
+				: code === STATE.UNKNOWN ? (labels.unknown || 'Unknown')
+				: (labels.uncoveredState || 'No capacity');
+		}
+		function halfStateName(code) {
+			return code === STATE.COVERED ? (labels.covered || 'Capacity')
+				: code === STATE.LIMITED ? (labels.limited || 'One teacher')
+				: code === STATE.UNKNOWN ? (labels.unknown || 'Unknown')
+				: (labels.uncoveredState || 'No capacity');
+		}
+		function capacityText(segment) {
+			var first = Number(segment[8] || 0);
+			var second = Number(segment[9] || 0);
+			var teachers = labels.teachers || 'eligible teachers';
+			var teacher = labels.teacher || 'eligible teacher';
+			if (first === second) return numberLabel(first) + ' ' + (first === 1 ? teacher : teachers);
+			return (labels.partialFirst || 'First half') + ': ' + numberLabel(first) + ' ' + (first === 1 ? teacher : teachers) + ' · ' + (labels.partialSecond || 'Second half') + ': ' + numberLabel(second) + ' ' + (second === 1 ? teacher : teachers);
+		}
+		function addDetail(list, term, value) {
+			var dt = document.createElement('dt'); dt.textContent = term;
+			var dd = document.createElement('dd'); dd.textContent = value;
+			list.append(dt, dd);
+		}
+		function clearDetails() {
+			if (!detailsBody) return;
+			detailsBody.replaceChildren();
+			var empty = document.createElement('p');
+			empty.className = 'dzn-clock__details-empty';
+			empty.textContent = labels.select || 'Select a segment for details.';
+			detailsBody.appendChild(empty);
+			if (useButton) useButton.disabled = true;
+		}
+		function setUse(index) {
+			if (!useButton) return;
+			useButton.disabled = index === null;
+			useButton.setAttribute('data-dzn-clock-use-ring', index === null ? '' : String(index));
+			useButton.setAttribute('data-dzn-clock-use-seg', state.segment === null ? '' : String(state.segment));
 		}
 
-		function clock() {
-			var current = instrument();
-			var clocks = current.clocks || {};
-			return clocks[String(state.weekday)] || clocks[Object.keys(clocks)[0]] || { segments: [], summary: {} };
+		function selectWeekday(ringIndex, segmentIndex, focus) {
+			var day = dayFor(ringIndex);
+			if (!day) return;
+			var segment = day.segments[segmentIndex];
+			if (!segment) return;
+			state.ring = ringIndex; state.segment = segmentIndex; state.golden = false;
+			if (!detailsBody) return;
+			detailsBody.replaceChildren();
+			var head = document.createElement('div'); head.className = 'dzn-clock__detail-head';
+			var time = document.createElement('strong'); time.textContent = clockLabel(segmentIndex * 30) + '–' + clockLabel(segmentIndex * 30 + 30);
+			var badge = document.createElement('span'); badge.className = 'dzn-clock__detail-state is-state-' + Number(segment[0]); badge.textContent = (labels.selected || 'Selected') + ' · ' + stateName(segment[0]);
+			head.append(time, badge); detailsBody.appendChild(head);
+			var meta = document.createElement('p'); meta.className = 'dzn-clock__detail-meta'; meta.textContent = weekdayLabel(day) + ' · ' + dateLabel(day);
+			detailsBody.appendChild(meta);
+			var list = document.createElement('dl'); list.className = 'dzn-clock__detail-list';
+			addDetail(list, labels.capacity || 'Capacity', capacityText(segment));
+			if (segment[0] === STATE.UNCOVERED) addDetail(list, labels.reason || 'Note', Number(segment[6]) === 0 && Number(segment[7]) === 0 ? (labels.noCapacity || '') : '');
+			var goldenEntries = (day.golden_details || {})[String(segmentIndex)] || [];
+			if (segment[3]) addDetail(list, labels.goldenTitle || 'Golden Hours', goldenEntries.length ? (labels.demandWindow || 'Demand window') : (labels.goldenTitle || 'Golden Hours'));
+			if (goldenEntries.length) {
+				goldenEntries.slice(0, 5).forEach(function (entry) {
+					addDetail(list, (labels.regions || 'Regions') + ' · ' + (entry.label || entry.region), timeLabel(entry.local_start) + '–' + timeLabel(entry.local_end));
+				});
+			}
+			if (Number(segment[4])) addDetail(list, labels.partial || 'Partial', labels.goldenTitle || 'Golden Hours');
+			if (goldenBonus.enabled && Number(segment[12])) addDetail(list, labels.bonus || 'Bonus', numberLabel(goldenBonus.percent) + '%');
+			if (segment[5]) addDetail(list, labels.past || 'Past', '');
+			detailsBody.appendChild(list);
+			if (useButton) { useButton.disabled = false; useButton.setAttribute('data-dzn-clock-use-ring', String(ringIndex)); useButton.setAttribute('data-dzn-clock-use-seg', String(segmentIndex)); }
+			syncTabindex(); paintSelection(); updateHub();
+			if (focus) focusSegment(ringIndex, segmentIndex, false);
 		}
 
-		function updateMetrics() {
-			var current = instrument();
-			var summary = summaryText(clock());
-			var values = {
-				coverage: summary.coverage_percent === null || summary.coverage_percent === undefined ? '—' : summary.coverage_percent + '%',
-				golden: summary.golden_coverage_percent === null || summary.golden_coverage_percent === undefined ? (labels.noWindow || 'No window') : summary.golden_coverage_percent + '%',
-				uncovered: duration(summary.uncovered_minutes),
-				single: duration(summary.single_teacher_minutes),
-				teachers: String(current.eligible_teacher_count || 0),
-				'golden-gap': duration(summary.golden_uncovered_minutes)
-			};
-			Object.keys(values).forEach(function (key) {
-				var target = root.querySelector('[data-dzn-metric="' + key + '"] strong');
-				if (target) target.textContent = values[key];
+		function selectGolden(segmentIndex, focus) {
+			var segment = goldenRing[segmentIndex] || {};
+			state.golden = true; state.ring = null; state.segment = segmentIndex;
+			if (!detailsBody) return;
+			detailsBody.replaceChildren();
+			var head = document.createElement('div'); head.className = 'dzn-clock__detail-head';
+			var time = document.createElement('strong'); time.textContent = clockLabel(segmentIndex * 30) + '–' + clockLabel(segmentIndex * 30 + 30);
+			var badge = document.createElement('span'); badge.className = 'dzn-clock__detail-state ' + (segment.golden ? 'is-golden' : 'is-state-0'); badge.textContent = segment.golden ? (labels.golden || 'Golden Hours') : (labels.noDemandWindow || 'No regional demand window');
+			head.append(time, badge); detailsBody.appendChild(head);
+			var note = document.createElement('p'); note.className = 'dzn-clock__detail-meta'; note.textContent = labels.aggregateGolden || ''; detailsBody.appendChild(note);
+			var list = document.createElement('dl'); list.className = 'dzn-clock__detail-list';
+			var regions = Array.isArray(segment.regions) ? segment.regions : [];
+			if (!regions.length) addDetail(list, labels.goldenTitle || 'Golden Hours', labels.noDemandWindow || 'No regional demand window');
+			regions.slice(0, 12).forEach(function (entry) {
+				var day = week.find(function (candidate) { return Number(candidate.weekday) === Number(entry.weekday); });
+				var dayName = day ? weekdayLabel(day) + ' ' + dateLabel(day) : '';
+				addDetail(list, dayName + ' · ' + (entry.label || entry.region), timeLabel(entry.local_start) + '–' + timeLabel(entry.local_end) + ' · ' + timeLabel((entry.timezone || '').replace(/_/g, ' ')));
 			});
-			var period = root.querySelector('[data-dzn-clock-period-label]');
-			if (period) {
-				var clockData = clock();
-				period.textContent = data.calendar === 'persian' && clockData.date_label_fa ? clockData.date_label_fa : (clockData.date_label || '');
+			if (goldenBonus.enabled) addDetail(list, labels.bonus || 'Bonus', numberLabel(goldenBonus.percent) + '% · ' + (labels.bonusConditional || 'within the global bonus window')); else addDetail(list, labels.bonus || 'Bonus', labels.bonusOff || 'Not active');
+			detailsBody.appendChild(list);
+			if (useButton) useButton.disabled = true;
+			syncTabindex(); paintSelection(); updateHub();
+			if (focus) focusSegment(null, segmentIndex, true);
+		}
+
+		function updateHub() {
+			var hub = canvas.querySelector('.dzn-clock__hub-time');
+			var sub = canvas.querySelector('.dzn-clock__hub-state');
+			if (!hub || !sub) return;
+			if (state.segment === null) {
+				hub.textContent = labels.clock || '24h';
+				sub.textContent = labels.select || '';
+				return;
 			}
-			var sub = root.querySelector('[data-dzn-clock-period-sub]');
-			if (sub) sub.textContent = (data.timezone_label || data.timezone || '');
-			var meta = root.querySelector('[data-dzn-clock-assumption]');
-			if (meta) meta.textContent = assumption(current);
-			var currentName = root.querySelector('[data-dzn-clock-current] strong');
-			if (currentName) currentName.textContent = current.name || '';
-			root.querySelectorAll('[data-dzn-clock-instrument]').forEach(function (button) {
-				var selected = Number(button.getAttribute('data-dzn-clock-instrument')) === state.instrumentId;
-				button.classList.toggle('is-selected', selected);
-				button.setAttribute('aria-pressed', selected ? 'true' : 'false');
-			});
-		}
-
-		function assumption(current) {
-			return String(labels.assumptionTemplate || '{lesson}-minute class + {buffer}-minute buffer')
-				.replace('{lesson}', current.lesson_minutes || 0)
-				.replace('{buffer}', current.buffer_minutes || 0);
-		}
-
-		function duration(minutes) {
-			minutes = Math.max(0, Number(minutes) || 0);
-			if (!minutes) return '0m';
-			var hours = Math.floor(minutes / 60);
-			var rest = minutes % 60;
-			return (hours ? hours + 'h ' : '') + rest + 'm';
-		}
-
-		function segmentStatus(segment) {
-			var stateCode = segment[0];
-			var reason = reasonKey(segment[5]);
-			if (stateCode === STATE.UNKNOWN) return labels.unknown || 'Unknown';
-			if (stateCode === STATE.COVERED) return labels.covered || 'Covered';
-			if (stateCode === STATE.LIMITED) return labels.limited || 'One teacher';
-			if (reason && labels[reason]) return labels[reason];
-			return labels.uncovered || 'No remaining capacity';
-		}
-
-		function showDetails(index) {
-			state.selectedIndex = index;
-			var clockData = clock();
-			var segment = clockData.segments[index];
-			if (!segment || !details) return;
-			var start = index * SLOT_MINUTES;
-			var end = start + SLOT_MINUTES;
-			var stateName = stateKey(segment[0]);
-			var reason = reasonKey(segment[5]);
-			details.innerHTML = '';
-			var heading = document.createElement('div');
-			heading.className = 'dzn-clock__detail-head';
-			var time = document.createElement('strong');
-			time.textContent = minuteLabel(start) + '–' + minuteLabel(end);
-			var badge = document.createElement('span');
-			badge.className = 'dzn-clock__detail-state is-' + stateName;
-			badge.textContent = segmentStatus(segment);
-			heading.appendChild(time);
-			heading.appendChild(badge);
-			details.appendChild(heading);
-			var list = document.createElement('dl');
-			list.className = 'dzn-clock__detail-list';
-			addDetail(list, labels.capacity || 'Remaining capacity', (segment[0] === STATE.COVERED || segment[0] === STATE.LIMITED) ? teacherLabel(segment[1], labels) : '0');
-			if (segment[1] !== segment[2]) addDetail(list, labels.declared || 'Declared availability', teacherLabel(segment[2], labels));
-			addDetail(list, labels.golden || 'Golden Hour', segment[3] ? (labels.yes || 'Yes') : (labels.no || 'No'));
-			addDetail(list, labels.assumedLesson || 'Assumes', assumption(instrument()));
-			if (reason && labels[reason]) addDetail(list, labels.reason || 'Note', labels[reason]);
-			details.appendChild(list);
-			if (segment[4]) {
-				var past = document.createElement('p');
-				past.className = 'dzn-clock__detail-note';
-				past.textContent = labels.past || 'Already passed';
-				details.appendChild(past);
-			}
-			var use = root.querySelector('[data-dzn-clock-use]');
-			if (use) {
-				use.disabled = segment[0] === STATE.UNKNOWN || !!segment[4];
-				use.setAttribute('data-dzn-clock-use-index', String(index));
-			}
-			paintSelection();
-		}
-
-		function addDetail(list, term, description) {
-			var dt = document.createElement('dt');
-			dt.textContent = term;
-			var dd = document.createElement('dd');
-			dd.textContent = description;
-			list.appendChild(dt);
-			list.appendChild(dd);
+			hub.textContent = clockLabel(state.segment * 30) + '–' + clockLabel(state.segment * 30 + 30);
+			if (state.golden) { sub.textContent = labels.golden || 'Golden Hours'; return; }
+			var day = dayFor(state.ring || 0);
+			var segment = day ? day.segments[state.segment] : null;
+			sub.textContent = segment ? stateName(segment[0]) : '';
 		}
 
 		function paintSelection() {
-			var groups = canvas.querySelectorAll('[data-dzn-clock-segment]');
-			groups.forEach(function (group) {
-				var index = Number(group.getAttribute('data-dzn-clock-segment'));
-				var selected = state.selectedIndex === index;
+			canvas.querySelectorAll('[data-dzn-ring]').forEach(function (group) {
+				var selected = !state.golden && Number(group.getAttribute('data-dzn-ring')) === state.ring && Number(group.getAttribute('data-dzn-seg')) === state.segment;
 				group.classList.toggle('is-selected', selected);
 				group.setAttribute('aria-pressed', selected ? 'true' : 'false');
-				group.setAttribute('tabindex', selected || (state.selectedIndex === null && index === 0) ? '0' : '-1');
+			});
+			canvas.querySelectorAll('[data-dzn-golden-seg]').forEach(function (group) {
+				var selected = state.golden && Number(group.getAttribute('data-dzn-golden-seg')) === state.segment;
+				group.classList.toggle('is-selected', selected);
+				group.setAttribute('aria-pressed', selected ? 'true' : 'false');
 			});
 			paintProposed();
 		}
 
 		function paintProposed() {
-			if (!state.proposed) return;
-			var start = state.proposed.start;
-			var end = state.proposed.end;
-			canvas.querySelectorAll('[data-dzn-clock-segment]').forEach(function (group) {
-				var index = Number(group.getAttribute('data-dzn-clock-segment'));
-				var minute = index * SLOT_MINUTES;
-				group.classList.toggle('is-proposed', minute < end && minute + SLOT_MINUTES > start);
+			canvas.querySelectorAll('[data-dzn-ring]').forEach(function (group) {
+				var ring = Number(group.getAttribute('data-dzn-ring'));
+				var seg = Number(group.getAttribute('data-dzn-seg'));
+				var day = dayFor(ring);
+				var proposed = state.proposed && day && Number(day.weekday) === Number(state.proposed.weekday) && seg * 30 < state.proposed.end && seg * 30 + 30 > state.proposed.start;
+				group.classList.toggle('is-proposed', !!proposed);
 			});
 		}
 
-		function draw() {
-			canvas.innerHTML = '';
-			var current = instrument();
-			var clockData = clock();
-			var segments = clockData.segments || [];
-			var svg = el('svg', {
-				viewBox: '-20 -20 480 480',
-				class: 'dzn-clock__svg',
-				role: 'group',
-				'aria-label': (current.name || 'Instrument') + ' ' + (labels.clock || '24-hour coverage clock')
+		function syncTabindex() {
+			var any = false;
+			canvas.querySelectorAll('[data-dzn-ring], [data-dzn-golden-seg]').forEach(function (group) {
+				var selected = false;
+				if (group.hasAttribute('data-dzn-golden-seg')) selected = state.golden && Number(group.getAttribute('data-dzn-golden-seg')) === state.segment;
+				else selected = !state.golden && Number(group.getAttribute('data-dzn-ring')) === state.ring && Number(group.getAttribute('data-dzn-seg')) === state.segment;
+				group.setAttribute('tabindex', selected ? '0' : '-1');
+				if (selected) any = true;
 			});
+			if (!any) {
+				var first = canvas.querySelector('[data-dzn-ring="0"][data-dzn-seg="0"]');
+				if (first) first.setAttribute('tabindex', '0');
+			}
+		}
+
+		function focusSegment(ringIndex, segmentIndex, golden) {
+			var selector = golden ? '[data-dzn-golden-seg="' + segmentIndex + '"]' : '[data-dzn-ring="' + ringIndex + '"][data-dzn-seg="' + segmentIndex + '"]';
+			var target = canvas.querySelector(selector);
+			if (target) target.focus({ preventScroll: true });
+		}
+
+		function draw() {
+			canvas.replaceChildren();
+			var svg = el('svg', { viewBox: '0 0 ' + SIZE + ' ' + SIZE, class: 'dzn-clock__svg', role: 'group', 'aria-label': labels.clock || 'Weekly coverage clock' });
 			var defs = el('defs');
-			defs.appendChild(pattern('dzn-clock-limited-hatch', 4, 4, function (p) {
-				p.appendChild(el('rect', { width: 4, height: 4, fill: 'transparent' }));
-				p.appendChild(el('path', { d: 'M0 4L4 0', stroke: 'rgba(255,255,255,.72)', 'stroke-width': 1.2 }));
-			}));
-			defs.appendChild(pattern('dzn-clock-unknown-hatch', 5, 5, function (p) {
-				p.appendChild(el('rect', { width: 5, height: 5, fill: 'transparent' }));
-				p.appendChild(el('path', { d: 'M0 5L5 0', stroke: 'rgba(83,74,110,.35)', 'stroke-width': 1 }));
-			}));
-			defs.appendChild(pattern('dzn-clock-booked-dot', 6, 6, function (p) {
-				p.appendChild(el('rect', { width: 6, height: 6, fill: 'transparent' }));
-				p.appendChild(el('circle', { cx: 3, cy: 3, r: 1.4, fill: 'rgba(83,74,110,.65)' }));
-			}));
+			defs.appendChild(pattern('dzn-clock-limited', 7, 7, function (p) { p.appendChild(el('path', { d: 'M0 7L7 0', stroke: 'rgba(255,255,255,.5)', 'stroke-width': 1 })); }));
+			defs.appendChild(pattern('dzn-clock-unknown', 5, 5, function (p) { p.appendChild(el('path', { d: 'M0 5L5 0', stroke: 'rgba(58,48,82,.38)', 'stroke-width': 1 })); }));
 			svg.appendChild(defs);
 
-			// Golden designation ring: always visible, independent of capacity.
-			for (var i = 0; i < SEGMENTS; i++) {
-				var segment = segments[i] || [0, 0, 0, 0, 0, 0];
-				var startAngle = i * DEGREES + 0.35;
-				var endAngle = (i + 1) * DEGREES - 0.35;
-				var goldenPath = el('path', {
-					d: arcPath(207, 199, startAngle, endAngle),
-					class: 'dzn-clock__golden' + (segment[3] ? ' is-golden' : '')
-				});
-				svg.appendChild(goldenPath);
-			}
-
-			var segmentGroups = [];
-			for (var index = 0; index < SEGMENTS; index++) {
-				var item = segments[index] || [0, 0, 0, 0, 0, 0];
-				var stateName = stateKey(item[0]);
-				var reason = reasonKey(item[5]);
-				var classes = ['dzn-clock__segment', 'is-' + stateName];
-				if (item[3]) classes.push('is-golden');
-				if (item[4]) classes.push('is-past');
-				if (item[0] === STATE.UNCOVERED && item[2] > 0 && reason === 'booked') classes.push('is-booked');
-				if (index === state.selectedIndex) classes.push('is-selected');
-				var group = el('g', {
-					class: classes.join(' '),
-					'data-dzn-clock-segment': index,
-					role: 'button',
-					tabindex: index === 0 ? '0' : '-1',
-					'aria-pressed': index === state.selectedIndex ? 'true' : 'false',
-					'aria-label': segmentLabel(item, clockData, labels, index)
-				});
-				group.appendChild(el('title', null, [segmentLabel(item, clockData, labels, index)]));
-				var main = el('path', {
-					d: arcPath(192, 150, index * DEGREES + 0.55, (index + 1) * DEGREES - 0.55),
-					class: 'dzn-clock__segment-shape'
-				});
-				group.appendChild(main);
-				if (item[0] === STATE.LIMITED) group.appendChild(el('path', { d: arcPath(192, 150, index * DEGREES + 0.55, (index + 1) * DEGREES - 0.55), class: 'dzn-clock__segment-hatch', fill: 'url(#dzn-clock-limited-hatch)' }));
-				if (item[0] === STATE.UNKNOWN) group.appendChild(el('path', { d: arcPath(192, 150, index * DEGREES + 0.55, (index + 1) * DEGREES - 0.55), class: 'dzn-clock__segment-hatch', fill: 'url(#dzn-clock-unknown-hatch)' }));
-				if (item[0] === STATE.UNCOVERED && item[2] > 0 && reason === 'booked') {
-					var midpoint = index * DEGREES + DEGREES / 2;
-					var dot = polar(171, midpoint);
-					group.appendChild(el('circle', { cx: dot[0], cy: dot[1], r: 2.4, class: 'dzn-clock__booked-dot' }));
-				}
-				group.addEventListener('click', function (event) { event.preventDefault(); showDetails(Number(this.getAttribute('data-dzn-clock-segment'))); });
-				group.addEventListener('keydown', function (event) {
-					var currentIndex = Number(this.getAttribute('data-dzn-clock-segment'));
-					var next = currentIndex;
-					if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = (currentIndex + 1) % SEGMENTS;
-					else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') next = (currentIndex + SEGMENTS - 1) % SEGMENTS;
-					else if (event.key === 'Home') next = 0;
-					else if (event.key === 'End') next = SEGMENTS - 1;
-					else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); showDetails(currentIndex); return; }
-					else return;
-					event.preventDefault();
-					showDetails(next);
-					var target = canvas.querySelector('[data-dzn-clock-segment="' + next + '"]');
-					if (target) target.focus();
-				});
-				svg.appendChild(group);
-				segmentGroups.push(group);
-			}
-
 			for (var hour = 0; hour < 24; hour++) {
-				var hourAngle = hour * 15;
-				var tickOuter = polar(214, hourAngle);
-				var tickInner = polar(210, hourAngle);
-				svg.appendChild(el('line', {
-					x1: tickInner[0].toFixed(2), y1: tickInner[1].toFixed(2),
-					x2: tickOuter[0].toFixed(2), y2: tickOuter[1].toFixed(2),
-					class: 'dzn-clock__tick' + (hour % 3 === 0 ? ' is-major' : '')
-				}));
+				var a = hour * 15;
+				var t1 = polar(346, a), t2 = polar(342, a);
+				svg.appendChild(el('line', { x1: t1[0], y1: t1[1], x2: t2[0], y2: t2[1], class: 'dzn-clock__tick' + (hour % 6 === 0 ? ' is-major' : '') }));
 			}
-			[0, 3, 6, 9, 12, 15, 18, 21].forEach(function (hour) {
-				var point = polar(226, hour * 15);
-				svg.appendChild(el('text', {
-					x: point[0].toFixed(2), y: point[1].toFixed(2),
-					class: 'dzn-clock__hour-label',
-					'text-anchor': 'middle',
-					'dominant-baseline': 'middle'
-				}, [String(hour).padStart(2, '0')]));
+			[[0, '00'], [6, '06'], [12, '12'], [18, '18']].forEach(function (entry) {
+				var point = polar(358, entry[0] * 15);
+				svg.appendChild(el('text', { x: point[0], y: point[1], class: 'dzn-clock__hour', 'text-anchor': 'middle', 'dominant-baseline': 'middle' }, [isFa ? faDigits(entry[1]) : entry[1]]));
 			});
 
-			var today = dateInZone(data.timezone || 'UTC');
-			if (clockData.date === today) {
-				var nowMinute = localNowMinutes(data.timezone || 'UTC');
-				if (nowMinute !== null) {
-					var nowAngle = (nowMinute / SLOT_MINUTES) * DEGREES;
-					var nowPoint = polar(145, nowAngle);
-					svg.appendChild(el('line', {
-						x1: CENTER, y1: CENTER, x2: nowPoint[0].toFixed(2), y2: nowPoint[1].toFixed(2),
-						class: 'dzn-clock__now-hand'
-					}));
-					svg.appendChild(el('circle', { cx: nowPoint[0], cy: nowPoint[1], r: 4, class: 'dzn-clock__now-dot' }));
-				}
+			for (var i = 0; i < SEGMENTS; i++) {
+				var golden = goldenRing[i] || {};
+				var group = el('g', {
+					class: 'dzn-clock__golden-seg' + (golden.golden ? ' is-golden' : ''),
+					'data-dzn-golden-seg': i,
+					role: 'button',
+					tabindex: '-1',
+					'aria-pressed': 'false',
+					'aria-label': (labels.golden || 'Golden Hours') + ', ' + clockLabel(i * 30) + '–' + clockLabel(i * 30 + 30) + ', ' + ((golden.regions || []).length) + ' ' + (labels.regions || 'regions')
+				});
+				group.appendChild(el('title', null, [clockLabel(i * 30) + '–' + clockLabel(i * 30 + 30)]));
+				var goldenArc = arcPath(GOLD_OUTER, GOLD_INNER, i * DEGREES + 0.18, (i + 1) * DEGREES - 0.18);
+				group.appendChild(el('path', { d: goldenArc, class: 'dzn-clock__golden-base' }));
+				group.appendChild(el('path', {
+					d: goldenArc,
+					class: 'dzn-clock__golden-arc',
+					'fill-opacity': golden.golden ? (0.16 + 0.34 * Number(golden.intensity || 0)).toFixed(2) : '0'
+				}));
+				group.addEventListener('keydown', function (event) {
+					var index = Number(this.getAttribute('data-dzn-golden-seg'));
+					if (event.key === 'ArrowRight') { event.preventDefault(); selectGolden((index + 1) % SEGMENTS, true); }
+					else if (event.key === 'ArrowLeft') { event.preventDefault(); selectGolden((index + SEGMENTS - 1) % SEGMENTS, true); }
+					else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); selectWeekday(0, index, true); }
+					else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectGolden(index, true); }
+				});
+				svg.appendChild(group);
 			}
+
+			week.forEach(function (day, ringIndex) {
+				var outer = RING_OUTER - ringIndex * (RING_THICKNESS + RING_GAP);
+				var inner = outer - RING_THICKNESS;
+				var ring = el('g', { class: 'dzn-clock__ring dzn-clock__ring--' + day.weekday + (day.is_today ? ' is-today' : ''), 'aria-label': weekdayLabel(day) + ' ' + dateLabel(day) });
+				if (day.is_today) {
+					ring.appendChild(el('circle', { cx: CENTER, cy: CENTER, r: outer + 1.5, class: 'dzn-clock__today-outline' }));
+					ring.appendChild(el('circle', { cx: CENTER, cy: CENTER, r: inner - 1.5, class: 'dzn-clock__today-outline' }));
+				}
+				day.segments.forEach(function (segment, segIndex) {
+					var start = segIndex * DEGREES + 0.22;
+					var end = (segIndex + 1) * DEGREES - 0.22;
+					var mid = (start + end) / 2;
+					var group = el('g', {
+						class: 'dzn-clock__seg' + (segment[5] ? ' is-past' : ''),
+						'data-dzn-ring': ringIndex,
+						'data-dzn-seg': segIndex,
+						role: 'button',
+						tabindex: '-1',
+						'aria-pressed': 'false',
+						'aria-label': weekdayLabel(day) + ' ' + dateLabel(day) + ', ' + clockLabel(segIndex * 30) + '–' + clockLabel(segIndex * 30 + 30) + ', ' + stateName(segment[0]) + ', ' + capacityText(segment) + (segment[3] ? ', ' + (labels.golden || 'Golden Hours') : '')
+					});
+					group.appendChild(el('title', null, [weekdayLabel(day) + ' ' + dateLabel(day) + ' · ' + clockLabel(segIndex * 30) + '–' + clockLabel(segIndex * 30 + 30) + ' · ' + stateName(segment[0])]));
+					var halves = [[segment[6], segment[8], start, mid - 0.08, segment[10]], [segment[7], segment[9], mid + 0.08, end, segment[11]]];
+					halves.forEach(function (half) {
+						var halfState = Number(half[0]);
+						var fillClass = halfState === STATE.COVERED ? 'is-covered' : (halfState === STATE.LIMITED ? 'is-limited' : (halfState === STATE.UNKNOWN ? 'is-unknown' : 'is-uncovered'));
+						var halfPath = arcPath(outer, inner, half[2], half[3]);
+						group.appendChild(el('path', { d: halfPath, class: 'dzn-clock__seg-half ' + fillClass }));
+						if (halfState === STATE.LIMITED) group.appendChild(el('path', { d: halfPath, class: 'dzn-clock__seg-hatch', fill: 'url(#dzn-clock-limited)' }));
+						if (halfState === STATE.UNKNOWN) group.appendChild(el('path', { d: halfPath, class: 'dzn-clock__seg-hatch', fill: 'url(#dzn-clock-unknown)' }));
+						if (Number(half[4])) group.appendChild(el('path', { d: arcPath(inner + 2.2, inner, half[2], half[3]), class: 'dzn-clock__golden-edge' }));
+					});
+					group.appendChild(el('path', { d: arcPath(outer + 0.6, inner - 0.6, start, end), class: 'dzn-clock__seg-outline' }));
+					group.addEventListener('keydown', function (event) {
+						var r = Number(this.getAttribute('data-dzn-ring')); var s = Number(this.getAttribute('data-dzn-seg'));
+						if (event.key === 'ArrowRight') { event.preventDefault(); selectWeekday(r, (s + 1) % SEGMENTS, true); }
+						else if (event.key === 'ArrowLeft') { event.preventDefault(); selectWeekday(r, (s + SEGMENTS - 1) % SEGMENTS, true); }
+						else if (event.key === 'ArrowDown') { event.preventDefault(); selectWeekday(Math.min(week.length - 1, r + 1), s, true); }
+						else if (event.key === 'ArrowUp') { event.preventDefault(); if (r === 0) selectGolden(s, true); else selectWeekday(r - 1, s, true); }
+						else if (event.key === 'Home') { event.preventDefault(); selectWeekday(r, 0, true); }
+						else if (event.key === 'End') { event.preventDefault(); selectWeekday(r, SEGMENTS - 1, true); }
+						else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectWeekday(r, s, true); }
+					});
+					ring.appendChild(group);
+				});
+				ringGroups.push(ring);
+				svg.appendChild(ring);
+			});
 
 			var hub = el('g', { class: 'dzn-clock__hub' });
-			hub.appendChild(el('circle', { cx: CENTER, cy: CENTER, r: 118, class: 'dzn-clock__hub-disc' }));
-			var selected = state.selectedIndex === null ? null : clockData.segments[state.selectedIndex];
-			var title = selected ? minuteLabel(state.selectedIndex * SLOT_MINUTES) + '–' + minuteLabel(state.selectedIndex * SLOT_MINUTES + SLOT_MINUTES) : (labels.clock || '24h');
-			var subtitle = selected ? segmentStatus(selected) : (labels.select || 'Select a segment');
-			var count = selected && (selected[0] === STATE.COVERED || selected[0] === STATE.LIMITED) ? teacherLabel(selected[1], labels) : '';
-			hub.appendChild(el('text', { x: CENTER, y: CENTER - 14, class: 'dzn-clock__hub-time', 'text-anchor': 'middle' }, [title]));
-			hub.appendChild(el('text', { x: CENTER, y: CENTER + 14, class: 'dzn-clock__hub-state', 'text-anchor': 'middle' }, [subtitle]));
-			if (count) hub.appendChild(el('text', { x: CENTER, y: CENTER + 38, class: 'dzn-clock__hub-count', 'text-anchor': 'middle' }, [count]));
+			hub.appendChild(el('circle', { cx: CENTER, cy: CENTER, r: HUB_RADIUS, class: 'dzn-clock__hub-disc' }));
+			hub.appendChild(el('text', { x: CENTER, y: CENTER - 8, class: 'dzn-clock__hub-time', 'text-anchor': 'middle' }, [labels.clock || '24h']));
+			hub.appendChild(el('text', { x: CENTER, y: CENTER + 16, class: 'dzn-clock__hub-state', 'text-anchor': 'middle' }, [labels.select || '']));
 			svg.appendChild(hub);
-
 			canvas.appendChild(svg);
-			updateMetrics();
-			paintProposed();
-			if (state.selectedIndex !== null) {
-				showDetails(state.selectedIndex);
-			} else if (details) {
-				details.innerHTML = '';
-				var empty = document.createElement('p');
-				empty.className = 'dzn-clock__details-empty';
-				empty.textContent = labels.select || 'Select a segment to inspect remaining capacity.';
-				details.appendChild(empty);
-				var use = root.querySelector('[data-dzn-clock-use]');
-				if (use) use.disabled = true;
-			}
+
+			svg.addEventListener('click', function (event) {
+				var rect = svg.getBoundingClientRect();
+				var x = (event.clientX - rect.left) / rect.width * SIZE - CENTER;
+				var y = (event.clientY - rect.top) / rect.height * SIZE - CENTER;
+				var radius = Math.sqrt(x * x + y * y);
+				var angle = (Math.atan2(y, x) * 180 / Math.PI + 90 + 360) % 360;
+				var index = Math.floor(angle / DEGREES) % SEGMENTS;
+				if (radius >= GOLD_INNER && radius <= GOLD_OUTER) { selectGolden(index, true); return; }
+				if (radius > HUB_RADIUS && radius <= RING_OUTER + 2) {
+					var ringIndex = Math.floor((RING_OUTER - radius) / (RING_THICKNESS + RING_GAP));
+					ringIndex = Math.max(0, Math.min(week.length - 1, ringIndex));
+					selectWeekday(ringIndex, index, true);
+				}
+			});
+
+			canvas.querySelectorAll('[data-dzn-ring]').forEach(function (group) {
+				group.addEventListener('focus', function () {
+					var r = Number(this.getAttribute('data-dzn-ring')); var s = Number(this.getAttribute('data-dzn-seg'));
+					if (!state.golden && state.ring === r && state.segment === s) return;
+					selectWeekday(r, s, false);
+				});
+			});
+			canvas.querySelectorAll('[data-dzn-golden-seg]').forEach(function (group) {
+				group.addEventListener('focus', function () {
+					var s = Number(this.getAttribute('data-dzn-golden-seg'));
+					if (state.golden && state.segment === s) return;
+					selectGolden(s, false);
+				});
+			});
+			syncTabindex(); paintSelection(); updateHub();
 		}
 
 		function pattern(id, width, height, builder) {
@@ -428,86 +389,57 @@
 			return p;
 		}
 
-		root.querySelectorAll('[data-dzn-clock-instrument]').forEach(function (button) {
+		root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (button) {
 			button.addEventListener('click', function () {
-				state.instrumentId = Number(button.getAttribute('data-dzn-clock-instrument'));
-				state.selectedIndex = null;
-				var select = root.querySelector('select[name="coverage_instrument"]');
-				if (select) select.value = String(state.instrumentId);
-				draw();
+				var ringIndex = Number(button.getAttribute('data-dzn-clock-ring'));
+				var weekday = Number((dayFor(ringIndex) || {}).weekday);
+				var found = week.findIndex(function (day) { return Number(day.weekday) === weekday; });
+				if (found < 0) return;
+				root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (row) { row.classList.toggle('is-active', Number(row.getAttribute('data-dzn-clock-ring')) === found); row.setAttribute('aria-pressed', Number(row.getAttribute('data-dzn-clock-ring')) === found ? 'true' : 'false'); });
+				selectWeekday(found, state.segment === null ? 0 : state.segment, true);
 			});
 		});
-
-		var instrumentSelect = root.querySelector('select[name="coverage_instrument"]');
-		if (instrumentSelect) {
-			instrumentSelect.addEventListener('change', function () {
-				state.instrumentId = Number(instrumentSelect.value) || state.instrumentId;
-				state.selectedIndex = null;
-				draw();
-			});
-		}
-
-		var weekdaySelect = root.querySelector('[data-dzn-clock-weekday-select]');
-		if (weekdaySelect && data.mode === 'date') weekdaySelect.disabled = true;
-		if (weekdaySelect) {
-			weekdaySelect.addEventListener('change', function () {
-				state.weekday = Number(weekdaySelect.value) || 1;
-				state.selectedIndex = null;
-				draw();
-			});
-		}
 
 		var form = document.querySelector('[data-dzn-availability-form]');
 		if (form && root.hasAttribute('data-dzn-clock-teacher')) {
 			var weekdayField = form.querySelector('[name="weekday"]');
 			var startField = form.querySelector('[name="local_start_time"]');
 			var endField = form.querySelector('[name="local_end_time"]');
-			var useButton = root.querySelector('[data-dzn-clock-use]');
-			var proposalInitialized = false;
+			var parseTime = function (value) {
+				if (!value || !/^\d{2}:\d{2}/.test(value)) return null;
+				var parts = value.slice(0, 5).split(':');
+				return Number(parts[0]) * 60 + Number(parts[1]);
+			};
 			var updateProposal = function () {
-				var weekday = weekdayField ? Number(weekdayField.value) : state.weekday;
+				var weekday = weekdayField ? Number(weekdayField.value) : 0;
 				var start = startField ? parseTime(startField.value) : null;
 				var end = endField ? parseTime(endField.value) : null;
-				if (proposalInitialized && data.mode === 'weekly' && weekday !== state.weekday) {
-					state.weekday = weekday;
-					state.selectedIndex = null;
-					if (weekdaySelect) weekdaySelect.value = String(weekday);
-					draw();
-				}
-				state.proposed = (start !== null && end !== null && end > start) ? { start: start, end: end } : null;
+				state.proposed = (weekday >= 1 && weekday <= 7 && start !== null && end !== null && end > start) ? { weekday: weekday, start: start, end: end } : null;
 				paintProposed();
-				if (state.proposed) {
-					var note = root.querySelector('[data-dzn-clock-proposal]');
-					if (note) note.textContent = (labels.proposed || 'Proposed availability') + ': ' + minuteLabel(start) + '–' + minuteLabel(end);
-				}
 			};
-			[weekdayField, startField, endField].forEach(function (field) {
-				if (!field) return;
-				field.addEventListener('input', updateProposal);
-				field.addEventListener('change', updateProposal);
+			[weekdayField, startField, endField].forEach(function (field) { if (!field) return; field.addEventListener('input', updateProposal); field.addEventListener('change', updateProposal); });
+			if (useButton) useButton.addEventListener('click', function () {
+				var ringIndex = Number(useButton.getAttribute('data-dzn-clock-use-ring'));
+				var segIndex = Number(useButton.getAttribute('data-dzn-clock-use-seg'));
+				var day = dayFor(ringIndex);
+				if (!day) return;
+				var start = segIndex * 30;
+				var lesson = Number(data.lesson_minutes || 60);
+				var buffer = Number(data.buffer_minutes || 0);
+				var end = Math.min(1439, start + Math.max(30, Math.ceil((lesson + buffer) / 30) * 30));
+				if (weekdayField) weekdayField.value = String(day.weekday);
+				if (startField) startField.value = minuteLabel(start);
+				if (endField) endField.value = minuteLabel(end);
+				var section = form.closest('.dzn-tp-availability-editor') || form;
+				section.classList.add('is-clock-target');
+				updateProposal();
+				if (startField) startField.focus({ preventScroll: true });
 			});
-			if (useButton) {
-				useButton.addEventListener('click', function () {
-					var index = Number(useButton.getAttribute('data-dzn-clock-use-index'));
-					if (isNaN(index)) return;
-					var start = index * SLOT_MINUTES;
-					var lesson = Number(instrument().lesson_minutes || 60);
-					var buffer = Number(instrument().buffer_minutes || 0);
-					var end = Math.min(1439, start + Math.max(SLOT_MINUTES, Math.ceil((lesson + buffer) / SLOT_MINUTES) * SLOT_MINUTES));
-					if (weekdayField) weekdayField.value = String(state.weekday);
-					if (startField) startField.value = minuteLabel(start);
-					if (endField) endField.value = minuteLabel(end);
-					var section = form.closest('.dzn-tp-availability-editor') || form;
-					section.classList.add('is-clock-target');
-					if (startField) { startField.focus({ preventScroll: true }); }
-					updateProposal();
-				});
-			}
 			updateProposal();
-			proposalInitialized = true;
 		}
 
 		draw();
+		clearDetails();
 	}
 
 	document.querySelectorAll('[data-dzn-clock-root]').forEach(render);

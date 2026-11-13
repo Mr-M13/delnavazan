@@ -146,6 +146,7 @@ final class BookingNotificationMobileDispatcher {
     }
 
     private function providerReady(string $provider): bool {
+        if($provider==='sms_ir'&&is_object($this->settings)&&method_exists($this->settings,'verified'))return (bool)$this->settings->verified($provider);
         if (is_object($this->settings) && method_exists($this->settings, 'ready')) return (bool)$this->settings->ready($provider);
         return (string)$this->settings->value($provider, 'api_key') !== '' && (string)$this->settings->value($provider, 'sender_id') !== '';
     }

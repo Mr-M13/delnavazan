@@ -45,6 +45,14 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function projectionSecret(int $confirmationId): ?object { return null; }
     }
 }
+namespace Delnavazan\Platform\Integrations\Notifications {
+    final class NotificationTemplateLibrary {
+        public static bool $emailEnabled = true;
+        public function eventChannelEnabled(string $eventKey, string $channel): bool {
+            return $channel !== 'email' || self::$emailEnabled;
+        }
+    }
+}
 namespace {
     $mailCalls=array();
     function is_email(string $email): bool { return filter_var($email,FILTER_VALIDATE_EMAIL)!==false; }
@@ -54,6 +62,7 @@ namespace {
 
     require_once dirname(__DIR__).'/src/Core/Application/BookingNotificationRecipient.php';
     require_once dirname(__DIR__).'/src/Core/Application/BookingNotificationRelevance.php';
+    require_once dirname(__DIR__).'/src/Integrations/Notifications/NotificationCatalogue.php';
     require_once dirname(__DIR__).'/src/Integrations/BookingStudentNotificationWorker.php';
     $assert=static function(bool $ok,string $message):void{if(!$ok)throw new \RuntimeException($message);};
 
@@ -68,6 +77,14 @@ namespace {
     $assert(count($mobile)===1&&$mobile[0]['notification_id']===81&&$mobile[0]['event_key']==='booking.declined.student','Every booking notification must reach the mobile dispatcher with its event key.');
     $studentPortal=\Delnavazan\Platform\Core\Application\PortalNotificationRecorder::$calls;
     $assert(count($studentPortal)===1&&$studentPortal[0]['audience']==='student'&&$studentPortal[0]['event']==='booking.declined.student'&&$studentPortal[0]['id']===55,'A resolved student must receive a portal notification for a booking update.');
+
+    \Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary::$emailEnabled=false;
+    $disabledEmail=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    \Delnavazan\Platform\Integrations\BookingNotificationMobileDispatcher::$calls=array();
+    $disabledResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$disabledEmail);
+    $assert($disabledResult['state']==='cancelled'&&$disabledEmail->row->last_error_code==='email_disabled_by_administrator','Disabling booking email must prevent email handoff.');
+    $assert(count($mailCalls)===1&&count(\Delnavazan\Platform\Integrations\BookingNotificationMobileDispatcher::$calls)===1,'Disabling booking email must not suppress independent mobile and portal channels.');
+    \Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary::$emailEnabled=true;
     try{\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$repository);throw new \RuntimeException('A completed handoff was dispatched again.');}catch(\InvalidArgumentException){}
     $assert(count($mailCalls)===1,'A completed handoff must be idempotent.');
 
@@ -93,7 +110,7 @@ namespace {
     $confirmed->row->student_calendar='persian';
     $confirmedResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(82,$confirmed);
     $assert($confirmedResult['state']==='handed_off'&&count($mailCalls)===3,'A confirmed booking must hand off without a Meet secret.');
-    $assert(str_contains($mailCalls[2]['subject'],'کلاس معارفه')&&str_contains($mailCalls[2]['body'],'آبان')&&str_contains($mailCalls[2]['body'],'حساب کاربری'),'The confirmation must use the Persian calendar and account wording.');
+    $assert(str_contains($mailCalls[2]['subject'],'کلاس معارفه')&&str_contains($mailCalls[2]['body'],class_exists('IntlCalendar')?'آبان':'زمان کلاس')&&str_contains($mailCalls[2]['body'],'حساب کاربری'),'The confirmation must use the Persian calendar when Intl is available and retain account wording.');
     $assert(!str_contains($mailCalls[2]['body'],'meet.google.com')&&!str_contains($mailCalls[2]['body'],'Google Meet'),'The confirmation email must not expose the Google Meet backup link.');
 
     $teacher=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();

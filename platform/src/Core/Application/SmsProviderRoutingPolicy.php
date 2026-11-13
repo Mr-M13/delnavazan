@@ -15,4 +15,14 @@ final class SmsProviderRoutingPolicy {
   $settings=$settings??self::settings();
   return preg_match('/^\+989[0-9]{9}$/',$number)===1?($settings['iran']??'sms_ir'):($settings['international']??'telnyx');
  }
+ public static function save(array $input):array{
+  $validated=array();
+  foreach(array('iran','international') as $region){
+   $value=sanitize_key((string)($input[$region]??''));
+   if(!in_array($value,array('sms_ir','telnyx','off'),true))throw new \InvalidArgumentException('sms_routing_invalid');
+   $validated[$region]=$value;
+  }
+  if(function_exists('update_option'))update_option(self::OPTION,$validated,false);
+  return $validated;
+ }
 }

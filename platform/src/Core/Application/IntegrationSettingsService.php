@@ -75,6 +75,12 @@ final class IntegrationSettingsService {
             return false;
         }catch(\Throwable){return false;}
     }
+    public function verified(string $provider):bool {
+        if(!$this->ready($provider))return false;
+        if($provider!=='sms_ir')return true;
+        $last=function_exists('get_option')?(array)get_option('dzn_integration_test_sms_ir',array()):array();
+        return (string)($last['state']??'')==='success';
+    }
     public static function providerSchemas():array{return (new self())->schema();}
     private function schema():array{return array(
         'email'=>array('mode'=>'text','host'=>'text','port'=>'text','encryption'=>'text','username'=>'text','password'=>'secret','from_name'=>'text','from_email'=>'email'),

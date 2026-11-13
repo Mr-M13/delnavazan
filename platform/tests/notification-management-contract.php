@@ -50,6 +50,10 @@ $fail('legacy diagnostics redirects centrally', str_contains($controller, "page=
 $fail('one event table uses combined search and compact filters', str_contains($controller, 'name="search"') && str_contains($controller, 'name="category"') && str_contains($controller, 'name="recipient"') && str_contains($controller, 'name="status"'));
 $fail('all four delivery methods are rendered together', str_contains($controller, "array('website','email','whatsapp','sms')"));
 $fail('effective status replaces legacy readiness columns', str_contains($controller, 'name="status"') && str_contains($controller, '<th>Category</th>') && !str_contains($controller, '<th>Template readiness</th>') && !str_contains($controller, '<th>Latest delivery</th>'));
+$fail('editor stays on the table page', str_contains($controller, 'self::renderEvents();') && str_contains($controller, 'id="notification-editor"') && str_contains($controller, 'self::renderEditor(new NotificationTemplateLibrary()'));
+$fail('table filters survive editor navigation', str_contains($controller, 'private static function editorUrl') && str_contains($controller, 'filter_context'));
+$fail('reschedule families are genuinely collapsible', str_contains($controller, '<details><summary><strong>') && str_contains($controller, 'private static function eventFamily'));
+$fail('purpose copy is event-specific or family-specific', str_contains($catalogue, 'private static function purpose') && !str_contains($catalogue, 'This message tells the recipient what happened'));
 $fail('global channel policy editor is removed', !str_contains($controller, 'dzn_notification_channel_policy') && !str_contains($library, 'OPTION_CHANNEL_POLICY'));
 $fail('the retired category override is deleted during admin upgrade', str_contains($library, 'retireLegacyCategoryPolicy') && str_contains($library, "delete_option(\$key)"));
 $fail('generic notification resend surface is removed', !str_contains($controller, 'dzn_notification_manual_retry') && !str_contains($controller, 'Review a specific notification for resend'));

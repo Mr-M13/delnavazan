@@ -28,7 +28,7 @@ final class NotificationProviderBindings {
             $adapter=new TelnyxSmsAdapter($settings);
             $bindings[]=array('channel'=>'sms','configured'=>true,'port'=>new SmsTransport(array($adapter,'send')));
         }
-        if(is_object($settings)&&method_exists($settings,'ready')&&$settings->ready('sms_ir')){
+        if(is_object($settings)&&method_exists($settings,'verified')&&$settings->verified('sms_ir')){
             $adapter=new SmsIrAdapter($settings);
             $bindings[]=array('channel'=>'sms','provider'=>'sms_ir','configured'=>true,'port'=>new SmsTransport(array($adapter,'send')));
         }

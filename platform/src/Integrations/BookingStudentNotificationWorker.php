@@ -46,6 +46,7 @@ final class BookingStudentNotificationWorker {
         }catch(\Throwable $error){$repository->rollback();throw $error;}
         $mobile=array('state'=>'skipped','reason'=>'not_attempted');
         $emailSuppressed=false;
+        $accepted=false;
         try{
             [$subject,$body,$variables]=self::message($row);
             $eventKey='booking.'.(string)$row->notification_kind.'.student';

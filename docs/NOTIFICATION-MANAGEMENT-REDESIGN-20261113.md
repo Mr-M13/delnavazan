@@ -19,7 +19,7 @@ The catalogue still preserves every source event key and does not silently activ
 No provider credentials or authorized provider session are stored in this repository. Staging or production verification is therefore still required for:
 
 - Telnyx SMS and WhatsApp readiness, approved language-specific templates, and received-message evidence.
-- SMS.ir write-only credentials, sender readiness, explicit send test and delivery diagnostic.
+- SMS.ir write-only credentials, sender readiness, a successful explicit authorized test, and delivery diagnostic. Until then, an SMS.ir-selected route is unavailable.
 - Destination-normalized SMS routing for Iranian and non-Iranian numbers.
 - A representative received HTML email in at least one inbox client, including the stable HTTPS logo asset and text fallback.
 

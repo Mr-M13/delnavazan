@@ -480,7 +480,7 @@ final class NotificationCatalogue {
         if(!isset(self::AUTHORITIES[$authority]))throw new \InvalidArgumentException('notification_authority_invalid');
         foreach($variables as $variable)if(preg_match('/^[a-z][a-z0-9_]{0,63}$/',$variable)!==1)throw new \InvalidArgumentException('notification_variable_invalid');
         return array(
-            'key'=>$key,'label'=>$label,'purpose'=>'This message explains the “'.$label.'” outcome and any next step for the recipient.','category'=>$category,'audience'=>$audience,'producer'=>$producer,
+            'key'=>$key,'label'=>$label,'purpose'=>self::purpose($key,$label,$audience),'category'=>$category,'audience'=>$audience,'producer'=>$producer,
             'authority'=>$authority,'channels'=>$channels,'consent'=>$consent,'mandatory'=>$mandatory,
             'variables'=>array_values(array_unique($variables)),'template_key'=>$templateKey,
             'implementation'=>str_starts_with($producer,'canonical:')?'declared':'implemented',
@@ -490,5 +490,23 @@ final class NotificationCatalogue {
                 'sms'=>array('provider'=>'telnyx','state'=>in_array('sms',$channels,true)?'configured_only':'unsupported'),
             ),
         );
+    }
+
+    private static function purpose(string $key,string $label,string $audience):string{
+        if(str_starts_with($key,'reschedule.change.'))return 'Requests or records a lesson-time change and tells the recipient whether they must accept, decline or wait for the other party.';
+        if(str_starts_with($key,'reschedule.replacement.'))return 'Coordinates a replacement session, including the proposed time, response deadline and resulting decision.';
+        if(str_starts_with($key,'booking.confirmed.'))return $audience==='teacher'?'Confirms the accepted introductory booking and gives the Teacher the student, time and portal details.':'Confirms the student’s introductory lesson and provides the time and account link.';
+        if(str_starts_with($key,'booking.requested.')||str_starts_with($key,'booking.new.'))return $audience==='teacher'?'Alerts the Teacher to a new student request and the deadline for responding.':'Confirms that the student’s booking request was received and is awaiting a decision.';
+        if(str_starts_with($key,'booking.cancelled.'))return 'Explains that the introductory booking was cancelled, who initiated the change and what the recipient should do next.';
+        if(str_starts_with($key,'booking.declined.'))return 'Explains that the booking request was declined and directs the student to the next available booking action.';
+        if(str_starts_with($key,'booking.rescheduled.'))return 'Confirms the new introductory lesson time and directs the recipient to the account for the latest details.';
+        if(str_starts_with($key,'lesson.access.'))return 'Provides the authorised class access link and the essential lesson details for joining.';
+        if(str_starts_with($key,'attendance.'))return 'Records an attendance outcome and tells the recipient whether a follow-up or replacement action is required.';
+        if(str_starts_with($key,'consent.'))return str_contains($key,'required')?'Requests the specific consent decision needed before the related recording or research action can proceed.':'Confirms a consent decision or policy change and points to its durable history.';
+        if(str_starts_with($key,'payment.')||str_starts_with($key,'refund.'))return 'Explains the payment or refund state, the amount or deadline involved and the account action available to the student.';
+        if(str_starts_with($key,'account.')||str_starts_with($key,'teacher.invitation'))return 'Guides the recipient through the account-access or onboarding step required to continue securely.';
+        if(str_starts_with($key,'post_intro.'))return 'Moves the student to the next post-introduction step and provides the account action needed to complete it.';
+        if($audience==='admin')return 'Gives the operations team a decision or exception requiring review, with the event time and affected participant.';
+        return 'Delivers the recorded '.$label.' notice and identifies the next action available to the recipient.';
     }
 }

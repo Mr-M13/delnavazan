@@ -49,15 +49,6 @@ final class IntegrationControlPlaneController {
         $service=new IntegrationSettingsService();
         if($operation==='save'){
             $service->save($provider,(array)($_POST['settings']??array()));
-            if($provider==='sms'&&isset($_POST['sms_routing'])&&is_array($_POST['sms_routing'])){
-                $routing=(array)$_POST['sms_routing'];$validated=array();
-                foreach(array('iran','international') as $region){
-                    $selected=sanitize_key((string)($routing[$region]??''));
-                    if(!in_array($selected,array('sms_ir','telnyx','off'),true))wp_die('Invalid SMS routing selection',400);
-                    $validated[$region]=$selected;
-                }
-                update_option(\Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy::OPTION,$validated,false);
-            }
             $result='saved';
         }
         else{
@@ -227,16 +218,6 @@ final class IntegrationControlPlaneController {
         }else{
             echo '<p>Secret values are encrypted with the existing payment-secret vault and are write-only. Test and live credentials are separate. Saving credentials invalidates prior live verification and stops live charging until activation is repeated.</p>';
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" onsubmit="return confirm(\'Save these Stripe live credentials? Live payments will remain inactive until you confirm activation.\')"><input type="hidden" name="action" value="dzn_stripe_live_settings_save">'.($embedded?'<input type="hidden" name="return_to_finance" value="1">':'').wp_nonce_field('dzn_stripe_live_settings_save', '_wpnonce', true, false);
-            if($provider==='sms'){
-            $routing=\Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy::settings();
-            echo '<fieldset><legend><strong>SMS provider selection</strong></legend>';
-            foreach(array('iran'=>'Iranian mobile numbers (+98)','international'=>'All other destinations') as $region=>$label){
-                echo '<p><label>'.esc_html($label).' <select name="sms_routing['.esc_attr($region).']">';
-                foreach(array('sms_ir'=>'SMS.ir','telnyx'=>'Telnyx','off'=>'Off') as $value=>$name)echo '<option value="'.esc_attr($value).'"'.selected($routing[$region],$value,false).'>'.esc_html($name).'</option>';
-                echo '</select></label></p>';
-            }
-            echo '<p class="description">Selecting an unconfigured provider does not send through another provider. SMS.ir connection and activation will be added after account setup.</p></fieldset>';
-        }
         echo '<table class="form-table"><tbody>';
             echo '<tr><th><label for="stripe-live-pk">Live publishable key</label></th><td><input class="regular-text" id="stripe-live-pk" name="settings[publishable_key]" value="'.esc_attr($live->publishableKey()).'" placeholder="pk_live_…" autocomplete="off"></td></tr>';
             foreach(array('secret_key'=>'Live secret key','webhook_signing_secret'=>'Live webhook signing secret') as $field=>$label){
@@ -423,7 +404,8 @@ final class IntegrationControlPlaneController {
         $last=(array)get_option('dzn_integration_test_'.$provider,array());
         echo '<div class="wrap"><h1>'.esc_html($labels[$provider]??$provider).'</h1><p>Credentials are encrypted at rest and never displayed. Leave a secret blank to keep its current value.</p>';
         if(isset($_GET['integration_result'])){$result=sanitize_text_field((string)$_GET['integration_result']);echo '<div class="notice notice-info"><p>'.esc_html($provider==='email'?self::emailResultMessage($result):$result).'</p></div>';}
-        echo '<p>Readiness: <strong>'.esc_html($service->ready($provider)?'Ready':'Needs configuration').'</strong>';
+        $providerReady=$provider==='sms_ir'?$service->verified($provider):$service->ready($provider);
+        echo '<p>Readiness: <strong>'.esc_html($providerReady?'Ready':($provider==='sms_ir'&&$service->ready($provider)?'Configured; explicit test required':'Needs configuration')).'</strong>';
         if($last){$lastCode=(string)($last['code']??'');echo ' · Last explicit test: '.esc_html((string)($last['state']??'unknown')).' ('.esc_html($provider==='email'?self::emailCodeMessage($lastCode):$lastCode).') at '.esc_html((string)($last['at']??''));}echo '</p>';
         if($provider==='sms'){
             $routing=\Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy::settings();

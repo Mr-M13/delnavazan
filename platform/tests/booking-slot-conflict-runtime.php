@@ -20,11 +20,12 @@ $wpdb->insert( $p . 'instruments', array( 'uid' => Identifier::uid(), 'reference
 $instrument = (int) $wpdb->insert_id;
 $wpdb->insert( $p . 'courses', array( 'uid' => Identifier::uid(), 'reference_code' => 'DZN-COURSE-BOUND-' . strtoupper( $suffix ), 'instrument_id' => $instrument, 'name_fa' => 'مرز', 'name_en' => 'Boundary', 'course_type' => 'introductory', 'status' => 'active', 'default_duration_minutes' => 30, 'default_buffer_minutes' => 15, 'created_at' => $now, 'updated_at' => $now ) );
 $course = (int) $wpdb->insert_id;
-$student = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$p}students WHERE reference_code LIKE %s LIMIT 1", 'DZN-STU-SLOT-%' ) );
-if ( $student < 1 ) {
-    $wpdb->insert( $p . 'students', array( 'uid' => Identifier::uid(), 'reference_code' => 'DZN-STU-BOUND-' . strtoupper( $suffix ), 'status' => 'active', 'display_name' => 'Synthetic Boundary', 'email' => 'slot-bound-' . $suffix . '@example.invalid', 'phone' => '+61400000000', 'country_code' => 'AU', 'city' => 'Brisbane', 'timezone' => 'UTC', 'locale' => 'en', 'calendar_preference' => 'auto', 'created_at' => $now, 'updated_at' => $now ) );
-    $student = (int) $wpdb->insert_id;
-}
+// Boundary fixtures must use their own Student. Reusing the concurrency
+// fixture Student makes these fixed-date assertions depend on the test date:
+// the concurrency race books a real slot 20 days in the future.
+$wpdb->insert( $p . 'students', array( 'uid' => Identifier::uid(), 'reference_code' => 'DZN-STU-BOUND-' . strtoupper( $suffix ), 'status' => 'active', 'display_name' => 'Synthetic Boundary', 'email' => 'slot-bound-' . $suffix . '@example.invalid', 'phone' => '+61400000000', 'country_code' => 'AU', 'city' => 'Brisbane', 'timezone' => 'UTC', 'locale' => 'en', 'calendar_preference' => 'auto', 'created_at' => $now, 'updated_at' => $now ) );
+$student = (int) $wpdb->insert_id;
+if ( $student < 1 ) throw new RuntimeException( 'Synthetic boundary Student failed' );
 
 $request = static function ( string $start, array $requestValues ) use ( $wpdb, $p, $student, $instrument, $course, $now, $suffix ): array {
     $wpdb->insert( $p . 'booking_requests', array( 'uid' => Identifier::uid(), 'reference_code' => 'REQ-BOUND-' . strtoupper( $suffix ) . '-' . wp_rand( 1000, 9999 ), 'student_id' => $student, 'requested_instrument_id' => $instrument, 'selected_intro_course_id' => $course, 'lifecycle_status' => 'submitted', 'resolution_state' => 'unresolved', 'retention_due_at' => gmdate( 'Y-m-d H:i:s', strtotime( '+24 months', strtotime( $now . ' UTC' ) ) ), 'version' => 1, 'created_at' => $now, 'updated_at' => $now ) );

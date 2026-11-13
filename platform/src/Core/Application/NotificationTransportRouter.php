@@ -1,5 +1,6 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
+require_once __DIR__.'/SmsProviderRoutingPolicy.php';
 
 /**
  * Independent mobile-channel routing.
@@ -22,14 +23,9 @@ final class NotificationTransportRouter {
  private function single(string $channel,array $contact):array{
   if(empty($contact[$channel.'_eligible']))return array();
   if($channel==='sms'){
-   // A configured SMS.ir binding serves Iranian teachers; otherwise Telnyx remains active.
-   // Students always use Telnyx. Never infer teacher status from the number alone.
-   $kind=(string)($contact['recipient_kind']??'');
-   $number=(string)($contact['sms']??'');
-   $iranian=preg_match('/^\+989[0-9]{9}$/',$number)===1;
-   $preferred=$kind==='teacher'&&$iranian?'sms_ir':'telnyx';
+   // One configured provider per destination. Never switch provider after failure or unavailability.
+   $preferred=SmsProviderRoutingPolicy::select((string)($contact['sms']??''));
    $binding=$this->binding('sms',$preferred);
-   if($binding===null&&$preferred==='sms_ir')$binding=$this->binding('sms','telnyx');
    return $binding&&$binding['configured']?array($binding):array();
   }
   $binding=$this->binding($channel);

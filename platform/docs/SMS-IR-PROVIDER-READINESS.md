@@ -1,21 +1,22 @@
-# SMS.ir provider readiness (not yet activated)
+# SMS provider routing and SMS.ir activation
 
-The SMS channel is independent of WhatsApp. No automatic WhatsApp-to-SMS behaviour exists.
+SMS is an independently enabled notification channel. It is never a fallback for WhatsApp or another SMS provider.
 
-## Routing contract
+## Administrator configuration
 
-- Students: Telnyx, regardless of destination.
-- Teachers with Iranian mobile numbers (`+989` followed by nine digits): SMS.ir **only when its binding is configured**.
-- Teachers with non-Iranian numbers: Telnyx.
-- Until SMS.ir is configured, existing Telnyx SMS routing remains available for teachers. A configured SMS.ir transport failure is **not** retried through Telnyx.
-- `recipient_kind` must come from the authorised notification record, not a caller-provided value.
+Settings > Integrations > SMS contains two saved provider preferences:
 
-## Activation checklist
+- Iranian mobile destinations (`+989` followed by nine digits): **SMS.ir** by default.
+- All other destinations: **Telnyx** by default.
 
-1. Open and verify the SMS.ir account and permitted Iranian sender / line; confirm the current API endpoint, authentication, message templates and applicable domestic sending rules against the provider's documentation.
-2. Implement and test a dedicated `NotificationTransportPort` adapter with secrets stored outside the repository. Do not invent or hardcode provider credentials.
-3. Register a second `dzn_notification_transport_bindings` entry with `channel=sms`, `provider=sms_ir`, `configured=false` until the adapter and sender are ready. Existing Telnyx SMS bindings may omit `provider` (treated as `telnyx`).
-4. Test an Iranian teacher, an overseas teacher, and a student with an Iranian phone number; verify the selected provider, consent/suppression, retries, idempotency, provider delivery receipts and no cross-provider duplicate sends.
-5. Enable `configured=true` only after an approved live test and an operational rollback plan.
+Routing depends on the normalised destination number, regardless of whether the recipient is a teacher or student. Admins with provider-integration management access can select either provider for either destination group. The settings are stored in `dzn_sms_provider_routing`; existing settings default to the choices above. Selecting an unavailable provider does not silently use the other provider. This is an explicit configuration choice, not automatic fallback.
 
-No SMS.ir account or live integration is required to merge the routing readiness change. Do not claim SMS.ir is operational until the provider adapter and account are verified.
+## SMS.ir readiness (not activated)
+
+1. Verify SMS.ir account, sender/line, API endpoint, authentication and Iran delivery rules against current provider documentation.
+2. Implement and test a dedicated SMS.ir `NotificationTransportPort` adapter, secure encrypted/write-only credentials, delivery receipts and idempotent retry behaviour.
+3. Register an SMS transport binding with `channel=sms`, `provider=sms_ir`, and `configured=false` until credentials and sender are verified. Telnyx bindings may omit `provider` for compatibility.
+4. Test Iranian and overseas destinations for both teachers and students, provider unavailability, consent, suppression, retries and duplicate prevention.
+5. Only set `configured=true` after approved live tests and a rollback plan.
+
+No SMS.ir account, credentials, live send or operational adapter exists in this preparation. A destination mapped to an unconfigured SMS.ir binding cannot be sent until setup is completed, unless an administrator deliberately changes its provider selection to Telnyx.

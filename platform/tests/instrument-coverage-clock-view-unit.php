@@ -143,31 +143,17 @@ $unavailable = $render(array('status' => 'unavailable', 'message' => 'Coverage c
 $assert(str_contains($unavailable, 'Coverage could not be read.'), 'Unavailable data must be explicit.');
 $assert(str_contains($unavailable, 'notice-error'), 'Unavailable data must not be styled as a reassuring success.');
 
-$teacher = $render($data, array('scope' => 'teacher', 'base_url' => 'https://example.test/teacher-portal/', 'preserve' => array('teacher-view' => 'settings')));
-$assert(str_contains($teacher, 'dir="rtl"'), 'The Teacher clock must be RTL.');
-$assert(str_contains($teacher, 'data-dzn-clock-teacher'), 'The Teacher clock must opt into the availability preview.');
-$assert(str_contains($teacher, 'data-dzn-clock-use'), 'A Teacher must be able to copy a segment into the availability form.');
-$assert(str_contains($teacher, 'ساعت‌های طلایی بدون پوشش'), 'The Teacher Golden-gap label must use the corrected wording.');
-$assert(str_contains($teacher, 'ذخیره نمی‌شود'), 'The Teacher must be told that clicking a segment does not save availability.');
-$assert(!str_contains($teacher, 'تضمین پاداش'), 'The Teacher view must not promise a bonus.');
-$assert(str_contains($teacher, '<select name="coverage_instrument"'), 'The Teacher account must keep its existing instrument control.');
-$assert(!str_contains($teacher, 'dzn-clock__instruments') && !str_contains($teacher, 'coverage_week_start'), 'Admin-only icon and rolling-window controls must not reach the Teacher account.');
-$assert(str_contains($teacher, 'name="coverage_date" value="2026-11-12"'), 'The Teacher date control must keep the selected day.');
-
 $theme = dirname($root) . '/theme';
-$teacherTemplate = file_get_contents($theme . '/template-parts/teacher-portal/coverage-clock.php');
 $account = file_get_contents($theme . '/template-parts/teacher-portal/account.php');
 $js = file_get_contents($theme . '/assets/js/coverage-clock.js');
 $css = file_get_contents($theme . '/assets/css/coverage-clock.css');
 $adminCss = file_get_contents($root . '/src/Admin/Assets/admin.css');
 $bridge = file_get_contents($theme . '/inc/platform-bridge.php');
 
-$assert(str_contains($teacherTemplate, 'InstrumentCoverageClockView'), 'The Teacher template must reuse the shared clock view.');
-$assert(!str_contains($teacherTemplate, 'golden-hours'), 'The redundant separate Golden Hours section must be removed.');
-$assert(str_contains($account, "dzn_theme_teacher_portal_component( 'coverage-clock'"), 'The clock must be integrated into the account/settings workspace.');
+$assert(!str_contains($account, 'coverage-clock'), 'The Teacher account must not render the coverage clock.');
 $assert(str_contains($account, 'data-dzn-availability-form'), 'The existing availability form must expose the preview hook without changing its save mechanism.');
 $assert(!str_contains($account, "dzn_theme_teacher_portal_component('golden-hours'"), 'The duplicate Golden Hours component must be removed.');
-$assert(str_contains($bridge, 'dzn_theme_platform_teacher_coverage_clock'), 'The Teacher model must expose aggregate coverage.');
+$assert(!str_contains($bridge, 'dzn_theme_platform_teacher_coverage_clock'), 'The Teacher model must not build coverage-clock data.');
 
 $assert(str_contains($js, "role: 'button'"), 'Clock segments must be keyboard-operable buttons.');
 $assert(str_contains($js, 'ArrowRight') && str_contains($js, 'ArrowLeft') && str_contains($js, 'ArrowUp') && str_contains($js, 'ArrowDown'), 'Clock segments must support two-dimensional arrow-key navigation.');

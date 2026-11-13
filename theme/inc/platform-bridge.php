@@ -1950,31 +1950,6 @@ function dzn_theme_platform_teacher_onboarding_step( array $onboarding, $request
 	return min( $server, max( 2, $requested ) );
 }
 
-/**
- * Aggregate coverage-clock data for the signed-in Teacher.
- *
- * The model only receives aggregate capacity; student identity and other
- * Teachers' names never cross this boundary. Mode, date and weekday are
- * presentation state, not scheduling commands.
- */
-function dzn_theme_platform_teacher_coverage_clock( $teacher_id, $timezone, $calendar ) {
-	$class = '\\Delnavazan\\Platform\\Core\\Application\\InstrumentCoverageClockReadService';
-	if ( ! class_exists( $class ) || (int) $teacher_id < 1 ) { return array(); }
-	$mode = isset( $_GET['coverage_mode'] ) && is_scalar( $_GET['coverage_mode'] ) ? sanitize_key( wp_unslash( (string) $_GET['coverage_mode'] ) ) : 'weekly';
-	$date = isset( $_GET['coverage_date'] ) && is_scalar( $_GET['coverage_date'] ) ? sanitize_text_field( wp_unslash( (string) $_GET['coverage_date'] ) ) : '';
-	$weekday = isset( $_GET['coverage_weekday'] ) && is_scalar( $_GET['coverage_weekday'] ) ? absint( $_GET['coverage_weekday'] ) : 0;
-	try {
-		return ( new $class() )->teacher( (int) $teacher_id, array(
-			'mode' => in_array( $mode, array( 'weekly', 'date' ), true ) ? $mode : 'weekly',
-			'date' => preg_match( '/^\d{4}-\d{2}-\d{2}$/D', $date ) ? $date : '',
-			'weekday' => $weekday >= 1 && $weekday <= 7 ? $weekday : 0,
-			'calendar' => in_array( $calendar, array( 'persian', 'gregorian' ), true ) ? $calendar : 'gregorian',
-		) );
-	} catch ( Throwable $error ) {
-		return array( 'status' => 'unavailable', 'message' => 'پوشش ساز در حال حاضر قابل محاسبه نیست. زمان‌های تدریس شما تغییری نکرده است.' );
-	}
-}
-
 function dzn_theme_platform_teacher_instrument_availability( $teacher_id, array $catalogue ) {
 	$out = array(); $days = array( 1 => 'دوشنبه', 2 => 'سه‌شنبه', 3 => 'چهارشنبه', 4 => 'پنجشنبه', 5 => 'جمعه', 6 => 'شنبه', 7 => 'یکشنبه' );
 	if ( (int) $teacher_id < 1 ) return $out;
@@ -2059,7 +2034,6 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'navigation' => $nav, 'current_step' => $step, 'max_step' => $server_step, 'onboarding' => $onboarding,
 			'golden_bonus' => $onboarding_golden,
 			'availability_summary' => $onboarding_summary,
-			'coverage_clock' => dzn_theme_platform_teacher_coverage_clock( (int) ( $onboarding['teacher_id'] ?? 0 ), $onboarding_timezone, $onboarding_calendar ),
 			'profile' => array(
 				'name' => (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] ), 'persian_name' => (string) ( $onboarding['profile']['persian_name'] ?? '' ),
 				'english_name' => (string) ( $onboarding['profile']['english_name'] ?? '' ), 'email' => (string) ( $onboarding['profile']['email'] ?? $identity['email'] ),
@@ -2197,7 +2171,6 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'profile_edit_action' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
 			'golden_bonus' => (array) ( $availability_summary['golden'] ?? $golden_bonus ),
 			'availability_summary' => $availability_summary,
-			'coverage_clock' => dzn_theme_platform_teacher_coverage_clock( (int) ( $onboarding['teacher_id'] ?? 0 ), (string) ( $onboarding['profile']['timezone'] ?? $teacher_timezone ), $teacher_calendar ),
 			'google_state' => 'managed_centrally',
 			'availability_available' => true,
 			'availability' => $teacher_display_availability ?: array_map(static function($r){$days=[1=>'دوشنبه',2=>'سه‌شنبه',3=>'چهارشنبه',4=>'پنجشنبه',5=>'جمعه',6=>'شنبه',7=>'یکشنبه'];return ['id'=>(int)$r['id'],'day'=>$days[(int)$r['weekday']]??'','weekday'=>(int)$r['weekday'],'blocks'=>[substr((string)$r['local_start_time'],0,5).'–'.substr((string)$r['local_end_time'],0,5)],'start'=>substr((string)$r['local_start_time'],0,5),'end'=>substr((string)$r['local_end_time'],0,5),'state'=>(string)$r['state'],'booked'=>''];},$availability_rules),

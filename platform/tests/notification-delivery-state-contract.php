@@ -9,6 +9,7 @@ foreach(array(
     "'evidence_channel'=>'provider_evidence'",
     "provider_fact_digest",
     "occurred_at",
+    "already_applied",
     "not_applicable",
     "no_delivered_fact"
 ) as $n)if(strpos($s,$n)===false)throw new RuntimeException('Delivery state application missing '.$n);

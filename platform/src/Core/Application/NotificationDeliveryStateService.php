@@ -65,6 +65,6 @@ final class NotificationDeliveryStateService {
             throw $e;
         }
 
-        return array('notification_id'=>$notificationId,'state'=>$state,'applied'=>false,'outcome'=>$delivered===null?'no_delivered_fact':'not_applicable');
+        return array('notification_id'=>$notificationId,'state'=>$state,'applied'=>$transitioned,'outcome'=>$transitioned?'delivered':($state==='delivered'?'already_applied':($delivered===null?'no_delivered_fact':'not_applicable')));
     }
 }

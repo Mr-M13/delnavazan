@@ -1,5 +1,11 @@
 # Golden Hour Coverage Atlas — integration note
 
+> **Presentation status:** the 24-hour instrument coverage clock is now the
+> primary coverage view. The regional atlas described below is retained as an
+> explicitly labelled secondary view for finance window review. Its shared window
+> authority, calculations, records and pay logic are unchanged. See
+> [INSTRUMENT-COVERAGE-CLOCK.md](INSTRUMENT-COVERAGE-CLOCK.md).
+
 Coverage branch: `feat/golden-hour-coverage-atlas`
 
 Coverage implementation: `feat(admin): add golden-hour coverage atlas`

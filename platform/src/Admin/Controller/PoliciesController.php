@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Admin\Controller;
 
+use Delnavazan\Platform\Core\Application\BookingAvailabilityPolicy;
 use Delnavazan\Platform\Core\Application\BookingRequestValidationService;
 use Delnavazan\Platform\Core\Application\CommercialPolicyService;
 use Delnavazan\Platform\Core\Application\ConsentLifecycleWorker;
@@ -23,6 +24,7 @@ final class PoliciesController {
     public const CAPABILITY=ConsentOperationsReadService::CAPABILITY;
     public const VIEW_CAPABILITY=ConsentOperationsReadService::VIEW_CAPABILITY;
     public const ACTION_COMMERCIAL_POLICY='dzn_policies_commercial_update';
+    public const ACTION_QUIET_HOURS='dzn_policies_quiet_hours';
     public const ACTION_REMINDER='dzn_consent_reminder';
     public const ACTION_RETRY='dzn_consent_retry_job';
     public const ACTION_REEVALUATE='dzn_consent_reevaluate';
@@ -34,6 +36,7 @@ final class PoliciesController {
         // capability, so read-only consent staff can open the page while write commands
         // remain gated by the manage capability.
         add_action('admin_post_'.self::ACTION_COMMERCIAL_POLICY,array(__CLASS__,'saveCommercialPolicy'));
+        add_action('admin_post_'.self::ACTION_QUIET_HOURS,array(__CLASS__,'saveQuietHours'));
         foreach(array(self::ACTION_REMINDER,self::ACTION_RETRY,self::ACTION_REEVALUATE,self::ACTION_WORKER,self::ACTION_EXPORT)as$action)add_action('admin_post_'.$action,array(__CLASS__,'command'));
     }
 
@@ -89,10 +92,12 @@ final class PoliciesController {
         $service=new ConsentOperationsReadService();
         $counts=$service->counts();
         $status=sanitize_key((string)($_GET['dzn_consent']??''));
+        $quietStatus=sanitize_key((string)($_GET['dzn_quiet_hours']??''));
         echo '<div class="wrap dzn-settings-page dzn-policies-page" dir="ltr">';
         echo '<h1>Policy</h1>';
         echo '<p class="dzn-settings-lede">Policy cards for operational, legal, financial, attendance, cancellation and consent rules. Editable values are written through their existing versioned authority. Consent evidence is read-only here; this page cannot create or change a person’s decision.</p>';
         self::flash($status);
+        self::quietHoursFlash($quietStatus);
         if(!current_user_can(self::CAPABILITY))echo '<div class="notice notice-info inline"><p>Read-only policy and consent access. Reminders, retries, publication and policy version changes require the relevant management capability.</p></div>';
         self::policyCards();
         self::legalPages();
@@ -145,6 +150,7 @@ final class PoliciesController {
             echo '<div class="dzn-policy-group dzn-policy-group--'.esc_attr($key).'"><div class="dzn-policy-group__head"><h3>'.esc_html((string)$group['label']).'</h3><p>'.esc_html((string)$group['description']).'</p></div><div class="dzn-policy-card-grid">';
             if($key==='scheduling'){
                 self::bookingHorizonCard();
+                self::quietHoursCard();
             }
             foreach((array)$group['cards']as$card){
                 if(isset($card['commercial_key']))self::commercialCardRender($service,$card);
@@ -226,6 +232,69 @@ final class PoliciesController {
             echo '</tbody></table></details>';
         }
         echo '</article>';
+    }
+
+    /**
+     * Quiet Hours are advisory only. This card is the single administration
+     * surface for the policy; it never gates availability or submission.
+     */
+    private static function quietHoursCard():void{
+        $policy=BookingAvailabilityPolicy::current();
+        $enabled=!empty($policy['quiet_hours_enabled']);
+        $student=!empty($policy['quiet_student_advisory']);
+        $basis=(string)($policy['quiet_timezone_basis']??'teacher_local');
+        $start=substr((string)($policy['quiet_start']??'01:00:00'),0,5);
+        $end=substr((string)($policy['quiet_end']??'06:00:00'),0,5);
+        $summary=$start.'–'.$end.' '.($basis==='academy'?'academy time':'teacher-local');
+        echo '<article class="dzn-policy-card dzn-policy-card--scheduling" id="quiet-hours"><header><h4>Quiet Hours advisory</h4><span class="dzn-status-badge '.($enabled?'is-ok':'is-warn').'">'.($enabled?'Advisory':'Disabled').'</span></header>';
+        echo '<p>Soft guidance for students when a slot falls inside a potential Teacher’s overnight hours. It never removes a slot, changes Teacher eligibility, or blocks submission. Golden Hours and remuneration are separate rules.</p>';
+        echo '<dl><div><dt>Current</dt><dd>'.esc_html($summary).'</dd></div><div><dt>Student advisory</dt><dd>'.esc_html($student?'Shown':'Hidden').'</dd></div><div><dt>Version</dt><dd>'.esc_html('#'.(string)(int)($policy['version']??1)).'</dd></div><div><dt>Audience</dt><dd>Public booking guidance</dd></div></dl>';
+        if($basis==='academy')echo '<p class="dzn-settings-meta">Academy timezone: <bdi>'.esc_html((string)($policy['academy_timezone']??'Asia/Tehran')).'</bdi>. Change it in Teacher availability if needed.</p>';
+        if(current_user_can('dzn_manage_teacher_availability')){
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-settings-inline-form">';
+            echo '<input type="hidden" name="action" value="'.esc_attr(self::ACTION_QUIET_HOURS).'"><input type="hidden" name="return_anchor" value="quiet-hours">';
+            wp_nonce_field(self::ACTION_QUIET_HOURS);
+            echo '<p><label><input type="hidden" name="quiet_hours_enabled" value="0"><input type="checkbox" name="quiet_hours_enabled" value="1"'.($enabled?' checked':'').'> Enable Quiet Hours advisory</label></p>';
+            echo '<p><label>Start <input type="time" name="quiet_start" value="'.esc_attr($start).'" required></label> <label>End <input type="time" name="quiet_end" value="'.esc_attr($end).'" required></label></p>';
+            echo '<p><label>Timezone interpretation <select name="quiet_timezone_basis"><option value="teacher_local"'.selected($basis,'teacher_local',false).'>Each Teacher’s local timezone</option><option value="academy"'.selected($basis,'academy',false).'>Academy timezone</option></select></label></p>';
+            echo '<p><label><input type="hidden" name="quiet_student_advisory" value="0"><input type="checkbox" name="quiet_student_advisory" value="1"'.($student?' checked':'').'> Show the advisory to students</label></p>';
+            echo '<button class="button button-primary" type="submit">Save Quiet Hours</button>';
+            echo '<p class="dzn-settings-meta">Times may cross midnight. This policy is advisory only; it never blocks a request.</p></form>';
+        }else{
+            echo '<p class="dzn-settings-meta">Changing Quiet Hours requires the Teacher availability management capability.</p>';
+        }
+        echo '</article>';
+    }
+
+    public static function saveQuietHours():never{
+        if('POST'!==strtoupper((string)($_SERVER['REQUEST_METHOD']??'')))wp_die('Method not allowed','Delnavazan',array('response'=>405));
+        if(!current_user_can('dzn_manage_teacher_availability'))wp_die('Forbidden','Delnavazan',array('response'=>403));
+        check_admin_referer(self::ACTION_QUIET_HOURS);
+        $status='saved';
+        try{
+            BookingAvailabilityPolicy::update(array(
+                'quiet_hours_enabled'=>sanitize_text_field(wp_unslash((string)($_POST['quiet_hours_enabled']??'0'))),
+                'quiet_start'=>sanitize_text_field(wp_unslash((string)($_POST['quiet_start']??'01:00'))),
+                'quiet_end'=>sanitize_text_field(wp_unslash((string)($_POST['quiet_end']??'06:00'))),
+                'quiet_timezone_basis'=>sanitize_key(wp_unslash((string)($_POST['quiet_timezone_basis']??'teacher_local'))),
+                'quiet_student_advisory'=>sanitize_text_field(wp_unslash((string)($_POST['quiet_student_advisory']??'0'))),
+            ));
+        }catch(\Throwable){
+            $status='invalid';
+        }
+        $url=add_query_arg(array('page'=>self::MENU_SLUG,'dzn_quiet_hours'=>$status),admin_url('admin.php'));
+        $anchor=sanitize_key(wp_unslash((string)($_POST['return_anchor']??'')));
+        if($anchor!=='')$url.='#'.$anchor;
+        wp_safe_redirect($url);
+        exit;
+    }
+
+    private static function quietHoursFlash(string $status):void{
+        if($status==='')return;
+        $message=$status==='saved'
+            ? 'Quiet Hours advisory saved. No slot was removed and no booking rule was changed.'
+            : 'Quiet Hours were not saved. Check the start/end times and try again; the previous policy remains in force.';
+        echo '<div class="notice '.($status==='saved'?'notice-success':'notice-error').' is-dismissible"><p>'.esc_html($message).'</p></div>';
     }
 
     /** Canonical legal-page management, moved here from General. Draft-only provisioning; publication stays in WordPress. */

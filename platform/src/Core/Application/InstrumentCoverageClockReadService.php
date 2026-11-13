@@ -132,14 +132,6 @@ final class InstrumentCoverageClockReadService {
         } catch (\Throwable) {
             return self::unavailable('Teacher eligibility could not be read, so coverage is not shown.');
         }
-        $teacherIds = array();
-        foreach ($eligible as $map) foreach (array_keys($map) as $teacherId) $teacherIds[(int) $teacherId] = true;
-        $teacherIds = array_keys($teacherIds);
-        try {
-            $facts = $this->teacherFacts($teacherIds, (string) $context['mode'], (string) $context['date'], (string) $context['timezone'], (string) $context['week_start']);
-        } catch (\Throwable $error) {
-            return self::unavailable('Teacher availability or capacity could not be read, so coverage is not shown.');
-        }
         $selected = (int) ($context['instrument_id'] ?? 0);
         $mode = (string) $context['mode'];
         $timezone = (string) $context['timezone'];
@@ -178,6 +170,17 @@ final class InstrumentCoverageClockReadService {
                 continue;
             }
             $eligibleIds = array_keys($eligible[$id] ?? array());
+            try {
+                // Availability is instrument-scoped. Read facts for this card's
+                // own eligible Teachers and instrument, whether or not another
+                // instrument is selected in the overview filter.
+                $facts = $this->teacherFacts($eligibleIds, $mode, $date, $timezone, $weekStart, $id);
+            } catch (\Throwable $error) {
+                $row['status'] = 'unavailable';
+                $row['message'] = 'Teacher availability or capacity could not be read, so coverage is not shown.';
+                $instruments[] = $row;
+                continue;
+            }
             $unknown = 0;
             $teacherFacts = array();
             foreach ($eligibleIds as $teacherId) {
@@ -533,12 +536,12 @@ final class InstrumentCoverageClockReadService {
 
     /**
      * One authoritative availability read and one occupancy read per Teacher for
-     * the whole range. Instruments then share the resolved facts.
+     * this instrument and range. Cached facts are never reused across scopes.
      *
      * @param list<int> $teacherIds
      * @return array<int,array<string,mixed>>
      */
-    private function teacherFacts(array $teacherIds, string $mode, string $date, string $timezone, string $weekStart): array {
+    private function teacherFacts(array $teacherIds, string $mode, string $date, string $timezone, string $weekStart, ?int $instrumentId = null): array {
         $teacherIds = array_values(array_unique(array_filter(array_map('intval', $teacherIds), static fn(int $id): bool => $id > 0)));
         if (!$teacherIds) return array();
         $zone = new \DateTimeZone($timezone);
@@ -550,15 +553,15 @@ final class InstrumentCoverageClockReadService {
             $from = (new \DateTimeImmutable($date . ' 00:00:00', $zone))->modify('-1 day')->setTimezone($utc)->format('Y-m-d H:i:s');
             $until = (new \DateTimeImmutable($date . ' 00:00:00', $zone))->modify('+2 days')->setTimezone($utc)->format('Y-m-d H:i:s');
         }
-        $cacheKey = $mode . '|' . $from . '|' . $until;
+        $cacheKey = $mode . '|' . $from . '|' . $until . '|' . (string)$instrumentId;
         if (isset($this->factsCache[$cacheKey])) return $this->factsCache[$cacheKey];
         $out = array();
         foreach ($teacherIds as $teacherId) {
             $fact = array('available' => array(), 'occupied' => array(), 'holds' => array(), 'unknown' => false);
             try {
                 $segments = $mode === InstrumentCoverageClockAnalyzer::MODE_WEEKLY
-                    ? $this->availability->recurring($teacherId, $from, $until)
-                    : $this->availability->effective($teacherId, $from, $until);
+                    ? $this->availability->recurring($teacherId, $from, $until, $instrumentId)
+                    : $this->availability->effective($teacherId, $from, $until, $instrumentId);
                 foreach ($segments as $segment) {
                     if (!isset($segment['state'], $segment['starts_at_utc'], $segment['ends_at_utc'])) continue;
                     $fact['available'][] = array('state' => (string) $segment['state'], 'starts_at_utc' => (string) $segment['starts_at_utc'], 'ends_at_utc' => (string) $segment['ends_at_utc']);

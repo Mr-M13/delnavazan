@@ -62,6 +62,7 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
 namespace Delnavazan\Platform\Core\Application {
     final class TeacherAvailabilityService {
         public function effective(int $teacherId, string $start, string $end): array { return array(array('starts_at_utc'=>$start,'ends_at_utc'=>$end,'state'=>'preferred')); }
+        public function instrumentIdForCourse(int $courseId): ?int { return 1; }
     }
     final class BookingTeacherOccupancyReadService {
         public static array $blockedTeachers = array();

@@ -280,7 +280,7 @@ final class IntroLessonLifecycleService {
 
     private function coveredByPublishedAvailability(int $teacherId, string $startsAtUtc, string $endsAtUtc): bool {
         try {
-            $segments = (new TeacherAvailabilityService())->effective($teacherId, $startsAtUtc, $endsAtUtc);
+            $segments = (new TeacherAvailabilityService())->effective($teacherId, $startsAtUtc, $endsAtUtc, (int)($confirmation->course_id ?? 0) > 0 ? (new TeacherAvailabilityService())->instrumentIdForCourse((int)$confirmation->course_id) : null);
         } catch (\Throwable) {
             return false;
         }

@@ -265,7 +265,7 @@ final class PostIntroPreparationService {
         if (!$slot) throw new \RuntimeException('continuation_slot_unavailable');
         $override = $repository->recurringSlotOverrideForConfirmation((int) $confirmation->id);
         $authorisedTeacherOverride = $override && IntroRecurringSlotOverridePolicy::matches((array) $override, (array) $confirmation);
-        if (! $authorisedTeacherOverride) $this->assertSlotAvailable($teacherId, (string) $slot->starts_at_utc, (string) $slot->ends_at_utc);
+        if (! $authorisedTeacherOverride) $this->assertSlotAvailable($teacherId, (string) $slot->starts_at_utc, (string) $slot->ends_at_utc, (int) $course->id);
         if (CanonicalContinuationRule::expiresAt((string) $confirmation->ends_at_utc, (string) $slot->starts_at_utc) <= gmdate('Y-m-d H:i:s')) {
             throw new \RuntimeException('continuation_window_expired');
         }
@@ -427,9 +427,9 @@ final class PostIntroPreparationService {
     }
 
     /** The published Teacher availability must cover the committed weekly slot. */
-    private function assertSlotAvailable(int $teacherId, string $startsAtUtc, string $endsAtUtc): void {
+    private function assertSlotAvailable(int $teacherId, string $startsAtUtc, string $endsAtUtc, ?int $courseId = null): void {
         try {
-            $segments = (new TeacherAvailabilityService())->effective($teacherId, $startsAtUtc, $endsAtUtc);
+            $availability = new TeacherAvailabilityService(); $segments = $availability->effective($teacherId, $startsAtUtc, $endsAtUtc, $courseId ? $availability->instrumentIdForCourse($courseId) : null);
         } catch (\Throwable $error) {
             throw new \RuntimeException('teacher_unavailable');
         }

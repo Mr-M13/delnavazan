@@ -93,7 +93,7 @@ final class CanonicalLessonScheduleService {
                     &&(int)($ownInterval->satisfied_schedule_version_id??0)===(int)$applicable->id)$moveIntervalId=(int)$ownInterval->id;
             }
             $this->assertCapacity((int)$lesson->teacher_id,$resolved['starts_at_utc'],$resolved['occupied_ends_at_utc'],$lessonId,$lesson,$schedule,$moveIntervalId);
-            $basis=$this->availabilityBasis($intent,(int)$lesson->teacher_id,$resolved['starts_at_utc'],$resolved['ends_at_utc']);
+            $basis=$this->availabilityBasis($intent,(int)$lesson->teacher_id,$resolved['starts_at_utc'],$resolved['ends_at_utc'],(int)$lesson->course_id);
 
             if($applicable)$this->repository->supersede((int)$applicable->id,$now,null);
             do_action('dzn_phase_2a2n_after_version_supersede',$operation,$lessonId);
@@ -319,9 +319,9 @@ final class CanonicalLessonScheduleService {
     }
 
     /** Availability is an upstream constraint, never scheduling authority. */
-    private function availabilityBasis(array $intent,int $teacherId,string $starts,string $ends):string{
+    private function availabilityBasis(array $intent,int $teacherId,string $starts,string $ends,?int $courseId=null):string{
         $segments=array();
-        try{$segments=(new TeacherAvailabilityService())->effective($teacherId,$starts,$ends);}catch(\Throwable$e){$segments=array();}
+        try{$availability=new TeacherAvailabilityService();$segments=$availability->effective($teacherId,$starts,$ends,$courseId?$availability->instrumentIdForCourse($courseId):null);}catch(\Throwable$e){$segments=array();}
         $cursor=$starts;$covered=false;
         foreach($segments as$segment){
             if((string)($segment['state']??'')==='blocked')continue;

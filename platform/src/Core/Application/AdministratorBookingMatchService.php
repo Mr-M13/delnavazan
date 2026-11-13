@@ -107,7 +107,7 @@ final class AdministratorBookingMatchService {
             if ($exception->getMessage() === 'teacher_slot_conflict') throw new \InvalidArgumentException('The Teacher already has a reserved class or continuation slot at that time. Choose another slot.');
             throw $exception;
         }
-        $covered = $this->availabilityCovered($teacherId, $start, $end);
+        $covered = $this->availabilityCovered($teacherId, $start, $end, $courseId);
         $overrideReason = sanitize_key((string) ($input['override_reason_code'] ?? ''));
         $staffReason = trim((string) ($input['staff_reason'] ?? ''));
         $channel = sanitize_key((string) ($input['agreement_channel'] ?? ''));
@@ -204,9 +204,9 @@ final class AdministratorBookingMatchService {
         );
     }
 
-    private function availabilityCovered(int $teacherId, string $start, string $end): bool {
+    private function availabilityCovered(int $teacherId, string $start, string $end, ?int $courseId = null): bool {
         $cursor = $start;
-        foreach ($this->availability->effective($teacherId, $start, $end) as $segment) {
+        foreach ($this->availability->effective($teacherId, $start, $end, $courseId ? $this->availability->instrumentIdForCourse($courseId) : null) as $segment) {
             if ((string) $segment['starts_at_utc'] > $cursor) return false;
             if (!in_array((string) $segment['state'], array('preferred', 'requestable'), true)) return false;
             if ((string) $segment['ends_at_utc'] > $cursor) $cursor = min($end, (string) $segment['ends_at_utc']);

@@ -82,6 +82,51 @@
       if (card) card.classList.toggle('is-selected', input.checked);
     });
   });
+  // Availability workspace: day/instrument controls are keyboard-operable and keep the
+  // precise form fields as the source of truth. The server still validates every value.
+  document.querySelectorAll('[data-dzn-availability-workspace]').forEach((workspace) => {
+    const days = Array.from(workspace.querySelectorAll('[data-dzn-day-tab]'));
+    const instruments = Array.from(workspace.querySelectorAll('[data-dzn-instrument-tab]'));
+    const weekday = workspace.querySelector('[data-dzn-weekday]');
+    const instrument = workspace.querySelector('[data-dzn-instrument]');
+    const rangeInstrument = workspace.querySelector('[data-dzn-range-instrument]');
+    const heading = workspace.querySelector('[data-dzn-selected-day]');
+    let activeInstrument = '';
+    const names = days.map((node) => node.textContent.trim().replace(/\s+/g, ' ').replace(/[۰-۹].*$/, ''));
+    const selectDay = (value) => {
+      days.forEach((node, index) => {
+        const active = String(value) === node.dataset.dznDayTab;
+        node.classList.toggle('is-active', active);
+        node.setAttribute('aria-selected', String(active));
+        if (active && weekday) weekday.value = node.dataset.dznDayTab;
+        if (active && heading) heading.textContent = names[index] || node.textContent.trim();
+      });
+      workspace.querySelectorAll('[data-dzn-rule-day]').forEach((row) => {
+        row.hidden = String(value) !== row.dataset.dznRuleDay || (activeInstrument !== '' && activeInstrument !== row.dataset.dznRuleInstrument);
+      });
+    };
+    days.forEach((node) => node.addEventListener('click', () => selectDay(node.dataset.dznDayTab)));
+    instruments.forEach((node) => node.addEventListener('click', () => {
+      instruments.forEach((tab) => { const active = tab === node; tab.classList.toggle('is-active', active); tab.setAttribute('aria-selected', String(active)); });
+      activeInstrument = node.dataset.dznInstrumentTab || '';
+      if (instrument) instrument.value = activeInstrument;
+      if (rangeInstrument) rangeInstrument.value = activeInstrument;
+      workspace.querySelector('[data-dzn-empty-instrument]')?.setAttribute('value', activeInstrument);
+      const selectedDay = workspace.querySelector('.dzn-tp-day-tab.is-active')?.dataset.dznDayTab || '1';
+      selectDay(selectedDay);
+    }));
+    workspace.querySelector('form[data-dzn-availability-form]')?.addEventListener('input', () => {
+      const flag = workspace.querySelector('[data-dzn-unsaved]');
+      if (flag) flag.hidden = false;
+    });
+    if (instruments[0] && instrument) {
+      activeInstrument = instruments[0].dataset.dznInstrumentTab || '';
+      instrument.value = activeInstrument;
+      if (rangeInstrument) rangeInstrument.value = activeInstrument;
+      workspace.querySelector('[data-dzn-empty-instrument]')?.setAttribute('value', activeInstrument);
+    }
+    if (days[0]) selectDay(days[0].dataset.dznDayTab);
+  });
   document.querySelectorAll('[data-dzn-tp-presentation]').forEach((button) => button.addEventListener('click', () => {
     const scope = button.closest('section, dialog') || document;
     const status = scope.querySelector('.dzn-tp-action-status');

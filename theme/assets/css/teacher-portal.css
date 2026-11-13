@@ -2859,3 +2859,22 @@
   border: 1px solid var(--dzn-color-warning);
 }
 .dzn-tp-class.is-test { outline: 1px dashed var(--dzn-color-warning); outline-offset: 2px; }
+
+/* Mobile-first teacher availability workspace. */
+.dzn-tp-availability-workspace{display:grid;gap:1rem}
+.dzn-tp-instrument-tabs,.dzn-tp-day-tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(7rem,1fr));gap:.5rem}
+.dzn-tp-instrument-tab,.dzn-tp-day-tab{appearance:none;border:1px solid var(--dzn-tp-border);border-radius:12px;background:var(--dzn-tp-card);color:var(--dzn-color-text);font:inherit;font-weight:700;min-height:3.5rem;padding:.65rem;cursor:pointer;text-align:center}
+.dzn-tp-instrument-tab small{display:block;font-size:.7rem;font-weight:400;margin-top:.2rem;opacity:.72}
+.dzn-tp-instrument-tab.is-active,.dzn-tp-day-tab.is-active{border-color:var(--dzn-color-action-primary);box-shadow:0 0 0 2px color-mix(in srgb,var(--dzn-color-action-primary) 18%,transparent);background:color-mix(in srgb,var(--dzn-color-action-primary) 7%,var(--dzn-tp-card))}
+.dzn-tp-day-tab span{display:inline-block;width:.45rem;height:.45rem;border-radius:50%;margin-inline-start:.35rem;background:transparent;vertical-align:middle}
+.dzn-tp-day-tab.has-hours span{background:var(--dzn-color-action-primary)}
+.dzn-tp-day-editor{border:1px solid var(--dzn-tp-border);border-radius:16px;padding:1rem;background:var(--dzn-tp-card)}
+.dzn-tp-day-editor__header{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.dzn-tp-unsaved{font-size:.76rem;color:var(--dzn-color-warning);font-weight:700}
+.dzn-tp-day-clock{width:min(100%,18rem);aspect-ratio:1;border-radius:50%;margin:1rem auto;position:relative;border:1.25rem solid color-mix(in srgb,var(--dzn-color-action-primary) 16%,var(--dzn-tp-card));outline:1px dashed var(--dzn-tp-border);display:grid;place-items:center;color:var(--dzn-color-text)}
+.dzn-tp-day-clock span{position:absolute;font-size:.72rem}.dzn-tp-day-clock span:nth-child(1){top:4%}.dzn-tp-day-clock span:nth-child(2){inset-inline-end:4%;top:25%}.dzn-tp-day-clock span:nth-child(3){inset-inline-end:4%;bottom:25%}.dzn-tp-day-clock span:nth-child(4){bottom:4%}.dzn-tp-day-clock span:nth-child(5){inset-inline-start:4%;bottom:25%}
+.dzn-tp-day-clock strong{font-size:.8rem}
+.dzn-tp-time-controls{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;align-items:end}.dzn-tp-time-controls button{grid-column:1/-1}
+.dzn-tp-selected-hours li[hidden]{display:none}
+.dzn-tp-partial-remove{display:grid;gap:.75rem;margin-block-start:1rem;padding-block-start:1rem;border-block-start:1px solid var(--dzn-tp-border)}
+@media (min-width:48rem){.dzn-tp-time-controls{grid-template-columns:1fr 1fr auto}.dzn-tp-time-controls button{grid-column:auto}.dzn-tp-day-editor{padding:1.5rem}}

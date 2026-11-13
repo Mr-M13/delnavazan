@@ -28,6 +28,7 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
 }
 namespace Delnavazan\Platform\Core\Application {
     final class TeacherAvailabilityService {
+        public function instrumentIdForCourse(int $courseId): ?int { return 1; }
         public function effective(int $teacherId, string $start, string $end): array {
             if ($teacherId === 11 && $start === '2026-11-01 09:00:00') return array();
             $state = $teacherId === 11 ? 'preferred' : 'requestable';

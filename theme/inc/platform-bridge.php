@@ -1975,6 +1975,38 @@ function dzn_theme_platform_teacher_coverage_clock( $teacher_id, $timezone, $cal
 	}
 }
 
+function dzn_theme_platform_teacher_instrument_availability( $teacher_id, array $catalogue ) {
+	$out = array(); $days = array( 1 => 'دوشنبه', 2 => 'سه‌شنبه', 3 => 'چهارشنبه', 4 => 'پنجشنبه', 5 => 'جمعه', 6 => 'شنبه', 7 => 'یکشنبه' );
+	if ( (int) $teacher_id < 1 ) return $out;
+	try { $repo = new \Delnavazan\Platform\Core\Infrastructure\Repository\TeacherAvailabilityRepository(); } catch ( Throwable ) { return $out; }
+	$groups = array();
+	foreach ( $catalogue as $row ) { if ( ! empty( $row->selected ) ) $groups[ (int) $row->instrument_id ] = (string) $row->instrument; }
+	foreach ( $groups as $instrument_id => $instrument_name ) {
+		try { $rules = $repo->activeRules( (int) $teacher_id, (int) $instrument_id ); } catch ( Throwable ) { $rules = array(); }
+		$configured = false; try { $configured = $repo->instrumentConfigured( (int) $teacher_id, (int) $instrument_id ); } catch ( Throwable ) {}
+		$out[ $instrument_id ] = array( 'instrument_id' => $instrument_id, 'instrument' => $instrument_name, 'configured' => $configured, 'rules' => array_map( static function ( $rule ) use ( $days ) {
+			$weekday = (int) $rule->weekday;
+			return array( 'id' => (int) $rule->id, 'weekday' => $weekday, 'day' => $days[ $weekday ] ?? '', 'start' => substr( (string) $rule->local_start_time, 0, 5 ), 'end' => substr( (string) $rule->local_end_time, 0, 5 ), 'blocks' => array( substr( (string) $rule->local_start_time, 0, 5 ) . '–' . substr( (string) $rule->local_end_time, 0, 5 ) ) );
+		}, $rules ) );
+	}
+	return $out;
+}
+
+function dzn_theme_platform_teacher_unique_weekly_minutes( array $instrument_availability ): int {
+	$days = array();
+	foreach ( $instrument_availability as $schedule ) foreach ( (array) ( $schedule['rules'] ?? array() ) as $rule ) {
+		$day = (int) ( $rule['weekday'] ?? 0 ); $start = (int) substr( (string) ( $rule['start'] ?? '' ), 0, 2 ) * 60 + (int) substr( (string) ( $rule['start'] ?? '' ), 3, 2 ); $end = (int) substr( (string) ( $rule['end'] ?? '' ), 0, 2 ) * 60 + (int) substr( (string) ( $rule['end'] ?? '' ), 3, 2 );
+		if ( $day >= 1 && $day <= 7 && $end > $start ) $days[ $day ][] = array( $start, $end );
+	}
+	$total = 0;
+	foreach ( $days as $intervals ) {
+		usort( $intervals, static fn( $a, $b ) => $a[0] <=> $b[0] ?: $a[1] <=> $b[1] ); $merged = array();
+		foreach ( $intervals as $interval ) { $last = count( $merged ) - 1; if ( $last >= 0 && $interval[0] <= $merged[ $last ][1] ) $merged[ $last ][1] = max( $merged[ $last ][1], $interval[1] ); else $merged[] = $interval; }
+		foreach ( $merged as $interval ) $total += $interval[1] - $interval[0];
+	}
+	return $total;
+}
+
 function dzn_theme_platform_teacher_model( $screen ) {
 	$identity = dzn_theme_platform_user_identity();
 	$google_notice = dzn_theme_platform_google_notice();
@@ -2001,12 +2033,17 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$onboarding_locale = (string) ( $onboarding['profile']['locale'] ?? 'fa_IR' );
 		$onboarding_calendar = dzn_theme_platform_calendar_preference( $onboarding['profile']['calendar_preference'] ?? '', $onboarding_locale );
 		$onboarding_golden = dzn_theme_platform_teacher_golden_bonus( $onboarding_timezone, $onboarding_calendar, $onboarding_locale );
+		$onboarding_catalogue = dzn_theme_platform_teacher_catalogue();
+		$onboarding_instrument_availability = dzn_theme_platform_teacher_instrument_availability( (int) ( $onboarding['teacher_id'] ?? 0 ), $onboarding_catalogue );
+		$onboarding_display_availability = array();
+		foreach ( $onboarding_instrument_availability as $schedule ) foreach ( (array) ( $schedule['rules'] ?? array() ) as $rule ) $onboarding_display_availability[] = $rule + array( 'state' => 'preferred', 'booked' => '' );
 		$onboarding_rules = array_values( array_filter( (array) ( $onboarding['availability_rules'] ?? array() ), static fn( $rule ) => is_array( $rule ) && in_array( (string) ( $rule['state'] ?? '' ), array( 'preferred', 'requestable' ), true ) ) );
 		$onboarding_summary = array( 'weekly_minutes' => 0, 'golden_minutes' => 0, 'golden' => $onboarding_golden );
 		$availability_summary_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherAvailabilitySummary';
 		if ( class_exists( $availability_summary_class ) ) {
 			try { $onboarding_summary = $availability_summary_class::build( $onboarding_rules, $onboarding_golden ); $onboarding_golden = (array) ( $onboarding_summary['golden'] ?? $onboarding_golden ); } catch ( Throwable ) {}
 		}
+		$onboarding_summary['weekly_minutes'] = dzn_theme_platform_teacher_unique_weekly_minutes( $onboarding_instrument_availability );
 		$onboarding_availability = array_map( static function ( $rule ) {
 			$days = array( 1 => 'دوشنبه', 2 => 'سه‌شنبه', 3 => 'چهارشنبه', 4 => 'پنجشنبه', 5 => 'جمعه', 6 => 'شنبه', 7 => 'یکشنبه' );
 			return array(
@@ -2034,7 +2071,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'profile_edit_action' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
 			'google_state' => 'managed_centrally',
 			'availability_available' => true,
-			'availability' => $onboarding_availability,
+			'availability' => $onboarding_display_availability ?: $onboarding_availability,
 			'availability_action_url' => admin_url( 'admin-post.php?action=dzn_teacher_availability_rule' ),
 			'availability_retire_url' => admin_url( 'admin-post.php?action=dzn_teacher_availability_retire' ),
 			'availability_retire_nonce' => wp_create_nonce( 'dzn_teacher_availability_retire' ),
@@ -2047,7 +2084,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				'instruments' => admin_url( 'admin-post.php?action=dzn_teacher_instruments' ),
 				'submit' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_submit' ),
 			),
-			'instruments' => dzn_theme_platform_teacher_catalogue(),
+			'instruments' => $onboarding_catalogue,
+			'instrument_availability' => $onboarding_instrument_availability,
 			'day_offs' => dzn_theme_platform_teacher_day_offs(),
 			'accepting_state' => dzn_theme_platform_teacher_accepting( (int) ( $onboarding['teacher_id'] ?? 0 ) ),
 			'recording_terms' => dzn_theme_platform_teacher_recording_terms( 'onboarding' ),
@@ -2137,12 +2175,17 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$upcoming_count = count( array_filter( $all_scheduled_classes, static fn( $row ) => ( dzn_theme_platform_utc_timestamp( $row['starts_at_utc'] ?? '' ) ?: 0 ) >= time() ) );
 		$nav[0]['current'] = false;
 		$availability_rules = array_values( array_filter( (array) ( $onboarding['availability_rules'] ?? array() ), static fn( $rule ) => is_array( $rule ) && in_array( (string) ( $rule['state'] ?? '' ), array( 'preferred', 'requestable' ), true ) ) );
+		$teacher_catalogue = dzn_theme_platform_teacher_catalogue();
+		$teacher_instrument_availability = dzn_theme_platform_teacher_instrument_availability( (int) ( $onboarding['teacher_id'] ?? 0 ), $teacher_catalogue );
+		$teacher_display_availability = array();
+		foreach ( $teacher_instrument_availability as $schedule ) foreach ( (array) ( $schedule['rules'] ?? array() ) as $rule ) $teacher_display_availability[] = $rule + array( 'state' => 'preferred', 'booked' => '' );
 		$golden_bonus = dzn_theme_platform_teacher_golden_bonus( $teacher_timezone, $teacher_calendar, $teacher_locale );
 		$availability_summary = array( 'weekly_minutes' => 0, 'golden_minutes' => 0, 'golden' => $golden_bonus );
 		$summary_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherAvailabilitySummary';
 		if ( class_exists( $summary_class ) ) {
 			try { $availability_summary = $summary_class::build( $availability_rules, $golden_bonus ); } catch ( Throwable ) {}
 		}
+		$availability_summary['weekly_minutes'] = dzn_theme_platform_teacher_unique_weekly_minutes( $teacher_instrument_availability );
 		$induction_hub = dzn_theme_platform_teacher_induction_hub();
 		return array(
 			'available' => true, 'screen' => $screen, 'source' => 'platform',
@@ -2157,12 +2200,12 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'coverage_clock' => dzn_theme_platform_teacher_coverage_clock( (int) ( $onboarding['teacher_id'] ?? 0 ), (string) ( $onboarding['profile']['timezone'] ?? $teacher_timezone ), $teacher_calendar ),
 			'google_state' => 'managed_centrally',
 			'availability_available' => true,
-			'availability' => array_map(static function($r){$days=[1=>'دوشنبه',2=>'سه‌شنبه',3=>'چهارشنبه',4=>'پنجشنبه',5=>'جمعه',6=>'شنبه',7=>'یکشنبه'];return ['id'=>(int)$r['id'],'day'=>$days[(int)$r['weekday']]??'','weekday'=>(int)$r['weekday'],'blocks'=>[substr((string)$r['local_start_time'],0,5).'–'.substr((string)$r['local_end_time'],0,5)],'start'=>substr((string)$r['local_start_time'],0,5),'end'=>substr((string)$r['local_end_time'],0,5),'state'=>(string)$r['state'],'booked'=>''];},$availability_rules),
+			'availability' => $teacher_display_availability ?: array_map(static function($r){$days=[1=>'دوشنبه',2=>'سه‌شنبه',3=>'چهارشنبه',4=>'پنجشنبه',5=>'جمعه',6=>'شنبه',7=>'یکشنبه'];return ['id'=>(int)$r['id'],'day'=>$days[(int)$r['weekday']]??'','weekday'=>(int)$r['weekday'],'blocks'=>[substr((string)$r['local_start_time'],0,5).'–'.substr((string)$r['local_end_time'],0,5)],'start'=>substr((string)$r['local_start_time'],0,5),'end'=>substr((string)$r['local_end_time'],0,5),'state'=>(string)$r['state'],'booked'=>''];},$availability_rules),
 			'availability_action_url' => admin_url('admin-post.php?action=dzn_teacher_availability_rule'),
 			'availability_retire_url' => admin_url('admin-post.php?action=dzn_teacher_availability_retire'),
 			'availability_retire_nonce' => wp_create_nonce('dzn_teacher_availability_retire'),
 			'availability_nonce' => wp_create_nonce('dzn_teacher_availability_rule'),
-			'exceptions' => array(), 'day_offs' => dzn_theme_platform_teacher_day_offs(), 'accepting_state' => dzn_theme_platform_teacher_accepting( (int) ( $onboarding['teacher_id'] ?? 0 ) ), 'payment_state' => 'unavailable', 'instruments' => dzn_theme_platform_teacher_catalogue(),
+			'exceptions' => array(), 'day_offs' => dzn_theme_platform_teacher_day_offs(), 'accepting_state' => dzn_theme_platform_teacher_accepting( (int) ( $onboarding['teacher_id'] ?? 0 ) ), 'payment_state' => 'unavailable', 'instruments' => $teacher_catalogue, 'instrument_availability' => $teacher_instrument_availability,
 			'statistics' => array( 'active_students' => (string) ( $assigned ? count( $assigned ) : count( $students ) ), 'lessons_month' => (string) count( $month_lessons ), 'hours_month' => number_format_i18n( $seconds / HOUR_IN_SECONDS, 1 ), 'upcoming' => (string) $upcoming_count, 'year_total' => (string) count( $year_lessons ) ),
 		);
 	}

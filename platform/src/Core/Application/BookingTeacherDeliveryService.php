@@ -48,7 +48,7 @@ final class BookingTeacherDeliveryService {
                 $preference['coverage'] = $this->coverageState(
                     $teacher,
                     (string) ($preference['starts_at_utc'] ?? ''),
-                    (string) ($preference['occupied_ends_at_utc'] ?? '')
+                    (string) ($preference['occupied_ends_at_utc'] ?? ''), (int) ($delivery->course_id ?? 0)
                 );
             }
             unset($preference);
@@ -63,13 +63,13 @@ final class BookingTeacherDeliveryService {
     }
 
     /** Exact declared-availability state for one preference, or `outside` when it is not covered. */
-    private function coverageState(int $teacherId, string $startsAtUtc, string $occupiedEndUtc): string {
+    private function coverageState(int $teacherId, string $startsAtUtc, string $occupiedEndUtc, ?int $courseId = null): string {
         if ($startsAtUtc === '' || $occupiedEndUtc === '' || $occupiedEndUtc <= $startsAtUtc) {
             return 'outside';
         }
         $cursor = $startsAtUtc;
         $state = 'preferred';
-        foreach ($this->availability->effective($teacherId, $startsAtUtc, $occupiedEndUtc) as $segment) {
+        foreach ($this->availability->effective($teacherId, $startsAtUtc, $occupiedEndUtc, $courseId ? $this->availability->instrumentIdForCourse($courseId) : null) as $segment) {
             if ((string) $segment['starts_at_utc'] > $cursor) { return 'outside'; }
             if (!in_array((string) $segment['state'], array('preferred', 'requestable'), true)) { return 'outside'; }
             if ((string) $segment['state'] === 'requestable') { $state = 'requestable'; }

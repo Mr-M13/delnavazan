@@ -652,8 +652,8 @@ final class NotificationManagementController {
     private static function tableContext():array{
         $out=array();
         foreach(array('search','category','recipient','channel','status') as $key){
-            $source=$key==='channel'?'filter_channel':'filter_'.$key;
-            if($key!=='channel'&&(!isset($_GET[$source])||!is_scalar($_GET[$source])))$source=$key;
+            $source='filter_'.$key;
+            if(!isset($_GET[$source])||!is_scalar($_GET[$source]))$source=$key;
             if(isset($_GET[$source])&&is_scalar($_GET[$source]))$out[$key]=sanitize_text_field(wp_unslash((string)$_GET[$source]));
         }
         return $out;

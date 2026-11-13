@@ -2,6 +2,7 @@
 /** Teacher induction: concise, one-page Persian guide. */
 $model = is_array( $args['model'] ?? null ) ? $args['model'] : array();
 $support_url = (string) ( $model['induction_support_url'] ?? '' );
+$brand = dzn_theme_brand_identity();
 $sections = array(
  array('آماده‌سازی حساب کاربری و زمان‌های تدریس', array(
  'اطلاعات فردی، سازهای آموزشی و منطقهٔ زمانی خود را در حساب کاربری تکمیل کنید. ساعت هر کلاس برای شما و هنرجو به‌صورت خودکار بر اساس منطقهٔ زمانی هر فرد نمایش داده می‌شود.',
@@ -35,6 +36,7 @@ $sections = array(
  array('ما در کنار شما هستیم', array(
  'برای پرسش، پیشنهاد یا گزارش مشکل با ما تماس بگیرید. همیشه خوشحال می‌شویم صدای گرم شما را بشنویم.',
  'تلفن و واتس‌اپ: ‎+61 413 413 004 | ایمیل: admin@delnavazan.com',
+ 'مدیر هنری دلنوازان (ایران): ' . (string) ( $brand['teacher_contact_display'] ?? '09101401910' ),
  'موسیقی ایرانی؛ برای ایرانیان دور از وطن'
  ))
 );

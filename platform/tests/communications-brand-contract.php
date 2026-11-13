@@ -44,6 +44,8 @@ $fail('four public contact links', array_keys($links) === array('phone', 'whatsa
 $fail('tel link', $links['phone']['href'] === 'tel:+61413413004');
 $fail('WhatsApp link', $links['whatsapp']['href'] === 'https://wa.me/61413413004');
 $fail('mail link', $links['email']['href'] === 'mailto:admin@delnavazan.com');
+$fail('teacher contact label', BrandIdentity::TEACHER_CONTACT_LABEL === 'مدیر هنری دلنوازان (ایران)');
+$fail('teacher contact number', BrandIdentity::TEACHER_CONTACT_DISPLAY === '09101401910' && BrandIdentity::TEACHER_CONTACT_HREF === 'tel:+989101401910');
 
 /* 2. The website token block and the renderer tokens are one palette. */
 $themeCss = (string) file_get_contents($repo . '/theme/assets/css/theme.css');
@@ -128,6 +130,9 @@ $unsafe = DelnavazanEmailRenderer::render('t', 'body', array('cta' => array('lab
 $fail('unsafe CTA is dropped', !str_contains($unsafe['html'], 'javascript:'));
 $en = DelnavazanEmailRenderer::render('Subject', 'Body', array('locale' => 'en'));
 $fail('English email is LTR and uses the English tagline', str_contains($en['html'], 'dir="ltr"') && str_contains($en['html'], BrandIdentity::TAGLINE_EN));
+$teacherEmail = DelnavazanEmailRenderer::render('عنوان', 'متن', array('locale' => 'fa-IR', 'audience' => 'teacher'));
+$fail('teacher email carries the Iran artistic-director contact', str_contains($teacherEmail['html'], BrandIdentity::TEACHER_CONTACT_LABEL) && str_contains($teacherEmail['html'], 'tel:+989101401910') && str_contains($teacherEmail['text'], '09101401910'));
+$fail('public email does not expose the teacher contact', !str_contains($fa['html'], '09101401910') && !str_contains($fa['text'], '09101401910'));
 
 /* 6. Teacher statement email and student receipt share the same identity. */
 $statement = array(

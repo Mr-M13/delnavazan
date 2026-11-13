@@ -374,7 +374,8 @@ final class NotificationTemplateLibrary {
         }
         $cta=$this->ctaFor($eventKey,$body,$variables,(string)(NotificationCatalogue::get($eventKey)['audience']??'student'),$locale);
         $rendered=DelnavazanEmailRenderer::render($renderedSubject,$renderedBody,array(
-            'locale'=>$locale,'cta'=>$cta,'preheader'=>$renderedSubject,
+            'locale'=>$locale,'audience'=>(string)(NotificationCatalogue::get($eventKey)['audience']??''),
+            'cta'=>$cta,'preheader'=>$renderedSubject,
             'footer_note'=>NotificationCatalogue::previewNotice($locale),
         ));
         return array('subject'=>$rendered['subject'],'text'=>$rendered['text'],'html'=>$rendered['html'],'segments'=>null);

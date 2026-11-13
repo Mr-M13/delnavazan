@@ -120,6 +120,7 @@ final class TeacherStatementEmailRenderer {
 
         $rendered = DelnavazanEmailRenderer::renderTrustedHtml($subject, $content, '', array(
             'locale' => $english ? 'en' : 'fa-IR',
+            'audience' => 'teacher',
             'logo_url' => (string) ($options['logo_url'] ?? ''),
             'max_width' => 640,
             'header_meta' => $headerMeta,
@@ -135,7 +136,8 @@ final class TeacherStatementEmailRenderer {
             . implode("\n", $textLines) . "\n\n"
             . $totalLabel . ': ' . $payable . "\n\n"
             . $note . "\n"
-            . BrandIdentity::contactLine($english);
+            . BrandIdentity::contactLine($english) . "\n"
+            . BrandIdentity::teacherContactLine($english);
 
         $rendered['text'] = $text;
         return $rendered;

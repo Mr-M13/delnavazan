@@ -36,6 +36,7 @@ $assert(str_contains($fa['html'], 'غیرقابل پرداخت'), 'The non-payab
 $assert(!str_contains($fa['html'], '<script') && !str_contains($fa['html'], '@import') && !str_contains($fa['html'], '{{'), 'The email must be fixed, script-free and template-free');
 $assert(!str_contains($fa['html'], 'fonts.googleapis') && !str_contains($fa['html'], 'url('), 'The email must not depend on an external font or remote CSS');
 $assert(str_contains($fa['text'], 'صورت‌حساب') && str_contains($fa['text'], '۴,۵۰۰,۰۰۰ تومان'), 'The plain-text alternative must carry the same facts');
+$assert(str_contains($fa['html'], 'مدیر هنری دلنوازان (ایران)') && str_contains($fa['html'], 'tel:+989101401910') && str_contains($fa['text'], '09101401910'), 'The teacher statement must carry the Iran artistic-director contact');
 
 $en = $renderer->render($statement, $lines, array('name' => 'Sample Teacher', 'reference' => 'DZN-TCH-0002', 'locale' => 'en'), array('locale' => 'en'));
 $assert(str_contains($en['html'], 'dir="ltr"') && str_contains($en['subject'], 'Delnavazan teacher statement'), 'English rendering must be LTR');

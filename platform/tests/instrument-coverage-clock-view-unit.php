@@ -51,8 +51,22 @@ $instrument = array(
 $data = array(
     'status' => 'ok', 'scope' => 'admin', 'mode' => 'week', 'date' => '2026-11-12', 'weekday' => 4,
     'week_start' => $weekStart, 'week_end' => '2026-11-13', 'week_order' => InstrumentCoverageWeek::ORDER,
+    'period_key' => 'current', 'period_label' => 'Remaining this week · elapsed slots excluded', 'gap_period_label' => 'Priority gaps this week',
+    'metric_source' => 'actionable', 'as_of_local' => '12 Nov 2026 12:00',
     'display_timezone' => 'UTC', 'timezone_label' => 'UTC', 'calendar' => 'gregorian',
     'selected_instrument' => 1, 'instruments' => array($instrument), 'golden_bonus' => array('enabled' => true, 'percent' => 20, 'timezone' => 'Asia/Tehran', 'label' => 'Golden Hours'), 'message' => '',
+    'priority_gaps' => array(
+        array('instrument_id' => 1, 'instrument_name' => 'Piano', 'weekday' => 4, 'date' => '2026-11-12', 'date_label' => '12 Nov 2026', 'date_label_fa' => '۲۱ آبان ۱۴۰۵', 'rank' => 0, 'golden' => true, 'reason' => 'fully_booked', 'duration_minutes' => 60, 'start_minute' => 600, 'start_time' => '10:00', 'end_time' => '11:00', 'time_label' => '10:00–11:00', 'visual_start_index' => 20, 'visual_indexes' => array(20, 21), 'regions' => array(array('key' => 'AU', 'label' => 'Australia')), 'booked_teacher_count' => 1, 'held_teacher_count' => 0),
+        array('instrument_id' => 2, 'instrument_name' => 'Violin', 'weekday' => 5, 'date' => '2026-11-13', 'date_label' => '13 Nov 2026', 'date_label_fa' => '۲۲ آبان ۱۴۰۵', 'rank' => 2, 'golden' => false, 'reason' => 'one_teacher', 'duration_minutes' => 30, 'start_minute' => 540, 'start_time' => '09:00', 'end_time' => '09:30', 'time_label' => '09:00–09:30', 'visual_start_index' => 18, 'visual_indexes' => array(18), 'regions' => array(), 'booked_teacher_count' => 0, 'held_teacher_count' => 0),
+    ),
+    'unknown_data' => array(
+        'interval_count' => 2, 'segment_count' => 6, 'duration_minutes' => 90,
+        'instruments' => array('Piano'), 'dates' => array('12 Nov 2026', '13 Nov 2026'),
+        'ranges' => array(
+            array('instrument_id' => 1, 'instrument_name' => 'Piano', 'weekday' => 4, 'date' => '2026-11-12', 'date_label' => '12 Nov 2026', 'date_label_fa' => '۲۱ آبان ۱۴۰۵', 'start_minute' => 960, 'end_minute' => 1020, 'time_label' => '16:00–17:00', 'duration_minutes' => 60, 'reason' => 'unknown_data', 'visual_start_index' => 32, 'visual_indexes' => array(32, 33)),
+            array('instrument_id' => 1, 'instrument_name' => 'Piano', 'weekday' => 5, 'date' => '2026-11-13', 'date_label' => '13 Nov 2026', 'date_label_fa' => '۲۲ آبان ۱۴۰۵', 'start_minute' => 540, 'end_minute' => 570, 'time_label' => '09:00–09:30', 'duration_minutes' => 30, 'reason' => 'nonexistent_local_time', 'visual_start_index' => 18, 'visual_indexes' => array(18)),
+        ),
+    ),
 );
 $render = static function (array $payload, array $options = array()): string {
     ob_start();
@@ -77,6 +91,23 @@ $assert(str_contains($html, 'Capacity') && str_contains($html, 'One teacher') &&
 $assert(str_contains($html, 'Golden Hours'), 'The Golden Hours ring must be named.');
 $assert(str_contains($html, 'data-dzn-clock-data'), 'The compact JSON payload must be present.');
 $assert(str_contains($html, 'ساعت‌های طلایی بدون پوشش') === false, 'The administrator labels remain English.');
+$assert(str_contains($html, 'Priority gaps this week'), 'The actionable gap list must lead the administrator view.');
+$assert(str_contains($html, 'Remaining this week · elapsed slots excluded'), 'The current metric period must be explicit.');
+$assert(substr_count($html, 'data-dzn-gap ') === 2, 'Every priority gap must be a selectable row.');
+$assert(str_contains($html, 'data-dzn-gap-visual-indexes="20,21"'), 'A gap row must carry every visual segment in its range.');
+$assert(str_contains($html, 'Fully booked'), 'A booked gap must show its authoritative cause.');
+$assert(str_contains($html, '1 booked'), 'A booked gap must show the booked teacher count.');
+$assert(str_contains($html, 'Australia'), 'A Golden gap must show its relevant region.');
+$assert(str_contains($html, 'Week of (Gregorian date)'), 'The Gregorian date input must be labelled accurately.');
+$assert(str_contains($html, 'Data quality') && str_contains($html, '2 unknown intervals · 1h 30m'), 'Unknown data must be summarised separately from confirmed gaps.');
+$assert(substr_count($html, 'data-dzn-unknown ') === 3, 'The data-quality summary and every unknown interval must be inspectable.');
+$assert(str_contains($html, 'dzn-clock__quality-summary'), 'Clicking the data-quality indicator must inspect the first unknown interval.');
+$assert(str_contains($html, 'Unknown coverage data') && str_contains($html, 'Nonexistent local time'), 'Unknown ranges must carry their uncertainty reason.');
+$assert(str_contains($html, 'coverage_focus=4%3A32'), 'An unknown range must reopen its clock interval.');
+$assert(str_contains($html, 'coverage_instrument=2') && str_contains($html, 'coverage_date=2026-11-13') && str_contains($html, 'coverage_focus=5%3A18'), 'A cross-instrument gap must preserve instrument, week and focus.');
+$assert(str_contains($html, 'Golden first, then longest uncovered'), 'The priority explanation must stay concise.');
+$assert(!str_contains($html, '<small>'), 'Repeated metric explanations must not add visible captions.');
+$assert(str_contains($html, 'aria-label="Eligible teachers. Instrument-wide count; this is not the number free at the selected time."'), 'The instrument-wide clarification must remain available to assistive technology.');
 
 $jsonStart = strpos($html, 'data-dzn-clock-data>');
 $jsonEnd = strpos($html, '</script>', $jsonStart);
@@ -87,7 +118,14 @@ $assert(count($payload['week']) === 7, 'The payload must contain seven weekday r
 $assert((int) $payload['week'][0]['weekday'] === 6 && (int) $payload['week'][6]['weekday'] === 5, 'The payload must be ordered Saturday–Friday.');
 $assert(count($payload['week'][0]['segments']) === 48, 'Each ring must contain 48 visual 30-minute segments.');
 $assert(count($payload['golden_ring']) === 48, 'The Golden Hours ring must contain 48 segments.');
+$assert($payload['period_key'] === 'current' && $payload['metric_source'] === 'actionable', 'The payload must expose the metric period.');
+$assert(count($payload['priority_gaps']) === 2, 'The payload must expose the priority-gap list for list-to-ring sync.');
+$assert(count($payload['unknown_data']['ranges']) === 2 && (int) $payload['unknown_data']['duration_minutes'] === 90, 'The payload must expose unknown ranges without merging them into gaps.');
+$assert((int) $payload['week'][0]['segments'][0][13] === 1, 'Compact segments must carry the authoritative reason code, not infer it from colour.');
 $assert(!isset($payload['week'][0]['segments'][0]['teacher_name']), 'No private teacher field may be serialized.');
+
+$focused = $render($data, array('page' => 'dzn-academy-dashboard', 'focus' => '4:20'));
+$assert(str_contains($focused, 'data-dzn-clock-focus="4:20"'), 'A focused gap must reopen its ring segment.');
 
 $persian = $render(array_merge($data, array('calendar' => 'persian')));
 $assert(str_contains($persian, 'آبان'), 'The Persian calendar week label must be rendered.');
@@ -127,12 +165,24 @@ $assert(str_contains($js, 'dzn-clock__golden-seg'), 'The single Golden Hours out
 $assert(str_contains($js, 'dzn-clock__seg-half'), 'Each 30-minute segment must retain both 15-minute halves.');
 $assert(str_contains($js, 'is-past'), 'Past segments must have a non-destructive visual state.');
 $assert(!str_contains($js, 'now-hand') && !str_contains($js, 'now-dot'), 'The unexplained green now marker must be removed.');
+$assert(str_contains($js, 'data-dzn-gap') && str_contains($js, 'paintGapList'), 'Gap rows must stay in sync with the selected ring segment.');
+$assert(str_contains($js, 'causeText') && str_contains($js, 'reasonNoAvailability') && str_contains($js, 'reasonFullyBooked'), 'Details must carry authoritative reasons, not colour inference.');
+$assert(str_contains($js, 'firstGapSegment'), 'Day buttons must provide a large path to the first actionable gap.');
+$assert(str_contains($js, 'data.focus'), 'A focus URL must reopen and highlight the selected gap.');
+$assert(str_contains($js, 'goldenBonus.enabled && Number(segment[12])'), 'Bonus eligibility must depend on the global pay window, not the Golden demand flag.');
+$assert(str_contains($js, 'dayGoldenDemand') && str_contains($js, 'noDayGoldenDemand'), 'A weekday detail must state that day\'s exact Golden status.');
+$assert(str_contains($js, 'revealDetails'), 'Narrow screens must reveal the shared detail panel after a large-target selection.');
+$assert(str_contains($js, 'data-dzn-unknown') && str_contains($js, 'paintQualityList') && str_contains($js, 'unknownRangeFor'), 'Unknown intervals must remain independently inspectable on the clock.');
+$assert(str_contains($js, 'is-unknown-selected'), 'Unknown selection must have its own ring highlight, separate from confirmed gaps.');
 
 $assert(str_contains($css, ':focus-visible'), 'The SVG segments must have a visible focus style.');
 $assert(str_contains($css, '--dzn-day-6') && str_contains($css, '--dzn-day-5'), 'The seven weekday colour progression must be defined.');
 $assert(str_contains($css, '@media (max-width: 760px)') && str_contains($css, '@media (max-width: 480px)'), 'The clock must adapt to tablet and mobile widths.');
 $assert(str_contains($css, '.dzn-clock__seg-half.is-uncovered') && str_contains($css, '.dzn-clock__seg-half.is-limited'), 'Capacity states must have non-colour styling hooks.');
 $assert(str_contains($css, 'is-clock-target'), 'The availability selector highlight must be styled.');
+$assert(str_contains($css, '.dzn-clock__priority') && str_contains($css, '.dzn-clock__gap {'), 'The priority gap list must have its own readable layout.');
+$assert(str_contains($css, '.dzn-clock__seg.is-gap-selected'), 'The selected gap must be highlighted on the ring.');
+$assert(str_contains($css, '.dzn-clock__quality') && str_contains($css, '.dzn-clock__seg.is-unknown-selected'), 'Unknown data needs a compact indicator and a distinct ring highlight.');
 $assert(str_contains($adminCss, '.dzn-coverage__scroll'), 'Legacy atlas styling must remain harmless while the UI is retired.');
 
 echo "instrument-coverage-clock-view: OK\n";

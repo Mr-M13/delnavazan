@@ -31,6 +31,9 @@ final class InstrumentCoverageClockAnalyzer {
     public const REASON_NONE = '';
     public const REASON_NO_AVAILABILITY = 'no_availability';
     public const REASON_FULLY_BOOKED = 'fully_booked';
+    public const REASON_FULLY_HELD = 'fully_held';
+    public const REASON_ONE_TEACHER = 'one_teacher';
+    public const REASON_PARTIAL_15_MINUTE = 'partial_15_minute';
     public const REASON_NONEXISTENT_LOCAL_TIME = 'nonexistent_local_time';
     public const REASON_UNKNOWN_DATA = 'unknown_data';
 
@@ -72,6 +75,9 @@ final class InstrumentCoverageClockAnalyzer {
         $uncoveredMinutes = 0;
         $goldenUncoveredMinutes = 0;
         $activeTeachers = array();
+        $allMeasured = 0; $allCovered = 0; $allLimited = 0; $allUncovered = 0; $allUnknownSegments = 0;
+        $allGoldenCount = 0; $allGoldenCovered = 0; $allGoldenUncovered = 0;
+        $allSingleMinutes = 0; $allUncoveredMinutes = 0; $allGoldenUncoveredMinutes = 0;
 
         for ($index = 0; $index < self::SEGMENTS_PER_DAY; $index++) {
             $minute = $index * self::SLOT_MINUTES;
@@ -91,13 +97,15 @@ final class InstrumentCoverageClockAnalyzer {
 
             $declared = 0;
             $available = 0;
+            $booked = 0;
+            $held = 0;
             if ($startUtc !== null && $occupiedEndUtc !== null) {
                 foreach ($teachers as $teacher) {
                     if (!self::covers($teacher['available'], $startUtc, $occupiedEndUtc)) continue;
                     $declared++;
                     if ($mode === self::MODE_DATE) {
-                        if (self::overlaps($teacher['occupied'], $startUtc, $occupiedEndUtc, 'occupied_ends_at_utc')) continue;
-                        if (self::overlaps($teacher['holds'], $startUtc, $occupiedEndUtc, 'ends_at_utc')) continue;
+                        if (self::overlaps($teacher['occupied'], $startUtc, $occupiedEndUtc, 'occupied_ends_at_utc')) { $booked++; continue; }
+                        if (self::overlaps($teacher['holds'], $startUtc, $occupiedEndUtc, 'ends_at_utc')) { $held++; continue; }
                     }
                     $available++;
                     $activeTeachers[$teacher['id']] = true;
@@ -112,9 +120,10 @@ final class InstrumentCoverageClockAnalyzer {
                 $state = self::STATE_COVERED;
             } elseif ($available === 1) {
                 $state = self::STATE_LIMITED;
+                $reason = self::REASON_ONE_TEACHER;
             } elseif ($declared > 0) {
                 $state = self::STATE_UNCOVERED;
-                $reason = self::REASON_FULLY_BOOKED;
+                $reason = $held > 0 && $booked === 0 ? self::REASON_FULLY_HELD : self::REASON_FULLY_BOOKED;
             } elseif ($unknown > 0) {
                 $state = self::STATE_UNKNOWN;
                 $reason = self::REASON_UNKNOWN_DATA;
@@ -131,13 +140,29 @@ final class InstrumentCoverageClockAnalyzer {
                 else $uncovered++;
             }
             if ($state === self::STATE_UNCOVERED) {
-                $uncoveredMinutes += self::SLOT_MINUTES;
-                if ($isGolden) $goldenUncoveredMinutes += self::SLOT_MINUTES;
+                if (!$isPast) {
+                    $uncoveredMinutes += self::SLOT_MINUTES;
+                    if ($isGolden) $goldenUncoveredMinutes += self::SLOT_MINUTES;
+                }
             }
             if ($isGolden && !$isPast) {
                 $goldenCount++;
                 if ($state === self::STATE_COVERED || $state === self::STATE_LIMITED) $goldenCovered++;
                 elseif ($state === self::STATE_UNCOVERED) $goldenUncovered++;
+            }
+            $allMeasured++;
+            if ($state === self::STATE_COVERED) $allCovered++;
+            elseif ($state === self::STATE_LIMITED) { $allCovered++; $allLimited++; $allSingleMinutes += self::SLOT_MINUTES; }
+            elseif ($state === self::STATE_UNKNOWN) $allUnknownSegments++;
+            else $allUncovered++;
+            if ($state === self::STATE_UNCOVERED) {
+                $allUncoveredMinutes += self::SLOT_MINUTES;
+                if ($isGolden) $allGoldenUncoveredMinutes += self::SLOT_MINUTES;
+            }
+            if ($isGolden) {
+                $allGoldenCount++;
+                if ($state === self::STATE_COVERED || $state === self::STATE_LIMITED) $allGoldenCovered++;
+                elseif ($state === self::STATE_UNCOVERED) $allGoldenUncovered++;
             }
 
             $segments[] = array(
@@ -153,6 +178,8 @@ final class InstrumentCoverageClockAnalyzer {
                 'past' => $isPast,
                 'teacher_count' => $available,
                 'declared_teacher_count' => $declared,
+                'booked_teacher_count' => $booked,
+                'held_teacher_count' => $held,
                 'bookable' => $state === self::STATE_COVERED || $state === self::STATE_LIMITED,
                 'reason' => $reason,
             );
@@ -187,6 +214,19 @@ final class InstrumentCoverageClockAnalyzer {
                 'golden_uncovered_minutes' => $goldenUncoveredMinutes,
                 'active_teacher_count' => count($activeTeachers),
                 'unknown_teacher_count' => $unknown,
+                'all_measured_segments' => $allMeasured,
+                'all_covered_segments' => $allCovered,
+                'all_limited_segments' => $allLimited,
+                'all_uncovered_segments' => $allUncovered,
+                'all_unknown_segments' => $allUnknownSegments,
+                'all_coverage_percent' => $allMeasured > 0 ? (int) round(100 * $allCovered / $allMeasured) : null,
+                'all_golden_segments' => $allGoldenCount,
+                'all_golden_covered_segments' => $allGoldenCovered,
+                'all_golden_uncovered_segments' => $allGoldenUncovered,
+                'all_golden_coverage_percent' => $allGoldenCount > 0 ? (int) round(100 * $allGoldenCovered / $allGoldenCount) : null,
+                'all_single_teacher_minutes' => $allSingleMinutes,
+                'all_uncovered_minutes' => $allUncoveredMinutes,
+                'all_golden_uncovered_minutes' => $allGoldenUncoveredMinutes,
             ),
             'gaps' => self::ranges($segments, static fn(array $segment): bool => $segment['state'] === self::STATE_UNCOVERED),
             'golden_gaps' => self::ranges($segments, static fn(array $segment): bool => $segment['state'] === self::STATE_UNCOVERED && $segment['golden']),
@@ -227,8 +267,23 @@ final class InstrumentCoverageClockAnalyzer {
                 $state = self::STATE_UNCOVERED;
             }
             $partial = $firstState !== $secondState || $firstCount !== $secondCount || ($firstBookable xor $secondBookable);
-            $reason = (string) ($first['reason'] ?? '');
-            if ($reason === '' && ($second['reason'] ?? '') !== '') $reason = (string) $second['reason'];
+            $firstReason = (string) ($first['reason'] ?? '');
+            $secondReason = (string) ($second['reason'] ?? '');
+            if ($state === self::STATE_LIMITED) $reason = self::REASON_ONE_TEACHER;
+            elseif ($state === self::STATE_PARTIAL) $reason = self::REASON_PARTIAL_15_MINUTE;
+            elseif ($state === self::STATE_UNKNOWN) {
+                $reason = in_array(self::REASON_UNKNOWN_DATA, array($firstReason, $secondReason), true)
+                    ? self::REASON_UNKNOWN_DATA
+                    : (in_array(self::REASON_NONEXISTENT_LOCAL_TIME, array($firstReason, $secondReason), true) ? self::REASON_NONEXISTENT_LOCAL_TIME : self::REASON_UNKNOWN_DATA);
+            } elseif (in_array(self::REASON_FULLY_HELD, array($firstReason, $secondReason), true)) {
+                $reason = self::REASON_FULLY_HELD;
+            } elseif (in_array(self::REASON_FULLY_BOOKED, array($firstReason, $secondReason), true)) {
+                $reason = self::REASON_FULLY_BOOKED;
+            } elseif ($state === self::STATE_UNCOVERED) {
+                $reason = self::REASON_NO_AVAILABILITY;
+            } else {
+                $reason = self::REASON_NONE;
+            }
             $visual[] = array(
                 'index' => $index,
                 'minute' => $index * self::VISUAL_SLOT_MINUTES,
@@ -246,13 +301,23 @@ final class InstrumentCoverageClockAnalyzer {
                 'min_teacher_count' => min($firstCount, $secondCount),
                 'max_teacher_count' => max($firstCount, $secondCount),
                 'declared_teacher_count' => max((int) ($first['declared_teacher_count'] ?? 0), (int) ($second['declared_teacher_count'] ?? 0)),
+                'booked_teacher_count' => max((int) ($first['booked_teacher_count'] ?? 0), (int) ($second['booked_teacher_count'] ?? 0)),
+                'held_teacher_count' => max((int) ($first['held_teacher_count'] ?? 0), (int) ($second['held_teacher_count'] ?? 0)),
                 'reason' => $reason,
+                'first_reason' => $firstReason,
+                'second_reason' => $secondReason,
                 'first_state' => $firstState,
                 'second_state' => $secondState,
                 'first_teacher_count' => $firstCount,
                 'second_teacher_count' => $secondCount,
+                'first_booked_count' => (int) ($first['booked_teacher_count'] ?? 0),
+                'second_booked_count' => (int) ($second['booked_teacher_count'] ?? 0),
+                'first_held_count' => (int) ($first['held_teacher_count'] ?? 0),
+                'second_held_count' => (int) ($second['held_teacher_count'] ?? 0),
                 'first_golden' => !empty($first['golden']),
                 'second_golden' => !empty($second['golden']),
+                'first_past' => !empty($first['past']),
+                'second_past' => !empty($second['past']),
             );
         }
         return $visual;

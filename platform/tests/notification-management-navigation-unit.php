@@ -21,6 +21,6 @@ $context=new ReflectionMethod($class,'postTableContext');$context->setAccessible
 $saved=$context->invoke(null);
 $assert($saved===array('search'=>'lesson','category'=>'booking','recipient'=>'student','channel'=>'email','status'=>'partial'),'post mutation context must preserve every filter');
 $source=(string)file_get_contents(dirname(__DIR__).'/src/Admin/Controller/NotificationManagementController.php');
-$assert(str_contains($source,"'template_channel'=>$input['channel']"),'save redirect must keep template channel separate');
+$assert(str_contains($source,"'template_channel'=>\$input['channel']"),'save redirect must keep template channel separate');
 $assert(str_contains($source,"self::redirectBack('events',self::postTableContext())"),'channel toggle must redirect with table context');
 echo "Notification management navigation contract passed\n";

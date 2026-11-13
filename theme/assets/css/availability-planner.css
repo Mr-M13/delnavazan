@@ -211,6 +211,11 @@
 	stroke-dasharray: 4 4;
 }
 
+.dzn-ap__band.is-unallocated {
+	fill: var(--dzn-ap-line);
+	opacity: .55;
+}
+
 .dzn-ap__band.is-booked {
 	fill: var(--dzn-ap-ink);
 	opacity: .24;
@@ -282,6 +287,7 @@
 }
 
 .dzn-ap__legend .is-selected i { background: var(--dzn-ap-teal); }
+.dzn-ap__legend .is-unallocated i { background: var(--dzn-ap-line); }
 .dzn-ap__legend .is-booked i { background: var(--dzn-ap-ink); opacity: .35; }
 .dzn-ap__legend .is-golden i { background: var(--dzn-ap-gold); }
 .dzn-ap__legend .is-gap i { background: repeating-linear-gradient(135deg, var(--dzn-ap-gap) 0 3px, transparent 3px 6px); border: 1px solid var(--dzn-ap-gap); }

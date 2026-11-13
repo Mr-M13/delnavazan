@@ -36,11 +36,13 @@ $assert(str_contains($script, "step = '900'"), 'The native time inputs must keep
 $assert(str_contains($script, 'is-golden') && str_contains($script, 'is-gap'), 'The planner must render Golden Hour and coverage-gap overlays.');
 $assert(str_contains($script, 'is-booked'), 'The planner must render the existing-classes inner ring.');
 $assert(str_contains($script, 'drawBlocks'), 'The planner must render time segments as discrete blocks like the admin coverage clock.');
+$assert(str_contains($script, 'is-unallocated'), 'The full availability ring must segment unallocated time too.');
 $assert(str_contains($script, 'ranges.push'), 'The planner must serialize multiple ranges per instrument.');
 
 $assert(str_contains($style, '.dzn-ap__band.is-selected'), 'The planner stylesheet must style selected ranges.');
 $assert(str_contains($style, '.dzn-ap__band.is-golden'), 'The planner stylesheet must style Golden Hour bands.');
 $assert(str_contains($style, '.dzn-ap__band.is-booked'), 'The planner stylesheet must style the existing-classes inner ring.');
+$assert(str_contains($style, '.dzn-ap__band.is-unallocated'), 'The planner stylesheet must style the unallocated ring segments.');
 $assert(str_contains($style, '@media (max-width: 40rem)') && str_contains($style, '.dzn-ap__hour.is-minor'), 'Mobile captions must reduce to readable major labels.');
 $assert(str_contains($style, '.dzn-ap__band.is-gap'), 'The planner stylesheet must style coverage-gap bands.');
 

@@ -349,6 +349,12 @@
 
 			drawBands(svg, state.day, state.instrument);
 
+			// The full availability ring is segmented, including unallocated
+			// time. Selected blocks then sit on top of the neutral base.
+			for (var baseMinute = 0; baseMinute < 1440; baseMinute += 30) {
+				drawBlocks(svg, 296, 258, baseMinute, Math.min(baseMinute + 30, 1440), 'dzn-ap__band is-unallocated', 30, 0.14);
+			}
+
 			activeSchedule().forEach(function (interval) {
 				drawBlocks(svg, 296, 258, interval.start, interval.end, 'dzn-ap__band is-selected', 15, 0.12);
 			});

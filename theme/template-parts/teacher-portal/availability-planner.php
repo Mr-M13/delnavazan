@@ -105,6 +105,7 @@ $empty_url = admin_url( 'admin-post.php?action=dzn_teacher_availability_instrume
 			<div class="dzn-ap__dial" data-dzn-ap-dial role="application" aria-label="ساعت انتخاب زمان تدریس. با کلیدهای جهت‌دار حرکت کنید و با Enter شروع یا پایان بازه را ثبت کنید." tabindex="0"></div>
 			<div class="dzn-ap__legend" aria-label="راهنمای ساعت">
 				<span class="is-selected"><i aria-hidden="true"></i>زمان شما</span>
+				<span class="is-unallocated"><i aria-hidden="true"></i>اختصاص‌نیافته</span>
 				<span class="is-booked"><i aria-hidden="true"></i>کلاس ثبت‌شده</span>
 				<span class="is-golden"><i aria-hidden="true"></i>ساعت طلایی</span>
 				<span class="is-gap"><i aria-hidden="true"></i>کم‌پوشش</span>

@@ -121,14 +121,14 @@ $empty_url = admin_url( 'admin-post.php?action=dzn_teacher_availability_instrume
 			</div>
 			<div class="dzn-ap__save-row">
 				<form method="post" action="<?php echo esc_url( $save_url ); ?>" data-dzn-ap-form>
-					<?php wp_nonce_field( 'dzn_teacher_availability_schedule' ); ?>
+					<?php dzn_theme_nonce_field( 'dzn_teacher_availability_schedule' ); ?>
 					<input type="hidden" name="instrument_id" value="<?php echo (int) $selected; ?>" data-dzn-ap-instrument-field>
 					<input type="hidden" name="timezone" value="<?php echo esc_attr( $timezone ); ?>">
 					<input type="hidden" name="ranges" value="[]" data-dzn-ap-ranges-field>
 					<button type="submit" class="dzn-button" data-dzn-ap-save>ذخیرهٔ برنامه</button>
 				</form>
 				<form method="post" action="<?php echo esc_url( $empty_url ); ?>" data-dzn-ap-empty-form>
-					<?php wp_nonce_field( 'dzn_teacher_availability_instrument_empty' ); ?>
+					<?php dzn_theme_nonce_field( 'dzn_teacher_availability_instrument_empty' ); ?>
 					<input type="hidden" name="instrument_id" value="<?php echo (int) $selected; ?>" data-dzn-ap-empty-instrument-field>
 					<button type="submit" class="dzn-button dzn-button--secondary" data-dzn-ap-empty>این ساز زمانی ندارد</button>
 				</form>

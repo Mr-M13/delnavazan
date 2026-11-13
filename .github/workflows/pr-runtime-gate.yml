@@ -191,6 +191,7 @@ jobs:
           php platform/tests/onboarding-admin-authority-contract.php
           php platform/tests/notification-copy-registry-contract.php
           php platform/tests/notification-management-contract.php
+          php platform/tests/notification-management-navigation-unit.php
           php platform/tests/notification-management-unit.php
           php platform/tests/notification-admin-language-contract.php
           php platform/tests/communications-brand-contract.php

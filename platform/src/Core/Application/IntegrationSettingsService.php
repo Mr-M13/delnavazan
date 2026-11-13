@@ -13,6 +13,7 @@ final class IntegrationSettingsService {
     /** Save only known fields; blank secret fields preserve the current value. */
     public function save(string $provider,array $input):void {
         $schema=$this->schema(); if(!isset($schema[$provider]))throw new \InvalidArgumentException('integration_provider_unknown');
+        $before=$provider==='sms_ir'?array('api_key'=>$this->value('sms_ir','api_key'),'sender_id'=>$this->value('sms_ir','sender_id'),'endpoint'=>$this->value('sms_ir','endpoint')):array();
         $all=(array)get_option(self::OPTION,array()); $row=(array)($all[$provider]??array());
         foreach($schema[$provider] as $field=>$rule){
             if(in_array($field,self::SECRET_FIELDS[$provider]??array(),true)){
@@ -31,6 +32,10 @@ final class IntegrationSettingsService {
         }
         $all[$provider]=$row;
         if(!update_option(self::OPTION,$all,false)&&get_option(self::OPTION)!==$all)throw new \RuntimeException('integration_settings_save_failed');
+        if($provider==='sms_ir'){
+            $after=array('api_key'=>$this->value('sms_ir','api_key'),'sender_id'=>$this->value('sms_ir','sender_id'),'endpoint'=>$this->value('sms_ir','endpoint'));
+            if($before!==$after&&function_exists('delete_option'))delete_option('dzn_integration_test_sms_ir');
+        }
     }
 
     /** Internal trusted read. Secret values are decrypted only for transports and never returned to screens. */

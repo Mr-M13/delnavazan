@@ -71,7 +71,7 @@ final class NotificationManagementController {
         echo '<div class="dzn-notif-panel">';
         self::renderEvents();
         if($templateKey!==''){
-            $channel=isset($_GET['channel'])?sanitize_key(wp_unslash((string)$_GET['channel'])):'email';
+            $channel=isset($_GET['template_channel'])?sanitize_key(wp_unslash((string)$_GET['template_channel'])):'email';
             $locale=isset($_GET['locale'])?NotificationCatalogue::normaliseLocale(sanitize_text_field(wp_unslash((string)$_GET['locale']))):NotificationCatalogue::PRIMARY_LOCALE;
             if(NotificationCatalogue::get($templateKey)===null)echo '<div class="notice notice-error inline"><p>Notification event not found.</p></div>';
             else{echo '<hr><section id="notification-editor"><h2>Edit notification</h2>';self::renderEditor(new NotificationTemplateLibrary(),$templateKey,$channel,$locale);echo '</section>';}
@@ -99,7 +99,7 @@ final class NotificationManagementController {
         foreach(array('student'=>'Student','teacher'=>'Teacher','guardian'=>'Guardian','admin'=>'Admin') as $value=>$label)echo '<option value="'.esc_attr($value).'"'.($recipientFilter===$value?' selected':'').'>'.esc_html($label).'</option>';
         echo '</select></label><label>Channel <select name="channel"><option value="">All</option>';
         foreach(array('email'=>'Email','whatsapp'=>'WhatsApp','sms'=>'SMS','website'=>'Portal') as $value=>$label)echo '<option value="'.esc_attr($value).'"'.($channelFilter===$value?' selected':'').'>'.esc_html($label).'</option>';
-        echo '</select></label><label>Status <select name="status"><option value="">All</option><option value="enabled"'.($statusFilter==='enabled'?' selected':'').'>Enabled</option><option value="disabled"'.($statusFilter==='disabled'?' selected':'').'>Disabled</option><option value="policy_disabled"'.($statusFilter==='policy_disabled'?' selected':'').'>Disabled by SMS policy</option><option value="missing_template"'.($statusFilter==='missing_template'?' selected':'').'>Missing template</option><option value="missing_provider"'.($statusFilter==='missing_provider'?' selected':'').'>Missing provider</option><option value="unsupported"'.($statusFilter==='unsupported'?' selected':'').'>Unsupported</option><option value="mandatory_locked"'.($statusFilter==='mandatory_locked'?' selected':'').'>Mandatory and locked</option></select></label><button class="button">Filter</button> <a class="button-link" href="'.esc_url(self::url(array('tab'=>'events'))).'">Reset</a></form>';
+        echo '</select></label><label>Status <select name="status"><option value="">All</option><option value="enabled"'.($statusFilter==='enabled'?' selected':'').'>Enabled</option><option value="partial"'.($statusFilter==='partial'?' selected':'').'>Partially available</option><option value="disabled"'.($statusFilter==='disabled'?' selected':'').'>Disabled</option><option value="policy_disabled"'.($statusFilter==='policy_disabled'?' selected':'').'>Disabled by SMS policy</option><option value="missing_template"'.($statusFilter==='missing_template'?' selected':'').'>Missing template</option><option value="missing_provider"'.($statusFilter==='missing_provider'?' selected':'').'>Missing provider</option><option value="unsupported"'.($statusFilter==='unsupported'?' selected':'').'>Unsupported</option><option value="mandatory_locked"'.($statusFilter==='mandatory_locked'?' selected':'').'>Mandatory and locked</option></select></label><button class="button">Filter</button> <a class="button-link" href="'.esc_url(self::url(array('tab'=>'events'))).'">Reset</a></form>';
 
         $rows=array();
         foreach(NotificationCatalogue::events() as $eventKey=>$event){
@@ -146,7 +146,8 @@ final class NotificationManagementController {
             $state=$row['states'][$channel];
             echo '<td><div><span class="dzn-badge '.esc_attr($state['state']==='enabled'?'is-ok':($state['state']==='unsupported'?'':'is-warn')).'">'.esc_html($state['label']).'</span></div>';
             if($state['reason']!=='')echo '<div class="dzn-notif-meta">'.esc_html($state['reason']).'</div>';
-            if(in_array($channel,$row['offered'],true)){ $active=$library->eventChannelEnabled($eventKey,$channel);$locked=in_array($state['state'],array('mandatory_locked','unsupported','missing_template','missing_provider','policy_disabled'),true); echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_channel_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="enabled" value="'.($active?'0':'1').'">';wp_nonce_field('dzn_notification_event_channel_toggle');if(self::canEdit()&&(!$locked||$active))echo '<button class="button button-small">'.($active?'Off':'On').'</button>';echo ' <a href="'.esc_url(self::editorUrl($eventKey,$channel,NotificationCatalogue::PRIMARY_LOCALE)).'">Edit</a></form>'; }
+            if($channel==='sms')foreach(self::smsRouteStatus() as $route){$routeLabel=$route['disabled']?'Disabled':(($route['ready']??false)?'Available':'Unavailable');$routeClass=$route['disabled']?'is-warn':(($route['ready']??false)?'is-ok':'is-warn');echo '<div class="dzn-notif-meta"><span class="dzn-badge '.esc_attr($routeClass).'">'.esc_html((string)$route['label']).': '.esc_html($routeLabel).'</span></div>';}
+            if(in_array($channel,$row['offered'],true)){ $active=$library->eventChannelEnabled($eventKey,$channel);$locked=in_array($state['state'],array('mandatory_locked','unsupported','missing_template','missing_provider','policy_disabled'),true); echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_channel_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="enabled" value="'.($active?'0':'1').'">';foreach(self::tableContext() as $contextKey=>$contextValue)echo '<input type="hidden" name="filter_'.esc_attr($contextKey).'" value="'.esc_attr((string)$contextValue).'">';wp_nonce_field('dzn_notification_event_channel_toggle');if(self::canEdit()&&(!$locked||$active))echo '<button class="button button-small">'.($active?'Off':'On').'</button>';echo ' <a href="'.esc_url(self::editorUrl($eventKey,$channel,NotificationCatalogue::PRIMARY_LOCALE)).'">Edit</a></form>'; }
             echo '</td>';
         }
         echo '</tr>';
@@ -455,7 +456,7 @@ final class NotificationManagementController {
             (new NotificationTemplateLibrary())->saveEventEnabled($eventKey,$enabled);
             self::flash('success',$enabled?'Optional notification event enabled.':'Optional notification event disabled.');
         }catch(\Throwable $error){self::flash('error',self::eventToggleError($error->getMessage()));}
-        self::redirectBack('events');
+        self::redirectBack('events',self::postTableContext());
     }
 
     public static function toggleEventChannel():never{
@@ -466,7 +467,7 @@ final class NotificationManagementController {
         $enabled=isset($_POST['enabled'])&&(string)$_POST['enabled']==='1';
         try{(new NotificationTemplateLibrary())->saveEventChannel($eventKey,$channel,$enabled);self::flash('success',self::channelLabel($channel).' delivery '.($enabled?'enabled.':'disabled.'));}
         catch(\Throwable $error){self::flash('error','This delivery channel is required for the notification safeguard or is not available for this event.');}
-        self::redirectBack('events');
+        self::redirectBack('events',self::postTableContext());
     }
 
     public static function pruneInbox():never{self::handle(function(NotificationTemplateLibrary $library,array $input):array{
@@ -509,14 +510,15 @@ final class NotificationManagementController {
             'policy'=>isset($_POST['policy'])&&is_array($_POST['policy'])?(array)wp_unslash($_POST['policy']):array(),
             'filter_context'=>array(),
         );
-        foreach(array('search','category','recipient','channel','status') as $filterKey)if(isset($_POST['filter_'.$filterKey])&&is_scalar($_POST['filter_'.$filterKey]))$input['filter_context'][$filterKey]=sanitize_text_field(wp_unslash((string)$_POST['filter_'.$filterKey]));
+        $input['filter_context']=self::postTableContext();
+        $filterArgs=array();foreach($input['filter_context'] as $key=>$value)$filterArgs['filter_'.$key]=$value;
         $eventRequired=($options['event_required']??true)!==false;
         $event=$eventRequired?NotificationCatalogue::get($input['event_key']):null;
-        if($eventRequired&&$event===null){self::flash('error','Unknown notification event.');self::redirectBack('events');}
-        if($event!==null&&(string)$event['authority']==='dedicated'&&in_array($input['channel'],array('email','whatsapp','sms'),true)){self::flash('error','This message belongs to a dedicated secure delivery authority and is not edited from this page.');self::redirectBack('events');}
+        if($eventRequired&&$event===null){self::flash('error','Unknown notification event.');self::redirectBack('events',$filterArgs);}
+        if($event!==null&&(string)$event['authority']==='dedicated'&&in_array($input['channel'],array('email','whatsapp','sms'),true)){self::flash('error','This message belongs to a dedicated secure delivery authority and is not edited from this page.');self::redirectBack('events',$filterArgs);}
         if($event!==null&&$input['channel']!==''&&!(new NotificationTemplateLibrary())->channelOffered($input['event_key'],$input['channel'])&&in_array($input['channel'],array('email','whatsapp','sms','website'),true)){
             self::flash('error','That delivery channel is not supported by this notification.');
-            self::redirectBack('events',array('template'=>$input['event_key'],'channel'=>$input['channel'],'locale'=>$input['locale']));
+            self::redirectBack('events',array_merge(array('template'=>$input['event_key'],'template_channel'=>$input['channel'],'locale'=>$input['locale']),$filterArgs));
         }
         try{
             $result=$operation(new NotificationTemplateLibrary(),$input);
@@ -528,7 +530,7 @@ final class NotificationManagementController {
         }
         $tab=(string)($options['tab']??'events');
         $args=array();
-        if($tab==='events'&&$input['event_key']!==''){$args=array('template'=>$input['event_key'],'channel'=>$input['channel'],'locale'=>$input['locale']);foreach((array)$input['filter_context'] as $key=>$value)$args['filter_'.$key]=$value;}
+        if($tab==='events'&&$input['event_key']!==''){$args=array('template'=>$input['event_key'],'template_channel'=>$input['channel'],'locale'=>$input['locale']);$args=array_merge($args,$filterArgs);}
         self::redirectBack($tab,$args);
     }
 
@@ -562,11 +564,7 @@ final class NotificationManagementController {
         return $status;
     }
     private static function smsRouteReason(array $routes):string{
-        foreach($routes as $route){
-            if(!empty($route['disabled']))return (string)$route['label'].'.';
-            if(($route['ready']??false)!==true)return (string)$route['label'].' is unavailable.';
-        }
-        return '';
+        $reasons=array();foreach($routes as $route){if(!empty($route['disabled']))$reasons[]=(string)$route['label'].' is Off';elseif(($route['ready']??false)!==true)$reasons[]=(string)$route['label'].' is unavailable';}return implode('; ',$reasons).($reasons===array()?'':'.');
     }
     private static function providerReadyLabel(string $channel):string{
         $ready=self::providerReady($channel);
@@ -585,11 +583,11 @@ final class NotificationManagementController {
             if(str_contains($text,'approved')||str_contains($text,'provider')||str_contains($text,'Meta'))return array('state'=>'missing_provider','label'=>'Missing or unapproved template','reason'=>'Review the provider mapping or approval.');
         }
         if($channel==='sms'){
-            $reason=self::smsRouteReason(self::smsRouteStatus());
-            if($reason!==''){
-                $policyDisabled=str_contains($reason,'route is Off');
-                return $policyDisabled?array('state'=>'policy_disabled','label'=>'Disabled by SMS policy','reason'=>$reason):array('state'=>'missing_provider','label'=>'Missing provider','reason'=>$reason);
-            }
+            $routes=self::smsRouteStatus();$readyCount=0;$offCount=0;foreach($routes as $route){if(($route['ready']??false)===true)$readyCount++;if(!empty($route['disabled']))$offCount++;}
+            $reason=self::smsRouteReason($routes);
+            if($readyCount===1)return array('state'=>'partial','label'=>'Partially available','reason'=>$reason);
+            if($readyCount===0&&$offCount===2)return array('state'=>'policy_disabled','label'=>'Disabled by SMS policy','reason'=>$reason);
+            if($readyCount===0)return array('state'=>'missing_provider','label'=>'Missing provider','reason'=>$reason);
         }elseif(in_array($channel,array('email','whatsapp'),true)&&self::providerReady($channel)===false)return array('state'=>'missing_provider','label'=>'Missing provider','reason'=>'Configure and test the provider in Integrations.');
         if($locked)return array('state'=>'mandatory_locked','label'=>'Mandatory and locked','reason'=>'This required route cannot be disabled.');
         return array('state'=>'enabled','label'=>'Enabled','reason'=>'');
@@ -660,8 +658,13 @@ final class NotificationManagementController {
         }
         return $out;
     }
+    private static function postTableContext():array{
+        $out=array();
+        foreach(array('search','category','recipient','channel','status') as $key)if(isset($_POST['filter_'.$key])&&is_scalar($_POST['filter_'.$key]))$out[$key]=sanitize_text_field(wp_unslash((string)$_POST['filter_'.$key]));
+        return $out;
+    }
     private static function editorUrl(string $eventKey,string $channel,string $locale):string{
-        $args=array('template'=>$eventKey,'channel'=>$channel,'locale'=>$locale);
+        $args=array('template'=>$eventKey,'template_channel'=>$channel,'locale'=>$locale);
         foreach(self::tableContext() as $key=>$value)$args['filter_'.$key]=$value;
         return self::url($args);
     }

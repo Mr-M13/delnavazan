@@ -2012,7 +2012,7 @@ function dzn_theme_platform_teacher_coverage_clock( $teacher_id, $timezone, $cal
  *
  * @return array<string,mixed>
  */
-function dzn_theme_platform_teacher_availability_planner( $teacher_id, array $catalogue, array $golden, array $coverage, int $student_intake_minutes, string $timezone_label ) {
+function dzn_theme_platform_teacher_availability_planner( $teacher_id, array $catalogue, array $golden, array $coverage, int $student_intake_minutes, string $timezone_label, array $booked_bands = array() ) {
 	$planner_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherAvailabilityPlanner';
 	if ( ! class_exists( $planner_class ) ) { return array( 'available' => false, 'message' => 'برنامه‌ریز زمان تدریس در دسترس نیست.' ); }
 	$repository_class = '\\Delnavazan\\Platform\\Core\\Infrastructure\\Repository\\TeacherAvailabilityRepository';
@@ -2140,6 +2140,7 @@ function dzn_theme_platform_teacher_availability_planner( $teacher_id, array $ca
 		'instruments' => $instruments,
 		'golden_bands' => $golden_by_day,
 		'gap_bands' => $gap_bands,
+		'booked_bands' => $booked_bands,
 		'overview' => $overview,
 		'weekly_minutes' => array_sum( $weekly_minutes ),
 		'timezone_label' => $timezone_label,
@@ -2167,6 +2168,65 @@ function dzn_theme_platform_teacher_week_intake_minutes( array $classes, string 
 		$total += (int) round( ( $ended - $started ) / 60 );
 	}
 	return $total;
+}
+
+/**
+ * Existing class occupancy for the planner's inner ring, in Teacher-local time.
+ *
+ * This is the same representative week used by the intake metric. Only the
+ * Teacher's own classes are shown; no student identity crosses this boundary.
+ *
+ * @return array<int,list<array{start:string,end:string}>>
+ */
+function dzn_theme_platform_teacher_booked_bands( array $classes, string $timezone ): array {
+	$zone = new DateTimeZone( $timezone ?: 'UTC' );
+	$week = '\\Delnavazan\\Platform\\Core\\Application\\InstrumentCoverageWeek';
+	$today = ( new DateTimeImmutable( 'today', $zone ) )->format( 'Y-m-d' );
+	$startDate = class_exists( $week ) ? $week::start( $today ) : ( new DateTimeImmutable( 'monday this week', $zone ) )->format( 'Y-m-d' );
+	$weekStart = new DateTimeImmutable( $startDate . ' 00:00:00', $zone );
+	$weekEnd = $weekStart->modify( '+7 days' );
+	$bands = array();
+	for ( $weekday = 1; $weekday <= 7; $weekday++ ) { $bands[ $weekday ] = array(); }
+	foreach ( $classes as $row ) {
+		if ( ! is_array( $row ) ) { continue; }
+		$started = dzn_theme_platform_utc_timestamp( $row['starts_at_utc'] ?? '' );
+		$ended = dzn_theme_platform_utc_timestamp( $row['occupied_ends_at_utc'] ?? '' ) ?: dzn_theme_platform_utc_timestamp( $row['ends_at_utc'] ?? '' );
+		if ( ! $started || ! $ended || $ended <= $started ) { continue; }
+		$localStart = ( new DateTimeImmutable( '@' . $started ) )->setTimezone( $zone );
+		$localEnd = ( new DateTimeImmutable( '@' . $ended ) )->setTimezone( $zone );
+		if ( $localEnd <= $weekStart || $localStart >= $weekEnd ) { continue; }
+		$cursor = ( $localStart < $weekStart ? $weekStart : $localStart )->setTime( 0, 0, 0 );
+		$last = ( $localEnd > $weekEnd ? $weekEnd : $localEnd )->setTime( 0, 0, 0 );
+		while ( $cursor <= $last ) {
+			$dayStart = $cursor;
+			$dayEnd = $cursor->modify( '+1 day' );
+			$segmentStart = max( $localStart, $dayStart );
+			$segmentEnd = min( $localEnd, $dayEnd );
+			if ( $segmentEnd > $segmentStart ) {
+				$weekday = (int) $dayStart->format( 'N' );
+				$startMinute = (int) $segmentStart->format( 'H' ) * 60 + (int) $segmentStart->format( 'i' );
+				$endMinute = $segmentEnd >= $dayEnd ? 1440 : ( (int) $segmentEnd->format( 'H' ) * 60 + (int) $segmentEnd->format( 'i' ) );
+				if ( $endMinute > $startMinute ) {
+					$bands[ $weekday ][] = array(
+						'start' => sprintf( '%02d:%02d', intdiv( $startMinute, 60 ), $startMinute % 60 ),
+						'end' => $endMinute >= 1440 ? '24:00' : sprintf( '%02d:%02d', intdiv( $endMinute, 60 ), $endMinute % 60 ),
+					);
+				}
+			}
+			$cursor = $dayEnd;
+		}
+	}
+	$planner_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherAvailabilityPlanner';
+	for ( $weekday = 1; $weekday <= 7; $weekday++ ) {
+		$numeric = array();
+		foreach ( $bands[ $weekday ] as $band ) {
+			$start = class_exists( $planner_class ) ? $planner_class::minute( (string) $band['start'] ) : null;
+			$end = class_exists( $planner_class ) ? $planner_class::minute( (string) $band['end'] ) : null;
+			if ( null !== $start && null !== $end && $end > $start ) { $numeric[] = array( 'start' => $start, 'end' => $end ); }
+		}
+		$bands[ $weekday ] = class_exists( $planner_class ) ? $planner_class::clockIntervals( $numeric ) : $bands[ $weekday ];
+	}
+	return $bands;
 }
 
 function dzn_theme_platform_teacher_model( $screen ) {
@@ -2366,7 +2426,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			$golden_bonus,
 			$coverage_clock,
 			$student_intake_minutes,
-			(string) ( $onboarding['profile']['timezone_label'] ?? dzn_theme_platform_timezone_label( $teacher_timezone ) )
+			(string) ( $onboarding['profile']['timezone_label'] ?? dzn_theme_platform_timezone_label( $teacher_timezone ) ),
+			dzn_theme_platform_teacher_booked_bands( $all_scheduled_classes, $teacher_timezone )
 		);
 		$induction_hub = dzn_theme_platform_teacher_induction_hub();
 		return array(

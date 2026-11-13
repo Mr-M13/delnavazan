@@ -86,9 +86,16 @@
 		return node;
 	}
 
-	function degreesForMinute(value) {
-		if (Number(value) >= 1440) return 360;
-		return ((Number(value) - DAY_START + 1440) % 1440) / 1440 * 360;
+	function angleForMinute(value) {
+		// 06:00 is 0°, 12:00 is 90°, 18:00 is 180°, 00:00 is 270°/-90°.
+		// Do not wrap the end angle: the caller adds the real span so a
+		// full-day or post-midnight band cannot collapse into a short arc.
+		return (Number(value) - DAY_START) / 1440 * 360;
+	}
+
+	function arcFor(outer, inner, start, end) {
+		var startAngle = angleForMinute(start);
+		return arcPath(outer, inner, startAngle, startAngle + (Number(end) - Number(start)) / 1440 * 360);
 	}
 
 	function minuteForPoint(clientX, clientY, svg) {
@@ -188,6 +195,7 @@
 		var days = labels.days || {};
 		var golden = data.golden || {};
 		var gaps = data.gaps || {};
+		var booked = data.booked || {};
 		var intake = Number(data.intake || 0);
 		var dragging = null;
 
@@ -273,8 +281,18 @@
 				var end = minute(range.end);
 				if (start === null || end === null || end <= start) return;
 				svg.appendChild(el('path', {
-					d: arcPath(334, 322, degreesForMinute(start), degreesForMinute(end)),
+					d: arcFor(334, 322, start, end),
 					class: 'dzn-ap__band is-golden'
+				}));
+			});
+			var bookedBands = booked[day] || [];
+			bookedBands.forEach(function (range) {
+				var start = minute(range.start);
+				var end = minute(range.end);
+				if (start === null || end === null || end <= start) return;
+				svg.appendChild(el('path', {
+					d: arcFor(244, 232, start, end),
+					class: 'dzn-ap__band is-booked'
 				}));
 			});
 			var gapBands = (gaps[instrument] && gaps[instrument][day]) || [];
@@ -286,7 +304,7 @@
 				// drawing would itself cover that gap, so subtract it immediately.
 				subtractIntervals([{ start: start, end: end, level: range.level || 'gap' }], activeSchedule()).forEach(function (part) {
 					svg.appendChild(el('path', {
-						d: arcPath(260, 248, degreesForMinute(part.start), degreesForMinute(part.end)),
+						d: arcFor(260, 248, part.start, part.end),
 						class: 'dzn-ap__band is-gap is-' + String(part.level || 'gap')
 					}));
 				});
@@ -306,12 +324,12 @@
 			svg.appendChild(el('circle', { cx: CX, cy: CY, r: 240, class: 'dzn-ap__inner' }));
 
 			for (var hour = 0; hour < 24; hour++) {
-				var degrees = degreesForMinute(hour * 60);
+				var degrees = angleForMinute(hour * 60);
 				var major = hour % 6 === 0;
 				var from = point(major ? 330 : 336, degrees);
 				var to = point(350, degrees);
 				svg.appendChild(el('line', { x1: from[0], y1: from[1], x2: to[0], y2: to[1], class: 'dzn-ap__tick' + (major ? ' is-major' : '') }));
-				var labelPoint = point(364, degrees);
+				var labelPoint = point(352, degrees);
 				svg.appendChild(el('text', {
 					x: labelPoint[0], y: labelPoint[1],
 					class: 'dzn-ap__hour' + (major ? ' is-major' : ' is-minor'),
@@ -323,7 +341,7 @@
 
 			activeSchedule().forEach(function (interval) {
 				svg.appendChild(el('path', {
-					d: arcPath(314, 274, degreesForMinute(interval.start), degreesForMinute(interval.end)),
+					d: arcFor(314, 274, interval.start, interval.end),
 					class: 'dzn-ap__band is-selected'
 				}));
 			});
@@ -334,12 +352,12 @@
 				var previewTo = Math.max(state.pendingStart, previewEnd);
 				if (previewTo > previewFrom) {
 					svg.appendChild(el('path', {
-						d: arcPath(314, 274, degreesForMinute(previewFrom), degreesForMinute(previewTo)),
+						d: arcFor(314, 274, previewFrom, previewTo),
 						class: 'dzn-ap__band is-pending'
 					}));
 				}
 			}
-			var cursorPoint = point(294, degreesForMinute(state.cursor));
+			var cursorPoint = point(294, angleForMinute(state.cursor));
 			svg.appendChild(el('circle', { cx: cursorPoint[0], cy: cursorPoint[1], r: 7, class: 'dzn-ap__cursor' }));
 
 			var total = totalMinutes(activeSchedule());
@@ -369,6 +387,8 @@
 				var fromInput = document.createElement('input');
 				fromInput.type = 'time';
 				fromInput.step = '900';
+				fromInput.lang = 'en-GB';
+				fromInput.dir = 'ltr';
 				fromInput.value = valueClock(interval.start);
 				fromLabel.appendChild(fromInput);
 				var toLabel = document.createElement('label');
@@ -376,6 +396,8 @@
 				var toInput = document.createElement('input');
 				toInput.type = 'time';
 				toInput.step = '900';
+				toInput.lang = 'en-GB';
+				toInput.dir = 'ltr';
 				toInput.value = interval.end >= 1440 ? '00:00' : valueClock(interval.end);
 				toLabel.appendChild(toInput);
 				var remove = document.createElement('button');

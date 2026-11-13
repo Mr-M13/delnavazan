@@ -6,6 +6,8 @@ use Delnavazan\Platform\Core\Application\InstrumentCoverageClockAnalyzer;
 use Delnavazan\Platform\Core\Application\InstrumentCoverageWeek;
 
 $root = dirname(__DIR__);
+if (!defined('ABSPATH')) define('ABSPATH', __DIR__);
+require_once dirname($root) . '/theme/inc/template-tags.php';
 if (!function_exists('esc_html')) { function esc_html($value): string { return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); } }
 if (!function_exists('esc_attr')) { function esc_attr($value): string { return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); } }
 if (!function_exists('esc_url')) { function esc_url($value): string { return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); } }
@@ -98,16 +100,12 @@ $assert(str_contains($html, 'Capacity') && str_contains($html, 'One teacher') &&
 $assert(str_contains($html, 'Golden Hours'), 'The Golden Hours ring must be named.');
 $assert(str_contains($html, 'data-dzn-clock-data'), 'The compact JSON payload must be present.');
 $assert(str_contains($html, 'ساعت‌های طلایی بدون پوشش') === false, 'The administrator labels remain English.');
-$assert(str_contains($html, 'Priority gaps this week'), 'The actionable gap list must lead the administrator view.');
+$assert(!str_contains($html, 'dzn-clock__priority'), 'The priority-gap section must be removed.');
 $assert(str_contains($html, 'Remaining this week · elapsed slots excluded'), 'The current metric period must be explicit.');
-$assert(substr_count($html, 'data-dzn-gap ') === 2, 'Every priority gap must be a selectable row.');
-$assert(str_contains($html, 'data-dzn-gap-visual-indexes="20,21"'), 'A gap row must carry every visual segment in its range.');
-$assert(str_contains($html, 'Fully booked'), 'A booked gap must show its authoritative cause.');
-$assert(str_contains($html, '1 booked'), 'A booked gap must show the booked teacher count.');
-$assert(str_contains($html, 'Australia'), 'A Golden gap must show its relevant region.');
 $assert(str_contains($html, 'Week of (Gregorian date)'), 'The Gregorian date input must be labelled accurately.');
 $assert(str_contains($html, 'dzn-clock__instruments') && substr_count($html, 'name="coverage_instrument"') === 2, 'The admin instrument selector must be a compact icon row.');
 $assert(str_contains($html, 'C-Piano.webp') && str_contains($html, 'C-Violin.webp'), 'Known instruments must reuse the homepage instrument artwork.');
+$assert(dzn_theme_instrument_image('tombak', 'public') === 'C-Tombak.webp' && dzn_theme_instrument_image('سه‌تار', 'public') === 'C-Setar.webp', 'Tombak and Setar aliases must resolve to their bundled artwork.');
 $assert(!str_contains($html, '<select name="coverage_instrument"'), 'The admin instrument list must not use the full-width select.');
 $assert(str_contains($html, 'aria-pressed="true"') && str_contains($html, 'aria-pressed="false"'), 'The icon row must expose the selected instrument.');
 $assert(str_contains($html, 'name="coverage_week_start" value="2026-11-07"'), 'Instrument switches must preserve the rolling week start.');
@@ -116,8 +114,6 @@ $assert(substr_count($html, 'data-dzn-unknown ') === 3, 'The data-quality summar
 $assert(str_contains($html, 'dzn-clock__quality-summary'), 'Clicking the data-quality indicator must inspect the first unknown interval.');
 $assert(str_contains($html, 'Unknown coverage data') && str_contains($html, 'Nonexistent local time'), 'Unknown ranges must carry their uncertainty reason.');
 $assert(str_contains($html, 'coverage_focus=4%3A32'), 'An unknown range must reopen its clock interval.');
-$assert(str_contains($html, 'coverage_instrument=2') && str_contains($html, 'coverage_date=2026-11-13') && str_contains($html, 'coverage_focus=5%3A18'), 'A cross-instrument gap must preserve instrument, week and focus.');
-$assert(str_contains($html, 'Golden first, then longest uncovered'), 'The priority explanation must stay concise.');
 $assert(!str_contains($html, '<small>'), 'Repeated metric explanations must not add visible captions.');
 $assert(str_contains($html, 'aria-label="Eligible teachers. Instrument-wide count; this is not the number free at the selected time."'), 'The instrument-wide clarification must remain available to assistive technology.');
 
@@ -131,7 +127,7 @@ $assert((int) $payload['week'][0]['weekday'] === 6 && (int) $payload['week'][6][
 $assert(count($payload['week'][0]['segments']) === 48, 'Each ring must contain 48 visual 30-minute segments.');
 $assert(count($payload['golden_ring']) === 48, 'The Golden Hours ring must contain 48 segments.');
 $assert($payload['period_key'] === 'current' && $payload['metric_source'] === 'actionable', 'The payload must expose the metric period.');
-$assert(count($payload['priority_gaps']) === 2, 'The payload must expose the priority-gap list for list-to-ring sync.');
+$assert(count($payload['priority_gaps']) === 2, 'The payload may retain priority-gap data even though the separate section is removed.');
 $assert(count($payload['unknown_data']['ranges']) === 2 && (int) $payload['unknown_data']['duration_minutes'] === 90, 'The payload must expose unknown ranges without merging them into gaps.');
 $assert(isset($payload['labels']['weekdaysShort']['2']) && $payload['labels']['weekdaysShort']['2'] === 'Tue', 'The payload must carry short weekday labels for the ring captions.');
 $assert((int) $payload['week'][0]['segments'][0][13] === 1, 'Compact segments must carry the authoritative reason code, not infer it from colour.');

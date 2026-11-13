@@ -73,25 +73,12 @@ colour or teacher count.
 A fully booked interval is shown as **Fully booked**, not as “no eligible
 Teacher”. Booked and held Teacher counts travel with the selected segment.
 
-## Priority gaps
+## Gap navigation
 
-The administrator view derives **Priority gaps this week** from the same clock
-projection (`InstrumentCoverageGapList`) rather than a second calculation. Rows
-are ordered by:
-
-1. uncovered Golden demand;
-2. other uncovered time;
-3. single-teacher dependency.
-
-Each row shows instrument, weekday/date, local time range, relevant region,
-duration and cause. Selecting a row highlights every visual segment in the gap and
-opens the same detail panel as the ring. A cross-instrument row navigates with
-`coverage_focus`, which reopens that instrument, day and segment without changing
-any scheduling fact. The list links to the existing teacher-availability admin
-page; it never assigns a Teacher, edits availability or creates a booking.
-
-Within each priority, gaps sort by **longest duration first**, then date and start
-time. No demand score, revenue estimate or other financial assumption is used.
+The administrator view no longer renders a separate priority-gap list. The
+seven-ring clock remains the spatial overview, and selecting a ring segment opens
+its day, time, capacity, cause, Golden status and conditional bonus detail.
+Cross-instrument focus links remain supported by the clock payload.
 
 ## Unknown data
 
@@ -192,9 +179,9 @@ separately in the detail panel, alongside the instrument-wide count.
 
 ## Integration
 
-- **Admin:** the Academy Overview panel renders the priority-gap list, the compact
-  seven-ring clock, a compact instrument icon row, a labelled Gregorian week date,
-  calendar toggle and week navigation. The list, ring selection and detail panel
+- **Admin:** the Academy Overview panel renders the compact seven-ring clock, a
+  compact instrument icon row, a labelled Gregorian week date, calendar toggle and
+  week navigation. The list, ring selection and detail panel
   stay in sync; on narrow screens the list rows and day buttons are the primary
   large tap targets.
 - **Teacher:** the same shared view sits above the existing availability editor.

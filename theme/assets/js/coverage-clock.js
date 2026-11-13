@@ -109,6 +109,43 @@
 			if (first === second) return numberLabel(first) + ' ' + (first === 1 ? teacher : teachers);
 			return (labels.partialFirst || 'First half') + ': ' + numberLabel(first) + ' ' + (first === 1 ? teacher : teachers) + ' · ' + (labels.partialSecond || 'Second half') + ': ' + numberLabel(second) + ' ' + (second === 1 ? teacher : teachers);
 		}
+		function reasonName(code) {
+			return code === 1 ? (labels.reasonNoAvailability || 'No declared availability')
+				: code === 2 ? (labels.reasonFullyBooked || 'Fully booked')
+				: code === 3 ? (labels.reasonFullyHeld || 'Held by another booking')
+				: code === 4 ? (labels.reasonNonExistent || 'Nonexistent local time')
+				: code === 5 ? (labels.reasonUnknown || 'Unknown coverage data')
+				: code === 6 ? (labels.reasonOneTeacher || 'One teacher remaining')
+				: code === 7 ? (labels.reasonPartial || 'Partial 15-minute coverage')
+				: (labels.reasonGap || 'Coverage gap');
+		}
+		function causeText(segment) {
+			var code = Number(segment[13] || 0);
+			var text = reasonName(code);
+			if (code === 7) {
+				var firstReason = Number(segment[14] || 0);
+				var secondReason = Number(segment[15] || 0);
+				if (firstReason && secondReason && firstReason !== secondReason) {
+					text += ' · ' + (labels.partialFirst || 'First half') + ': ' + reasonName(firstReason) + ' · ' + (labels.partialSecond || 'Second half') + ': ' + reasonName(secondReason);
+				}
+			}
+			var booked = Number(segment[17] || 0);
+			var held = Number(segment[18] || 0);
+			if (booked > 0) text += ' · ' + numberLabel(booked) + ' ' + (labels.bookedCount || 'booked');
+			if (held > 0) text += ' · ' + numberLabel(held) + ' ' + (labels.heldCount || 'held');
+			return text;
+		}
+		function firstGapSegment(day) {
+			var best = null;
+			var bestRank = 9;
+			(day.segments || []).forEach(function (segment, index) {
+				if (Number(segment[5])) return;
+				var code = Number(segment[0]);
+				var rank = code === STATE.UNCOVERED && Number(segment[3]) ? 0 : (code === STATE.UNCOVERED ? 1 : (code === STATE.LIMITED ? 2 : 9));
+				if (rank < bestRank) { bestRank = rank; best = index; }
+			});
+			return best;
+		}
 		function addDetail(list, term, value) {
 			var dt = document.createElement('dt'); dt.textContent = term;
 			var dd = document.createElement('dd'); dd.textContent = value;
@@ -130,12 +167,14 @@
 			useButton.setAttribute('data-dzn-clock-use-seg', state.segment === null ? '' : String(state.segment));
 		}
 
-		function selectWeekday(ringIndex, segmentIndex, focus) {
+		function selectWeekday(ringIndex, segmentIndex, focus, gapRange, unknownRange) {
 			var day = dayFor(ringIndex);
 			if (!day) return;
 			var segment = day.segments[segmentIndex];
 			if (!segment) return;
 			state.ring = ringIndex; state.segment = segmentIndex; state.golden = false;
+			state.gapRange = gapRange && gapRange.length ? gapRange : null;
+			state.unknownRange = unknownRange && unknownRange.length ? unknownRange : null;
 			if (!detailsBody) return;
 			detailsBody.replaceChildren();
 			var head = document.createElement('div'); head.className = 'dzn-clock__detail-head';
@@ -145,27 +184,30 @@
 			var meta = document.createElement('p'); meta.className = 'dzn-clock__detail-meta'; meta.textContent = weekdayLabel(day) + ' · ' + dateLabel(day);
 			detailsBody.appendChild(meta);
 			var list = document.createElement('dl'); list.className = 'dzn-clock__detail-list';
-			addDetail(list, labels.capacity || 'Capacity', capacityText(segment));
-			if (segment[0] === STATE.UNCOVERED) addDetail(list, labels.reason || 'Note', Number(segment[6]) === 0 && Number(segment[7]) === 0 ? (labels.noCapacity || '') : '');
+			addDetail(list, labels.remainingAtTime || 'Remaining at this interval', capacityText(segment));
+			addDetail(list, (labels.eligibleTeachers || 'Eligible teachers') + ' (' + (labels.instrumentWide || 'instrument-wide') + ')', numberLabel(Number(data.eligible_teacher_count || 0)) + ' ' + (labels.teachers || 'eligible teachers'));
+			if (Number(segment[0]) !== STATE.COVERED) addDetail(list, labels.reason || 'Cause', causeText(segment));
 			var goldenEntries = (day.golden_details || {})[String(segmentIndex)] || [];
-			if (segment[3]) addDetail(list, labels.goldenTitle || 'Golden Hours', goldenEntries.length ? (labels.demandWindow || 'Demand window') : (labels.goldenTitle || 'Golden Hours'));
-			if (goldenEntries.length) {
-				goldenEntries.slice(0, 5).forEach(function (entry) {
-					addDetail(list, (labels.regions || 'Regions') + ' · ' + (entry.label || entry.region), timeLabel(entry.local_start) + '–' + timeLabel(entry.local_end));
+			var outerDemand = !!(goldenRing[segmentIndex] && goldenRing[segmentIndex].golden);
+			if (segment[3]) {
+				var goldenParts = goldenEntries.slice(0, 5).map(function (entry) {
+					return (entry.label || entry.region) + ' ' + timeLabel(entry.local_start) + '–' + timeLabel(entry.local_end);
 				});
+				addDetail(list, labels.goldenTitle || 'Golden Hours', goldenParts.length ? goldenParts.join(' · ') : (labels.dayGoldenDemand || 'Golden Hours demand on this day'));
+			} else if (outerDemand) {
+				addDetail(list, labels.goldenTitle || 'Golden Hours', labels.noDayGoldenDemand || 'Not a Golden Hour on this day');
 			}
-			if (Number(segment[4])) addDetail(list, labels.partial || 'Partial', labels.goldenTitle || 'Golden Hours');
-			if (goldenBonus.enabled && Number(segment[12])) addDetail(list, labels.bonus || 'Bonus', numberLabel(goldenBonus.percent) + '%');
+			if (goldenBonus.enabled && Number(segment[12])) addDetail(list, labels.bonus || 'Bonus', numberLabel(goldenBonus.percent) + '% · ' + (labels.bonusConditional || 'only if the booking falls within the global bonus window'));
 			if (segment[5]) addDetail(list, labels.past || 'Past', '');
 			detailsBody.appendChild(list);
 			if (useButton) { useButton.disabled = false; useButton.setAttribute('data-dzn-clock-use-ring', String(ringIndex)); useButton.setAttribute('data-dzn-clock-use-seg', String(segmentIndex)); }
-			syncTabindex(); paintSelection(); updateHub();
+			syncTabindex(); paintSelection(); paintGapList(); paintQualityList(); updateHub();
 			if (focus) focusSegment(ringIndex, segmentIndex, false);
 		}
 
 		function selectGolden(segmentIndex, focus) {
 			var segment = goldenRing[segmentIndex] || {};
-			state.golden = true; state.ring = null; state.segment = segmentIndex;
+			state.golden = true; state.ring = null; state.segment = segmentIndex; state.gapRange = null; state.unknownRange = null;
 			if (!detailsBody) return;
 			detailsBody.replaceChildren();
 			var head = document.createElement('div'); head.className = 'dzn-clock__detail-head';
@@ -176,16 +218,49 @@
 			var list = document.createElement('dl'); list.className = 'dzn-clock__detail-list';
 			var regions = Array.isArray(segment.regions) ? segment.regions : [];
 			if (!regions.length) addDetail(list, labels.goldenTitle || 'Golden Hours', labels.noDemandWindow || 'No regional demand window');
+			var payApplies = regions.some(function (entry) {
+				var day = week.find(function (candidate) { return Number(candidate.weekday) === Number(entry.weekday); });
+				return !!(day && day.segments[segmentIndex] && Number(day.segments[segmentIndex][12]));
+			});
 			regions.slice(0, 12).forEach(function (entry) {
 				var day = week.find(function (candidate) { return Number(candidate.weekday) === Number(entry.weekday); });
 				var dayName = day ? weekdayLabel(day) + ' ' + dateLabel(day) : '';
 				addDetail(list, dayName + ' · ' + (entry.label || entry.region), timeLabel(entry.local_start) + '–' + timeLabel(entry.local_end) + ' · ' + timeLabel((entry.timezone || '').replace(/_/g, ' ')));
 			});
-			if (goldenBonus.enabled) addDetail(list, labels.bonus || 'Bonus', numberLabel(goldenBonus.percent) + '% · ' + (labels.bonusConditional || 'within the global bonus window')); else addDetail(list, labels.bonus || 'Bonus', labels.bonusOff || 'Not active');
+			if (goldenBonus.enabled && payApplies) addDetail(list, labels.bonus || 'Bonus', numberLabel(goldenBonus.percent) + '% · ' + (labels.bonusConditional || 'only if the booking falls within the global bonus window'));
 			detailsBody.appendChild(list);
 			if (useButton) useButton.disabled = true;
-			syncTabindex(); paintSelection(); updateHub();
+			syncTabindex(); paintSelection(); paintGapList(); paintQualityList(); updateHub();
 			if (focus) focusSegment(null, segmentIndex, true);
+		}
+
+		function gapRangeFor(weekday, segmentIndex) {
+			var gaps = Array.isArray(data.priority_gaps) ? data.priority_gaps : [];
+			for (var index = 0; index < gaps.length; index++) {
+				var gap = gaps[index] || {};
+				if (Number(gap.instrument_id) !== Number(data.selected_instrument) || Number(gap.weekday) !== Number(weekday)) continue;
+				var indexes = (gap.visual_indexes || []).map(Number);
+				if (indexes.indexOf(Number(segmentIndex)) !== -1) return indexes;
+			}
+			return null;
+		}
+
+		function unknownRangeFor(weekday, segmentIndex) {
+			var dataQuality = data.unknown_data || {};
+			var ranges = Array.isArray(dataQuality.ranges) ? dataQuality.ranges : [];
+			for (var index = 0; index < ranges.length; index++) {
+				var range = ranges[index] || {};
+				if (Number(range.instrument_id) !== Number(data.selected_instrument) || Number(range.weekday) !== Number(weekday)) continue;
+				var indexes = (range.visual_indexes || []).map(Number);
+				if (indexes.indexOf(Number(segmentIndex)) !== -1) return indexes;
+			}
+			return null;
+		}
+
+		function revealDetails() {
+			if (!details || !window.matchMedia || !window.matchMedia('(max-width: 760px)').matches) return;
+			var rect = details.getBoundingClientRect();
+			if (rect.top >= window.innerHeight || rect.bottom <= 0) details.scrollIntoView({ block: 'start' });
 		}
 
 		function updateHub() {
@@ -206,8 +281,14 @@
 
 		function paintSelection() {
 			canvas.querySelectorAll('[data-dzn-ring]').forEach(function (group) {
-				var selected = !state.golden && Number(group.getAttribute('data-dzn-ring')) === state.ring && Number(group.getAttribute('data-dzn-seg')) === state.segment;
+				var ring = Number(group.getAttribute('data-dzn-ring'));
+				var seg = Number(group.getAttribute('data-dzn-seg'));
+				var selected = !state.golden && ring === state.ring && seg === state.segment;
+				var inGap = !state.golden && ring === state.ring && state.gapRange && state.gapRange.indexOf(seg) !== -1;
+				var inUnknown = !state.golden && ring === state.ring && state.unknownRange && state.unknownRange.indexOf(seg) !== -1;
 				group.classList.toggle('is-selected', selected);
+				group.classList.toggle('is-gap-selected', inGap);
+				group.classList.toggle('is-unknown-selected', inUnknown);
 				group.setAttribute('aria-pressed', selected ? 'true' : 'false');
 			});
 			canvas.querySelectorAll('[data-dzn-golden-seg]').forEach(function (group) {
@@ -216,6 +297,42 @@
 				group.setAttribute('aria-pressed', selected ? 'true' : 'false');
 			});
 			paintProposed();
+		}
+
+		function paintGapList() {
+			var rows = root.querySelectorAll('[data-dzn-gap]');
+			if (!rows.length) return;
+			var day = !state.golden && state.ring !== null ? dayFor(state.ring) : null;
+			var activeDate = day ? String(day.date) : '';
+			var indexes = day ? (state.gapRange || [state.segment]) : [];
+			rows.forEach(function (row) {
+				var sameInstrument = Number(row.getAttribute('data-dzn-gap-instrument')) === Number(data.selected_instrument);
+				var sameDate = String(row.getAttribute('data-dzn-gap-date') || '') === activeDate;
+				var listed = String(row.getAttribute('data-dzn-gap-visual-indexes') || '').split(',').map(Number);
+				var hit = sameInstrument && sameDate && listed.some(function (index) { return indexes.indexOf(index) !== -1; });
+				row.classList.toggle('is-active', hit);
+				if (hit) row.setAttribute('aria-current', 'true'); else row.removeAttribute('aria-current');
+			});
+			root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (button) {
+				var ringIndex = Number(button.getAttribute('data-dzn-clock-ring'));
+				button.classList.toggle('is-active', !state.golden && ringIndex === state.ring);
+			});
+		}
+
+		function paintQualityList() {
+			var rows = root.querySelectorAll('[data-dzn-unknown]');
+			if (!rows.length) return;
+			var day = !state.golden && state.ring !== null ? dayFor(state.ring) : null;
+			var activeDate = day ? String(day.date) : '';
+			var indexes = day && state.unknownRange ? state.unknownRange : [];
+			rows.forEach(function (row) {
+				var sameInstrument = Number(row.getAttribute('data-dzn-unknown-instrument')) === Number(data.selected_instrument);
+				var sameDate = String(row.getAttribute('data-dzn-unknown-date') || '') === activeDate;
+				var listed = String(row.getAttribute('data-dzn-unknown-visual-indexes') || '').split(',').map(Number);
+				var hit = sameInstrument && sameDate && listed.some(function (index) { return indexes.indexOf(index) !== -1; });
+				row.classList.toggle('is-active', hit);
+				if (hit) row.setAttribute('aria-current', 'true'); else row.removeAttribute('aria-current');
+			});
 		}
 
 		function paintProposed() {
@@ -392,11 +509,52 @@
 		root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (button) {
 			button.addEventListener('click', function () {
 				var ringIndex = Number(button.getAttribute('data-dzn-clock-ring'));
-				var weekday = Number((dayFor(ringIndex) || {}).weekday);
-				var found = week.findIndex(function (day) { return Number(day.weekday) === weekday; });
-				if (found < 0) return;
-				root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (row) { row.classList.toggle('is-active', Number(row.getAttribute('data-dzn-clock-ring')) === found); row.setAttribute('aria-pressed', Number(row.getAttribute('data-dzn-clock-ring')) === found ? 'true' : 'false'); });
-				selectWeekday(found, state.segment === null ? 0 : state.segment, true);
+				var day = dayFor(ringIndex);
+				if (!day) return;
+				var target = firstGapSegment(day);
+				if (target === null) target = state.ring === ringIndex && state.segment !== null ? state.segment : 0;
+				selectWeekday(ringIndex, target, true, gapRangeFor(day.weekday, target), null);
+				revealDetails();
+			});
+		});
+
+		root.querySelectorAll('[data-dzn-gap]').forEach(function (row) {
+			row.addEventListener('click', function (event) {
+				if (Number(row.getAttribute('data-dzn-gap-instrument')) !== Number(data.selected_instrument)) return;
+				var weekday = Number(row.getAttribute('data-dzn-gap-weekday'));
+				var ringIndex = week.findIndex(function (day) { return Number(day.weekday) === weekday; });
+				if (ringIndex < 0) return;
+				var indexes = String(row.getAttribute('data-dzn-gap-visual-indexes') || '').split(',').map(Number).filter(function (index) { return index >= 0; });
+				var target = indexes.length ? indexes[0] : Number(row.getAttribute('data-dzn-gap-visual-start') || 0);
+				if (!dayFor(ringIndex) || !dayFor(ringIndex).segments[target]) return;
+				event.preventDefault();
+				selectWeekday(ringIndex, target, true, indexes.length ? indexes : null, null);
+				root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (ringButton) {
+					var active = Number(ringButton.getAttribute('data-dzn-clock-ring')) === ringIndex;
+					ringButton.classList.toggle('is-active', active);
+					ringButton.setAttribute('aria-pressed', active ? 'true' : 'false');
+				});
+				revealDetails();
+			});
+		});
+
+		root.querySelectorAll('[data-dzn-unknown]').forEach(function (row) {
+			row.addEventListener('click', function (event) {
+				if (Number(row.getAttribute('data-dzn-unknown-instrument')) !== Number(data.selected_instrument)) return;
+				var weekday = Number(row.getAttribute('data-dzn-unknown-weekday'));
+				var ringIndex = week.findIndex(function (day) { return Number(day.weekday) === weekday; });
+				if (ringIndex < 0) return;
+				var indexes = String(row.getAttribute('data-dzn-unknown-visual-indexes') || '').split(',').map(Number).filter(function (index) { return index >= 0; });
+				var target = indexes.length ? indexes[0] : Number(row.getAttribute('data-dzn-unknown-visual-start') || 0);
+				if (!dayFor(ringIndex) || !dayFor(ringIndex).segments[target]) return;
+				event.preventDefault();
+				selectWeekday(ringIndex, target, true, null, indexes.length ? indexes : null);
+				root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (ringButton) {
+					var active = Number(ringButton.getAttribute('data-dzn-clock-ring')) === ringIndex;
+					ringButton.classList.toggle('is-active', active);
+					ringButton.setAttribute('aria-pressed', active ? 'true' : 'false');
+				});
+				revealDetails();
 			});
 		});
 
@@ -440,6 +598,24 @@
 
 		draw();
 		clearDetails();
+		var focusValue = String(data.focus || root.getAttribute('data-dzn-clock-focus') || '');
+		var focusMatch = focusValue.match(/^([1-7]):(\d{1,2})$/);
+		if (focusMatch) {
+			var focusWeekday = Number(focusMatch[1]);
+			var focusSegment = Number(focusMatch[2]);
+			var focusRing = week.findIndex(function (day) { return Number(day.weekday) === focusWeekday; });
+			if (focusRing >= 0 && dayFor(focusRing).segments[focusSegment]) {
+				var unknownIndexes = unknownRangeFor(focusWeekday, focusSegment);
+				selectWeekday(focusRing, focusSegment, false, unknownIndexes ? null : gapRangeFor(focusWeekday, focusSegment), unknownIndexes);
+				root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (button) {
+					var active = Number(button.getAttribute('data-dzn-clock-ring')) === focusRing;
+					button.classList.toggle('is-active', active);
+					button.setAttribute('aria-pressed', active ? 'true' : 'false');
+				});
+			}
+		}
+		paintGapList();
+		paintQualityList();
 	}
 
 	document.querySelectorAll('[data-dzn-clock-root]').forEach(render);

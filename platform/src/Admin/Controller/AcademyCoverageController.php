@@ -23,7 +23,7 @@ final class AcademyCoverageController {
         }catch(\Throwable){
             $clock=array('status'=>'unavailable','message'=>'Instrument coverage could not be calculated. The booking-time scheduling authority is unchanged.','instruments'=>array());
         }
-        InstrumentCoverageClockView::render($clock,array('page'=>$page));
+        InstrumentCoverageClockView::render($clock,array('page'=>$page,'focus'=>isset($_GET['coverage_focus'])&&is_scalar($_GET['coverage_focus'])?sanitize_text_field(wp_unslash((string)$_GET['coverage_focus'])):''));
     }
 
     /** @return array<string,mixed> */

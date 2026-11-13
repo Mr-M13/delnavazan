@@ -480,5 +480,33 @@ namespace {
     $controllerSource=(string)file_get_contents(dirname(__DIR__).'/src/Admin/Controller/NotificationManagementController.php');
     $fail('server rejects enabling blocked channels', str_contains($controllerSource, "notification_channel_unavailable") && str_contains($controllerSource, 'channelBlocker'));
 
+    /* 10. Template/provider readiness is evaluated independently of the current on/off value. A
+     * configured WhatsApp provider with no mapped template must still block enabling, and the
+     * same blocker is what the toggle handler consumes. A ready channel remains enableable. */
+    (new \Delnavazan\Platform\Core\Application\IntegrationSettingsService())->save('whatsapp', array(
+        'app_id'=>'1234567890','business_account_id'=>'0987654321','phone_number_id'=>'1122334455',
+        'access_token'=>'test-access-token','test_template_name'=>'delnavazan_test_template',
+    ));
+    $blockerMethod = new \ReflectionMethod($controllerClass, 'channelBlocker');
+    $blockerMethod->setAccessible(true);
+    $unmappedEvent = 'lesson.reminder.student';
+    $fail('the unmapped event offers WhatsApp', $library->channelOffered($unmappedEvent, 'whatsapp'));
+    $fail('the unmapped WhatsApp channel starts off', $library->eventChannelEnabled($unmappedEvent, 'whatsapp') === false);
+    $unmappedStatus = $library->status($unmappedEvent, 'whatsapp', 'fa-IR');
+    $unmappedIssues = implode(' ', (array) $unmappedStatus['issues']);
+    $fail('a configured provider without a mapping stays not_mapped', $unmappedStatus['provider_state'] === 'not_mapped');
+    $fail('an off channel keeps both the off notice and its provider issue', str_contains($unmappedIssues, 'disabled') && str_contains($unmappedIssues, 'Meta'));
+    $unmappedState = $stateMethod->invoke(null, $library, $unmappedEvent, 'whatsapp');
+    $fail('configured provider without a mapping blocks enabling', $unmappedState['state'] === 'disabled' && $unmappedState['enable_blocked'] === true && str_contains($unmappedState['reason'], 'Provider approval'));
+    $unmappedBlocker = $blockerMethod->invoke(null, $library, $unmappedEvent, 'whatsapp');
+    $fail('the toggle handler receives the same unavailable blocker', is_array($unmappedBlocker) && $unmappedBlocker['state'] === 'missing_provider');
+    $canonicalBlocker = $blockerMethod->invoke(null, $library, 'account.claim_issued.student', 'whatsapp');
+    $fail('a required missing canonical version blocks independently of provider state', is_array($canonicalBlocker) && $canonicalBlocker['state'] === 'missing_template');
+    $fail('a ready channel has no blocker', $blockerMethod->invoke(null, $library, $event, 'website') === null);
+    $library->saveEventChannel($event, 'website', false);
+    $readyOff = $stateMethod->invoke(null, $library, $event, 'website');
+    $fail('a ready off channel remains enableable', $readyOff['state'] === 'disabled' && empty($readyOff['enable_blocked']) && $blockerMethod->invoke(null, $library, $event, 'website') === null);
+    $library->saveEventChannel($event, 'website', true);
+
     echo "Notification management unit passed\n";
 }

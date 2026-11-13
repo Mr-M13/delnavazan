@@ -200,8 +200,10 @@ final class NotificationTemplateLibrary {
         }
         if(!$permitted&&$this->channelOffered($eventKey,$channel)){
             // Copy for a disabled channel remains editable, but no sender may use it until the
-            // operator explicitly enables that exact event/channel pair.
-            $issues=array('This delivery channel is disabled for this notification.');
+            // operator explicitly enables that exact event/channel pair. The administrator-off
+            // notice is prepended rather than replacing the template/provider readiness issues:
+            // an off channel must still expose why it cannot be switched on.
+            array_unshift($issues,'This delivery channel is disabled for this notification.');
         }
         return array(
             'event_key'=>$eventKey,'label'=>(string)($event['label']??$eventKey),'category'=>(string)($event['category']??''),

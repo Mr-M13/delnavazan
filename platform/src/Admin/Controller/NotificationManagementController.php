@@ -586,12 +586,16 @@ final class NotificationManagementController {
     /** Effective eligibility is deliberately fail-closed: a stored On value never masks a blocker. */
     private static function channelBlocker(NotificationTemplateLibrary $library,string $eventKey,string $channel):?array{
         $status=$library->status($eventKey,$channel,NotificationCatalogue::PRIMARY_LOCALE);
+        $event=NotificationCatalogue::get($eventKey)??array();
+        // A canonical event renders strictly from a published version. Check the structural field
+        // as well as the issue text so a disabled channel cannot hide a missing required version.
+        if((string)($event['authority']??'')==='canonical'&&($status['published']??false)!==true)return array('state'=>'missing_template','label'=>'Missing template','reason'=>'Missing or invalid copy.');
         foreach((array)($status['issues']??array()) as $issue){
             $text=(string)$issue;
-            if(str_contains($text,'No default copy')||str_contains($text,'No active version')||str_contains($text,'body is unavailable'))return array('state'=>'missing_template','label'=>'Missing template','reason'=>'Missing or invalid copy.');
+            if(str_contains($text,'No default copy')||str_contains($text,'No active version')||str_contains($text,'body is unavailable')||str_contains($text,'cannot be dispatched without a published version'))return array('state'=>'missing_template','label'=>'Missing template','reason'=>'Missing or invalid copy.');
             if(str_contains($text,'approved')||str_contains($text,'provider')||str_contains($text,'Meta'))return array('state'=>'missing_provider','label'=>'Missing or unapproved template','reason'=>'Provider approval or setup is missing.');
         }
-        if(in_array((string)($status['provider_state']??''),array('approval_required','not_approved','contract_mismatch','restricted_fallback'),true))return array('state'=>'missing_provider','label'=>'Missing or unapproved template','reason'=>'Provider approval or setup is missing.');
+        if(in_array((string)($status['provider_state']??''),array('not_mapped','approval_required','not_approved','contract_mismatch','restricted_fallback'),true))return array('state'=>'missing_provider','label'=>'Missing or unapproved template','reason'=>'Provider approval or setup is missing.');
         if($channel==='sms'){
             $routes=self::smsRouteStatus();$ready=0;foreach($routes as $route)if(($route['ready']??false)===true)$ready++;
             if($ready===0)return array('state'=>'missing_provider','label'=>'Missing provider','reason'=>self::smsRouteReason($routes)?:'No selected SMS route is available.');

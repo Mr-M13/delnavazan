@@ -1982,6 +1982,193 @@ function dzn_theme_platform_teacher_unique_weekly_minutes( array $instrument_ava
 	return $total;
 }
 
+/**
+ * Aggregate coverage-clock data for the signed-in Teacher.
+ *
+ * The clock is the shared admin coverage projection: one instrument, a 24-hour
+ * dial and seven weekday rings. The Teacher model only receives aggregate
+ * capacity; student identity and other Teachers' names never cross this boundary.
+ */
+function dzn_theme_platform_teacher_coverage_clock( $teacher_id, $timezone, $calendar ) {
+	$class = '\\Delnavazan\\Platform\\Core\\Application\\InstrumentCoverageClockReadService';
+	if ( ! class_exists( $class ) || (int) $teacher_id < 1 ) { return array(); }
+	$date = isset( $_GET['coverage_date'] ) && is_scalar( $_GET['coverage_date'] ) ? sanitize_text_field( wp_unslash( (string) $_GET['coverage_date'] ) ) : '';
+	try {
+		return ( new $class() )->teacher( (int) $teacher_id, array(
+			'date' => preg_match( '/^\d{4}-\d{2}-\d{2}$/D', $date ) ? $date : '',
+			'calendar' => in_array( $calendar, array( 'persian', 'gregorian' ), true ) ? $calendar : 'gregorian',
+		) );
+	} catch ( Throwable $error ) {
+		return array( 'status' => 'unavailable', 'message' => 'پوشش ساز در حال حاضر قابل محاسبه نیست. زمان‌های تدریس شما تغییری نکرده است.' );
+	}
+}
+
+/**
+ * Build the single instrument-aware planner payload for the Teacher portal.
+ *
+ * The planner is the only availability editor. It owns the interactive clock's
+ * ranges, the Golden Hour bands and the aggregate coverage-gap bands. All money
+ * and booking authority remains in the canonical services.
+ *
+ * @return array<string,mixed>
+ */
+function dzn_theme_platform_teacher_availability_planner( $teacher_id, array $catalogue, array $golden, array $coverage, int $student_intake_minutes, string $timezone_label ) {
+	$planner_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherAvailabilityPlanner';
+	if ( ! class_exists( $planner_class ) ) { return array( 'available' => false, 'message' => 'برنامه‌ریز زمان تدریس در دسترس نیست.' ); }
+	$repository_class = '\\Delnavazan\\Platform\\Core\\Infrastructure\\Repository\\TeacherAvailabilityRepository';
+	if ( ! class_exists( $repository_class ) ) { return array( 'available' => false, 'message' => 'برنامه‌ریز زمان تدریس در دسترس نیست.' ); }
+	try { $repository = new $repository_class(); } catch ( Throwable $error ) { return array( 'available' => false, 'message' => 'برنامه‌ریز زمان تدریس در دسترس نیست.' ); }
+
+	$groups = array();
+	foreach ( $catalogue as $row ) {
+		if ( ! empty( $row->selected ) ) { $groups[ (int) $row->instrument_id ] = (string) $row->instrument; }
+	}
+	$instruments = array();
+	$schedule_minutes = array();
+	$weekly_minutes = array();
+	foreach ( $groups as $instrument_id => $instrument_name ) {
+		$instrument_id = (int) $instrument_id;
+		try {
+			$configured = $repository->instrumentConfigured( (int) $teacher_id, $instrument_id );
+			$rules = $repository->activeRules( (int) $teacher_id, $instrument_id );
+		} catch ( Throwable $error ) {
+			$configured = false; $rules = array();
+		}
+		$explicit = array_values( array_filter( (array) $rules, static fn( $rule ) => isset( $rule->instrument_id ) && null !== $rule->instrument_id && (int) $rule->instrument_id === $instrument_id ) );
+		$inherited = $configured ? array() : array_values( array_filter( (array) $rules, static fn( $rule ) => ! isset( $rule->instrument_id ) || null === $rule->instrument_id ) );
+		if ( $configured ) { $status = $explicit ? 'explicit' : 'empty'; $source = $explicit; }
+		elseif ( $explicit ) { $status = 'explicit'; $source = $explicit; }
+		else { $status = 'inherit'; $source = $inherited; }
+
+		$by_day = array();
+		$schedule_minutes[ $instrument_id ] = array();
+		for ( $weekday = 1; $weekday <= 7; $weekday++ ) { $by_day[ $weekday ] = array(); $schedule_minutes[ $instrument_id ][ $weekday ] = array(); }
+		foreach ( $source as $rule ) {
+			$weekday = (int) ( $rule->weekday ?? 0 );
+			$start = $planner_class::minute( (string) ( $rule->local_start_time ?? '' ) );
+			$end = $planner_class::minute( (string) ( $rule->local_end_time ?? '' ) );
+			if ( $weekday < 1 || $weekday > 7 || null === $start || null === $end || $end <= $start ) { continue; }
+			$by_day[ $weekday ][] = array( 'start' => $planner_class::clock( $start ), 'end' => $planner_class::clock( $end ), 'start_minute' => $start, 'end_minute' => $end );
+			$schedule_minutes[ $instrument_id ][ $weekday ][] = array( 'start' => $start, 'end' => $end );
+		}
+		$total = 0;
+		for ( $weekday = 1; $weekday <= 7; $weekday++ ) {
+			$by_day[ $weekday ] = $planner_class::clockIntervals( $schedule_minutes[ $instrument_id ][ $weekday ] );
+			$schedule_minutes[ $instrument_id ][ $weekday ] = $planner_class::mergeIntervals( $schedule_minutes[ $instrument_id ][ $weekday ] );
+			foreach ( $schedule_minutes[ $instrument_id ][ $weekday ] as $interval ) { $total += (int) $interval['end'] - (int) $interval['start']; }
+		}
+		$instruments[ $instrument_id ] = array(
+			'id' => $instrument_id,
+			'name' => $instrument_name,
+			'status' => $status,
+			'inherited' => 'inherit' === $status,
+			'days' => $by_day,
+			'weekly_minutes' => $total,
+		);
+		$weekly_minutes[ $instrument_id ] = $total;
+	}
+
+	$golden_by_day = array();
+	for ( $weekday = 1; $weekday <= 7; $weekday++ ) { $golden_by_day[ $weekday ] = array(); }
+	foreach ( (array) ( $golden['days'] ?? array() ) as $day ) {
+		if ( ! is_array( $day ) ) { continue; }
+		$weekday = (int) ( $day['weekday'] ?? 0 );
+		if ( $weekday < 1 || $weekday > 7 ) { continue; }
+		foreach ( (array) ( $day['intervals'] ?? array() ) as $interval ) {
+			if ( ! is_array( $interval ) ) { continue; }
+			$start = $planner_class::minute( (string) ( $interval['start'] ?? '' ) );
+			$end = $planner_class::minute( (string) ( $interval['end'] ?? '' ) );
+			if ( null === $start ) { continue; }
+			if ( null === $end || $end === 0 ) { $end = 1440; }
+			if ( $end <= $start ) { continue; }
+			$golden_by_day[ $weekday ][] = array( 'start' => $planner_class::clock( $start ), 'end' => $planner_class::clock( $end ) );
+		}
+	}
+	$gap_bands = array();
+	$coverage_instruments = array();
+	foreach ( (array) ( $coverage['instruments'] ?? array() ) as $row ) {
+		if ( ! is_array( $row ) || ! isset( $row['id'] ) ) { continue; }
+		$coverage_instruments[ (int) $row['id'] ] = $row;
+	}
+	foreach ( $instruments as $instrument_id => $instrument ) {
+		$gap_bands[ $instrument_id ] = array();
+		for ( $weekday = 1; $weekday <= 7; $weekday++ ) { $gap_bands[ $instrument_id ][ $weekday ] = array(); }
+		$row = $coverage_instruments[ $instrument_id ] ?? null;
+		if ( ! is_array( $row ) ) { continue; }
+		$clocks = (array) ( $row['clocks'] ?? array() );
+		foreach ( $clocks as $weekday => $clock ) {
+			$weekday = (int) $weekday;
+			if ( $weekday < 1 || $weekday > 7 || ! is_array( $clock ) ) { continue; }
+			$segments = (array) ( $clock['visual_segments'] ?? array() );
+			$runs = array();
+			foreach ( $segments as $index => $segment ) {
+				if ( ! is_array( $segment ) ) { continue; }
+				$start = (int) ( $segment['minute'] ?? ( $index * 30 ) );
+				$end = $start + 30;
+				// The shared clock's Golden flag comes from the structural demand
+				// windows, so it still marks the academy's priority hours when the
+				// pay bonus is disabled. Merge it with the Teacher-local projection.
+				if ( ! empty( $segment['golden'] ) ) {
+					$golden_by_day[ $weekday ][] = array( 'start' => $planner_class::clock( $start ), 'end' => $planner_class::clock( $end ) );
+				}
+				$state = (int) ( $segment['state'] ?? 2 );
+				$level = 0 === $state ? 'gap' : ( 1 === $state ? 'limited' : ( 4 === $state ? 'partial' : '' ) );
+				if ( '' === $level ) { continue; }
+				$last = count( $runs ) - 1;
+				if ( $last >= 0 && $runs[ $last ]['level'] === $level && $runs[ $last ]['end'] === $start ) { $runs[ $last ]['end'] = $end; }
+				else { $runs[] = array( 'start' => $start, 'end' => $end, 'level' => $level ); }
+			}
+			foreach ( $runs as $run ) { $gap_bands[ $instrument_id ][ $weekday ][] = array( 'start' => $planner_class::clock( (int) $run['start'] ), 'end' => $planner_class::clock( (int) $run['end'] ), 'level' => (string) $run['level'] ); }
+		}
+	}
+
+	$golden_minutes = array();
+	foreach ( $golden_by_day as $weekday => $intervals ) {
+		$numeric = array();
+		foreach ( (array) $intervals as $interval ) {
+			$start = $planner_class::minute( (string) ( $interval['start'] ?? '' ) );
+			$end = $planner_class::minute( (string) ( $interval['end'] ?? '' ) );
+			if ( null !== $start && null !== $end && $end > $start ) { $numeric[] = array( 'start' => $start, 'end' => $end ); }
+		}
+		$golden_minutes[ (int) $weekday ] = $planner_class::mergeIntervals( $numeric );
+		$golden_by_day[ (int) $weekday ] = $planner_class::clockIntervals( $golden_minutes[ (int) $weekday ] );
+	}
+	$overview = $planner_class::overview( $schedule_minutes, $golden_minutes, $student_intake_minutes );
+
+	return array(
+		'available' => true,
+		'instruments' => $instruments,
+		'golden_bands' => $golden_by_day,
+		'gap_bands' => $gap_bands,
+		'overview' => $overview,
+		'weekly_minutes' => array_sum( $weekly_minutes ),
+		'timezone_label' => $timezone_label,
+		'golden_label' => (string) ( $golden['percentage_label'] ?? '' ),
+		'gap_available' => ! empty( $coverage_instruments ),
+		'week_label' => function_exists( 'wp_date' ) ? wp_date( 'j M' ) : '',
+	);
+}
+
+function dzn_theme_platform_teacher_week_intake_minutes( array $classes, string $timezone ): int {
+	$zone = new DateTimeZone( $timezone ?: 'UTC' );
+	$week = '\\Delnavazan\\Platform\\Core\\Application\\InstrumentCoverageWeek';
+	$today = ( new DateTimeImmutable( 'today', $zone ) )->format( 'Y-m-d' );
+	$startDate = class_exists( $week ) ? $week::start( $today ) : ( new DateTimeImmutable( 'monday this week', $zone ) )->format( 'Y-m-d' );
+	$start = new DateTimeImmutable( $startDate . ' 00:00:00', $zone );
+	$end = $start->modify( '+7 days' );
+	$total = 0;
+	foreach ( $classes as $row ) {
+		if ( ! is_array( $row ) ) { continue; }
+		$started = dzn_theme_platform_utc_timestamp( $row['starts_at_utc'] ?? '' );
+		$ended = dzn_theme_platform_utc_timestamp( $row['occupied_ends_at_utc'] ?? '' ) ?: dzn_theme_platform_utc_timestamp( $row['ends_at_utc'] ?? '' );
+		if ( ! $started || ! $ended || $ended <= $started ) { continue; }
+		$local = ( new DateTimeImmutable( '@' . $started ) )->setTimezone( $zone );
+		if ( $local < $start || $local >= $end ) { continue; }
+		$total += (int) round( ( $ended - $started ) / 60 );
+	}
+	return $total;
+}
+
 function dzn_theme_platform_teacher_model( $screen ) {
 	$identity = dzn_theme_platform_user_identity();
 	$google_notice = dzn_theme_platform_google_notice();
@@ -2019,6 +2206,15 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			try { $onboarding_summary = $availability_summary_class::build( $onboarding_rules, $onboarding_golden ); $onboarding_golden = (array) ( $onboarding_summary['golden'] ?? $onboarding_golden ); } catch ( Throwable ) {}
 		}
 		$onboarding_summary['weekly_minutes'] = dzn_theme_platform_teacher_unique_weekly_minutes( $onboarding_instrument_availability );
+		$onboarding_coverage_clock = dzn_theme_platform_teacher_coverage_clock( (int) ( $onboarding['teacher_id'] ?? 0 ), $onboarding_timezone, $onboarding_calendar );
+		$onboarding_planner = dzn_theme_platform_teacher_availability_planner(
+			(int) ( $onboarding['teacher_id'] ?? 0 ),
+			$onboarding_catalogue,
+			$onboarding_golden,
+			$onboarding_coverage_clock,
+			0,
+			dzn_theme_platform_timezone_label( $onboarding_timezone )
+		);
 		$onboarding_availability = array_map( static function ( $rule ) {
 			$days = array( 1 => 'دوشنبه', 2 => 'سه‌شنبه', 3 => 'چهارشنبه', 4 => 'پنجشنبه', 5 => 'جمعه', 6 => 'شنبه', 7 => 'یکشنبه' );
 			return array(
@@ -2034,6 +2230,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'navigation' => $nav, 'current_step' => $step, 'max_step' => $server_step, 'onboarding' => $onboarding,
 			'golden_bonus' => $onboarding_golden,
 			'availability_summary' => $onboarding_summary,
+			'availability_planner' => $onboarding_planner,
+			'coverage_clock' => $onboarding_coverage_clock,
 			'profile' => array(
 				'name' => (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] ), 'persian_name' => (string) ( $onboarding['profile']['persian_name'] ?? '' ),
 				'english_name' => (string) ( $onboarding['profile']['english_name'] ?? '' ), 'email' => (string) ( $onboarding['profile']['email'] ?? $identity['email'] ),
@@ -2160,6 +2358,16 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			try { $availability_summary = $summary_class::build( $availability_rules, $golden_bonus ); } catch ( Throwable ) {}
 		}
 		$availability_summary['weekly_minutes'] = dzn_theme_platform_teacher_unique_weekly_minutes( $teacher_instrument_availability );
+		$coverage_clock = dzn_theme_platform_teacher_coverage_clock( (int) ( $onboarding['teacher_id'] ?? 0 ), (string) ( $onboarding['profile']['timezone'] ?? $teacher_timezone ), $teacher_calendar );
+		$student_intake_minutes = dzn_theme_platform_teacher_week_intake_minutes( $all_scheduled_classes, $teacher_timezone );
+		$availability_planner = dzn_theme_platform_teacher_availability_planner(
+			(int) ( $onboarding['teacher_id'] ?? 0 ),
+			$teacher_catalogue,
+			$golden_bonus,
+			$coverage_clock,
+			$student_intake_minutes,
+			(string) ( $onboarding['profile']['timezone_label'] ?? dzn_theme_platform_timezone_label( $teacher_timezone ) )
+		);
 		$induction_hub = dzn_theme_platform_teacher_induction_hub();
 		return array(
 			'available' => true, 'screen' => $screen, 'source' => 'platform',
@@ -2171,6 +2379,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'profile_edit_action' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
 			'golden_bonus' => (array) ( $availability_summary['golden'] ?? $golden_bonus ),
 			'availability_summary' => $availability_summary,
+			'availability_planner' => $availability_planner,
+			'coverage_clock' => $coverage_clock,
 			'google_state' => 'managed_centrally',
 			'availability_available' => true,
 			'availability' => $teacher_display_availability ?: array_map(static function($r){$days=[1=>'دوشنبه',2=>'سه‌شنبه',3=>'چهارشنبه',4=>'پنجشنبه',5=>'جمعه',6=>'شنبه',7=>'یکشنبه'];return ['id'=>(int)$r['id'],'day'=>$days[(int)$r['weekday']]??'','weekday'=>(int)$r['weekday'],'blocks'=>[substr((string)$r['local_start_time'],0,5).'–'.substr((string)$r['local_end_time'],0,5)],'start'=>substr((string)$r['local_start_time'],0,5),'end'=>substr((string)$r['local_end_time'],0,5),'state'=>(string)$r['state'],'booked'=>''];},$availability_rules),

@@ -42,6 +42,59 @@ final class TeacherAvailabilityService {
         } catch(\Throwable $e){$this->repo->rollback();throw $e;}
     }
 
+    /**
+     * Replace one instrument's entire weekly schedule in a single transaction.
+     *
+     * The planner uses this instead of adding/retiring rows one at a time so a
+     * save is atomic. An empty range list is the explicit "no availability"
+     * state: the instrument's rules are retired and the configured marker is
+     * persisted, which stops legacy/unscoped inheritance for that instrument.
+     *
+     * @param list<array<string,mixed>> $ranges
+     */
+    public function replaceOwnWeeklySchedule(int $instrumentId, array $ranges): void {
+        $teacher = $this->selfServiceTeacher();
+        $instrument = Normalizer::id($instrumentId);
+        $this->assertInstrumentForTeacher($teacher, $instrument);
+        $normalized = TeacherAvailabilityPlanner::normalizeRanges($ranges);
+        $profile = $this->repo->profile($teacher);
+        if (!$profile || (string) $profile->status !== 'active') throw new \InvalidArgumentException('Active availability profile required');
+        $timezone = $this->authorityTimezone((string) $profile->timezone);
+        $now = current_time('mysql', true);
+        $actor = (int) get_current_user_id();
+        $this->repo->begin();
+        try {
+            $this->usableTeacher($teacher);
+            $profile = $this->profileForMutation($teacher, $timezone);
+            // Retire only this instrument's active rules. Legacy/unscoped rules and
+            // other instruments are deliberately untouched.
+            $this->repo->retireOwnInstrumentRules($teacher, $instrument, $now, $actor);
+            // Mark the instrument as configured even when the list is empty. This is
+            // what prevents legacy inheritance for an explicitly empty instrument.
+            $this->repo->saveInstrumentState($teacher, $instrument, $now, $actor);
+            foreach ($normalized as $range) {
+                $d = $this->rule(array(
+                    'teacher_id' => $teacher,
+                    'instrument_id' => $instrument,
+                    'weekday' => (int) $range['weekday'],
+                    'local_start_time' => TeacherAvailabilityPlanner::clock((int) $range['start']) . ':00',
+                    'local_end_time' => (int) $range['end'] >= 1440 ? '2400' : TeacherAvailabilityPlanner::clock((int) $range['end']) . ':00',
+                    'state' => 'preferred',
+                    'timezone' => $timezone,
+                    'status' => 'active',
+                    'reason_code' => 'teacher_self_service_schedule',
+                ));
+                $d['profile_id'] = (int) $profile->id;
+                $this->repo->saveRule($d, $now, $actor);
+            }
+            $this->repo->commit();
+            (new TeacherOnboardingService())->refreshOwnProgress();
+        } catch (\Throwable $error) {
+            $this->repo->rollback();
+            throw $error;
+        }
+    }
+
     /** Copy every active rule from one weekday to explicitly selected weekdays atomically. */
     public function copyOwnRecurringDay(int $sourceWeekday, array $targetWeekdays): void {
         $teacher=$this->ownTeacher(); $source=Normalizer::count($sourceWeekday,1,7); $targets=array_values(array_unique(array_map(static fn($day)=>Normalizer::count($day,1,7),$targetWeekdays)));

@@ -127,6 +127,8 @@ jobs:
           php platform/tests/instrument-coverage-clock-contract.php
           php platform/tests/golden-hour-teacher-visual-unit.php
           php platform/tests/teacher-availability-summary-unit.php
+          php platform/tests/teacher-availability-planner-unit.php
+          php platform/tests/teacher-availability-planner-contract.php
           php platform/tests/tuition-allocation-unit.php
           php platform/tests/teacher-portal-ux-finance-contract.php
           php platform/tests/booking-canonical-occupancy-contract.php
@@ -700,7 +702,7 @@ jobs:
           docker pull mariadb:11.4
           docker pull wordpress:php8.3-apache
           docker pull wordpress:cli-php8.3
-      - name: Prove persisted instrument clearing and per-card coverage scopes
+      - name: Prove persisted planner saves, explicit-empty inheritance and per-card coverage scopes
         env:
           DZN_RUNTIME_STATE_DIR: /tmp/dzn-teacher-availability-instrument-runtime
           DZN_COMPOSE_PROJECT: dzn-teacher-availability-instrument-runtime

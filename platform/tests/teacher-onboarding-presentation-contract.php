@@ -56,9 +56,10 @@ $check( 'the setup summary links to availability', str_contains( $onboarding, 'h
 $check( 'the setup summary does not link to a Teacher Google step', ! str_contains( $onboarding, 'href="#tp-google"' ) && str_contains( $onboarding, 'به‌صورت متمرکز توسط دلنوازان' ) );
 
 /* 4. Current native time inputs keep the canonical field names and are adapted server-side. */
-$check( 'start time keeps the canonical field name', str_contains( $account, 'name="local_start_time"' ) );
-$check( 'end time keeps the canonical field name', str_contains( $account, 'name="local_end_time"' ) );
-$check( 'availability uses accessible native time controls', 2 <= substr_count( $account, 'type="time"' ) );
+$planner_js = (string) file_get_contents( $theme . '/assets/js/availability-planner.js' );
+$check( 'the planner keeps a native start time control', str_contains( $planner_js, "fromInput.type = 'time'" ) );
+$check( 'the planner keeps a native end time control', str_contains( $planner_js, "toInput.type = 'time'" ) );
+$check( 'availability uses accessible native time controls', 2 <= substr_count( $planner_js, "type = 'time'" ) );
 $check( 'the controller expands native time values to canonical seconds', str_contains( $availability_controller, "preg_match('/^\\d{2}:\\d{2}$/'" ) && str_contains( $availability_controller, "?\$v.':00':\$v" ) );
 $check( 'incomplete teachers return to onboarding after availability edits', str_contains( $availability_controller, "\$view='onboarding'" ) );
 

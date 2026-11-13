@@ -150,10 +150,10 @@ $css = file_get_contents($theme . '/assets/css/coverage-clock.css');
 $adminCss = file_get_contents($root . '/src/Admin/Assets/admin.css');
 $bridge = file_get_contents($theme . '/inc/platform-bridge.php');
 
-$assert(!str_contains($account, 'coverage-clock'), 'The Teacher account must not render the coverage clock.');
-$assert(str_contains($account, 'data-dzn-availability-form'), 'The existing availability form must expose the preview hook without changing its save mechanism.');
+$assert(str_contains($account, "'availability-planner'"), 'The Teacher account must render the interactive availability planner.');
+$assert(!str_contains($account, 'data-dzn-availability-form'), 'The obsolete single-range form must be removed from the account screen.');
 $assert(!str_contains($account, "dzn_theme_teacher_portal_component('golden-hours'"), 'The duplicate Golden Hours component must be removed.');
-$assert(!str_contains($bridge, 'dzn_theme_platform_teacher_coverage_clock'), 'The Teacher model must not build coverage-clock data.');
+$assert(str_contains($bridge, 'dzn_theme_platform_teacher_coverage_clock'), 'The planner must reuse the canonical Teacher coverage-clock data.');
 
 $assert(str_contains($js, "role: 'button'"), 'Clock segments must be keyboard-operable buttons.');
 $assert(str_contains($js, 'ArrowRight') && str_contains($js, 'ArrowLeft') && str_contains($js, 'ArrowUp') && str_contains($js, 'ArrowDown'), 'Clock segments must support two-dimensional arrow-key navigation.');

@@ -59,6 +59,10 @@ $payload = array(
 	'timezone' => $timezone,
 	'intake' => (int) ( $overview['student_intake_minutes'] ?? 0 ),
 	'gap_available' => ! empty( $planner['gap_available'] ),
+	'golden_label' => (string) ( $planner['golden_label'] ?? '' ),
+	'golden_policy_timezone' => (string) ( $planner['golden_policy_timezone'] ?? '' ),
+	'golden_configured' => ! empty( $planner['golden_configured'] ),
+	'golden_effective_from' => (string) ( $planner['golden_effective_from'] ?? '' ),
 );
 $save_url = admin_url( 'admin-post.php?action=dzn_teacher_availability_schedule' );
 $empty_url = admin_url( 'admin-post.php?action=dzn_teacher_availability_instrument_empty' );
@@ -110,6 +114,7 @@ $empty_url = admin_url( 'admin-post.php?action=dzn_teacher_availability_instrume
 				<span class="is-golden"><i aria-hidden="true"></i>ساعت طلایی</span>
 				<span class="is-gap"><i aria-hidden="true"></i>کم‌پوشش</span>
 			</div>
+			<p class="dzn-tp-help dzn-ap__golden-note" data-dzn-ap-golden-note></p>
 		</div>
 		<div class="dzn-ap__day-panel">
 			<div class="dzn-ap__day-head">

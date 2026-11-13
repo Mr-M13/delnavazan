@@ -47,9 +47,13 @@ $fail('delivery status test exists', is_file($root . '/tests/notification-delive
 $fail('events is the default workspace', str_contains($controller, "'events'=>'Events'") || str_contains($controller, "sanitize_key(wp_unslash((string)\$_GET['tab'])):'events'"));
 $fail('legacy tab URLs are mapped', str_contains($controller, "'rules'=>'events'") && str_contains($controller, "'templates'=>'events'"));
 $fail('legacy diagnostics redirects centrally', str_contains($controller, "page=dzn-system-health&component=notifications"));
-$fail('business tasks, not student and teacher tabs, organise the catalogue', str_contains($controller, 'name="task"') && str_contains($controller, 'Business task') && !str_contains($controller, '>Student notifications</a>'));
+$fail('one event table uses combined search and compact filters', str_contains($controller, 'name="search"') && str_contains($controller, 'name="category"') && str_contains($controller, 'name="recipient"') && str_contains($controller, 'name="status"'));
 $fail('all four delivery methods are rendered together', str_contains($controller, "array('website','email','whatsapp','sms')"));
-$fail('template readiness is a catalogue filter', str_contains($controller, 'name="readiness"') && str_contains($controller, 'Template readiness'));
+$fail('effective status replaces legacy readiness columns', str_contains($controller, 'name="status"') && str_contains($controller, '<th>Category</th>') && !str_contains($controller, '<th>Template readiness</th>') && !str_contains($controller, '<th>Latest delivery</th>'));
+$fail('editor stays on the table page', str_contains($controller, 'self::renderEvents();') && str_contains($controller, 'id="notification-editor"') && str_contains($controller, 'self::renderEditor(new NotificationTemplateLibrary()'));
+$fail('table filters survive editor navigation', str_contains($controller, 'private static function editorUrl') && str_contains($controller, 'filter_context'));
+$fail('reschedule families are genuinely collapsible', str_contains($controller, '<details><summary><strong>') && str_contains($controller, 'private static function eventFamily'));
+$fail('purpose copy is event-specific or family-specific', str_contains($catalogue, 'private static function purpose') && !str_contains($catalogue, 'This message tells the recipient what happened'));
 $fail('global channel policy editor is removed', !str_contains($controller, 'dzn_notification_channel_policy') && !str_contains($library, 'OPTION_CHANNEL_POLICY'));
 $fail('the retired category override is deleted during admin upgrade', str_contains($library, 'retireLegacyCategoryPolicy') && str_contains($library, "delete_option(\$key)"));
 $fail('generic notification resend surface is removed', !str_contains($controller, 'dzn_notification_manual_retry') && !str_contains($controller, 'Review a specific notification for resend'));

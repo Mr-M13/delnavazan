@@ -5,10 +5,11 @@ use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
 use Delnavazan\Platform\Core\Application\NotificationTransportPort;
 use Delnavazan\Platform\Integrations\TelnyxSmsAdapter;
 use Delnavazan\Platform\Integrations\TelnyxWhatsAppAdapter;
+use Delnavazan\Platform\Integrations\SmsIrAdapter;
 use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
 
 /**
- * Deployment composition for the two Telnyx transports.
+ * Deployment composition for independent Telnyx and SMS.ir transports.
  *
  * A channel is exposed to the router only when its sender, API key and webhook verification key are
  * all present. That keeps "configured" honest: a transport that cannot receive verified delivery
@@ -27,6 +28,10 @@ final class NotificationProviderBindings {
             $adapter=new TelnyxSmsAdapter($settings);
             $bindings[]=array('channel'=>'sms','configured'=>true,'port'=>new SmsTransport(array($adapter,'send')));
         }
+        if(is_object($settings)&&method_exists($settings,'verified')&&$settings->verified('sms_ir')){
+            $adapter=new SmsIrAdapter($settings);
+            $bindings[]=array('channel'=>'sms','provider'=>'sms_ir','configured'=>true,'port'=>new SmsTransport(array($adapter,'send')));
+        }
         if($configuration->whatsappReady()){
             $adapter=new TelnyxWhatsAppAdapter($settings);
             $bindings[]=array('channel'=>'whatsapp','configured'=>true,'port'=>new WhatsAppTransport(array($adapter,'send')));
@@ -44,8 +49,8 @@ final class NotificationProviderBindings {
     public static function filter($bindings):array{
         $bindings=is_array($bindings)?$bindings:array();
         $existing=array();
-        foreach($bindings as $binding)if(is_array($binding)&&!empty($binding['configured'])&&isset($binding['channel']))$existing[(string)$binding['channel']]=true;
-        foreach(self::bindings() as $binding)if(!isset($existing[$binding['channel']]))$bindings[]=$binding;
+        foreach($bindings as $binding)if(is_array($binding)&&!empty($binding['configured'])&&isset($binding['channel']))$existing[(string)$binding['channel'].'|'.(string)($binding['provider']??'')]=true;
+        foreach(self::bindings() as $binding){$key=(string)$binding['channel'].'|'.(string)($binding['provider']??'');if(!isset($existing[$key]))$bindings[]=$binding;}
         return $bindings;
     }
 }

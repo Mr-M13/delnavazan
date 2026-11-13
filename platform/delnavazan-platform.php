@@ -76,8 +76,8 @@ add_action( 'plugins_loaded', static function () {
 		}
 		return array_merge( $definitions, $stored );
 	} );
-	// Telnyx SMS and WhatsApp are offered to the existing router only when their sender, API key and
-	// webhook verification key are configured. The binding itself performs no network request.
+	// Telnyx SMS, SMS.ir and WhatsApp are offered to the existing router only when their sender,
+	// credentials and required verification/configuration are present. The binding performs no network request.
 	add_filter( 'dzn_notification_transport_bindings', array( 'Delnavazan\\Platform\\Integrations\\Notifications\\NotificationProviderBindings', 'filter' ) );
 	Delnavazan\Platform\Admin\Controller\OperationalCashbookController::register();
 	Delnavazan\Platform\Admin\Controller\IntegrationControlPlaneController::register();

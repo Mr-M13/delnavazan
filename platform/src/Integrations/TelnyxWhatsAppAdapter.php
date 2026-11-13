@@ -16,8 +16,8 @@ use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry;
  * Telnyx WhatsApp API adapter for approved business-initiated templates.
  *
  * Local notification parameters are mapped to the approved provider template by event key. The
- * adapter never invents a parameter: a missing local variable is a permanent refusal, which lets the
- * existing router fall back to SMS only when the channel policy permits it.
+ * adapter never invents a parameter: a missing local variable is a permanent refusal. SMS is a
+ * separate pre-send channel choice and is never activated by a WhatsApp outcome.
  */
 final class TelnyxWhatsAppAdapter {
     public function __construct(
@@ -47,7 +47,7 @@ final class TelnyxWhatsAppAdapter {
         $order=TelnyxTemplateRegistry::variableOrderForName($name);
         if($sender===''||$name===''||$order===array())return array('state'=>'failed','code'=>'telnyx_test_template_not_configured');
         foreach($order as $code)if(!array_key_exists($code,$parameters))return array('state'=>'failed','code'=>'test_template_variable_missing');
-        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');if($profile==='')$profile=(string)$this->settings->value('sms','messaging_profile_id');
+        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');
         $payload=self::templatePayload($sender,$to,$name,$language,$order,$parameters,$profile);
         $response=$this->post('https://api.telnyx.com/v2/messages/whatsapp',array(
             'timeout'=>20,'redirection'=>0,
@@ -97,7 +97,7 @@ final class TelnyxWhatsAppAdapter {
         $mapped=$this->mapping($command);
         if($mapped===null)return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'template_not_mapped');
         foreach($mapped['variable_order'] as $code)if(!array_key_exists($code,(array)($command['parameters']??array())))return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'variable_contract_mismatch');
-        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');if($profile==='')$profile=(string)$this->settings->value('sms','messaging_profile_id');
+        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');
         $payload=self::templatePayload($sender,$to,$mapped['name'],$mapped['language'],$mapped['variable_order'],(array)($command['parameters']??array()),$profile);
         $response=$this->post('https://api.telnyx.com/v2/messages/whatsapp',array(
             'timeout'=>20,'redirection'=>0,
@@ -111,15 +111,7 @@ final class TelnyxWhatsAppAdapter {
             $permanent=self::permanentFailure($status);
             $error=self::providerError(is_array($body)?$body:null);
             $result=array('acknowledged'=>false,'permanent_failure'=>$permanent,'http'=>$status,'provider_attempted'=>true,'ambiguous'=>$permanent===null);
-            // Only a recipient/message-specific rejection can authorise SMS. Authentication, routing,
-            // configuration, payload/template and provider-capacity failures close or retry WhatsApp
-            // without fanning out an SMS to every recipient.
-            if($permanent!==null&&self::recipientRejection($status,$error)){
-                $at=NotificationSupport::now();
-                $result['provider_evidence_digest']=hash_hmac('sha256','telnyx:whatsapp:rejected:'.(string)($command['notification_key_digest']??'').':'.(int)($command['attempt_sequence']??0).':'.$status.':'.$at,NotificationSupport::salt());
-                $result['provider_evidence_at']=$at;
-                $result['provider_outcome']='rejected';
-            }
+            // Provider evidence records the WhatsApp result only; it never authorises another channel.
             return $result;
         }
         $body=json_decode((string)wp_remote_retrieve_body($response),true);
@@ -147,7 +139,7 @@ final class TelnyxWhatsAppAdapter {
         $mapped=$this->eventMapping($eventKey);
         if($mapped===null)return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'template_not_mapped');
         foreach($mapped['variable_order'] as $code)if(!array_key_exists($code,$parameters))return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'variable_contract_mismatch');
-        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');if($profile==='')$profile=(string)$this->settings->value('sms','messaging_profile_id');
+        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');
         $payload=self::templatePayload($sender,$to,$mapped['name'],$mapped['language'],$mapped['variable_order'],$parameters,$profile);
         $response=$this->post('https://api.telnyx.com/v2/messages/whatsapp',array(
             'timeout'=>20,'redirection'=>0,
@@ -161,12 +153,6 @@ final class TelnyxWhatsAppAdapter {
             $permanent=self::permanentFailure($status);
             $error=self::providerError(is_array($body)?$body:null);
             $result=array('acknowledged'=>false,'permanent_failure'=>$permanent,'http'=>$status,'provider_attempted'=>true,'ambiguous'=>$permanent===null);
-            if($permanent!==null&&self::recipientRejection($status,$error)){
-                $at=NotificationSupport::now();
-                $result['provider_evidence_digest']=hash_hmac('sha256','telnyx:whatsapp:booking-rejected:'.$notificationId.':'.$eventKey.':'.$status.':'.$at,NotificationSupport::salt());
-                $result['provider_evidence_at']=$at;
-                $result['provider_outcome']='rejected';
-            }
             return $result;
         }
         $reference=is_array($body)?(string)($body['data']['id']??''):'';
@@ -195,23 +181,6 @@ final class TelnyxWhatsAppAdapter {
         if(in_array($status,array(408,425,429),true)||$status>=500)return null;
         return 'send_refused';
     }
-    /**
-     * A provider rejection may authorise a fallback only when it names the recipient/message, not when it
-     * describes the platform's credentials, endpoint, account, template or provider capacity.  This keeps
-     * a rotated key or a broken template from fanning one failure out to SMS for every recipient.
-     */
-    public static function recipientRejection(int $status,array $error):bool{
-        if(in_array($status,array(401,403,404,405,409,413,429),true))return false;
-        $code=(string)($error['provider_code']??'');
-        if(in_array($code,array('40310','40311','40312'),true))return true;
-        $text=strtolower(trim((string)($error['provider_title']??'').' '.(string)($error['provider_detail']??'')));
-        if($text==='')return false;
-        foreach(array('invalid to','invalid recipient','invalid number','invalid destination','unreachable','not a valid whatsapp','not on whatsapp') as $needle){
-            if(str_contains($text,$needle))return true;
-        }
-        return false;
-    }
-
     /** Approved provider template for one catalogue event, with the same fail-closed contract. */
     private function eventMapping(string $eventKey):?array{
         $approved=$this->templateAuthority->resolve($eventKey,NotificationCatalogue::PRIMARY_LOCALE);

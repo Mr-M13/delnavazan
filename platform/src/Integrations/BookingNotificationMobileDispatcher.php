@@ -3,6 +3,7 @@ namespace Delnavazan\Platform\Integrations;
 
 use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
 use Delnavazan\Platform\Core\Application\NotificationSupport;
+use Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy;
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationSuppressionRepository;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
 use Delnavazan\Platform\Integrations\Notifications\NotificationChannelPolicy;
@@ -10,6 +11,8 @@ use Delnavazan\Platform\Integrations\Notifications\NotificationCopyResolver;
 use Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer;
 use Delnavazan\Platform\Integrations\Notifications\StudentNotificationContactLookup;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxConfiguration;
+use Delnavazan\Platform\Integrations\SmsIrAdapter;
+use Delnavazan\Platform\Integrations\TelnyxSmsAdapter;
 
 /**
  * WhatsApp-first mobile delivery for the event-owned booking notification queue.
@@ -50,16 +53,26 @@ final class BookingNotificationMobileDispatcher {
             return self::skipped('suppressed');
         }
         $results = array();
-        if ($this->allowed($eventKey, 'whatsapp') && $this->configuration->whatsappReady() && (string) $contact['whatsapp'] !== '') {
+        $whatsappEligible = $this->allowed($eventKey, 'whatsapp')
+            && $this->configuration->whatsappReady()
+            && (string) $contact['whatsapp'] !== '';
+        $studentWhatsAppPreferred = $audience === 'student' && $whatsappEligible;
+        $whatsappAttempted = false;
+        if ($whatsappEligible) {
+            $whatsappAttempted = true;
             $parameters = $this->parameters($eventKey, $variables);
             if ($parameters === null) $results['whatsapp'] = array('acknowledged' => false, 'permanent_failure' => 'variable_contract_mismatch');
             else try {$results['whatsapp'] = $this->sendWhatsApp((string) $contact['whatsapp'], (int) $row->id, $eventKey, $parameters);}
             catch (\Throwable $error) {$this->report('whatsapp_exception', (int) $row->id, $error->getMessage());$results['whatsapp'] = array('acknowledged' => false, 'permanent_failure' => 'whatsapp_exception');}
         }
-        if ($this->allowed($eventKey, 'sms') && $this->configuration->smsReady() && (string) $contact['sms'] !== '') {
+        // Student SMS is a pre-send choice only when WhatsApp is absent or ineligible. A failed
+        // WhatsApp attempt is never a reason to send a second copy by SMS.
+        $smsProvider = SmsProviderRoutingPolicy::select((string) $contact['sms']);
+        $smsReady = $smsProvider === 'sms_ir' ? $this->providerReady('sms_ir') : $this->configuration->smsReady();
+        if (!$whatsappAttempted && !$studentWhatsAppPreferred && $this->allowed($eventKey, 'sms') && $smsProvider !== 'off' && $smsReady && (string) $contact['sms'] !== '') {
             $body = $this->smsBody($eventKey, $variables);
             if ($body === null) $results['sms'] = array('acknowledged' => false, 'permanent_failure' => 'sms_copy_unavailable');
-            else try {$results['sms'] = $this->sendSms((string) $contact['sms'], (int) $row->id, $body);}
+            else try {$results['sms'] = $this->sendSms((string) $contact['sms'], (int) $row->id, $body, $smsProvider);}
             catch (\Throwable $error) {$this->report('sms_exception', (int) $row->id, $error->getMessage());$results['sms'] = array('acknowledged' => false, 'permanent_failure' => 'sms_exception');}
         }
         if ($results === array()) return self::skipped('no_enabled_mobile_channel');
@@ -126,9 +139,16 @@ final class BookingNotificationMobileDispatcher {
         return (new TelnyxWhatsAppAdapter($this->settings))->sendBookingNotification($to, $notificationId, $eventKey, $parameters);
     }
 
-    private function sendSms(string $to, int $notificationId, string $body): array {
+    private function sendSms(string $to, int $notificationId, string $body, string $provider): array {
         if (is_callable($this->smsSender)) return (array) ($this->smsSender)($to, $notificationId, $body);
+        if ($provider === 'sms_ir') return (new SmsIrAdapter($this->settings))->sendBookingNotification($to, $notificationId, $body);
         return (new TelnyxSmsAdapter($this->settings))->sendBookingNotification($to, $notificationId, $body);
+    }
+
+    private function providerReady(string $provider): bool {
+        if($provider==='sms_ir'&&is_object($this->settings)&&method_exists($this->settings,'verified'))return (bool)$this->settings->verified($provider);
+        if (is_object($this->settings) && method_exists($this->settings, 'ready')) return (bool)$this->settings->ready($provider);
+        return (string)$this->settings->value($provider, 'api_key') !== '' && (string)$this->settings->value($provider, 'sender_id') !== '';
     }
 
     private function report(string $code, int $notificationId, string $detail): void {

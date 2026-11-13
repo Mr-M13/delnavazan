@@ -82,6 +82,7 @@ final class IntegrationControlPlaneReadService {
                     'email'=>isset($configuredChannels['email'])?'configured':'not_configured',
                     'whatsapp'=>isset($configuredChannels['whatsapp'])?'configured':'not_configured',
                     'sms'=>isset($configuredChannels['sms'])?'configured':'not_configured',
+                    'sms_ir'=>(new IntegrationSettingsService())->ready('sms_ir')?'configured':'not_configured',
                 ),
             ),
             'google_calendar'=>array(

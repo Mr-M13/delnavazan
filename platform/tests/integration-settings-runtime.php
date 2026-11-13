@@ -3,6 +3,7 @@
 $GLOBALS['dzn_test_options']=array();
 function get_option(string $key,mixed $default=false):mixed{return $GLOBALS['dzn_test_options'][$key]??$default;}
 function update_option(string $key,mixed $value,mixed $autoload=null):bool{$changed=($GLOBALS['dzn_test_options'][$key]??null)!==$value;$GLOBALS['dzn_test_options'][$key]=$value;return $changed;}
+function delete_option(string $key):bool{unset($GLOBALS['dzn_test_options'][$key]);return true;}
 function wp_salt(string $scheme='auth'):string{return 'isolated-runtime-contract-salt-material-'.$scheme;}
 function sanitize_text_field(string $value):string{return trim(strip_tags($value));}
 function sanitize_email(string $value):string{return filter_var($value,FILTER_VALIDATE_EMAIL)?$value:'';}
@@ -29,6 +30,20 @@ dzn_settings_assert(!str_contains(serialize(get_option($settingsClass::OPTION)),
 $settings->save('sms',array('messaging_profile_id'=>'telnyx-profile','api_key'=>'sms-runtime-key'));
 dzn_settings_assert($settings->ready('sms'),'Telnyx API key and messaging profile must be locally ready');
 dzn_settings_assert(!str_contains(serialize(get_option($settingsClass::OPTION)),'sms-runtime-key'),'Telnyx API key must not persist in plaintext');
+
+/* SMS.ir verification is tied to effective connection values, not to a save click. */
+$settings->save('sms_ir',array('api_key'=>'smsir-runtime-key','sender_id'=>'3000','endpoint'=>'https://sms.ir.example/bulk'));
+$GLOBALS['dzn_test_options']['dzn_integration_test_sms_ir']=array('state'=>'success','code'=>'sms_ir_accepted');
+$settings->save('sms_ir',array('api_key'=>'smsir-runtime-key','sender_id'=>'3000','endpoint'=>'https://sms.ir.example/bulk'));
+dzn_settings_assert((string)get_option('dzn_integration_test_sms_ir')['state']==='success','unchanged SMS.ir settings must preserve verification');
+$settings->save('sms_ir',array('endpoint'=>'https://sms.ir.example/changed'));
+dzn_settings_assert(get_option('dzn_integration_test_sms_ir',null)===null,'changed SMS.ir endpoint must invalidate verification');
+$GLOBALS['dzn_test_options']['dzn_integration_test_sms_ir']=array('state'=>'success');
+$settings->save('sms_ir',array('sender_id'=>'3001'));
+dzn_settings_assert(get_option('dzn_integration_test_sms_ir',null)===null,'changed SMS.ir sender must invalidate verification');
+$GLOBALS['dzn_test_options']['dzn_integration_test_sms_ir']=array('state'=>'success');
+$settings->save('sms_ir',array('api_key'=>'smsir-runtime-key-rotated'));
+dzn_settings_assert(get_option('dzn_integration_test_sms_ir',null)===null,'changed SMS.ir API key must invalidate verification');
 
 $callback=admin_url('admin-post.php?action=dzn_meet_oauth_callback');
 $legacyCallback=admin_url('admin-post.php?action=dzn_google_oauth_callback');

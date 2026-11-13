@@ -11,6 +11,7 @@ use Delnavazan\Platform\Core\Application\ConsentPurposeRegistry;
 use Delnavazan\Platform\Core\Application\ConsentWithdrawalService;
 use Delnavazan\Platform\Core\Application\LegalPageProvisioner;
 use Delnavazan\Platform\Core\Application\MlDatasetEligibilityService;
+use Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy;
 
 /**
  * Settings → Policy: one canonical policy and consent administration surface.
@@ -25,6 +26,7 @@ final class PoliciesController {
     public const VIEW_CAPABILITY=ConsentOperationsReadService::VIEW_CAPABILITY;
     public const ACTION_COMMERCIAL_POLICY='dzn_policies_commercial_update';
     public const ACTION_QUIET_HOURS='dzn_policies_quiet_hours';
+    public const ACTION_SMS_ROUTING='dzn_policies_sms_routing';
     public const ACTION_REMINDER='dzn_consent_reminder';
     public const ACTION_RETRY='dzn_consent_retry_job';
     public const ACTION_REEVALUATE='dzn_consent_reevaluate';
@@ -37,6 +39,7 @@ final class PoliciesController {
         // remain gated by the manage capability.
         add_action('admin_post_'.self::ACTION_COMMERCIAL_POLICY,array(__CLASS__,'saveCommercialPolicy'));
         add_action('admin_post_'.self::ACTION_QUIET_HOURS,array(__CLASS__,'saveQuietHours'));
+        add_action('admin_post_'.self::ACTION_SMS_ROUTING,array(__CLASS__,'saveSmsRouting'));
         foreach(array(self::ACTION_REMINDER,self::ACTION_RETRY,self::ACTION_REEVALUATE,self::ACTION_WORKER,self::ACTION_EXPORT)as$action)add_action('admin_post_'.$action,array(__CLASS__,'command'));
     }
 
@@ -117,6 +120,7 @@ final class PoliciesController {
         $service=new CommercialPolicyService();
         echo '<section class="dzn-settings-card" id="policy-cards"><h2>Policy register</h2>';
         echo '<p class="dzn-settings-note">A card marked <strong>Fixed</strong> is a structural rule; <strong>Review</strong> is an operational target not yet verified as configurable; <strong>Versioned</strong> is written through the existing versioned authority.</p>';
+        self::smsRoutingCard();
         $groups=array(
             'operational'=>array('label'=>'Operational','description'=>'Booking, allocation, availability and teacher response rules.','cards'=>array(
                 array('Teacher offer response window','How long a Teacher has to accept an offer before it is reassigned.','Fixed','24 hours','—','Teachers and coordination','locked','Unanswered offers expire and are reassigned to the next eligible Teacher; the Teacher portal shows the remaining time.'),
@@ -159,6 +163,33 @@ final class PoliciesController {
             echo '</div></div>';
         }
         echo '</section>';
+    }
+
+    private static function smsRoutingCard():void{
+        $routing=SmsProviderRoutingPolicy::settings();
+        echo '<article class="dzn-policy-card dzn-policy-card--operational" id="sms-routing"><header><h3>Booking SMS provider routing</h3><span class="dzn-status-badge is-warn">Provider policy</span></header>';
+        echo '<p>Choose the one provider used for each destination group. This policy never falls through to another provider after an unavailable or failed send. Provider credentials remain under Settings → Integrations.</p>';
+        if(current_user_can(self::CAPABILITY)){
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-settings-inline-form"><input type="hidden" name="action" value="'.esc_attr(self::ACTION_SMS_ROUTING).'">';
+            wp_nonce_field(self::ACTION_SMS_ROUTING);
+            foreach(array('iran'=>'Iranian mobile numbers (+98)','international'=>'Other numbers') as $region=>$label){
+                echo '<p><label>'.esc_html($label).' <select name="sms_routing['.esc_attr($region).']">';
+                foreach(array('sms_ir'=>'SMS.ir','telnyx'=>'Telnyx','off'=>'Off') as $value=>$name)echo '<option value="'.esc_attr($value).'"'.selected((string)$routing[$region],$value,false).'>'.esc_html($name).'</option>';
+                echo '</select></label></p>';
+            }
+            echo '<button class="button button-primary" type="submit">Save SMS routing</button></form>';
+        }else echo '<p class="dzn-settings-meta">Changing SMS routing requires the policy management capability.</p>';
+        echo '<p class="dzn-settings-meta">Current: Iran — '.esc_html((string)$routing['iran']).'; Other numbers — '.esc_html((string)$routing['international']).'. An unconfigured selected provider is unavailable; it is never replaced automatically.</p></article>';
+    }
+
+    public static function saveSmsRouting():never{
+        if('POST'!==strtoupper((string)($_SERVER['REQUEST_METHOD']??'')))wp_die('Method not allowed','Delnavazan',array('response'=>405));
+        if(!current_user_can(self::CAPABILITY))wp_die('Forbidden','Delnavazan',array('response'=>403));
+        check_admin_referer(self::ACTION_SMS_ROUTING);
+        $input=(array)($_POST['sms_routing']??array());
+        try{SmsProviderRoutingPolicy::save(array_map(static fn($value):string=>sanitize_key((string)wp_unslash($value)),$input));}
+        catch(\Throwable){wp_die('Invalid SMS routing selection',400);}
+        wp_safe_redirect(add_query_arg(array('page'=>self::MENU_SLUG,'dzn_sms_routing'=>'saved'),admin_url('admin.php')));exit;
     }
 
     private static function policyCardRender(array $card,string $kind):void{

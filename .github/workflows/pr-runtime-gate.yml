@@ -194,6 +194,7 @@ jobs:
           php platform/tests/onboarding-admin-authority-contract.php
           php platform/tests/notification-copy-registry-contract.php
           php platform/tests/notification-management-contract.php
+          php platform/tests/notification-management-navigation-unit.php
           php platform/tests/notification-management-unit.php
           php platform/tests/notification-admin-language-contract.php
           php platform/tests/communications-brand-contract.php
@@ -206,6 +207,8 @@ jobs:
           php platform/tests/booking-instrument-selection-unit.php
           php platform/tests/homepage-instrument-belt-contract.php
           php platform/tests/notification-transport-routing-contract.php
+          php platform/tests/sms-ir-adapter-unit.php
+          php platform/tests/sms-routing-policy-unit.php
           php platform/tests/notification-composite-transport-contract.php
           php platform/tests/notification-system-actor-contract.php
           php platform/tests/notification-dispatch-worker-contract.php

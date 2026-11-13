@@ -224,9 +224,9 @@ final class GodModeView {
             }
             echo '</tbody></table>';
         }
-        echo '<h3>Notification attempts</h3><table class="widefat striped"><thead><tr><th>Channel</th><th>Recipient</th><th>State</th><th>Provider</th><th>Outcome</th><th>Fallback</th><th>Attempted</th></tr></thead><tbody>';
-        if(empty($inspector['notification_tests']))echo '<tr><td colspan="7">No notification attempts.</td></tr>';
-        foreach((array)$inspector['notification_tests'] as $n)echo '<tr><td>'.esc_html((string)$n->channel).'</td><td>'.esc_html((string)$n->recipient_kind).'</td><td>'.esc_html((string)$n->state).'</td><td>'.esc_html((string)($n->provider_key??'')).'</td><td>'.esc_html((string)($n->outcome_code??'')).'</td><td>'.($n->fallback_used?'used'.($n->fallback_condition_verified?' · condition verified':''):'not used').'</td><td>'.esc_html((string)$n->attempted_at).'</td></tr>';
+        echo '<h3>Notification attempts</h3><table class="widefat striped"><thead><tr><th>Channel</th><th>Recipient</th><th>State</th><th>Provider</th><th>Outcome</th><th>Attempted</th></tr></thead><tbody>';
+        if(empty($inspector['notification_tests']))echo '<tr><td colspan="6">No notification attempts.</td></tr>';
+        foreach((array)$inspector['notification_tests'] as $n)echo '<tr><td>'.esc_html((string)$n->channel).'</td><td>'.esc_html((string)$n->recipient_kind).'</td><td>'.esc_html((string)$n->state).'</td><td>'.esc_html((string)($n->provider_key??'')).'</td><td>'.esc_html((string)($n->outcome_code??'')).'</td><td>'.esc_html((string)$n->attempted_at).'</td></tr>';
         echo '</tbody></table>';
     }
 

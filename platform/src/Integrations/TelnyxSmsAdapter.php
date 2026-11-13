@@ -76,8 +76,8 @@ final class TelnyxSmsAdapter {
     /**
      * Business SMS hand-off for an event-owned durable queue.
      *
-     * This is only called by the booking fallback authority after a verified terminal WhatsApp
-     * refusal.  The booking notification id is correlated with attempt_id 0, which the webhook
+     * This is called by the booking SMS authority after destination policy selects Telnyx.
+     * The booking notification id is correlated with attempt_id 0, which the webhook
      * treats as a tracked business/test delivery and never as a canonical aggregate transition.
      */
     public function sendBookingNotification(string $to,int $notificationId,string $text):array{

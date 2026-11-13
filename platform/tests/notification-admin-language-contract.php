@@ -21,7 +21,7 @@ $persian = static fn(string $text): bool => preg_match('/[\x{0600}-\x{06FF}]/u',
 
 /* 1. Navigation and page chrome are English. */
 $fail('menu label is English', str_contains($menu, "'Notifications', self::NOTIFICATION_MANAGEMENT_CAP"));
-$fail('settings tab is English', str_contains($shell, "'Notifications', 'dzn-notifications'"));
+$fail('primary notifications tab is English', str_contains($shell, "'notifications' => ['Notifications'") && !str_contains($shell, "'notifications' => ['Notifications', ['dzn-notifications'"));
 $fail('page heading is English', str_contains($controller, '<h1>Notifications</h1>'));
 $fail('the notification catalogue is the only workspace', str_contains($controller, "if(\$tab!=='events')\$tab='events';") && str_contains($controller, 'private static function renderEvents'));
 $fail('legacy tabs are aliases, not navigation entries', str_contains($controller, 'LEGACY_TABS') && str_contains($controller, "'templates'=>'events'"));
@@ -30,7 +30,7 @@ $fail('legacy tabs are aliases, not navigation entries', str_contains($controlle
 $fail('admin wrapper is LTR', str_contains($controller, 'dir="ltr"') && str_contains($controller, '.dzn-notif-admin{direction:ltr}'));
 $fail('no Persian remains in the admin controller', !$persian($controller));
 $fail('no Persian remains in the admin menu', !$persian($menu));
-foreach (array('Business task', 'Template readiness', 'Action needed', 'Delivery choices', 'Save Draft', 'Publish New Version', 'Discard Draft', 'Restore Default', 'Version History', 'Preview', 'Record Mapping') as $label) {
+foreach (array('Save Draft', 'Publish New Version', 'Discard Draft', 'Restore Default', 'Version History', 'Preview', 'Record Mapping', 'Category', 'Notification and purpose', 'Recipient', 'Portal', 'Email', 'WhatsApp', 'SMS') as $label) {
     $fail('English control or status: ' . $label, str_contains($controller, $label));
 }
 
@@ -98,7 +98,7 @@ $fail('template editing still uses the canonical capability', str_contains($cont
 
 /* 8. SMS is an independent event-specific delivery method. */
 $fail('catalogue displays all four delivery methods', str_contains($controller, "array('website','email','whatsapp','sms')"));
-$fail('catalogue describes independent methods', str_contains($controller, 'Each enabled delivery method is independent for this notification.'));
+$fail('catalogue describes effective methods', str_contains($controller, 'Effective eligibility') && str_contains($controller, 'Missing template'));
 $fail('SMS fallback presentation is removed', !str_contains($controller, 'SMS fallback') && !str_contains($controller, 'WhatsApp → SMS'));
 $fail('customer content remains Persian after the label change', $persian(NotificationCatalogue::defaultCopy('booking.confirmed.student', 'sms', 'fa-IR')['body']));
 

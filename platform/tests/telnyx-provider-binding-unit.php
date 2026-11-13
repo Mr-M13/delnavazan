@@ -31,14 +31,14 @@ class DznSettingsFixture {
 }
 $settings=new DznSettingsFixture(array(
     'sms'=>array('api_key'=>'test-key','messaging_profile_id'=>'profile-1','sender_id'=>'+15550000001','webhook_public_key'=>'public-key'),
-    'whatsapp'=>array('sender_id'=>'+15550000001','waba_id'=>'1421107699354690','webhook_public_key'=>'public-key'),
+    'whatsapp'=>array('sender_id'=>'+15550000001','waba_id'=>'1421107699354690','messaging_profile_id'=>'whatsapp-profile-1','webhook_public_key'=>'public-key'),
 ));
 $configuration=new TelnyxConfiguration($settings);
 if(!$configuration->smsReady()||!$configuration->whatsappReady()||!$configuration->webhookReady())throw new RuntimeException('complete Telnyx configuration must be ready');
 $bindings=NotificationProviderBindings::bindings($settings);
 if(count($bindings)!==2||$bindings[0]['channel']!=='sms'||$bindings[1]['channel']!=='whatsapp')throw new RuntimeException('Telnyx bindings must expose SMS and WhatsApp');
 if(!$bindings[0]['port'] instanceof SmsTransport||!$bindings[1]['port'] instanceof WhatsAppTransport)throw new RuntimeException('Telnyx bindings must use the channel-neutral transports');
-$missing=new DznSettingsFixture(array('sms'=>array('api_key'=>'test-key','messaging_profile_id'=>'profile-1','sender_id'=>'+15550000001'),'whatsapp'=>array('sender_id'=>'+15550000001','waba_id'=>'1421107699354690')));
+$missing=new DznSettingsFixture(array('sms'=>array('api_key'=>'test-key','messaging_profile_id'=>'profile-1','sender_id'=>'+15550000001'),'whatsapp'=>array('sender_id'=>'+15550000001','waba_id'=>'1421107699354690','messaging_profile_id'=>'whatsapp-profile-1')));
 if(count(NotificationProviderBindings::bindings($missing))!==0)throw new RuntimeException('a transport without verified webhook configuration must stay unconfigured');
 $GLOBALS['dzn_email_enabled']=true;
 $emailBindings=NotificationProviderBindings::bindings($missing);
@@ -57,9 +57,7 @@ if(array_column($params,'text')!==array('باران','تار','ندا','شنبه
 if(TelnyxSmsAdapter::permanentFailure(429)!==null||TelnyxSmsAdapter::permanentFailure(500)!==null)throw new RuntimeException('SMS transient status must remain retryable');
 if(TelnyxSmsAdapter::permanentFailure(400)!=='contact_unusable')throw new RuntimeException('SMS invalid destination must be permanent');
 if(TelnyxWhatsAppAdapter::permanentFailure(400)!=='send_refused')throw new RuntimeException('WhatsApp template refusal must be permanent');
-if(TelnyxWhatsAppAdapter::recipientRejection(401,array())||TelnyxWhatsAppAdapter::recipientRejection(403,array())||TelnyxWhatsAppAdapter::recipientRejection(404,array()))throw new RuntimeException('Provider auth/config failures must never authorise SMS');
-if(!TelnyxWhatsAppAdapter::recipientRejection(400,array('provider_code'=>'40310','provider_title'=>'Invalid to','provider_detail'=>'The destination is invalid')))throw new RuntimeException('Recipient-specific provider rejection must be fallback-eligible');
-if(TelnyxWhatsAppAdapter::recipientRejection(400,array('provider_code'=>'40300','provider_title'=>'Template not found','provider_detail'=>'The template does not exist')))throw new RuntimeException('Template/provider configuration rejection must not authorise SMS');
+if(str_contains((string)file_get_contents($root.'/src/Integrations/TelnyxWhatsAppAdapter.php'),'recipientRejection'))throw new RuntimeException('WhatsApp adapter must not contain SMS fallback authorization');
 $ambiguous=(new SmsTransport(static fn(array $c):array=>array('acknowledged'=>false,'permanent_failure'=>null,'ambiguous'=>true)))->handoff(array());
 if(empty($ambiguous['ambiguous']))throw new RuntimeException('SMS wrapper must preserve ambiguous transport evidence');
 $rejection=(new WhatsAppTransport(static fn(array $c):array=>array('acknowledged'=>false,'permanent_failure'=>'send_refused','provider_attempted'=>true,'provider_evidence_digest'=>str_repeat('a',64),'provider_evidence_at'=>'2026-10-31 00:00:00','provider_outcome'=>'rejected')))->handoff(array());

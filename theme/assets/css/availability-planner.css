@@ -64,9 +64,12 @@
 .dzn-ap__week {
 	display: flex;
 	gap: .45rem;
+	max-width: 100%;
+	box-sizing: border-box;
 	overflow-x: auto;
 	padding: .25rem 0 .45rem;
 	scrollbar-width: thin;
+	-webkit-overflow-scrolling: touch;
 }
 
 .dzn-ap__instrument-tab,
@@ -112,9 +115,10 @@
 
 .dzn-ap__workspace {
 	display: grid;
-	grid-template-columns: minmax(0, 1.15fr) minmax(18rem, .85fr);
+	grid-template-columns: minmax(0, 1.05fr) minmax(20rem, .95fr);
 	gap: 1.25rem;
 	align-items: start;
+	min-width: 0;
 	margin-top: .75rem;
 }
 
@@ -122,6 +126,8 @@
 	display: grid;
 	gap: .65rem;
 	justify-items: center;
+	min-width: 0;
+	overflow: hidden;
 	padding: 1rem;
 	border: 1px solid var(--dzn-ap-line);
 	border-radius: 1.25rem;
@@ -129,7 +135,8 @@
 }
 
 .dzn-ap__dial {
-	width: min(100%, 34rem);
+	width: 100%;
+	max-width: 30rem;
 	aspect-ratio: 1;
 	touch-action: none;
 	user-select: none;
@@ -146,7 +153,7 @@
 	display: block;
 	width: 100%;
 	height: 100%;
-	overflow: visible;
+	overflow: hidden;
 }
 
 .dzn-ap__face {
@@ -275,6 +282,7 @@
 
 .dzn-ap__day-panel {
 	display: grid;
+	min-width: 0;
 	gap: .75rem;
 	padding: 1rem;
 	border: 1px solid var(--dzn-ap-line);
@@ -386,7 +394,7 @@
 	margin-top: .75rem;
 }
 
-@media (max-width: 64rem) {
+@media (max-width: 76rem) {
 	.dzn-ap__workspace {
 		grid-template-columns: 1fr;
 	}

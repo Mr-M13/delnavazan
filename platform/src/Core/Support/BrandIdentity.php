@@ -23,6 +23,16 @@ final class BrandIdentity {
     public const SUPPORT_EMAIL = 'admin@delnavazan.com';
     public const SUPPORT_MAILTO = 'mailto:admin@delnavazan.com';
 
+    /**
+     * Iran-based artistic director contact, shown only on Teacher-facing surfaces and in
+     * Teacher email footers. It is deliberately separate from the public support identity.
+     */
+    public const TEACHER_CONTACT_LABEL = 'مدیر هنری دلنوازان (ایران)';
+    public const TEACHER_CONTACT_LABEL_EN = 'Delnavazan artistic director (Iran)';
+    public const TEACHER_CONTACT_DISPLAY = '09101401910';
+    public const TEACHER_CONTACT_E164 = '+989101401910';
+    public const TEACHER_CONTACT_HREF = 'tel:+989101401910';
+
     public const SITE_URL = 'https://delnavazan.com';
     public const INSTAGRAM_URL = 'https://www.instagram.com/insta.delnavazan/';
 
@@ -54,6 +64,21 @@ final class BrandIdentity {
             'email' => array('label' => 'ایمیل', 'label_en' => 'Email', 'display' => self::SUPPORT_EMAIL, 'href' => self::SUPPORT_MAILTO),
             'site' => array('label' => 'وب‌سایت', 'label_en' => 'Website', 'display' => 'delnavazan.com', 'href' => self::SITE_URL),
         );
+    }
+
+    /** The Iran artistic-director contact for Teacher-facing pages and emails. */
+    public static function teacherContactLink(bool $english = false): array {
+        return array(
+            'label' => $english ? self::TEACHER_CONTACT_LABEL_EN : self::TEACHER_CONTACT_LABEL,
+            'display' => self::TEACHER_CONTACT_DISPLAY,
+            'href' => self::TEACHER_CONTACT_HREF,
+        );
+    }
+
+    /** Plain-text Teacher contact line for templates and email alternatives without HTML. */
+    public static function teacherContactLine(bool $english = false): string {
+        $link = self::teacherContactLink($english);
+        return $link['label'] . ': ' . $link['display'];
     }
 
     /** Plain-text contact line for templates and notifications without HTML. */

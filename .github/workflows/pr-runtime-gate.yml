@@ -126,6 +126,7 @@ jobs:
           php platform/tests/instrument-coverage-clock-view-unit.php
           php platform/tests/instrument-coverage-clock-contract.php
           php platform/tests/golden-hour-teacher-visual-unit.php
+          php platform/tests/golden-hour-teacher-window-rules-unit.php
           php platform/tests/teacher-availability-summary-unit.php
           php platform/tests/teacher-availability-planner-unit.php
           php platform/tests/teacher-availability-planner-contract.php

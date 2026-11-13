@@ -74,9 +74,10 @@ final class BookingStudentNotificationWorker {
             if(!(new NotificationTemplateLibrary())->eventChannelEnabled($eventKey,'email')){
                 $emailSuppressed=true;
             }else{
+                $audience=str_ends_with((string)$eventKey,'.teacher')?'teacher':'student';
                 try{
                     $accepted=class_exists(DelnavazanEmailRenderer::class)
-                        ?DelnavazanEmailRenderer::send(self::recipientEmail($row),$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>(string)($copy['cta_url']??''),'label'=>self::portalLabel($row))),self::headers($row))
+                        ?DelnavazanEmailRenderer::send(self::recipientEmail($row),$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'audience'=>$audience,'cta'=>array('url'=>(string)($copy['cta_url']??''),'label'=>self::portalLabel($row))),self::headers($row))
                         :wp_mail(self::recipientEmail($row),$copy['subject'],$copy['body'],self::headers($row));
                 }catch(\Throwable){$accepted=false;}
             }

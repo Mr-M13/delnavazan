@@ -48,7 +48,7 @@ final class BookingAllocationNotificationWorker {
             if(!preg_match('/^[a-z0-9.-]+$/D',$host))$host='delnavazan.invalid';
             $headers=array('Message-ID: <booking-offer-'.(int)$row->offer_id.'@'.$host.'>','X-Delnavazan-Offer-ID: '.(int)$row->offer_id);
             if(!(new NotificationTemplateLibrary())->eventChannelEnabled('booking.new.teacher','email')){$suppressed=true;}
-            else{try{$accepted=DelnavazanEmailRenderer::send((string)$user->user_email,$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>$portal,'label'=>'پرتال مدرس')),$headers);}
+            else{try{$accepted=DelnavazanEmailRenderer::send((string)$user->user_email,$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'audience'=>'teacher','cta'=>array('url'=>$portal,'label'=>'پرتال مدرس')),$headers);}
             catch(\Throwable){$accepted=false;}}
         }
         $repo->begin();

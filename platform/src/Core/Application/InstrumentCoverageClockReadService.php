@@ -45,13 +45,11 @@ final class InstrumentCoverageClockReadService {
     public function admin(array $input = array()): array {
         $academyTimezone = self::safeTimezone((string) (BookingAvailabilityPolicy::current()['academy_timezone'] ?? 'Asia/Tehran'));
         $timezone = self::requestTimezone($input['timezone'] ?? null, $academyTimezone);
-        $mode = self::mode($input['mode'] ?? null, InstrumentCoverageClockAnalyzer::MODE_DATE);
+        $mode = 'week';
         $today = (new \DateTimeImmutable('now', new \DateTimeZone($timezone)))->format('Y-m-d');
         $date = self::date($input['date'] ?? null, $today);
-        $weekday = $mode === InstrumentCoverageClockAnalyzer::MODE_DATE
-            ? self::weekdayOf($date)
-            : self::weekday($input['weekday'] ?? null, self::weekdayOf($date));
-        $weekStart = self::weekStart($date, $weekday);
+        $weekday = self::weekdayOf($date);
+        $weekStart = InstrumentCoverageWeek::start($date);
         return $this->projection(array(
             'scope' => 'admin',
             'mode' => $mode,
@@ -88,13 +86,11 @@ final class InstrumentCoverageClockReadService {
         }
         catch (\Throwable) { return self::unavailable('Teacher coverage could not read the availability profile.'); }
         $timezone = self::safeTimezone((string) ($profile->timezone ?? (BookingAvailabilityPolicy::current()['academy_timezone'] ?? 'Asia/Tehran')));
-        $mode = self::mode($input['mode'] ?? null, InstrumentCoverageClockAnalyzer::MODE_WEEKLY);
+        $mode = 'week';
         $today = (new \DateTimeImmutable('now', new \DateTimeZone($timezone)))->format('Y-m-d');
         $date = self::date($input['date'] ?? null, $today);
-        $weekday = $mode === InstrumentCoverageClockAnalyzer::MODE_DATE
-            ? self::weekdayOf($date)
-            : self::weekday($input['weekday'] ?? null, self::weekdayOf($date));
-        $weekStart = self::weekStart($date, $weekday);
+        $weekday = self::weekdayOf($date);
+        $weekStart = InstrumentCoverageWeek::start($date);
         $academyTimezone = self::safeTimezone((string) (BookingAvailabilityPolicy::current()['academy_timezone'] ?? 'Asia/Tehran'));
         try {
             $authorized = $this->authorizedInstrumentIds($teacherId);
@@ -166,6 +162,9 @@ final class InstrumentCoverageClockReadService {
                 'course_id' => (int) ($instrument['course_id'] ?? 0),
                 'eligible_teacher_count' => count($eligible[$id] ?? array()),
                 'unknown_teacher_count' => 0,
+                'clocks' => array(),
+                'golden_ring' => array(),
+                'metrics' => self::weekMetrics(array()),
             );
             if (($instrument['course_id'] ?? 0) < 1) {
                 $row['status'] = $this->optionReadFailed ? 'unavailable' : 'not_bookable';
@@ -193,16 +192,9 @@ final class InstrumentCoverageClockReadService {
             if (!$eligibleIds) $row['status'] = 'no_eligible_teachers';
             elseif ($unknown > 0) $row['status'] = 'partial';
 
-            $dates = array();
-            if ($mode === InstrumentCoverageClockAnalyzer::MODE_WEEKLY) {
-                for ($day = 1; $day <= 7; $day++) $dates[$day] = (new \DateTimeImmutable($weekStart, new \DateTimeZone('UTC')))->modify('+' . ($day - 1) . ' days')->format('Y-m-d');
-            } else {
-                $dates[$weekday] = $date;
-            }
             $clocks = array();
-            foreach ($dates as $day => $dayDate) {
-                $clocks[$day] = $this->day(
-                    $mode,
+            foreach (InstrumentCoverageWeek::dates($weekStart) as $day => $dayDate) {
+                $clock = $this->day(
                     $dayDate,
                     $day,
                     $timezone,
@@ -212,14 +204,13 @@ final class InstrumentCoverageClockReadService {
                     $unknown,
                     $now
                 );
+                $clock['is_today'] = $dayDate === (new \DateTimeImmutable('now', new \DateTimeZone($timezone)))->format('Y-m-d');
+                $clocks[$day] = $clock;
             }
             $row['clocks'] = $clocks;
-            if ($mode === InstrumentCoverageClockAnalyzer::MODE_WEEKLY) {
-                $row['clock'] = $clocks[$weekday] ?? reset($clocks);
-            } else {
-                $row['clock'] = $clocks[$weekday] ?? reset($clocks);
-            }
-            $row['metrics'] = $row['clock']['summary'] ?? array();
+            $row['clock'] = $clocks[$weekday] ?? reset($clocks);
+            $row['metrics'] = self::weekMetrics($clocks);
+            $row['golden_ring'] = $this->goldenRing($clocks, $weekStart, $timezone);
             if ($selected < 1 && isset($row['clock'])) $selected = $id;
             $instruments[] = $row;
         }
@@ -237,6 +228,9 @@ final class InstrumentCoverageClockReadService {
             'date' => $date,
             'weekday' => $weekday,
             'week_start' => $weekStart,
+            'week_end' => InstrumentCoverageWeek::end($weekStart),
+            'week_order' => InstrumentCoverageWeek::ORDER,
+            'golden_bonus' => $this->goldenBonus(),
             'display_timezone' => $timezone,
             'timezone_label' => str_replace('_', ' ', $timezone),
             'calendar' => (string) $context['calendar'],
@@ -247,38 +241,145 @@ final class InstrumentCoverageClockReadService {
     }
 
     /** @param list<array<string,mixed>> $teachers */
-    private function day(string $mode, string $date, int $weekday, string $timezone, int $lesson, int $buffer, array $teachers, int $unknown, string $now): array {
-        $key = $date . '|' . $timezone . '|' . $mode;
-        $golden = $this->goldenOccurrences($key, $date, $mode);
-        return InstrumentCoverageClockAnalyzer::build(array(
-            'mode' => $mode,
+    private function day(string $date, int $weekday, string $timezone, int $lesson, int $buffer, array $teachers, int $unknown, string $now): array {
+        $occurrences = $this->regionalGoldenOccurrences($date);
+        $clock = InstrumentCoverageClockAnalyzer::build(array(
+            'mode' => InstrumentCoverageClockAnalyzer::MODE_DATE,
             'date' => $date,
             'weekday' => $weekday,
             'display_timezone' => $timezone,
             'lesson_minutes' => $lesson,
             'buffer_minutes' => $buffer,
-            'golden' => $golden,
+            'golden' => $occurrences,
             'teachers' => $teachers,
             'unknown_teacher_count' => $unknown,
             'now_utc' => $now,
         ));
+        $clock['visual_segments'] = InstrumentCoverageClockAnalyzer::visualize($clock);
+        $pay = $this->payOccurrences($date);
+        foreach ($clock['visual_segments'] as &$visual) {
+            $visual['bonus_applies'] = false;
+            foreach ($pay as $occurrence) {
+                if ($occurrence['starts_at_utc'] < $visual['ends_at_utc'] && $occurrence['ends_at_utc'] > $visual['starts_at_utc']) { $visual['bonus_applies'] = true; break; }
+            }
+        }
+        unset($visual);
+        $clock['golden_details'] = $this->goldenDetails($clock['visual_segments'], $occurrences, $date, $weekday);
+        return $clock;
     }
 
-    /** @return list<array{starts_at_utc:string,ends_at_utc:string,start:string,end:string,date:string,timezone:string}> */
-    private function goldenOccurrences(string $key, string $date, string $mode): array {
-        $cacheKey = $key . '|' . $mode;
+    /**
+     * Regional structural demand windows, not the global Iran pay policy. This is
+     * the shared finance-owned coverage window authority, converted per occurrence.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function regionalGoldenOccurrences(string $date): array {
+        $cacheKey = 'regions|' . $date;
         if (isset($this->goldenCache[$cacheKey])) return $this->goldenCache[$cacheKey];
-        $policy = $this->goldenPolicy($date);
-        // Adjacent policy dates are always included: a Golden Hour window can cross
-        // midnight or a display-timezone boundary. The analyzer marks by overlap.
-        $occurrences = GoldenHourClockProjection::aroundDate($policy, $date);
-        $this->goldenCache[$cacheKey] = $occurrences;
-        return $occurrences;
+        $out = array();
+        try {
+            $windows = (new GoldenHourPolicyService())->coverageWindows();
+        } catch (\Throwable) {
+            $windows = GoldenHourRule::defaults();
+        }
+        foreach ($windows as $region => $window) {
+            if (!is_array($window)) continue;
+            $policy = array(
+                'timezone' => (string) ($window['timezone'] ?? 'UTC'),
+                'weekdays' => (array) ($window['weekdays'] ?? array(1,2,3,4,5,6,7)),
+                'start' => (string) ($window['start'] ?? '16:00'),
+                'end' => (string) ($window['end'] ?? '21:00'),
+                'periods' => (array) ($window['periods'] ?? array(array('start' => (string) ($window['start'] ?? '16:00'), 'end' => (string) ($window['end'] ?? '21:00')))),
+            );
+            foreach (GoldenHourClockProjection::aroundDate($policy, $date) as $occurrence) {
+                $out[] = $occurrence + array(
+                    'region' => (string) $region,
+                    'label' => (string) ($window['label'] ?? $region),
+                );
+            }
+        }
+        usort($out, static fn(array $a, array $b): int => $a['starts_at_utc'] <=> $b['starts_at_utc'] ?: strcmp((string) $a['region'], (string) $b['region']));
+        $this->goldenCache[$cacheKey] = $out;
+        return $out;
     }
 
-    /** @return array<string,mixed> */
-    private function goldenPolicy(string $date): array {
-        $cacheKey = 'policy|' . $date;
+    /**
+     * @param list<array<string,mixed>> $visualSegments
+     * @param list<array<string,mixed>> $occurrences
+     * @return array<int,list<array<string,mixed>>>
+     */
+    private function goldenDetails(array $visualSegments, array $occurrences, string $date, int $weekday): array {
+        $details = array();
+        foreach ($visualSegments as $segment) {
+            $start = (string) ($segment['starts_at_utc'] ?? '');
+            $end = (string) ($segment['ends_at_utc'] ?? '');
+            if ($start === '' || $end === '') continue;
+            foreach ($occurrences as $occurrence) {
+                if ($occurrence['starts_at_utc'] < $end && $occurrence['ends_at_utc'] > $start) {
+                    $details[(int) $segment['index']][] = array(
+                        'region' => (string) $occurrence['region'],
+                        'label' => (string) $occurrence['label'],
+                        'timezone' => (string) $occurrence['timezone'],
+                        'local_start' => (string) $occurrence['start'],
+                        'local_end' => (string) $occurrence['end'],
+                        'date' => $date,
+                        'weekday' => $weekday,
+                    );
+                }
+            }
+        }
+        return $details;
+    }
+
+    /**
+     * One aggregated outer ring across the seven displayed dates. A segment is
+     * golden when any regional demand window on any weekday overlaps it.
+     *
+     * @param array<int,array<string,mixed>> $clocks
+     * @return list<array<string,mixed>>
+     */
+    private function goldenRing(array $clocks, string $weekStart, string $timezone): array {
+        $ring = array();
+        for ($index = 0; $index < InstrumentCoverageClockAnalyzer::VISUAL_SEGMENTS_PER_DAY; $index++) $ring[$index] = array('golden' => false, 'intensity' => 0, 'regions' => array());
+        $seen = array();
+        foreach ($clocks as $weekday => $clock) {
+            foreach ((array) ($clock['golden_details'] ?? array()) as $index => $entries) {
+                foreach ($entries as $entry) {
+                    $key = $index . '|' . $entry['region'] . '|' . $weekday;
+                    if (isset($seen[$key])) continue;
+                    $seen[$key] = true;
+                    $ring[$index]['golden'] = true;
+                    $ring[$index]['regions'][] = $entry + array('weekday' => (int) $weekday);
+                }
+            }
+        }
+        $max = 1;
+        foreach ($ring as $segment) $max = max($max, count($segment['regions']));
+        foreach ($ring as &$segment) {
+            $segment['intensity'] = $segment['golden'] ? min(1, count($segment['regions']) / max(1, $max)) : 0;
+            usort($segment['regions'], static fn(array $a, array $b): int => ($a['weekday'] <=> $b['weekday']) ?: strcmp((string) $a['region'], (string) $b['region']));
+        }
+        unset($segment);
+        return array_values($ring);
+    }
+
+    /** @param array<int,array<string,mixed>> $clocks @return array<string,mixed> */
+    private static function weekMetrics(array $clocks): array {
+        $keys = array('measured_segments','covered_segments','limited_segments','uncovered_segments','unknown_segments','golden_segments','golden_covered_segments','golden_uncovered_segments','single_teacher_minutes','uncovered_minutes','golden_uncovered_minutes','active_teacher_count');
+        $sum = array_fill_keys($keys, 0);
+        foreach ($clocks as $clock) {
+            $summary = (array) ($clock['summary'] ?? array());
+            foreach ($keys as $key) $sum[$key] += (int) ($summary[$key] ?? 0);
+        }
+        $sum['coverage_percent'] = $sum['measured_segments'] > 0 ? (int) round(100 * $sum['covered_segments'] / $sum['measured_segments']) : null;
+        $sum['golden_coverage_percent'] = $sum['golden_segments'] > 0 ? (int) round(100 * $sum['golden_covered_segments'] / $sum['golden_segments']) : null;
+        return $sum;
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function payOccurrences(string $date): array {
+        $cacheKey = 'pay|' . $date;
         if (isset($this->goldenCache[$cacheKey])) return $this->goldenCache[$cacheKey];
         try {
             $policy = (new GoldenHourPolicyService())->resolveAt(GoldenHourRule::GLOBAL_IRAN_KEY, $date . ' 12:00:00');
@@ -286,8 +387,30 @@ final class InstrumentCoverageClockReadService {
             $definitions = (new GoldenHourPolicyService())->definitions();
             $policy = $definitions[GoldenHourRule::GLOBAL_IRAN_KEY] ?? GoldenHourRule::globalDefinition();
         }
-        $this->goldenCache[$cacheKey] = $policy;
-        return $policy;
+        $occurrences = !empty($policy['enabled']) && (int) ($policy['bonus_basis_points'] ?? 0) > 0
+            ? GoldenHourClockProjection::aroundDate($policy, $date)
+            : array();
+        $this->goldenCache[$cacheKey] = $occurrences;
+        return $occurrences;
+    }
+
+    /** @return array{enabled:bool,percent:float,timezone:string,label:string} */
+    private function goldenBonus(): array {
+        if (isset($this->goldenCache['bonus'])) return $this->goldenCache['bonus'];
+        try {
+            $policy = (new GoldenHourPolicyService())->latest(GoldenHourRule::GLOBAL_IRAN_KEY);
+        } catch (\Throwable) {
+            $definitions = (new GoldenHourPolicyService())->definitions();
+            $policy = $definitions[GoldenHourRule::GLOBAL_IRAN_KEY] ?? GoldenHourRule::globalDefinition();
+        }
+        $bonus = array(
+            'enabled' => !empty($policy['enabled']) && (int) ($policy['bonus_basis_points'] ?? 0) > 0,
+            'percent' => round(((int) ($policy['bonus_basis_points'] ?? 0)) / 100, 2),
+            'timezone' => (string) ($policy['timezone'] ?? GoldenHourRule::GLOBAL_IRAN_TIMEZONE),
+            'label' => (string) ($policy['label'] ?? 'Golden Hours'),
+        );
+        $this->goldenCache['bonus'] = $bonus;
+        return $bonus;
     }
 
     /** @return list<array{id:int,slug:string,name:string,course_id:int,lesson_minutes:int,buffer_minutes:int}> */
@@ -379,7 +502,7 @@ final class InstrumentCoverageClockReadService {
         if (!$teacherIds) return array();
         $zone = new \DateTimeZone($timezone);
         $utc = new \DateTimeZone('UTC');
-        if ($mode === InstrumentCoverageClockAnalyzer::MODE_WEEKLY) {
+        if ($mode === InstrumentCoverageClockAnalyzer::MODE_WEEKLY || $mode === 'week') {
             $from = (new \DateTimeImmutable($weekStart . ' 00:00:00', $zone))->modify('-1 day')->setTimezone($utc)->format('Y-m-d H:i:s');
             $until = (new \DateTimeImmutable($weekStart . ' 00:00:00', $zone))->modify('+8 days')->setTimezone($utc)->format('Y-m-d H:i:s');
         } else {
@@ -399,7 +522,7 @@ final class InstrumentCoverageClockReadService {
                     if (!isset($segment['state'], $segment['starts_at_utc'], $segment['ends_at_utc'])) continue;
                     $fact['available'][] = array('state' => (string) $segment['state'], 'starts_at_utc' => (string) $segment['starts_at_utc'], 'ends_at_utc' => (string) $segment['ends_at_utc']);
                 }
-                if ($mode === InstrumentCoverageClockAnalyzer::MODE_DATE) {
+                if ($mode === InstrumentCoverageClockAnalyzer::MODE_DATE || $mode === 'week') {
                     foreach ($this->occupancy->range($teacherId, $from, $until) as $interval) {
                         $fact['occupied'][] = array('starts_at_utc' => (string) $interval['starts_at_utc'], 'occupied_ends_at_utc' => (string) $interval['occupied_ends_at_utc']);
                     }
@@ -412,11 +535,6 @@ final class InstrumentCoverageClockReadService {
         }
         $this->factsCache[$cacheKey] = $out;
         return $out;
-    }
-
-    private static function weekStart(string $date, int $weekday): string {
-        $day = new \DateTimeImmutable($date . ' 00:00:00', new \DateTimeZone('UTC'));
-        return $day->modify('-' . ($weekday - 1) . ' days')->format('Y-m-d');
     }
 
     private static function weekdayOf(string $date): int {
@@ -462,7 +580,7 @@ final class InstrumentCoverageClockReadService {
 
     /** @return array<string,mixed> */
     private static function unavailable(string $message): array {
-        return array('status' => 'unavailable', 'scope' => '', 'mode' => '', 'date' => '', 'weekday' => 0, 'week_start' => '', 'display_timezone' => '', 'timezone_label' => '', 'calendar' => 'gregorian', 'selected_instrument' => 0, 'instruments' => array(), 'message' => $message);
+        return array('status' => 'unavailable', 'scope' => '', 'mode' => '', 'date' => '', 'weekday' => 0, 'week_start' => '', 'week_end' => '', 'week_order' => InstrumentCoverageWeek::ORDER, 'golden_bonus' => array('enabled' => false, 'percent' => 0, 'timezone' => 'Asia/Tehran', 'label' => 'Golden Hours'), 'display_timezone' => '', 'timezone_label' => '', 'calendar' => 'gregorian', 'selected_instrument' => 0, 'instruments' => array(), 'message' => $message);
     }
 
     /** @return array<string,mixed> */

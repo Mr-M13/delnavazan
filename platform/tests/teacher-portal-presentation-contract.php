@@ -293,7 +293,7 @@ namespace {
     $check('toggle swaps its label and keeps aria-expanded in sync', str_contains($js, 'dznTpLabelOpen') && str_contains($js, "setAttribute('aria-expanded'"));
     $accountSource = (string) file_get_contents($theme . '/template-parts/teacher-portal/account.php');
     $check('settings reuses booking instrument thumbnails with selected colour state', str_contains($accountSource, 'dzn-tp-instrument-grid') && str_contains($accountSource, 'is-selected') && str_contains($accountSource, 'dzn_theme_instrument_image($instrument_name)') && str_contains($accountSource, 'width="80" height="80"'));
-    $check('settings explains positive-only availability, timezone and holidays', str_contains($accountSource, 'فقط زمان‌هایی را انتخاب کنید که برای تدریس در دسترس هستید') && str_contains($accountSource, 'سایر زمان‌ها به‌صورت خودکار غیرقابل رزرو خواهند بود') && str_contains($accountSource, 'منطقهٔ زمانی شما') && str_contains($accountSource, 'مثلاً تولد، سفر یا مناسبت خانوادگی'));
+    $check('settings explains positive-only availability, timezone and holidays', str_contains($accountSource, 'زمان‌های در دسترس خود را انتخاب کنید') && str_contains($accountSource, 'سایر زمان‌ها به‌صورت خودکار غیرقابل رزرو خواهند بود') && str_contains($accountSource, 'منطقهٔ زمانی شما') && str_contains($accountSource, 'مثلاً تولد، سفر یا مناسبت خانوادگی'));
     $check('the accepting-students section is removed', ! str_contains($accountSource, 'tp-accepting') && ! str_contains($accountSource, 'پذیرش هنرجو'));
     $check('empty attention is not rendered', str_contains($parts['attention'], 'if ( ! $items ) { return; }'));
     $css = (string) file_get_contents($theme . '/assets/css/teacher-portal.css');

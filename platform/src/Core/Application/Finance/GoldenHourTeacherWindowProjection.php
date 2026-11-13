@@ -124,6 +124,7 @@ final class GoldenHourTeacherWindowProjection {
             $end=trim((string)($period['end']??''));
             if(self::time($start)&&self::time($end)&&$start!==$end)$periods[]=array('start'=>$start,'end'=>$end);
         }
+        if($periods===array()&&!empty($policy['rules_configured']))return array();
         if($periods===array()){
             $start=trim((string)($policy['start']??''));
             $end=trim((string)($policy['end']??''));

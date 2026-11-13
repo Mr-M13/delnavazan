@@ -80,4 +80,37 @@ $selected = (new InstrumentCoverageClockReadService())->admin(array('date' => $m
 $selectedB = $find($selected, $instrumentB); $selectedBAtThirteen = $selectedB ? $segment($selectedB, 13 * 60) : null;
 $assert($selectedBAtThirteen !== null && (int) $selectedBAtThirteen['teacher_count'] === 1, 'Selecting one instrument must not reuse its facts for another instrument card.');
 
+// The interactive planner saves a whole instrument week atomically and must
+// preserve legacy inheritance rules for instruments that are not configured.
+wp_set_current_user($admin);
+$availability->setRecurringRule(array('teacher_id' => $teacher, 'weekday' => 1, 'local_start_time' => '06:00:00', 'local_end_time' => '07:00:00', 'state' => 'preferred', 'timezone' => 'UTC', 'status' => 'active', 'reason_code' => 'runtime_legacy'));
+$assert($availability->coverage($teacher, $monday . ' 06:15:00', $monday . ' 06:45:00', $instrumentB) === 'preferred', 'An unconfigured instrument must inherit the legacy unscoped schedule.');
+
+wp_set_current_user((int) $teacherUser);
+$availability->replaceOwnWeeklySchedule($instrumentB, array(
+    array('weekday' => 2, 'start' => '08:00', 'end' => '10:00'),
+    array('weekday' => 2, 'start' => '15:00', 'end' => '22:00'),
+));
+$tuesday = (new DateTimeImmutable('next tuesday', new DateTimeZone('UTC')))->format('Y-m-d');
+$activeB = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_availability_rules WHERE teacher_id=%d AND instrument_id=%d AND status='active'", $teacher, $instrumentB));
+$configuredB = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_availability_instrument_states WHERE teacher_id=%d AND instrument_id=%d AND status='configured'", $teacher, $instrumentB));
+$assert($activeB === 2 && $configuredB === 1, 'The planner save must persist both ranges and the explicit instrument state.');
+$assert($availability->coverage($teacher, $tuesday . ' 08:30:00', $tuesday . ' 09:00:00', $instrumentB) === 'preferred', 'The first planner range must be effective.');
+$assert($availability->coverage($teacher, $tuesday . ' 15:30:00', $tuesday . ' 16:00:00', $instrumentB) === 'preferred', 'The second planner range must be effective.');
+$assert($availability->coverage($teacher, $tuesday . ' 11:00:00', $tuesday . ' 11:30:00', $instrumentB) === null, 'A gap between planner ranges must remain unavailable.');
+$assert($availability->coverage($teacher, $monday . ' 06:15:00', $monday . ' 06:45:00', $instrumentB) === null, 'An explicit instrument schedule must stop legacy inheritance for that instrument.');
+
+$availability->replaceOwnWeeklySchedule($instrumentB, array());
+$activeB = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_availability_rules WHERE teacher_id=%d AND instrument_id=%d AND status='active'", $teacher, $instrumentB));
+$assert($activeB === 0, 'Saving an empty planner week must retire the instrument’s active rules.');
+$assert($availability->coverage($teacher, $tuesday . ' 08:30:00', $tuesday . ' 09:00:00', $instrumentB) === null, 'An explicitly empty instrument must have no effective availability.');
+
+$availability->replaceOwnWeeklySchedule($instrumentB, array(array('weekday' => 2, 'start' => '09:00', 'end' => '11:00')));
+$activeB = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_availability_rules WHERE teacher_id=%d AND instrument_id=%d AND status='active'", $teacher, $instrumentB));
+$assert($activeB === 1, 'Adding hours after an empty state must clear the empty state and persist the new range.');
+$assert($availability->coverage($teacher, $tuesday . ' 09:30:00', $tuesday . ' 10:00:00', $instrumentB) === 'preferred', 'Availability must return after the explicit empty state is cleared.');
+
+$legacy = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}teacher_availability_rules WHERE teacher_id=%d AND instrument_id IS NULL AND status='active'", $teacher));
+$assert($legacy === 1, 'Planner saves must never retire or rewrite the legacy unscoped rule.');
+
 echo "Teacher instrument availability runtime passed\n";

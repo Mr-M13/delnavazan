@@ -67,9 +67,9 @@ $expect(!str_contains($controller, 'AcademyCoverageView') && !str_contains($cont
 $contains($controller, array('InstrumentCoverageClockReadService', 'InstrumentCoverageClockView::render', 'coverage_focus', 'coverage_week_start'), 'The primary clock must render on the academy overview and pass gap focus.');
 $contains($shell, array("get_theme_file_uri('assets/css/coverage-clock.css')", "get_theme_file_uri('assets/js/coverage-clock.js')"), 'The admin shell must load the shared clock assets.');
 $expect(!str_contains($teacherAssets, 'delnavazan-coverage-clock'), 'The Teacher portal must not load coverage-clock assets.');
-$expect(!str_contains($teacherAccount, 'coverage-clock') && !str_contains($teacherAccount, "component('golden-hours'"), 'The Teacher account must not render the coverage clock or the legacy Golden Hours component.');
-$contains($teacherAccount, array('data-dzn-availability-form'), 'The Teacher availability selector must remain.');
-$expect(!str_contains($bridge, 'dzn_theme_platform_teacher_coverage_clock') && !str_contains($bridge, "'coverage_clock'"), 'The Teacher model must not carry coverage-clock data.');
+$expect(str_contains($teacherAccount, "'availability-planner'") && !str_contains($teacherAccount, "component('golden-hours'"), 'The Teacher account must render the interactive planner without the legacy Golden Hours component.');
+$contains($teacherAccount, array('availability-planner'), 'The Teacher account must mount the interactive planner.');
+$expect(str_contains($bridge, 'dzn_theme_platform_teacher_coverage_clock') && str_contains($bridge, 'dzn_theme_platform_teacher_availability_planner'), 'The Teacher model must carry planner and coverage-clock data.');
 $contains($view, array("'goldenGaps' => 'ساعت‌های طلایی بدون پوشش'", 'InstrumentCoverageWeek::ORDER', 'seven-ring', 'Golden Hours'), 'The Teacher label must be corrected and the shared view must expose seven rings.');
 $contains($view, array('data-dzn-clock-ring', 'data-dzn-clock-canvas', 'data-dzn-clock-details', 'golden_ring', 'visual_segments', 'data-dzn-unknown', 'unknown_data', 'unknownData', 'gap_period_label', 'period_label', 'reasonFullyBooked', 'instrumentWide', 'dzn-clock__instruments', 'instrumentPicker', 'coverage_week_start', 'weekdaysShort'), 'The view must render the seven-ring controls, data-quality indicator, period and compact payload.');
 

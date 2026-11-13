@@ -52,7 +52,7 @@ $check( 'the guide keeps explanation only, with no jump or highlight marker', ! 
 $check( 'the compact home card does not render the full curriculum or progress', ! str_contains( $files['card'], "['sections']" ) && ! str_contains( $files['card'], 'role="progressbar"' ) && ! str_contains( $files['card'], 'دیده شده' ) );
 $check( 'no competing portal tour is mounted on the quick-start home', ! str_contains( $files['home'], "component( 'tour'" ) );
 $check( 'contextual help is inline and reusable', str_contains( $files['tip'], '<details' ) && str_contains( $files['tip'], 'راهنمای تدریس' ) );
-$check( 'availability has contextual guidance', str_contains( $files['settings'], 'dzn-clock__note' ) || str_contains( $files['settings'], 'زمان‌های در دسترس خود را انتخاب کنید' ) );
+$check( 'availability has contextual guidance', str_contains( $files['settings'], "'availability-planner'" ) );
 $check( 'rescheduling has contextual guidance', str_contains( $files['reschedule'], "'reschedule'" ) );
 $check( 'absence guidance explains the term allowance', str_contains( $files['attention'], "'absence'" ) );
 $check( 'notification guidance distinguishes read from resolve', str_contains( $files['notifications'], 'خواندن اعلان، درخواست را حل نمی‌کند' ) );

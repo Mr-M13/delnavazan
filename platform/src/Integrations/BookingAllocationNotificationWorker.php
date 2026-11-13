@@ -6,6 +6,7 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationReposito
 use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCopyResolver;
+use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary;
 
 /** An offer survives mail failure; a unique obligation retries transport refusal. */
 final class BookingAllocationNotificationWorker {
@@ -38,6 +39,7 @@ final class BookingAllocationNotificationWorker {
         PortalNotificationRecorder::teacher((int)$row->teacher_id,'booking.new.teacher','booking_offer',(int)$row->offer_id,$variables,$portal);
         $user=$row->wordpress_user_id?get_userdata((int)$row->wordpress_user_id):null;
         $accepted=false;
+        $suppressed=false;
         if($user&&is_email((string)$user->user_email)){
             $fallback=array('subject'=>'دلنوازان · درخواست تازهٔ کلاس آشنایی','body'=>"درود {$row->teacher_name}،\n\nدرخواست تازه‌ای برای کلاس «{$row->course_name}» با هنرجو {$row->full_name} در {$when} ثبت شد.\nمهلت پاسخ ۲۴ ساعت است (تا {$deadlineLocal}). اگر در این بازه پاسخی ثبت نشود، درخواست به مدرس در دسترس بعدی ارجاع می‌شود.\n\n{$portal}\n\nدلنوازان");
             $copy=NotificationCopyResolver::email('booking.new.teacher',NotificationCatalogue::PRIMARY_LOCALE,$variables,$fallback);
@@ -45,15 +47,16 @@ final class BookingAllocationNotificationWorker {
             $host=strtolower((string)wp_parse_url(home_url('/'),PHP_URL_HOST));
             if(!preg_match('/^[a-z0-9.-]+$/D',$host))$host='delnavazan.invalid';
             $headers=array('Message-ID: <booking-offer-'.(int)$row->offer_id.'@'.$host.'>','X-Delnavazan-Offer-ID: '.(int)$row->offer_id);
-            try{$accepted=DelnavazanEmailRenderer::send((string)$user->user_email,$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>$portal,'label'=>'پرتال مدرس')),$headers);}
-            catch(\Throwable){$accepted=false;}
+            if(!(new NotificationTemplateLibrary())->eventChannelEnabled('booking.new.teacher','email')){$suppressed=true;}
+            else{try{$accepted=DelnavazanEmailRenderer::send((string)$user->user_email,$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>$portal,'label'=>'پرتال مدرس')),$headers);}
+            catch(\Throwable){$accepted=false;}}
         }
         $repo->begin();
         try{
             $locked=$repo->notification($id,true);
             if(!$locked||$locked->state!=='sending')throw new \RuntimeException('Offer notification lease changed');
             $now=gmdate('Y-m-d H:i:s');$attempt=(int)$locked->attempt_count;
-            $data=$accepted?array('state'=>'handed_off','handed_off_at'=>$now,'last_error_code'=>null,'next_attempt_at'=>null):($attempt>=3?array('state'=>'failed','last_error_code'=>'send_refused','next_attempt_at'=>null):array('state'=>'retryable','last_error_code'=>'send_refused','next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+300)));
+            $data=$suppressed?array('state'=>'cancelled','last_error_code'=>'email_disabled_by_administrator','next_attempt_at'=>null):($accepted?array('state'=>'handed_off','handed_off_at'=>$now,'last_error_code'=>null,'next_attempt_at'=>null):($attempt>=3?array('state'=>'failed','last_error_code'=>'send_refused','next_attempt_at'=>null):array('state'=>'retryable','last_error_code'=>'send_refused','next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+300))));
             $repo->updateNotification($id,'sending',$data+array('lease_expires_at'=>null,'updated_at'=>$now));$repo->commit();
         }catch(\Throwable $error){$repo->rollback();throw $error;}
     }

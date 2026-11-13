@@ -10,6 +10,7 @@ use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCopyResolver;
+use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository;
 
 /** Durable, leased, at-least-once mail hand-off for confirmed or declined introductory requests. */
@@ -44,6 +45,7 @@ final class BookingStudentNotificationWorker {
             $repository->updateNotification($notificationId,$state,array('state'=>'sending','attempt_count'=>$attempt,'next_attempt_at'=>null,'lease_token_digest'=>$leaseDigest,'lease_expires_at'=>gmdate('Y-m-d H:i:s',time()+self::LEASE_SECONDS),'last_error_code'=>$stale?'previous_handoff_outcome_unknown':null,'updated_at'=>$now),$stale?(string)$row->lease_token_digest:null);$repository->commit();
         }catch(\Throwable $error){$repository->rollback();throw $error;}
         $mobile=array('state'=>'skipped','reason'=>'not_attempted');
+        $emailSuppressed=false;
         try{
             [$subject,$body,$variables]=self::message($row);
             $eventKey='booking.'.(string)$row->notification_kind.'.student';
@@ -66,11 +68,17 @@ final class BookingStudentNotificationWorker {
             // The portal is an independent first-party notice.  A missing or invalid editable
             // email template must not hide the operational booking alert from the Teacher.
             self::recordInbox($row,$eventKey,$variables);
-            try{
-                $accepted=class_exists(DelnavazanEmailRenderer::class)
-                    ?DelnavazanEmailRenderer::send(self::recipientEmail($row),$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>(string)($copy['cta_url']??''),'label'=>self::portalLabel($row))),self::headers($row))
-                    :wp_mail(self::recipientEmail($row),$copy['subject'],$copy['body'],self::headers($row));
-            }catch(\Throwable){$accepted=false;}
+            // The admin switch is an event/channel authority, not presentation state. Portal and
+            // mobile delivery remain independent, but a disabled email must never reach wp_mail.
+            if(!(new NotificationTemplateLibrary())->eventChannelEnabled($eventKey,'email')){
+                $emailSuppressed=true;
+            }else{
+                try{
+                    $accepted=class_exists(DelnavazanEmailRenderer::class)
+                        ?DelnavazanEmailRenderer::send(self::recipientEmail($row),$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>(string)($copy['cta_url']??''),'label'=>self::portalLabel($row))),self::headers($row))
+                        :wp_mail(self::recipientEmail($row),$copy['subject'],$copy['body'],self::headers($row));
+                }catch(\Throwable){$accepted=false;}
+            }
             // WhatsApp is the mobile primary.  It is coordinated with the same leased booking
             // notification so an email retry cannot duplicate an accepted provider hand-off.
             $mobile=self::mobile($row,$eventKey,$variables);
@@ -84,7 +92,8 @@ final class BookingStudentNotificationWorker {
             // an email success made an unmapped WhatsApp event indistinguishable from a fully-routed
             // notification.
             $mobileDiagnostic=self::mobileDiagnostic($mobile);
-            if($accepted){$state='handed_off';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'handed_off_at'=>$now,'last_error_code'=>$mobileDiagnostic),$leaseDigest);}
+            if($emailSuppressed){$state='cancelled';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'next_attempt_at'=>null,'last_error_code'=>'email_disabled_by_administrator'),$leaseDigest);}
+            elseif($accepted){$state='handed_off';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'handed_off_at'=>$now,'last_error_code'=>$mobileDiagnostic),$leaseDigest);}
             elseif((int)$locked->attempt_count>=self::MAX_ATTEMPTS){$state='failed';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'next_attempt_at'=>null,'last_error_code'=>'send_refused'),$leaseDigest);}
             else{$state='retryable';$repository->updateNotification($notificationId,'sending',$clear+array('state'=>$state,'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+300),'last_error_code'=>'send_refused'),$leaseDigest);}
             $repository->commit();return array('notification_id'=>$notificationId,'state'=>$state,'transport_accepted'=>$accepted,'recipient_delivery_confirmed'=>false,'mobile'=>$mobile);

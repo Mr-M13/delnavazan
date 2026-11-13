@@ -50,13 +50,19 @@ final class BookingNotificationMobileDispatcher {
             return self::skipped('suppressed');
         }
         $results = array();
-        if ($this->allowed($eventKey, 'whatsapp') && $this->configuration->whatsappReady() && (string) $contact['whatsapp'] !== '') {
+        $studentWhatsAppPreferred = $audience === 'student'
+            && $this->allowed($eventKey, 'whatsapp')
+            && $this->configuration->whatsappReady()
+            && (string) $contact['whatsapp'] !== '';
+        if ($studentWhatsAppPreferred) {
             $parameters = $this->parameters($eventKey, $variables);
             if ($parameters === null) $results['whatsapp'] = array('acknowledged' => false, 'permanent_failure' => 'variable_contract_mismatch');
             else try {$results['whatsapp'] = $this->sendWhatsApp((string) $contact['whatsapp'], (int) $row->id, $eventKey, $parameters);}
             catch (\Throwable $error) {$this->report('whatsapp_exception', (int) $row->id, $error->getMessage());$results['whatsapp'] = array('acknowledged' => false, 'permanent_failure' => 'whatsapp_exception');}
         }
-        if ($this->allowed($eventKey, 'sms') && $this->configuration->smsReady() && (string) $contact['sms'] !== '') {
+        // Student SMS is a pre-send choice only when WhatsApp is absent or ineligible. A failed
+        // WhatsApp attempt is never a reason to send a second copy by SMS.
+        if (!$studentWhatsAppPreferred && $this->allowed($eventKey, 'sms') && $this->configuration->smsReady() && (string) $contact['sms'] !== '') {
             $body = $this->smsBody($eventKey, $variables);
             if ($body === null) $results['sms'] = array('acknowledged' => false, 'permanent_failure' => 'sms_copy_unavailable');
             else try {$results['sms'] = $this->sendSms((string) $contact['sms'], (int) $row->id, $body);}

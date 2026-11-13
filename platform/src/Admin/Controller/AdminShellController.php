@@ -21,19 +21,21 @@ final class AdminShellController {
             // Catalogue management belongs with enrolment work, not Settings → General.
             ['Courses & instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP],
         ]],
+        'notifications' => ['Notifications', [
+            ['Notifications', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP],
+        ]],
         'finance' => ['Finance', [
             ['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']],
-        ]],
-        'godmode' => ['God Mode', [
-            ['God Mode', 'dzn-god-mode', 'dzn_access_god_mode'],
         ]],
         'settings' => ['Settings', [
             ['General', 'dzn-general', 'manage_options'],
             ['Administration & Delegated Access', 'dzn-delegated-access', 'manage_options'],
             ['Policy', 'dzn-policies', Menu::POLICY_ACCESS_CAP],
-            ['Notifications', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP],
             ['Integrations', 'dzn-integrations', 'dzn_access_integrations_overview'],
             ['Diagnostics', 'dzn-system-health', 'dzn_access_system_health'],
+        ]],
+        'godmode' => ['God Mode', [
+            ['God Mode', 'dzn-god-mode', 'dzn_access_god_mode'],
         ]],
     ];
 
@@ -47,7 +49,7 @@ final class AdminShellController {
         'general' => ['General', ['dzn-general']],
         'access' => ['Administration & Delegated Access', ['dzn-delegated-access', 'dzn-staff-access']],
         'policy' => ['Policy', ['dzn-policies', 'dzn-recording-notices']],
-        'notifications' => ['Notifications', ['dzn-notifications', 'dzn-communications', 'dzn-communications-templates']],
+        // Notifications is a primary workspace. These routes remain protected aliases.
         'integrations' => ['Integrations', [
             'dzn-integrations', 'dzn-integration-email', 'dzn-integration-whatsapp',
             'dzn-integration-sms', 'dzn-integration-google',
@@ -95,7 +97,7 @@ final class AdminShellController {
         'dzn-finance-rates' => 'finance', 'dzn-finance-statements' => 'finance', 'dzn-finance-payability' => 'finance',
         'dzn-general' => 'settings', 'dzn-integration-email' => 'settings', 'dzn-integration-whatsapp' => 'settings',
         'dzn-policies' => 'settings', 'dzn-delegated-access' => 'settings',
-        'dzn-integration-sms' => 'settings', 'dzn-notifications' => 'settings', 'dzn-communications' => 'settings', 'dzn-communications-templates' => 'settings',
+        'dzn-integration-sms' => 'settings', 'dzn-notifications' => 'notifications', 'dzn-communications' => 'notifications', 'dzn-communications-templates' => 'notifications',
         'dzn-integrations' => 'settings', 'dzn-integration-google' => 'settings', 'dzn-staff-access' => 'settings',
         'dzn-system-health' => 'settings', 'dzn-portal-capabilities' => 'settings', 'dzn-core-dataset-readiness' => 'settings',
         'dzn-recording-notices' => 'settings',

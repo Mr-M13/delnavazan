@@ -47,7 +47,7 @@ final class TelnyxWhatsAppAdapter {
         $order=TelnyxTemplateRegistry::variableOrderForName($name);
         if($sender===''||$name===''||$order===array())return array('state'=>'failed','code'=>'telnyx_test_template_not_configured');
         foreach($order as $code)if(!array_key_exists($code,$parameters))return array('state'=>'failed','code'=>'test_template_variable_missing');
-        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');if($profile==='')$profile=(string)$this->settings->value('sms','messaging_profile_id');
+        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');
         $payload=self::templatePayload($sender,$to,$name,$language,$order,$parameters,$profile);
         $response=$this->post('https://api.telnyx.com/v2/messages/whatsapp',array(
             'timeout'=>20,'redirection'=>0,
@@ -97,7 +97,7 @@ final class TelnyxWhatsAppAdapter {
         $mapped=$this->mapping($command);
         if($mapped===null)return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'template_not_mapped');
         foreach($mapped['variable_order'] as $code)if(!array_key_exists($code,(array)($command['parameters']??array())))return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'variable_contract_mismatch');
-        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');if($profile==='')$profile=(string)$this->settings->value('sms','messaging_profile_id');
+        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');
         $payload=self::templatePayload($sender,$to,$mapped['name'],$mapped['language'],$mapped['variable_order'],(array)($command['parameters']??array()),$profile);
         $response=$this->post('https://api.telnyx.com/v2/messages/whatsapp',array(
             'timeout'=>20,'redirection'=>0,
@@ -147,7 +147,7 @@ final class TelnyxWhatsAppAdapter {
         $mapped=$this->eventMapping($eventKey);
         if($mapped===null)return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'template_not_mapped');
         foreach($mapped['variable_order'] as $code)if(!array_key_exists($code,$parameters))return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'variable_contract_mismatch');
-        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');if($profile==='')$profile=(string)$this->settings->value('sms','messaging_profile_id');
+        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');
         $payload=self::templatePayload($sender,$to,$mapped['name'],$mapped['language'],$mapped['variable_order'],$parameters,$profile);
         $response=$this->post('https://api.telnyx.com/v2/messages/whatsapp',array(
             'timeout'=>20,'redirection'=>0,

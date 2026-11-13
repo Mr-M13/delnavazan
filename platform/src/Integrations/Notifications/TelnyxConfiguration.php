@@ -15,7 +15,7 @@ final class TelnyxConfiguration {
     public function smsSender():string{return trim((string)$this->settings->value('sms','sender_id'));}
     public function smsProfile():string{return trim((string)$this->settings->value('sms','messaging_profile_id'));}
     public function whatsappSender():string{return trim((string)$this->settings->value('whatsapp','sender_id'));}
-    public function messagingProfileId():string{$profile=trim((string)$this->settings->value('whatsapp','messaging_profile_id'));return $profile!==''?$profile:trim((string)$this->settings->value('sms','messaging_profile_id'));}
+    public function messagingProfileId():string{return trim((string)$this->settings->value('whatsapp','messaging_profile_id'));}
     public function webhookPublicKey():string{
         $key=trim((string)$this->settings->value('sms','webhook_public_key'));
         if($key==='')$key=trim((string)$this->settings->value('whatsapp','webhook_public_key'));

@@ -147,6 +147,9 @@ final class InstrumentCoverageClockReadService {
         $date = (string) $context['date'];
         $weekday = (int) $context['weekday'];
         $now = gmdate('Y-m-d H:i:s');
+        $today = (new \DateTimeImmutable('now', new \DateTimeZone($timezone)))->format('Y-m-d');
+        $period = InstrumentCoverageMetrics::period($weekStart, InstrumentCoverageWeek::end($weekStart), $today);
+        $asOfLocal = (new \DateTimeImmutable('now', new \DateTimeZone($timezone)))->format('j M Y H:i');
 
         $instruments = array();
         foreach ($universe as $instrument) {
@@ -164,7 +167,7 @@ final class InstrumentCoverageClockReadService {
                 'unknown_teacher_count' => 0,
                 'clocks' => array(),
                 'golden_ring' => array(),
-                'metrics' => self::weekMetrics(array()),
+                'metrics' => InstrumentCoverageMetrics::summarize(array(), 'actionable'),
             );
             if (($instrument['course_id'] ?? 0) < 1) {
                 $row['status'] = $this->optionReadFailed ? 'unavailable' : 'not_bookable';
@@ -207,9 +210,12 @@ final class InstrumentCoverageClockReadService {
                 $clock['is_today'] = $dayDate === (new \DateTimeImmutable('now', new \DateTimeZone($timezone)))->format('Y-m-d');
                 $clocks[$day] = $clock;
             }
+            foreach ($clocks as &$dayClock) $dayClock['metric'] = InstrumentCoverageMetrics::day($dayClock, $period['key'], $today);
+            unset($dayClock);
             $row['clocks'] = $clocks;
             $row['clock'] = $clocks[$weekday] ?? reset($clocks);
-            $row['metrics'] = self::weekMetrics($clocks);
+            $row['metrics'] = InstrumentCoverageMetrics::summarize($clocks, $period['source']);
+            $row['priority_gaps'] = InstrumentCoverageGapList::build($clocks, $period['source'], 10);
             $row['golden_ring'] = $this->goldenRing($clocks, $weekStart, $timezone);
             if ($selected < 1 && isset($row['clock'])) $selected = $id;
             $instruments[] = $row;
@@ -221,6 +227,17 @@ final class InstrumentCoverageClockReadService {
         if ($selectedRow === null) foreach ($instruments as $row) if (isset($row['clock'])) { $selectedRow = $row; break; }
         if ($selectedRow === null && $instruments) $selectedRow = $instruments[0];
 
+        $priority = array();
+        foreach ($instruments as $row) {
+            foreach ((array) ($row['priority_gaps'] ?? array()) as $gap) {
+                $gap['instrument_id'] = (int) $row['id'];
+                $gap['instrument_name'] = trim((string) ($row['name_en'] ?? '')) !== '' ? (string) $row['name_en'] : (string) $row['name'];
+                $priority[] = $gap;
+            }
+        }
+        usort($priority, static fn(array $a, array $b): int => ($a['rank'] <=> $b['rank']) ?: ($a['date'] <=> $b['date']) ?: ($a['start_minute'] <=> $b['start_minute']));
+        $priority = array_slice($priority, 0, 12);
+
         return array(
             'status' => 'ok',
             'scope' => (string) $context['scope'],
@@ -230,6 +247,12 @@ final class InstrumentCoverageClockReadService {
             'week_start' => $weekStart,
             'week_end' => InstrumentCoverageWeek::end($weekStart),
             'week_order' => InstrumentCoverageWeek::ORDER,
+            'period_key' => $period['key'],
+            'period_label' => $period['label'],
+            'gap_period_label' => $period['gap_label'],
+            'metric_source' => $period['source'],
+            'as_of_local' => $asOfLocal,
+            'priority_gaps' => $priority,
             'golden_bonus' => $this->goldenBonus(),
             'display_timezone' => $timezone,
             'timezone_label' => str_replace('_', ' ', $timezone),
@@ -362,19 +385,6 @@ final class InstrumentCoverageClockReadService {
         }
         unset($segment);
         return array_values($ring);
-    }
-
-    /** @param array<int,array<string,mixed>> $clocks @return array<string,mixed> */
-    private static function weekMetrics(array $clocks): array {
-        $keys = array('measured_segments','covered_segments','limited_segments','uncovered_segments','unknown_segments','golden_segments','golden_covered_segments','golden_uncovered_segments','single_teacher_minutes','uncovered_minutes','golden_uncovered_minutes','active_teacher_count');
-        $sum = array_fill_keys($keys, 0);
-        foreach ($clocks as $clock) {
-            $summary = (array) ($clock['summary'] ?? array());
-            foreach ($keys as $key) $sum[$key] += (int) ($summary[$key] ?? 0);
-        }
-        $sum['coverage_percent'] = $sum['measured_segments'] > 0 ? (int) round(100 * $sum['covered_segments'] / $sum['measured_segments']) : null;
-        $sum['golden_coverage_percent'] = $sum['golden_segments'] > 0 ? (int) round(100 * $sum['golden_covered_segments'] / $sum['golden_segments']) : null;
-        return $sum;
     }
 
     /** @return list<array<string,mixed>> */
@@ -580,7 +590,7 @@ final class InstrumentCoverageClockReadService {
 
     /** @return array<string,mixed> */
     private static function unavailable(string $message): array {
-        return array('status' => 'unavailable', 'scope' => '', 'mode' => '', 'date' => '', 'weekday' => 0, 'week_start' => '', 'week_end' => '', 'week_order' => InstrumentCoverageWeek::ORDER, 'golden_bonus' => array('enabled' => false, 'percent' => 0, 'timezone' => 'Asia/Tehran', 'label' => 'Golden Hours'), 'display_timezone' => '', 'timezone_label' => '', 'calendar' => 'gregorian', 'selected_instrument' => 0, 'instruments' => array(), 'message' => $message);
+        return array('status' => 'unavailable', 'scope' => '', 'mode' => '', 'date' => '', 'weekday' => 0, 'week_start' => '', 'week_end' => '', 'week_order' => InstrumentCoverageWeek::ORDER, 'period_key' => '', 'period_label' => '', 'gap_period_label' => '', 'metric_source' => '', 'as_of_local' => '', 'priority_gaps' => array(), 'golden_bonus' => array('enabled' => false, 'percent' => 0, 'timezone' => 'Asia/Tehran', 'label' => 'Golden Hours'), 'display_timezone' => '', 'timezone_label' => '', 'calendar' => 'gregorian', 'selected_instrument' => 0, 'instruments' => array(), 'message' => $message);
     }
 
     /** @return array<string,mixed> */

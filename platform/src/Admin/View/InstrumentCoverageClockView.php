@@ -49,7 +49,6 @@ final class InstrumentCoverageClockView {
             echo '<p class="dzn-clock__empty">' . esc_html((string) ($selected['message'] ?? $data['message'] ?? $labels['empty'])) . '</p></section>';
             return;
         }
-        self::priorityGaps($data, $options, $labels, $calendar, $selected, $scope);
         self::unknownData($data, $options, $labels, $calendar, $scope);
         echo '<div class="dzn-clock__layout">';
         self::ringKey($data, $selected, $labels, $calendar, $scope);
@@ -106,51 +105,6 @@ final class InstrumentCoverageClockView {
             echo '<span class="dzn-clock__period-label">' . esc_html($periodLabel) . '</span>';
         }
         echo '<span class="dzn-clock__tz">' . esc_html((string) ($data['timezone_label'] ?? '')) . '</span></div>';
-    }
-
-    /**
-     * Compact, read-only priority list. It comes from the same clock projection
-     * and metric period; it is not a second coverage calculation.
-     *
-     * @param array<string,mixed> $data @param array<string,mixed> $options @param array<string,string|array> $labels @param array<string,mixed> $selected
-     */
-    private static function priorityGaps(array $data, array $options, array $labels, string $calendar, array $selected, string $scope): void {
-        if ($scope !== 'admin') return;
-        $gaps = (array) ($data['priority_gaps'] ?? array());
-        $base = (string) ($options['base_url'] ?? admin_url('admin.php'));
-        $page = (string) ($options['page'] ?? 'dzn-academy-dashboard');
-        $preserve = array_merge((array) ($options['preserve'] ?? array()), self::currentPreserve($scope));
-        echo '<section class="dzn-clock__priority" aria-labelledby="dzn-clock-priority-title"><div class="dzn-clock__priority-head"><div><h3 id="dzn-clock-priority-title">' . esc_html((string) ($data['gap_period_label'] ?? $labels['priorityGaps'])) . '</h3><p>' . esc_html($labels['priorityGapsHelp']) . '</p></div><a href="' . esc_url(admin_url('admin.php?page=dzn-teachers-menu')) . '">' . esc_html($labels['openTeachers']) . ' →</a></div>';
-        if (!$gaps) {
-            echo '<p class="dzn-clock__priority-empty">' . esc_html($labels['noGaps']) . '</p></section>';
-            return;
-        }
-        echo '<ol class="dzn-clock__gap-list">';
-        foreach ($gaps as $gap) {
-            $gapInstrument = (int) ($gap['instrument_id'] ?? 0);
-            $weekday = (int) ($gap['weekday'] ?? 0);
-            $date = (string) ($gap['date'] ?? '');
-            $visualStart = (int) ($gap['visual_start_index'] ?? 0);
-            $visualIndexes = implode(',', array_map('intval', (array) ($gap['visual_indexes'] ?? array())));
-            $href = self::url($base, $scope, $page, $preserve, $gapInstrument, $calendar, $date, $weekday . ':' . $visualStart, (string) ($data['week_start'] ?? ''));
-            $isGolden = !empty($gap['golden']);
-            $cause = self::reasonLabel((string) ($gap['reason'] ?? ''), $labels);
-            if (!empty($gap['booked_teacher_count']) || !empty($gap['held_teacher_count'])) {
-                $bits = array();
-                if (!empty($gap['booked_teacher_count'])) $bits[] = (int) $gap['booked_teacher_count'] . ' ' . $labels['bookedCount'];
-                if (!empty($gap['held_teacher_count'])) $bits[] = (int) $gap['held_teacher_count'] . ' ' . $labels['heldCount'];
-                $cause .= ' · ' . implode(', ', $bits);
-            }
-            $regions = array_values(array_filter(array_map(static fn(array $region): string => (string) ($region['label'] ?? ''), (array) ($gap['regions'] ?? array()))));
-            $dateLabel = $calendar === 'persian' ? self::persianDate($date) : (string) ($gap['date_label'] ?? '');
-            echo '<li><a class="dzn-clock__gap dzn-clock__gap--rank-' . (int) ($gap['rank'] ?? 1) . ($isGolden ? ' is-golden' : '') . '" href="' . esc_url($href) . '" data-dzn-gap data-dzn-gap-instrument="' . $gapInstrument . '" data-dzn-gap-weekday="' . $weekday . '" data-dzn-gap-date="' . esc_attr($date) . '" data-dzn-gap-visual-start="' . $visualStart . '" data-dzn-gap-visual-indexes="' . esc_attr($visualIndexes) . '">';
-            echo '<span class="dzn-clock__gap-instrument">' . esc_html((string) ($gap['instrument_name'] ?? '')) . '</span>';
-            echo '<span class="dzn-clock__gap-when">' . esc_html((string) ($labels['weekdays'][$weekday] ?? '')) . ' · ' . esc_html($dateLabel) . '<bdi dir="ltr">' . esc_html((string) ($gap['time_label'] ?? '')) . '</bdi></span>';
-            echo '<span class="dzn-clock__gap-meta">' . esc_html(self::duration((int) ($gap['duration_minutes'] ?? 0))) . ($regions ? ' · ' . esc_html(implode(', ', $regions)) : '') . '</span>';
-            echo '<span class="dzn-clock__gap-cause">' . esc_html($cause) . '</span>';
-            echo '</a></li>';
-        }
-        echo '</ol></section>';
     }
 
     /**
@@ -389,7 +343,7 @@ final class InstrumentCoverageClockView {
             $icon = self::instrumentIcon($instrument);
             $active = $id === $selectedId;
             echo '<button type="submit" name="coverage_instrument" value="' . $id . '" class="dzn-clock__instrument' . ($active ? ' is-selected' : '') . '" aria-pressed="' . ($active ? 'true' : 'false') . '" title="' . esc_attr($name) . '">';
-            if ($icon !== '') echo '<img src="' . esc_url($icon) . '" alt="" width="34" height="34" loading="lazy" decoding="async">';
+            if ($icon !== '') echo '<img src="' . esc_url($icon) . '" alt="" width="34" height="34">';
             else echo '<span class="dzn-clock__instrument-fallback" aria-hidden="true">' . esc_html(self::initial($name)) . '</span>';
             echo '<span class="dzn-clock__instrument-name">' . esc_html($name) . '</span></button>';
         }
@@ -398,30 +352,49 @@ final class InstrumentCoverageClockView {
 
     /** @param array<string,mixed> $instrument */
     private static function instrumentIcon(array $instrument): string {
+        $candidates = array((string) ($instrument['slug'] ?? ''), (string) ($instrument['name_en'] ?? ''), (string) ($instrument['name'] ?? ''));
+        if (function_exists('dzn_theme_instrument_image')) {
+            foreach ($candidates as $candidate) {
+                $file = (string) dzn_theme_instrument_image($candidate, 'public');
+                if ($file !== '') return self::themeImageUrl($file);
+            }
+        }
         $files = array(
             'tar' => 'C-Tar.webp', 'تار' => 'C-Tar.webp',
-            'tombak' => 'C-Tombak.webp', 'tonbak' => 'C-Tombak.webp', 'تنبک' => 'C-Tombak.webp',
-            'setar' => 'C-Setar.webp', 'سه‌تار' => 'C-Setar.webp',
+            'tombak' => 'C-Tombak.webp', 'tonbak' => 'C-Tombak.webp', 'tombac' => 'C-Tombak.webp', 'تنبک' => 'C-Tombak.webp',
+            'setar' => 'C-Setar.webp', 'sehtar' => 'C-Setar.webp', 'سه‌تار' => 'C-Setar.webp',
             'piano' => 'C-Piano.webp', 'پیانو' => 'C-Piano.webp',
-            'santur' => 'C-santour.webp', 'santour' => 'C-santour.webp', 'سنتور' => 'C-santour.webp',
+            'santur' => 'C-santour.webp', 'santour' => 'C-santour.webp', 'santoor' => 'C-santour.webp', 'سنتور' => 'C-santour.webp',
             'kamancheh' => 'C-Kamancheh.webp', 'kamanche' => 'C-Kamancheh.webp', 'کمانچه' => 'C-Kamancheh.webp',
             'daf' => 'C-Daf.webp', 'دف' => 'C-Daf.webp',
-            'avaz' => 'C-Avaz.webp', 'آواز' => 'C-Avaz.webp',
-            'tanboor' => 'C-Tanboor.webp', 'tanbur' => 'C-Tanboor.webp', 'تنبور' => 'C-Tanboor.webp',
-            'ney' => 'C-Ney.webp', 'نی' => 'C-Ney.webp',
-            'violin' => 'C-Violin.webp', 'ویولن' => 'C-Violin.webp',
+            'avaz' => 'C-Avaz.webp', 'vocal' => 'C-Avaz.webp', 'آواز' => 'C-Avaz.webp',
+            'tanboor' => 'C-Tanboor.webp', 'tanbur' => 'C-Tanboor.webp', 'tanbour' => 'C-Tanboor.webp', 'تنبور' => 'C-Tanboor.webp',
+            'ney' => 'C-Ney.webp', 'nay' => 'C-Ney.webp', 'نی' => 'C-Ney.webp',
+            'violin' => 'C-Violin.webp', 'ویولن' => 'C-Violin.webp', 'ویولون' => 'C-Violin.webp',
             'guitar' => 'C-Guitar.webp', 'گیتار' => 'C-Guitar.webp',
         );
-        $candidates = array((string) ($instrument['slug'] ?? ''), (string) ($instrument['name_en'] ?? ''), (string) ($instrument['name'] ?? ''));
+        $normalize = static function (string $value): string {
+            $value = str_replace(array("\xE2\x80\x8C", 'ي', 'ك'), array('', 'ی', 'ک'), trim($value));
+            if (function_exists('remove_accents')) $value = remove_accents($value);
+            $value = preg_replace('/[^\p{L}\p{N}]+/u', '', $value);
+            return strtolower(is_string($value) ? $value : '');
+        };
         foreach ($candidates as $candidate) {
-            $key = strtolower(trim($candidate));
-            if ($key === '' || !isset($files[$key])) continue;
-            $relative = 'assets/images/' . $files[$key];
-            if (!function_exists('get_theme_file_uri')) return '';
-            if (function_exists('get_theme_file_path') && !is_file(get_theme_file_path($relative))) return '';
-            return (string) get_theme_file_uri($relative);
+            $key = $normalize($candidate);
+            if ($key === '') continue;
+            if (isset($files[$key])) return self::themeImageUrl($files[$key]);
+            foreach ($files as $alias => $file) {
+                if ($normalize((string) $alias) === $key) return self::themeImageUrl($file);
+            }
         }
         return '';
+    }
+
+    private static function themeImageUrl(string $file): string {
+        $relative = 'assets/images/' . $file;
+        if (!function_exists('get_theme_file_uri')) return '';
+        if (function_exists('get_theme_file_path') && !is_file(get_theme_file_path($relative))) return '';
+        return (string) get_theme_file_uri($relative);
     }
 
     private static function initial(string $name): string {
@@ -508,10 +481,6 @@ final class InstrumentCoverageClockView {
                 'eligibleTeachersHelp' => 'تعداد کل مدرسان واجد شرایط این ساز؛ برابر با تعداد آزاد در زمان انتخاب‌شده نیست.',
                 'remainingAtTime' => 'باقی‌مانده در این بازه',
                 'instrumentWide' => 'کل ساز',
-                'priorityGaps' => 'شکاف‌های اولویت‌دار این هفته',
-                'priorityGapsHelp' => 'ابتدا ساعت طلایی، سپس بیشترین مدت بدون پوشش، سپس تک‌مدرس.',
-                'openTeachers' => 'دسترسی مدرسان',
-                'noGaps' => 'شکاف قابل‌اقدامی در این بازه نیست.',
                 'dataQuality' => 'کیفیت داده',
                 'unknownInterval' => 'بازهٔ نامشخص',
                 'unknownIntervals' => 'بازهٔ نامشخص',
@@ -588,10 +557,6 @@ final class InstrumentCoverageClockView {
             'eligibleTeachersHelp' => 'Instrument-wide count; this is not the number free at the selected time.',
             'remainingAtTime' => 'Remaining at this interval',
             'instrumentWide' => 'instrument-wide',
-            'priorityGaps' => 'Priority gaps this week',
-            'priorityGapsHelp' => 'Golden first, then longest uncovered, then single-teacher.',
-            'openTeachers' => 'Open teacher availability',
-            'noGaps' => 'No actionable coverage gaps in this period.',
             'dataQuality' => 'Data quality',
             'unknownInterval' => 'unknown interval',
             'unknownIntervals' => 'unknown intervals',

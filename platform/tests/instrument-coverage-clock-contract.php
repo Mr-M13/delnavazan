@@ -25,7 +25,6 @@ $bookingQuery = $read('src/Core/Infrastructure/Repository/TeacherBookingOccupanc
 $assessment = $read('src/Core/Application/BookingAvailabilityAssessmentService.php');
 $migration = $read('src/Core/Infrastructure/Migration/Migrator.php');
 $theme = $root . '/../theme';
-$teacherTemplate = (string) file_get_contents($theme . '/template-parts/teacher-portal/coverage-clock.php');
 $teacherAccount = (string) file_get_contents($theme . '/template-parts/teacher-portal/account.php');
 $teacherAssets = (string) file_get_contents($theme . '/inc/teacher-portal.php');
 $bridge = (string) file_get_contents($theme . '/inc/platform-bridge.php');
@@ -67,13 +66,12 @@ $expect(!str_contains($readService, 'country'), 'The clock must use service regi
 $expect(!str_contains($controller, 'AcademyCoverageView') && !str_contains($controller, 'Regional demand-window atlas'), 'The legacy regional atlas must be retired from the admin coverage route.');
 $contains($controller, array('InstrumentCoverageClockReadService', 'InstrumentCoverageClockView::render', 'coverage_focus', 'coverage_week_start'), 'The primary clock must render on the academy overview and pass gap focus.');
 $contains($shell, array("get_theme_file_uri('assets/css/coverage-clock.css')", "get_theme_file_uri('assets/js/coverage-clock.js')"), 'The admin shell must load the shared clock assets.');
-$contains($teacherAssets, array('delnavazan-coverage-clock', 'assets/css/coverage-clock.css', 'assets/js/coverage-clock.js'), 'The Teacher portal must load the shared clock assets.');
-$contains($teacherTemplate, array('InstrumentCoverageClockView', "'scope' => 'teacher'", "'base_url'", "'teacher-view'"), 'The Teacher template must reuse the shared seven-ring view.');
-$expect(!str_contains($teacherTemplate, 'golden-hours') && !str_contains($teacherAccount, "component('golden-hours'"), 'The redundant separate Golden Hours component must be removed.');
-$contains($teacherAccount, array("dzn_theme_teacher_portal_component( 'coverage-clock'", 'data-dzn-availability-form'), 'The clock must sit above the existing availability selector.');
-$contains($bridge, array('dzn_theme_platform_teacher_coverage_clock', "'coverage_clock'"), 'The Teacher model must carry aggregate coverage only.');
+$expect(!str_contains($teacherAssets, 'delnavazan-coverage-clock'), 'The Teacher portal must not load coverage-clock assets.');
+$expect(!str_contains($teacherAccount, 'coverage-clock') && !str_contains($teacherAccount, "component('golden-hours'"), 'The Teacher account must not render the coverage clock or the legacy Golden Hours component.');
+$contains($teacherAccount, array('data-dzn-availability-form'), 'The Teacher availability selector must remain.');
+$expect(!str_contains($bridge, 'dzn_theme_platform_teacher_coverage_clock') && !str_contains($bridge, "'coverage_clock'"), 'The Teacher model must not carry coverage-clock data.');
 $contains($view, array("'goldenGaps' => 'ساعت‌های طلایی بدون پوشش'", 'InstrumentCoverageWeek::ORDER', 'seven-ring', 'Golden Hours'), 'The Teacher label must be corrected and the shared view must expose seven rings.');
-$contains($view, array('data-dzn-clock-ring', 'data-dzn-clock-canvas', 'data-dzn-clock-details', 'golden_ring', 'visual_segments', 'data-dzn-gap', 'data-dzn-unknown', 'unknown_data', 'priorityGaps', 'unknownData', 'gap_period_label', 'period_label', 'reasonFullyBooked', 'instrumentWide', 'dzn-clock__instruments', 'instrumentPicker', 'coverage_week_start', 'weekdaysShort'), 'The view must render the seven-ring controls, priority list, data-quality indicator, period and compact payload.');
+$contains($view, array('data-dzn-clock-ring', 'data-dzn-clock-canvas', 'data-dzn-clock-details', 'golden_ring', 'visual_segments', 'data-dzn-unknown', 'unknown_data', 'unknownData', 'gap_period_label', 'period_label', 'reasonFullyBooked', 'instrumentWide', 'dzn-clock__instruments', 'instrumentPicker', 'coverage_week_start', 'weekdaysShort'), 'The view must render the seven-ring controls, data-quality indicator, period and compact payload.');
 
 $contains($js, array('SEGMENTS = 48', 'WEEK_ORDER = [6, 7, 1, 2, 3, 4, 5]', 'dzn-clock__ring', 'dzn-clock__golden-seg', 'dzn-clock__seg-half', 'data-dzn-clock-teacher', 'data-dzn-clock-use', 'ArrowRight', 'ArrowUp', 'aria-pressed', 'is-proposed', 'causeText', 'paintGapList', 'paintQualityList', 'unknownRangeFor', 'firstGapSegment', 'data-dzn-gap', 'data-dzn-unknown', 'is-gap-selected', 'is-unknown-selected', 'ANGLE_OFFSET = -90', 'dzn-clock__ring-label', 'weekdaysShort', 'is-minor'), 'The shared clock JavaScript must render seven rings, carry reasons and keep the priority list in sync.');
 $expect(!str_contains($js, 'now-hand') && !str_contains($js, 'now-dot'), 'The unexplained green now marker must remain removed.');
@@ -84,7 +82,7 @@ $contains($css, array('.dzn-clock__priority', '.dzn-clock__gap {', '.dzn-clock__
 $contains($assessment, array('->overlapping(', 'assertNoActiveHold(', 'requestable'), 'The booking assessment must remain the authoritative eligibility/conflict predicate.');
 $expect(str_contains($occupancy, 'return $this->range(') || str_contains($occupancy, '$this->range('), 'The clock range must delegate to the same occupancy authority.');
 $expect(!str_contains($migration, 'coverage_clock'), 'This work must not introduce a database migration.');
-$expect(!str_contains($teacherTemplate, 'student_name') && !str_contains($readService, 'student_display'), 'Teacher coverage must not expose student identity.');
+$expect(!str_contains($teacherAccount, 'student_name') && !str_contains($readService, 'student_display'), 'Teacher coverage must not expose student identity.');
 $expect(!str_contains($view, 'teacher_name') && !str_contains($js, 'teacherName'), 'Coverage presentation must not expose Teacher names.');
 
 echo "instrument-coverage-clock-contract: OK\n";

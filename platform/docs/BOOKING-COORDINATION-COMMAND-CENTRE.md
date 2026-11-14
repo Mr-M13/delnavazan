@@ -1,5 +1,9 @@
 # Booking Coordination command centre — operational redesign
 
+## 2026-11-14 entry point (draft PR #620)
+
+The normal administrator entry is now **Enrolment → Open Class admin** on an intro row. The record opens in a modal and contains the coordination steps below. The protected `dzn-booking-request-coordination` route and its POST handler remain registered for saved links and compatibility. The original date, route and deployment status below describe the 2026-11-03 design.
+
 **Date:** 2026-11-03
 **Route:** `Bookings → Coordination` in the updated admin navigation, served by the protected `dzn-booking-request-coordination` route inside the consolidated **Enrolment** area.
 **Status:** implemented for review; **not merged, not deployed, and no production booking record was modified.**

@@ -460,6 +460,14 @@ final class CoordinationCaseController {
     private static function redirect(int $caseId, string $notice, bool $error = false): never {
         $args = array('page' => self::PAGE, 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0');
         if ($caseId > 0) $args['case_id'] = $caseId;
+        $recordRequestId = absint($_POST['dzn_record_request_id'] ?? 0);
+        if ($recordRequestId > 0 && $caseId > 0) {
+            $case = (new CoordinationCaseRepository())->caseForRead($caseId);
+            if ($case && (int) $case->booking_request_id === $recordRequestId) {
+                $args = array('page' => EnrolmentWorkspaceController::PAGE, 'request_id' => $recordRequestId, 'dzn_notice' => $notice, 'dzn_error' => $error ? '1' : '0');
+                if (absint($_POST['dzn_modal'] ?? 0) === 1) $args['dzn_modal'] = '1';
+            }
+        }
         $url = add_query_arg($args, admin_url('admin.php'));
         nocache_headers();
         if (wp_safe_redirect($url)) exit;

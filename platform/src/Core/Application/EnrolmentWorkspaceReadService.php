@@ -1,6 +1,10 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
 
+use Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestIntakeRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestRepository;
+
 /**
  * Capability-gated operational projection for the consolidated Enrolment workspace.
  *
@@ -72,6 +76,25 @@ final class EnrolmentWorkspaceReadService {
         $case['notifications'] = $this->bookingNotifications($requestId);
         $case['prior_bookings'] = (int) ($row->student_id ?? 0) > 0 ? $this->priorBookings((int) $row->student_id, $requestId) : array();
         return $case;
+    }
+
+    /** Intake evidence for one booking record. Teacher candidate search is explicit. */
+    public function bookingIntake(int $requestId, bool $previewAllocation = false): ?array {
+        $this->requireAny(array('dzn_view_booking_requests'));
+        if ($requestId < 1) return null;
+        $request = (new BookingRequestRepository())->details($requestId);
+        if (!$request) return null;
+        $allocation = new BookingAllocationRepository();
+        $canCoordinate = current_user_can('dzn_manage_booking_request_coordination');
+        return array(
+            'id' => $requestId,
+            'lifecycle' => (string) $request->lifecycle_status,
+            'resolution' => (string) $request->resolution_state,
+            'flags' => (new BookingRequestIntakeRepository())->duplicateFlags($requestId),
+            'offers' => $canCoordinate ? $allocation->history($requestId) : array(),
+            'alerts' => $canCoordinate ? $allocation->alerts($requestId) : array(),
+            'preview' => $canCoordinate && $previewAllocation ? (new BookingAllocationService($allocation))->recoveryPreview($requestId, gmdate('Y-m-d H:i:s')) : null,
+        );
     }
 
     /** @return array{rows:array<int,array<string,mixed>>,total:int,page:int,pages:int,per_page:int,counts:array<string,int>} */

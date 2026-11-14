@@ -54,6 +54,7 @@ add_action( 'plugins_loaded', static function () {
 		Delnavazan\Platform\Core\Infrastructure\Migration\Migrator::maybe_upgrade();
 	}
 	Delnavazan\Platform\Core\Application\GodMode\GodModeAuthority::bootstrap();
+	Delnavazan\Platform\Public\ResearchNameSuggestionController::register();
 	Delnavazan\Platform\Admin\Controller\Menu::register();
 	Delnavazan\Platform\Admin\Controller\GodModeController::register();
 	Delnavazan\Platform\Admin\Controller\GodModeTeacherController::register();

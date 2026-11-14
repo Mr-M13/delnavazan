@@ -110,6 +110,7 @@ jobs:
           for contract in "${contracts[@]}"; do
             php "$contract"
           done
+          php platform/tests/research-name-suggestion-unit.php
           php platform/tests/recording-archive-policy-unit.php
           php platform/tests/recording-archive-contract.php
           php platform/tests/quiet-hours-advisory-unit.php

@@ -14,8 +14,18 @@
     return;
   }
 
+  // A mobile app handoff is not a browser popup: Android may close or detach the
+  // tab when Meet opens. Keep the authenticated POST and redirect in the same tab
+  // rather than pre-opening an empty window and incorrectly detecting class end.
+  var isAndroid = /Android/i.test((window.navigator && window.navigator.userAgent) || '');
+
   Array.prototype.forEach.call(forms, function (form) {
     form.addEventListener('submit', function () {
+      if (isAndroid) {
+        form.setAttribute('target', '_self');
+        return;
+      }
+
       var finishUrl = form.getAttribute('data-dzn-finish-url') || '';
       if (!finishUrl) {
         return;

@@ -57,11 +57,19 @@ if ( $is_booking && preg_match( '/^[0-9A-Z]{26}$/D', $confirmation_uid ) ) {
 		$confirmation_uid
 	) );
 }
-$has_details = ( $lesson && $schedule ) || $booking;
 $owned = false;
 if ( $lesson && $role === 'teacher' && (int) $lesson->teacher_id === $teacher_id ) { $owned = true; }
 if ( $lesson && $role === 'student' && (int) $lesson->student_id === $student_id ) { $owned = true; }
-if ( $booking && in_array( $role, array( 'teacher', 'student' ), true ) ) { $owned = true; }
+if ( $booking && 'teacher' === $role && $teacher_id > 0 && (int) $booking->teacher_id === $teacher_id ) { $owned = true; }
+if ( $booking && 'student' === $role && $student_id > 0 ) {
+    $repository_class = '\\Delnavazan\\Platform\\Core\\Infrastructure\\Repository\\BookingTeacherDeliveryRepository';
+    if ( class_exists( $repository_class ) ) {
+        try { $owned = null !== ( new $repository_class() )->confirmedForParticipant( $confirmation_uid, 'student', $student_id ); }
+        catch ( Throwable $e ) { $owned = false; }
+    }
+}
+// Do not expose another participant's names, lesson time or briefing to a guessed URL.
+$has_details = $owned && ( ( $lesson && $schedule ) || $booking );
 
 $course = is_object( $lesson ) ? ( $lesson->course_name ?? 'کلاس موسیقی دلنوازان' ) : 'کلاس موسیقی دلنوازان';
 $teacher_name = is_object( $lesson ) ? ( $lesson->teacher_name ?? '' ) : ( is_object( $booking ) ? ( $booking->teacher_name ?? '' ) : '' );
@@ -219,7 +227,7 @@ $timeline_state = static function ( array $row ) use ( $brief_format ): array {
 					</section>
 				</div>
 				<?php if ( $join_available ) : ?>
-					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" target="_blank" rel="noopener noreferrer" class="dzn-meet-entry__rejoin" data-dzn-finish-url="<?php echo esc_url( $finish_url ); ?>">
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" target="_blank" rel="noopener noreferrer" class="dzn-meet-entry__rejoin" data-dzn-finish-url="<?php echo esc_url( $is_booking ? '' : $finish_url ); ?>">
 						<input type="hidden" name="action" value="<?php echo esc_attr( $join_action ); ?>">
 						<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( wp_create_nonce( $join_nonce_action ) ); ?>">
 						<?php if ( $is_booking ) : ?>
@@ -235,7 +243,7 @@ $timeline_state = static function ( array $row ) use ( $brief_format ): array {
 				<p class="dzn-meet-entry__back"><a href="<?php echo esc_url( home_url( '/teacher-portal/' ) ); ?>">بازگشت به پرتال مدرس</a></p>
 			<?php else : ?>
 				<?php if ( $join_available ) : ?>
-					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" target="_blank" rel="noopener noreferrer" class="dzn-meet-entry__join" data-dzn-finish-url="<?php echo esc_url( $finish_url ); ?>">
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" target="_blank" rel="noopener noreferrer" class="dzn-meet-entry__join" data-dzn-finish-url="<?php echo esc_url( $is_booking ? '' : $finish_url ); ?>">
 						<input type="hidden" name="action" value="<?php echo esc_attr( $join_action ); ?>">
 						<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( wp_create_nonce( $join_nonce_action ) ); ?>">
 						<?php if ( $is_booking ) : ?>
@@ -245,10 +253,13 @@ $timeline_state = static function ( array $row ) use ( $brief_format ): array {
 							<input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( $schedule_uid ); ?>">
 						<?php endif; ?>
 						<button class="dzn-meet-entry__button" type="submit" data-dzn-meet-join>ورود به کلاس</button>
-						<p class="dzn-meet-entry__help">پیوند امن فقط پس از تأیید مالکیت و بازهٔ ورود در سرور باز می‌شود. Google Meet در پنجرهٔ تازه باز خواهد شد و با بستن آن، صفحهٔ پایان کلاس به‌صورت خودکار باز می‌شود.</p>
+						<p class="dzn-meet-entry__help">پیوند امن پس از تأیید مالکیت و زمان ورود در سرور باز می‌شود. در Android ورود در همان برگه انجام می‌شود؛ پس از کلاس به این صفحه برگردید. در رایانه Google Meet در پنجرهٔ تازه باز می‌شود و با بستن آن، صفحهٔ پایان کلاس به‌صورت خودکار باز می‌شود.</p>
 					</form>
 				<?php else : ?>
 					<p class="dzn-meet-entry__notice" role="status">این کلاس برای حساب شما در دسترس نیست یا زمان ورود آن نرسیده است. برای راهنمایی با پشتیبانی دلنوازان تماس بگیرید.</p>
+				<?php endif; ?>
+				<?php if ( ! $is_booking && $owned ) : ?>
+					<p class="dzn-meet-entry__back"><a href="<?php echo esc_url( $finish_url ); ?>">بازگشت پس از کلاس: ثبت یادداشت و تأیید حضور</a></p>
 				<?php endif; ?>
 				<?php if ( $recording_available ) : ?>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="dzn-meet-entry__recording">

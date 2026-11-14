@@ -71,6 +71,10 @@ $check('a missing briefing still renders the note/finish entry point', str_conta
 $entryJs = $read('theme/assets/js/meet-entry.js');
 $check('Meet-close detection opens the finish page', str_contains($entryJs, 'meetWindow.closed') && str_contains($entryJs, 'window.location.assign(finishUrl)'));
 $check('Meet-close detection falls back when the popup is blocked', str_contains($entryJs, 'if (!meetWindow)'));
+$check('Android joins stay in the same tab without popup tracking', str_contains($entryJs, 'var isAndroid = /Android/i.test') && str_contains($entryJs, "form.setAttribute('target', '_self')"));
+$check('Teacher has a manual finish link after Android app handoff', str_contains($entry, 'بازگشت پس از کلاس: ثبت یادداشت و تأیید حضور'));
+$check('Intro bookings do not falsely redirect to a term lesson finish page', str_contains($entry, '$is_booking ? \'\' : $finish_url'));
+$check('Classroom details require participant ownership', str_contains($entry, '$has_details = $owned') && str_contains($entry, 'confirmedForParticipant'));
 $routes = $read('theme/inc/routes.php');
 $check('classroom route enqueues the Meet-close script', str_contains($routes, 'delnavazan-meet-entry') && str_contains($routes, 'assets/js/meet-entry.js'));
 
@@ -80,7 +84,7 @@ $check('Teacher portal cards receive the sourced previous note', str_contains($b
 
 $actions = $read('theme/template-parts/components/classroom-actions.php');
 $check('Student join is a direct authenticated POST', str_contains($actions, "'student' === \$role") && str_contains($actions, '<form class="dzn-classroom-actions__form" method="post"'));
-$check('Teacher join keeps the branded preparation page', str_contains($actions, "home_url( '/music-classroom/' )") && str_contains($actions, 'target="_blank"'));
+$check('Teacher join keeps the branded preparation page', str_contains($actions, "home_url( '/music-classroom/' )") && str_contains($actions, "'Android' ) !== false ? '_self' : '_blank'"));
 
 $portal = $read('theme/template-parts/portal/upcoming-lesson.php') . $read('theme/template-parts/portal/schedule.php');
 $check('Student portal never references the private note store', !str_contains($portal, 'teacher_lesson_notes') && !str_contains($portal, 'previous_private_note'));

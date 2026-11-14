@@ -77,7 +77,7 @@ $contains($academy, array(
     'classOperatorRows()',
     'confirmed_intro_booking_v1',
     'classUrl',
-    "page' => 'dzn-booking-requests'",
+    "page' => 'dzn-enrolment-workspace'",
     'scheduleUtcInstant',
     'setTimezone(self::academyTimezone())',
     'scheduleDateInAcademyTimezone',

@@ -43,3 +43,10 @@ Status: **BLOCKED** until the remaining independent checks are evidenced. This r
 - The newest database export was restored to an isolated, network-disabled disposable MariaDB 11.4 container: **298 tables restored**, `mariadb-check` **PASS**, cleanup **PASS**. This does not attest application startup, plugins/themes, or HTTP smoke after restoration.
 - Direct read-only production WordPress option `dzn_platform_completed_migrations`: **75 entries**, with the latest entries including `074_god_mode_super_tester`, `075_teacher_booking_declines` and `076_instrument_aware_availability`. Active schema option previously read as `61`; migration count and schema number are different measures and should not be equated.
 - **Remaining release gate:** restore application files into a disposable WordPress instance and execute HTTP/application smoke without outbound notifications or production callbacks; confirm full runtime SHA and backup scheduling/retention. Do not merge/deploy until these are resolved and the final head CI passes.
+
+### 2026-11-14 evening production recheck
+
+- CI for exact head `c1352f34a4d3723607b4a46b2a41e7d8c6922554` **PASS** (run `43582532239`).
+- Live installed plugin build ID now `main-14091b2205a8`, schema `61`. Most recent deployment record names full SHA `14091b2205a8b77ebbe1a36e6e65c283b6518b5f` and its `after.build` agrees with the live 12-character build prefix. This is correlated production identity evidence, not an independent full-file checksum.
+- The newest cutover backup directory contains a SQL export and a tar archive. Backup inventory: 250 cutover directories. Server crontab includes a daily 03:17 prune script and a separate Wednesday 08:41 Softaculous backup job; neither proves that daily deploy backups are generated independently of deployments.
+- **Still pending:** a disposable WordPress boot and HTTP/application smoke using the restored plugin/theme and database, with outbound integrations disabled. The previous database-only restore and archive listing are not a substitute. Confirm whether the observed cutover backup cadence meets the recovery-point objective.

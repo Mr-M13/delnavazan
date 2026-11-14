@@ -110,15 +110,18 @@ final class AcademyOperationsController {
             array('Active students', $counts['students'] ?? null, 'Student directory', 'dzn-student'),
             array('Active teachers', $counts['teachers'] ?? null, 'Teacher overview', 'dzn-teachers-menu'),
             array('Active enrolments', $counts['enrolments'] ?? null, 'Bookings & enrolments', 'dzn-enrolment-workspace'),
-            array('Open bookings', $counts['bookings'] ?? null, 'Class admin', 'dzn-enrolment-workspace'),
+            array('Open bookings', $counts['bookings'] ?? null, 'Intro requests', 'dzn-enrolment-workspace', array('type' => 'intro')),
             array('Today’s classes', $classes['available'] ? count($classes['today']) : null, 'Classes & schedules', 'dzn-lesson'),
             array('Open action items', $actionCount, 'Review below', '#dzn-pending-work'),
         );
         echo '<div class="dzn-kpi-grid">';
-        foreach ($cards as [$label, $value, $hint, $target]) {
+        foreach ($cards as $card) {
+            [$label, $value, $hint, $target] = $card;
             $isLink = $value !== null && !str_starts_with($target, '#');
             $tag = $isLink ? 'a' : 'div';
-            $href = $isLink ? ' href="' . esc_url(admin_url('admin.php?page=' . rawurlencode($target))) . '"' : '';
+            $targetUrl = admin_url('admin.php?page=' . rawurlencode($target));
+            if (!empty($card[4])) $targetUrl = add_query_arg($card[4], $targetUrl);
+            $href = $isLink ? ' href="' . esc_url($targetUrl) . '"' : '';
             $classes = 'dzn-kpi' . ($value === null ? ' dzn-kpi--restricted' : '') . ($label === 'Open action items' && $actionCount > 0 ? ' dzn-kpi--attention' : '');
             echo '<' . $tag . ' class="' . esc_attr($classes) . '"' . $href . '>';
             echo '<span class="dzn-kpi__label">' . esc_html($label) . '</span>';

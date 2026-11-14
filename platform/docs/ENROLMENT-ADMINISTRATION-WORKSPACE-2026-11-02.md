@@ -1,5 +1,13 @@
 # Enrolment administration workspace
 
+## 2026-11-14 update (draft PR #620)
+
+The current Enrolment area uses one intro/class queue. Its Class admin record opens in a modal from Enrolment or Overview and returns to the same list when closed. The older protected routes remain available for saved links and specialist actions.
+
+The introductory record now includes booking intake evidence, duplicate review and privacy erasure in a collapsed **Booking intake and allocation** section. Those controls remain restricted by their original capabilities and use the same authority services. This revises the 2026-11-02 placement decision below: the operations are available in context without making them routine next-step actions. Allocation candidate search runs only after an administrator asks to check current options.
+
+The sections below record the original 2026-11-02 design and verification, not a new browser verification of PR #620.
+
 Date: 2026-11-02
 
 Branch: `feat/enrolment-administration-workspace-20261102`
@@ -27,7 +35,7 @@ Course and instrument configuration moved to **Settings → Catalogue → Course
 | --- | --- | --- |
 | Booking request list and detail (`dzn-booking-requests`) | Intro case table and expandable case | Carried into the workspace read surface |
 | Match assessment (`dzn_prepare_booking_request_matches`) | Case next-action and manual match hard-constraint check | Carried |
-| Duplicate review and privacy erasure (`dzn-booking-requests`) | Protected booking-request route | Remains protected because it is a privacy/duplicate-evidence operation, not an everyday Enrolment decision. |
+| Duplicate review and privacy erasure (`dzn-booking-requests`) | Collapsed Booking intake and allocation section on the intro record; protected original route retained | Capability-gated, deliberate evidence operations; not presented as routine next steps. |
 | Coordination open/add candidate (`dzn-booking-request-coordination`) | Case actions | Carried |
 | Teacher Availability Assent | Case actions | Carried |
 | Proposal issue | Case actions | Carried |

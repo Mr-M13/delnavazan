@@ -62,7 +62,18 @@ final class EnrolmentWorkspaceController {
             if ($caseId > 0 && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_view_booking_requests')) {
                 $coordination = (new CoordinationWorkspaceReadService())->caseDetail($caseId);
             }
-            EnrolmentWorkspaceView::bookingCase($case, self::classroomForBooking($case), $coordination);
+            $intake = current_user_can('dzn_view_booking_requests')
+                ? $read->bookingIntake($requestId, (string) ($_GET['dzn_allocation_preview'] ?? '') === '1')
+                : null;
+            if ($intake !== null) {
+                $assessmentKey = 'dzn_match_assessment_' . get_current_user_id() . '_' . $requestId;
+                $assessment = get_transient($assessmentKey);
+                if (is_array($assessment)) {
+                    $intake['assessment'] = $assessment;
+                    delete_transient($assessmentKey);
+                }
+            }
+            EnrolmentWorkspaceView::bookingCase($case, self::classroomForBooking($case), $coordination, $intake);
             return;
         }
         if ($classId > 0) {
@@ -122,8 +133,16 @@ final class EnrolmentWorkspaceController {
                 self::requireCap('dzn_view_booking_requests');
                 self::requireCap('dzn_manage_booking_request_coordination');
                 if ($requestId < 1) throw new \InvalidArgumentException('Choose a booking request first.');
-                (new BookingAllocationService())->recover($requestId, gmdate('Y-m-d H:i:s'));
-                return 'Booking allocation recovery completed. Review the current request state.';
+                $recovery = (new BookingAllocationService())->recover($requestId, gmdate('Y-m-d H:i:s'));
+                return match ((string) ($recovery['action'] ?? '')) {
+                    'preserve_existing_lifecycle' => 'No recovery was applied; this request is no longer eligible.',
+                    'already_allocated' => 'No recovery was applied; an allocation offer already exists.',
+                    'missing' => 'No recovery was applied; the booking request was not found.',
+                    'reconcile_legacy_offer' => 'The existing Teacher offer was reconciled. Review its current state.',
+                    'start_offer' => 'A reviewed Teacher offer was started. Review its current state.',
+                    'refer_administrator', 'manual_review' => 'The booking was referred for administrator review.',
+                    default => 'Allocation recovery was reviewed. Check the current request state.',
+                };
             case 'review_duplicate':
                 self::requireCap('dzn_view_booking_requests');
                 self::requireCap('dzn_review_booking_request_duplicates');

@@ -45,9 +45,11 @@ body.dzn-admin-page {
   box-shadow: 0 24px 80px rgba(16, 35, 37, .28);
   background: var(--dzn-bg);
 }
+.dzn-class-admin-modal[open] { display: flex; flex-direction: column; }
 .dzn-class-admin-modal::backdrop { background: rgba(18, 34, 36, .66); }
 .dzn-class-admin-modal__bar {
   display: flex;
+  flex: none;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
@@ -57,7 +59,7 @@ body.dzn-admin-page {
   font: 700 15px Vazirmatn, Tahoma, Arial, sans-serif;
 }
 .dzn-class-admin-modal__bar .button { min-width: 80px; }
-.dzn-class-admin-modal iframe { display: block; width: 100%; height: calc(100% - 54px); border: 0; }
+.dzn-class-admin-modal iframe { display: block; flex: 1; min-height: 0; width: 100%; border: 0; }
 html:has(body.dzn-class-admin-frame) { padding-top: 0 !important; }
 body.dzn-class-admin-frame #wpadminbar,
 body.dzn-class-admin-frame #adminmenumain,
@@ -70,7 +72,6 @@ body.dzn-class-admin-frame .dzn-enrolment { max-width: none; margin: 0; }
 .dzn-record-stage { margin: 14px 0; border: 1px solid var(--dzn-border); border-radius: var(--dzn-radius-sm); background: var(--dzn-surface); }
 .dzn-record-stage > summary { cursor: pointer; padding: 14px 18px; color: var(--dzn-teal-deep); font-weight: 700; }
 .dzn-record-stage__body { padding: 0 18px 18px; }
-.dzn-coordination--embedded .dzn-coordination__grid { display: block; }
 @media (max-width: 782px) {
   .dzn-class-admin-modal { width: calc(100vw - 12px); height: calc(100vh - 12px); }
   body.dzn-class-admin-frame #wpbody-content { padding: 8px !important; }

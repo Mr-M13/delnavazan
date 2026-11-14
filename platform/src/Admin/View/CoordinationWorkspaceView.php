@@ -134,21 +134,21 @@ final class CoordinationWorkspaceView {
         echo '<div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Human review</p><h2>Coordinate this intro</h2><p>Work through the next blocker, then record the agreement and acceptance evidence. Completed steps stay available for review.</p></div></div>';
         self::actionRequired($detail);
         self::recommendation($detail);
-        echo '<details class="dzn-record-stage" open><summary>1. Review request, Student and Teacher</summary><div class="dzn-record-stage__body">';
+        echo '<details class="dzn-record-stage" data-dzn-stage="prepare" open><summary>1. Review request, Student and Teacher</summary><div class="dzn-record-stage__body">';
         self::overview($detail);
         self::identity($detail);
         self::teacherMatching($detail);
         self::agreements($detail);
         echo '</div></details>';
-        echo '<details class="dzn-record-stage"><summary>2. Proposal and acceptance</summary><div class="dzn-record-stage__body">';
+        echo '<details class="dzn-record-stage" data-dzn-stage="acceptance"><summary>2. Proposal and acceptance</summary><div class="dzn-record-stage__body">';
         self::proposals($detail);
         self::acceptance($detail);
         echo '</div></details>';
-        echo '<details class="dzn-record-stage"><summary>3. Enrolment and scheduling</summary><div class="dzn-record-stage__body">';
+        echo '<details class="dzn-record-stage" data-dzn-stage="enrolment"><summary>3. Enrolment and scheduling</summary><div class="dzn-record-stage__body">';
         self::enrolment($detail);
         self::scheduling($detail);
         echo '</div></details>';
-        echo '<details class="dzn-record-stage"><summary>Evidence and exceptional recovery</summary><div class="dzn-record-stage__body">';
+        echo '<details class="dzn-record-stage" data-dzn-stage="evidence"><summary>Evidence and exceptional recovery</summary><div class="dzn-record-stage__body">';
         self::finance($detail);
         self::communications($detail);
         self::caseState($detail);
@@ -774,7 +774,7 @@ final class CoordinationWorkspaceView {
         echo '<form method="post" class="dzn-coordination__form"' . ($formAction !== '' ? ' action="' . esc_url($formAction) . '"' : '') . '>';
         wp_nonce_field('dzn_coordination_action_' . $caseId);
         echo '<input type="hidden" name="dzn_coordination_action" value="' . esc_attr($action) . '"><input type="hidden" name="case_id" value="' . esc_attr((string) $caseId) . '">';
-        if (self::$embeddedRequestId > 0) echo '<input type="hidden" name="dzn_record_request_id" value="' . esc_attr((string) self::$embeddedRequestId) . '"><input type="hidden" name="dzn_modal" value="' . (isset($_GET['dzn_modal']) ? '1' : '0') . '">';
+        if (self::$embeddedRequestId > 0) echo '<input type="hidden" name="dzn_record_request_id" value="' . esc_attr((string) self::$embeddedRequestId) . '"><input type="hidden" name="dzn_modal" value="' . ((string) ($_GET['dzn_modal'] ?? '') === '1' ? '1' : '0') . '">';
         foreach ($hidden as $name => $value) echo '<input type="hidden" name="' . esc_attr((string) $name) . '" value="' . esc_attr((string) $value) . '">';
     }
 

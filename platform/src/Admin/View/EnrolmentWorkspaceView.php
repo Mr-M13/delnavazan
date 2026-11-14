@@ -5,10 +5,6 @@ use Delnavazan\Platform\Admin\Controller\EnrolmentWorkspaceController;
 use Delnavazan\Platform\Admin\Controller\Menu;
 use Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService;
 use Delnavazan\Platform\Core\Application\HistoricalEnrolmentImportService;
-use Delnavazan\Platform\Core\Application\BookingAllocationService;
-use Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository;
-use Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestIntakeRepository;
-use Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestRepository;
 
 /** Accessible, responsive presentation for the consolidated Enrolment workspace. */
 final class EnrolmentWorkspaceView {
@@ -51,7 +47,7 @@ final class EnrolmentWorkspaceView {
         else { self::queueTable($queue['rows'], false); self::queuePagination($filters, $queue, false); }
         echo '</section>';
 
-        echo '<details class="dzn-history dzn-enrolment__section"' . (($historyFilters['q'] !== '') ? ' open' : '') . '><summary><span><strong>Class history</strong><br><small>Completed, cancelled and archived intros and classes, with their evidence retained.</small></span><span class="dzn-count-chip">' . esc_html(number_format_i18n((int) $history['total'])) . '</span></summary><div class="dzn-history__body">';
+        echo '<details class="dzn-history dzn-enrolment__section" data-dzn-history' . (($historyFilters['q'] !== '') ? ' open' : '') . '><summary><span><strong>Class history</strong><br><small>Completed, cancelled and archived intros and classes, with their evidence retained.</small></span><span class="dzn-count-chip">' . esc_html(number_format_i18n((int) $history['total'])) . '</span></summary><div class="dzn-history__body">';
         echo '<form method="get" class="dzn-enrolment__filter-form"><input type="hidden" name="page" value="' . esc_attr(EnrolmentWorkspaceController::PAGE) . '"><label class="dzn-enrolment__search"><span>Search history</span><input type="search" name="history_q" value="' . esc_attr($historyFilters['q']) . '" placeholder="Student, Teacher, instrument or reference"></label><button class="button">Search history</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE)) . '">Reset</a></form>';
         if (!$history['rows']) echo '<p>No completed or cancelled records match this search.</p>';
         else { self::queueTable($history['rows'], true); self::queuePagination($historyFilters, $history, true); }
@@ -61,7 +57,7 @@ final class EnrolmentWorkspaceView {
     }
 
     public static function modal(): void {
-        echo '<dialog class="dzn-class-admin-modal" data-dzn-class-admin-modal aria-label="Class admin"><div class="dzn-class-admin-modal__bar"><strong data-dzn-class-admin-title>Class admin</strong><button type="button" class="button" data-dzn-class-admin-close>Close</button></div><iframe title="Class admin record" data-dzn-class-admin-frame></iframe></dialog>';
+        echo '<dialog class="dzn-class-admin-modal" data-dzn-class-admin-modal aria-labelledby="dzn-class-admin-title"><div class="dzn-class-admin-modal__bar"><strong id="dzn-class-admin-title" data-dzn-class-admin-title>Class admin</strong><button type="button" class="button" data-dzn-class-admin-close>Close</button></div><iframe title="Class admin record" data-dzn-class-admin-frame></iframe></dialog>';
     }
 
     /** @param array<string,mixed> $snapshot */
@@ -280,7 +276,7 @@ final class EnrolmentWorkspaceView {
         );
     }
 
-    public static function bookingCase(array $case, ?array $classroom, ?array $coordination = null): void {
+    public static function bookingCase(array $case, ?array $classroom, ?array $coordination = null, ?array $intake = null): void {
         echo '<div class="wrap dzn-enrolment dzn-enrolment--case">';
         self::notices();
         self::recordBack();
@@ -291,7 +287,7 @@ final class EnrolmentWorkspaceView {
         echo '</div>';
         echo '<div class="dzn-case-columns"><div>';
         self::caseActions($case);
-        self::intakeTools($case);
+        if ($intake) self::intakeTools($intake);
         if ($coordination) CoordinationWorkspaceView::embeddedDetail($coordination);
         self::caseTimeline($case);
         echo '</div><aside>';
@@ -322,7 +318,7 @@ final class EnrolmentWorkspaceView {
     }
 
     private static function recordBack(): void {
-        if (isset($_GET['dzn_modal'])) {
+        if ((string) ($_GET['dzn_modal'] ?? '') === '1') {
             echo '<p class="dzn-back"><a class="button" data-dzn-class-admin-close href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE)) . '">← Close Class admin</a></p>';
             return;
         }
@@ -330,38 +326,37 @@ final class EnrolmentWorkspaceView {
     }
 
     /** Booking intake, allocation and duplicate review from the same intro record. */
-    private static function intakeTools(array $case): void {
-        if (!current_user_can('dzn_view_booking_requests')) return;
-        $requestId = (int) $case['id'];
-        $request = (new BookingRequestRepository())->details($requestId);
-        if (!$request) return;
-        $flags = (new BookingRequestIntakeRepository())->duplicateFlags($requestId);
-        $allocation = new BookingAllocationRepository();
-        $preview = current_user_can('dzn_manage_booking_request_coordination') ? (new BookingAllocationService($allocation))->recoveryPreview($requestId, gmdate('Y-m-d H:i:s')) : null;
-        echo '<details class="dzn-enrolment__section dzn-record-stage"><summary>Booking intake and allocation</summary><div class="dzn-record-stage__body">';
-        echo '<p><strong>Lifecycle:</strong> ' . esc_html((string) $request->lifecycle_status) . ' · <strong>Resolution:</strong> ' . esc_html((string) $request->resolution_state) . '</p>';
-        if (current_user_can('dzn_prepare_booking_request_matches') && (string) $request->lifecycle_status === 'submitted' && (string) $request->resolution_state === 'unresolved') {
+    private static function intakeTools(array $intake): void {
+        $requestId = (int) $intake['id'];
+        $preview = $intake['preview'];
+        echo '<details class="dzn-enrolment__section dzn-record-stage" id="dzn-booking-intake" data-dzn-stage="intake"><summary>Booking intake and allocation</summary><div class="dzn-record-stage__body">';
+        echo '<p><strong>Lifecycle:</strong> ' . esc_html((string) $intake['lifecycle']) . ' · <strong>Resolution:</strong> ' . esc_html((string) $intake['resolution']) . '</p>';
+        if (current_user_can('dzn_prepare_booking_request_matches') && (string) $intake['lifecycle'] === 'submitted' && (string) $intake['resolution'] === 'unresolved') {
             echo '<h3>Current Teacher coverage</h3><p>Assessment is advisory; it does not reserve or contact a Teacher.</p>';
             self::postForm('assess_matches', array('request_id' => $requestId), 'Assess current matchability');
-            $assessment = get_transient('dzn_match_assessment_' . get_current_user_id() . '_' . $requestId);
+            $assessment = $intake['assessment'] ?? null;
             if (is_array($assessment) && isset($assessment['outcome'])) {
                 echo '<p><strong>Outcome:</strong> ' . esc_html((string) $assessment['outcome']) . ' · criteria ' . esc_html((string) ($assessment['criteria_version'] ?? '')) . ' · assessed ' . esc_html((string) ($assessment['assessed_at'] ?? '')) . ' UTC</p><ul>';
                 foreach ((array) ($assessment['requested_times'] ?? array()) as $time) echo '<li>Preference ' . esc_html((string) ($time['sequence'] ?? '')) . ': ' . (!empty($time['covered']) ? 'currently covered' : 'no current coverage') . (!empty($time['limited']) ? ' (limited Teacher included)' : '') . '</li>';
                 echo '</ul>';
             }
         }
+        if (current_user_can('dzn_manage_booking_request_coordination') && $preview === null) {
+            $previewUrl = add_query_arg(array('page' => EnrolmentWorkspaceController::PAGE, 'request_id' => $requestId, 'dzn_allocation_preview' => '1'), admin_url('admin.php'));
+            if ((string) ($_GET['dzn_modal'] ?? '') === '1') $previewUrl = add_query_arg(array('dzn_modal' => '1'), $previewUrl);
+            echo '<p><a class="button" href="' . esc_url($previewUrl . '#dzn-booking-intake') . '">Check current allocation options</a></p>';
+        }
         if ($preview !== null) {
             echo '<h3>Allocation</h3><p><strong>Next supported action:</strong> ' . esc_html(ucfirst(str_replace('_', ' ', (string) $preview['action']))) . ' · ' . esc_html((string) ($preview['viable_teacher_count'] ?? 0)) . ' viable Teachers now.</p>';
             if (in_array((string) $preview['action'], array('reconcile_legacy_offer', 'start_offer', 'refer_administrator', 'manual_review'), true)) self::postForm('recover_allocation', array('request_id' => $requestId), 'Run reviewed recovery');
-            $offers = $allocation->history($requestId);
-            if ($offers) {
-                echo '<h4>Teacher offer history</h4><ol>';
-                foreach ($offers as $offer) echo '<li>' . esc_html((string) $offer->teacher_name) . ' · ' . esc_html(ucfirst(str_replace('_', ' ', (string) $offer->state))) . ' · ' . esc_html((string) $offer->offered_at) . ' UTC</li>';
-                echo '</ol>';
-            }
-            $alerts = $allocation->alerts($requestId);
-            foreach ($alerts as $alert) echo '<p><strong>Allocation alert:</strong> ' . esc_html(ucfirst(str_replace('_', ' ', (string) $alert->reason_code))) . ' · ' . esc_html((string) $alert->state) . '</p>';
         }
+        if ($intake['offers']) {
+            echo '<h4>Teacher offer history</h4><ol>';
+            foreach ($intake['offers'] as $offer) echo '<li>' . esc_html((string) $offer->teacher_name) . ' · ' . esc_html(ucfirst(str_replace('_', ' ', (string) $offer->state))) . ' · ' . esc_html((string) $offer->offered_at) . ' UTC</li>';
+            echo '</ol>';
+        }
+        foreach ($intake['alerts'] as $alert) echo '<p><strong>Allocation alert:</strong> ' . esc_html(ucfirst(str_replace('_', ' ', (string) $alert->reason_code))) . ' · ' . esc_html((string) $alert->state) . '</p>';
+        $flags = $intake['flags'];
         if ($flags) {
             echo '<h3>Duplicate review</h3>';
             foreach ($flags as $flag) {
@@ -373,7 +368,7 @@ final class EnrolmentWorkspaceView {
                 echo '</div>';
             }
         }
-        if ((string) $request->lifecycle_status === 'submitted' && (string) $request->resolution_state === 'unresolved' && current_user_can('dzn_erase_booking_request_pii')) {
+        if ((string) $intake['lifecycle'] === 'submitted' && (string) $intake['resolution'] === 'unresolved' && current_user_can('dzn_erase_booking_request_pii')) {
             echo '<details class="dzn-action-panel"><summary>Privacy erasure</summary><div class="dzn-action-panel__body"><p>Erase identifying data only for an authorised privacy request. This action cannot be undone.</p>';
             self::formStart('erase_request_pii', array('request_id' => $requestId));
             echo '<label>Reason<input name="reason" required maxlength="64" pattern="[a-z0-9_]{3,64}"></label> <button class="button" onclick="return confirm(\'Erase this request’s identifying data? This cannot be undone.\')">Erase identifying data</button></form></div></details>';
@@ -1062,7 +1057,7 @@ final class EnrolmentWorkspaceView {
             $error = (string) ($_GET['dzn_workspace_error'] ?? '') === '1';
             echo '<div class="notice ' . esc_attr($error ? 'notice-error' : 'notice-success') . ' inline" role="' . esc_attr($error ? 'alert' : 'status') . '"><p>' . esc_html($message) . '</p></div>';
         }
-        if (isset($_GET['dzn_notice'])) echo '<div class="notice ' . esc_attr((string) ($_GET['dzn_error'] ?? '') === '1' ? 'notice-error' : 'notice-info') . ' inline"><p>' . esc_html(sanitize_text_field(wp_unslash((string) $_GET['dzn_notice']))) . '</p></div>';
+        if (isset($_GET['dzn_notice'])) echo '<div class="notice ' . esc_attr((string) ($_GET['dzn_error'] ?? '') === '1' ? 'notice-error' : 'notice-success') . ' inline"><p>' . esc_html(sanitize_text_field(wp_unslash((string) $_GET['dzn_notice']))) . '</p></div>';
     }
 
     private static function formStart(string $operation, array $hidden = array()): void {
@@ -1088,7 +1083,7 @@ final class EnrolmentWorkspaceView {
             $id = absint($_GET[$key] ?? 0);
             if ($id > 0) echo '<input type="hidden" name="' . esc_attr($key) . '" value="' . esc_attr((string) $id) . '">';
         }
-        if (isset($_GET['dzn_modal'])) echo '<input type="hidden" name="dzn_modal" value="1">';
+        if ((string) ($_GET['dzn_modal'] ?? '') === '1') echo '<input type="hidden" name="dzn_modal" value="1">';
     }
 
     private static function input(string $name, string $label, string $type = 'text', string $value = '', bool $required = false, string $description = ''): void {

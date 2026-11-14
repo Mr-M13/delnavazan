@@ -171,7 +171,7 @@ final class AdminShellController {
 
     public static function bodyClass($classes): string {
         if (str_starts_with(self::currentPage(), 'dzn-')) $classes .= ' dzn-admin-page';
-        if (self::currentPage() === EnrolmentWorkspaceController::PAGE && isset($_GET['dzn_modal'])) $classes .= ' dzn-class-admin-frame';
+        if (self::currentPage() === EnrolmentWorkspaceController::PAGE && (string) ($_GET['dzn_modal'] ?? '') === '1') $classes .= ' dzn-class-admin-frame';
         return $classes;
     }
 

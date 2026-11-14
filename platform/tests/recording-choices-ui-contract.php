@@ -78,7 +78,9 @@ $need(!str_contains($booking,'Draft product copy'),'the public enrolment page mu
 $projectCopy=$read('../theme/template-parts/recording/project-copy.php');
 foreach(array('Why this project?','An example: learning riz on setar','How will we proceed?','How could this research help?','Participation and care of information','currently disabled')as$text)$need(str_contains($projectCopy,$text),'the Project must explain '.$text);
 $need(str_contains($infoBody,"'fa'")&&str_contains($infoBody,"'en'"),'the information page must support both languages');
-$need(!str_contains($infoBody,'<form'),'recording decisions must remain outside the explanation template');
+$nameForm=$read('../theme/template-parts/recording/name-suggestion.php');
+$need(str_contains($nameForm,'name="action" value="dzn_research_name"'),'the name form must use only the independent suggestion action');
+$need(!str_contains($infoBody.$nameForm,'dzn_unified_student_consent')&&!str_contains($infoBody.$nameForm,'dzn_unified_teacher_consent'),'the information page must not collect recording decisions');
 $need(!str_contains($infoBody,'link pending approval'),'the Project must replace the old placeholder');
 $need(str_contains($projectCopy,'specifies ten-year retention')&&str_contains($projectCopy,'does not extend retention or remove existing rights'),'the Project must distinguish current policy from proposed changes');
 $need(str_contains($projectCopy,'does not itself opt you into research'),'enrolment must not imply research participation');

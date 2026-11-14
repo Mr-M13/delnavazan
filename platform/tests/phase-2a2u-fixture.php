@@ -35,6 +35,22 @@ function dzn_u_fix_reset():void{
         dzn_u_fix_assert($wpdb->query("DELETE FROM {$p}{$table}")!==false,'Failed to reset disposable Phase U storage: '.$table);
     }
     dzn_u_fix_assert($wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->prefix}dzn_platform_audit_events WHERE aggregate_type LIKE %s",'finance_%'))!==false,'Failed to reset disposable Phase U audit evidence');
+    // The disposable database installs the default policies "now". Historical
+    // occurrences in this fixture must be covered by the same version, so move
+    // the seeded defaults' effective boundary into the distant past without
+    // colliding with any version left by an earlier fixture run.
+    foreach (array('INTRO_PAYABILITY_POLICY'=>'2020-01-01','STUDENT_NO_SHOW_COMPENSATION_POLICY'=>'2020-01-02','INTERRUPTION_COMPENSATION_POLICY'=>'2020-01-03') as $policyKey=>$policyDate) {
+        $effective=$policyDate.' 00:00:00';
+        $wpdb->query($wpdb->prepare("DELETE FROM {$p}finance_policies WHERE policy_key=%s AND policy_version>1",$policyKey));
+        $versionOne=$wpdb->get_row($wpdb->prepare("SELECT id,effective_from FROM {$p}finance_policies WHERE policy_key=%s AND policy_version=1",$policyKey));
+        if($versionOne){
+            $wpdb->update($p.'finance_policies',array('status'=>'active'),array('id'=>(int)$versionOne->id));
+        }
+        if($versionOne&&(string)$versionOne->effective_from!==$effective){
+            $wpdb->query($wpdb->prepare("DELETE FROM {$p}finance_policies WHERE policy_key=%s AND effective_from=%s AND id<>%d",$policyKey,$effective,(int)$versionOne->id));
+            $wpdb->update($p.'finance_policies',array('effective_from'=>$effective),array('id'=>(int)$versionOne->id));
+        }
+    }
 }
 
 /** Activate one canonical Enrolment, create its Term, Assignment and provisioned Teacher, and return the chain. */
@@ -75,6 +91,7 @@ function dzn_u_fix_chain(array $fixture):array{
 /** Issue and schedule one canonical occurrence; the chain's dedicated Teacher is never occupied twice. */
 function dzn_u_fix_occurrence(array $chain,array $fixture,string $label,int $leadSeconds=2,int $durationMinutes=30):array{
     global $wpdb;$p=$wpdb->prefix.'dzn_';
+    static $pastSequence=0;
     $lessonService=new CanonicalLessonAuthorityService();
     $scheduleService=new CanonicalLessonScheduleService();
     $lessonId=(int)$lessonService->createStandard((int)$chain['term_id'],(int)$chain['assignment_id'],dzn_u_fix_evidence('u-lesson-'.$label),dzn_u_fix_key('lesson-'.$label))['lesson_id'];
@@ -84,9 +101,20 @@ function dzn_u_fix_occurrence(array $chain,array $fixture,string $label,int $lea
     $wall=gmdate('Y-m-d H:i:s',$start);
     $scheduled=$scheduleService->schedule($lessonId,(int)$chain['assignment_id'],array('schedule_timezone'=>'UTC','local_wall_date'=>substr($wall,0,10),'local_wall_time'=>substr($wall,11),'duration_minutes'=>$durationMinutes,'reason_code'=>'synthetic_schedule')+dzn_u_fix_evidence('u-schedule-'.$label),dzn_u_fix_key('schedule-'.$label));
     $version=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}canonical_lesson_schedule_versions WHERE id=%d",(int)$scheduled['schedule_version_id']));
+    // Finance can only snapshot a finalised occurrence. Move the disposable
+    // occurrence into the recent past so the same canonical version can be
+    // completed, delivered and captured without waiting in real time.
+    $pastStart=time()-2700-($pastSequence*60);$pastEnd=$pastStart+$durationMinutes*60;$pastOccupied=$pastEnd+max(0,(int)($version->buffer_minutes??15))*60;$pastSequence++;
+    $wpdb->update($p.'canonical_lesson_schedule_versions',array(
+        'starts_at_utc'=>gmdate('Y-m-d H:i:s',$pastStart),
+        'ends_at_utc'=>gmdate('Y-m-d H:i:s',$pastEnd),
+        'occupied_ends_at_utc'=>gmdate('Y-m-d H:i:s',$pastOccupied),
+        'local_wall_date'=>gmdate('Y-m-d',$pastStart),
+        'local_wall_time'=>gmdate('H:i:s',$pastStart),
+    ),array('id'=>(int)$version->id));
     $scheduleService->release($lessonId,array('expected_schedule_version_id'=>(int)$version->id,'reason_code'=>'synthetic_schedule_release')+dzn_u_fix_evidence('u-release-'.$label),dzn_u_fix_key('release-'.$label));
     unset($fixture);
-    return array('lesson_id'=>$lessonId,'schedule_version_id'=>(int)$version->id,'starts_at_utc'=>(string)$version->starts_at_utc,'ends_at_utc'=>(string)$version->ends_at_utc);
+    return array('lesson_id'=>$lessonId,'schedule_version_id'=>(int)$version->id,'starts_at_utc'=>gmdate('Y-m-d H:i:s',$pastStart),'ends_at_utc'=>gmdate('Y-m-d H:i:s',$pastEnd));
 }
 
 /** Complete a scheduled canonical Lesson. */

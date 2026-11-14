@@ -43,6 +43,7 @@ dzn_u_fix_assert((int)$rates->resolveFor($teacherId,$courseId,gmdate('Y-m-d H:i:
 $historical=dzn_u_fix_occurrence($chain,$fixture,'historical',2,30);
 dzn_u_fix_assert((string)$historical['starts_at_utc']<$successorFrom,'the captured instant must lie inside the predecessor interval');
 dzn_u_fix_assert((string)$historical['starts_at_utc']>gmdate('Y-m-d H:i:s',$now-172800),'the captured instant must be covered by the predecessor');
+dzn_u_fix_outcome($historical,'delivered','historical','authorised');
 dzn_u_fix_complete($historical,'historical');
 $captured=dzn_u_fix_accepted(fn()=>$snapshots->capture((int)$historical['lesson_id'],dzn_u_fix_key('capture-historical')),'a delayed capture');
 dzn_u_fix_assert((int)$captured['rate_id']===(int)$base['rate_id']&&(int)$captured['rate_version']===(int)$base['rate_version'],'the capture must resolve the interval that covers its own instant');
@@ -72,7 +73,7 @@ dzn_u_fix_assert((int)$broadRate['rate_id']>0,'the broader active rate must exis
 // The rate registry's own consumption guard: no rate may be recorded into a consumed snapshot instant.
 $otherCourse=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}courses WHERE id<>%d ORDER BY id LIMIT 1",$courseId));
 dzn_u_fix_assert($otherCourse>0,'a second Course is required for the free-scope guard probe');
-dzn_u_fix_refused(fn()=>dzn_u_fix_rate($teacherId,array('scope_kind'=>'teacher_course','course_scope_id'=>$otherCourse,'amount_minor'=>1,'currency'=>'AUD','effective_from'=>gmdate('Y-m-d H:i:s',$now+1),'compensation_basis'=>'per_session'),'pre-snapshot'),'rate_effective_from_precedes_snapshot','a rate recorded into an instant a committed snapshot already consumed');
+dzn_u_fix_refused(fn()=>dzn_u_fix_rate($teacherId,array('scope_kind'=>'teacher_course','course_scope_id'=>$otherCourse,'amount_minor'=>1,'currency'=>'AUD','effective_from'=>gmdate('Y-m-d H:i:s',$now-3600),'compensation_basis'=>'per_session'),'pre-snapshot'),'rate_effective_from_precedes_snapshot','a rate recorded into an instant a committed snapshot already consumed');
 
 // §6 policy model: the seeded defaults, the unseeded timezone key, resolution by covered instant, and
 // the §6.3 temporal admissibility guard against a recorded dependent fact.

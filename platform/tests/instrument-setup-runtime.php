@@ -32,6 +32,23 @@ dzn_instrument_setup_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) 
 dzn_instrument_setup_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}instrument_intro_course_defaults WHERE instrument_id=%d AND course_id=%d AND status='active'",$instrumentId,$first['introductory_course_id']))===1,'Setup must create exactly one active introductory default');
 dzn_instrument_setup_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_prices WHERE product_id=%d",$first['product_id']))===0,'Setup must not invent regional prices');
 
+// The operator workflow stores both names and publishes only active offers to booking.
+$offerFa='ساز آزمایشی '.$suffix;$offerEn='DZN Offer '.$suffix;
+$offer=$catalogue->setupInstrument(array('name_fa'=>$offerFa,'name_en'=>$offerEn,'standard_duration_minutes'=>30,'gap_between_lessons_minutes'=>15));
+$instrument=(new \Delnavazan\Platform\Core\Infrastructure\Repository\InstrumentRepository())->find((int)$offer['instrument_id']);
+dzn_instrument_setup_assert((string)$instrument->name_fa===$offerFa&&(string)$instrument->name_en===$offerEn,'Bilingual instrument names must be stored separately');
+$introCourse=(new \Delnavazan\Platform\Core\Infrastructure\Repository\CourseRepository())->find((int)$offer['introductory_course_id']);
+$standardCourse=(new \Delnavazan\Platform\Core\Infrastructure\Repository\CourseRepository())->find((int)$offer['standard_course_id']);
+dzn_instrument_setup_assert((string)$introCourse->name_en==='Introductory '.$offerEn&&(string)$standardCourse->name_en==='Standard '.$offerEn,'Both generated courses must use the English name');
+$visible=static fn():bool=>in_array((int)$offer['instrument_id'],array_column((new \Delnavazan\Platform\Core\Application\PublicBookingOptionsReadService())->introductoryInstruments(),'id'),true);
+dzn_instrument_setup_assert($visible(),'New offer must appear in booking options');
+$catalogue->updateInstrument((int)$offer['instrument_id'],$offerFa.' نو',$offerEn.' New','inactive');
+dzn_instrument_setup_assert(!$visible(),'Inactive offer must disappear from booking options');
+$catalogue->updateInstrument((int)$offer['instrument_id'],$offerFa.' نو',$offerEn.' New','active');
+dzn_instrument_setup_assert($visible(),'Reactivated offer must return to booking options');
+$renamedCourse=(new \Delnavazan\Platform\Core\Infrastructure\Repository\CourseRepository())->find((int)$offer['standard_course_id']);
+dzn_instrument_setup_assert((string)$renamedCourse->name_en==='Standard '.$offerEn.' New','Generated course names must follow instrument edits');
+
 $catalogue->course(array('instrument_id'=>$instrumentId,'name_fa'=>$name,'name_en'=>$name,'course_type'=>'standard','status'=>'active','default_duration_minutes'=>45,'default_buffer_minutes'=>20));
 dzn_instrument_setup_fails(static fn()=>$catalogue->setupInstrument($input),'Ambiguous standard Courses must fail closed');
 dzn_instrument_setup_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_products WHERE course_id=%d AND status='active' AND archived_at IS NULL",$first['standard_course_id']))===1,'Conflict retry must not duplicate the product');

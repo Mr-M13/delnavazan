@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Admin\AcademyDashboardScreen;
+use Delnavazan\Platform\Admin\View\EnrolmentWorkspaceView;
 use Delnavazan\Platform\Core\Application\AcademyDashboardReadService;
 use Delnavazan\Platform\Core\Application\AcademyJourneyReadService;
 use Delnavazan\Platform\Core\Application\CoreReadService;
@@ -39,6 +40,7 @@ final class AcademyOperationsController {
         }
         if (AcademyDashboardScreen::shows('finance')) self::financePanel($summary);
         if (AcademyDashboardScreen::shows('coverage')) self::coveragePanel();
+        if (current_user_can(Menu::ENROLMENT_WORKSPACE_CAP)) EnrolmentWorkspaceView::modal();
         echo '</div>';
     }
 
@@ -50,7 +52,7 @@ final class AcademyOperationsController {
         echo '<p>Today’s work is collected here. Review the next action for each learner journey, then open the existing operational screen to complete it. The authorised path is booking → coordination and reviewed identity → accepted Service Arrangement → Enrolment → Teacher Assignment → Term and Lessons.</p></div>';
         echo '<div class="dzn-dash-hero__side"><span class="dzn-dash-date">' . esc_html($today) . '</span>';
         if (current_user_can('dzn_manage_lessons')) echo '<a class="button button-primary" href="' . esc_url(admin_url('admin.php?page=dzn-lesson')) . '">Open classes</a>';
-        echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-booking-requests')) . '">Review bookings</a>';
+        echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-enrolment-workspace&type=intro')) . '">Review bookings</a>';
         echo '</div></header>';
     }
 
@@ -108,7 +110,7 @@ final class AcademyOperationsController {
             array('Active students', $counts['students'] ?? null, 'Student directory', 'dzn-student'),
             array('Active teachers', $counts['teachers'] ?? null, 'Teacher overview', 'dzn-teachers-menu'),
             array('Active enrolments', $counts['enrolments'] ?? null, 'Bookings & enrolments', 'dzn-enrolment-workspace'),
-            array('Open bookings', $counts['bookings'] ?? null, 'Booking inbox', 'dzn-booking-requests'),
+            array('Open bookings', $counts['bookings'] ?? null, 'Class admin', 'dzn-enrolment-workspace'),
             array('Today’s classes', $classes['available'] ? count($classes['today']) : null, 'Classes & schedules', 'dzn-lesson'),
             array('Open action items', $actionCount, 'Review below', '#dzn-pending-work'),
         );
@@ -199,7 +201,7 @@ final class AcademyOperationsController {
                 if ($status === 'Ready to schedule') $ready++;
                 elseif (in_array($status, array('Integrity review needed', 'Schedule needs review'), true)) $review++;
             }
-            if ($ready > 0) $items[] = array('label' => 'Classes ready to schedule', 'count' => $ready, 'page' => 'dzn-lesson', 'action' => 'Open class resolutions', 'args' => array('class_queue' => 'ready'), 'description' => 'Canonical classes have no applicable schedule and need staff action.', 'urgent' => false, 'anchor' => '');
+            if ($ready > 0) $items[] = array('label' => 'Classes ready to schedule', 'count' => $ready, 'page' => 'dzn-enrolment-workspace', 'action' => 'Open class admin', 'args' => array('type' => 'class', 'attention' => '1'), 'description' => 'Canonical classes have no applicable schedule and need staff action.', 'urgent' => false, 'anchor' => '');
             if ($review > 0) $items[] = array('label' => 'Classes needing schedule or integrity review', 'count' => $review, 'page' => 'dzn-lesson', 'action' => 'Open class resolutions', 'args' => array('class_queue' => 'review'), 'description' => 'Class schedule pointers, legacy records or canonical integrity checks need review.', 'urgent' => true, 'anchor' => '');
             $escalated = (int) $wpdb->get_var("SELECT COUNT(*) FROM (SELECT lesson_id FROM {$p}lesson_reschedule_proposals WHERE state='rejected' GROUP BY lesson_id HAVING COUNT(*)>=3) escalated");
             $timeChanges = $escalated;
@@ -215,7 +217,7 @@ final class AcademyOperationsController {
         if (!$state['available']) return;
         if (!empty($_GET['classroom_status'])) self::classroomNotice((string) $_GET['classroom_status']);
         if (!empty($_GET['class_action_status'])) self::classActionNotice((string) $_GET['class_action_status'], (string) ($_GET['class_action_message'] ?? ''));
-        echo '<section class="dzn-panel dzn-today-classes" id="dzn-academy-today-upcoming"><div class="dzn-panel__head"><div><h2>Today’s classes</h2><p>Only classes scheduled today in the academy timezone. Each row uses the canonical schedule, Term, completion and replacement records. Future classes remain in the Classes area.</p></div><a class="dzn-panel__link" href="' . esc_url(admin_url('admin.php?page=dzn-lesson')) . '">Open Classes →</a></div>';
+        echo '<section class="dzn-panel dzn-today-classes" id="dzn-academy-today-upcoming"><div class="dzn-panel__head"><div><h2>Today’s classes</h2><p>Only classes scheduled today in the academy timezone. Each row uses the canonical schedule, Term, completion and replacement records. Future classes remain in Enrolment.</p></div><a class="dzn-panel__link" href="' . esc_url(admin_url('admin.php?page=dzn-enrolment-workspace')) . '">Open all classes →</a></div>';
         if (!$state['today']) {
             echo '<p class="dzn-empty">No classes are scheduled for today in the academy timezone.</p></section>';
             return;
@@ -278,7 +280,7 @@ final class AcademyOperationsController {
         $completed = $row->completed_class_count ?? null;
         $remaining = $row->remaining_class_count ?? null;
         $replacement = $row->replacement_remaining ?? null;
-        echo '<li class="dzn-list__item dzn-class-list__item"><span class="dzn-list__time"><bdi>' . esc_html($time) . '</bdi>' . ($timezone !== '' ? '<small>' . esc_html($timezone) . '</small>' : '') . '</span><span class="dzn-list__body"><a class="dzn-list__title" href="' . esc_url($url) . '">' . esc_html($student) . '</a><span class="dzn-list__meta">' . esc_html($instrument) . ' · ' . esc_html($teacher) . '</span><span class="dzn-class-facts"><span><b>' . ($completed === null ? '—' : esc_html((string) (int) $completed)) . '</b> completed</span><span><b>' . ($remaining === null ? '—' : esc_html((string) (int) $remaining)) . '</b> remaining</span><span><b>' . ($replacement === null ? '—' : esc_html((string) (int) $replacement)) . '</b> replacements left</span><span><b>' . esc_html($term) . '</b></span></span><span class="dzn-class-list__state"><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $row->class_status) . '</span><span class="dzn-class-state dzn-class-state--' . esc_attr(self::classroomStateTone($classroom)) . '">Classroom: ' . esc_html(self::livekitStateLabel($classroom)) . ' · Co-host: ' . esc_html((string) ($classroom['cohost_state'] ?? 'pending')) . '</span><span class="dzn-class-state dzn-class-state--' . (!empty($classroom['meet_available']) ? 'ready' : 'missing') . '">Meet: ' . (!empty($classroom['meet_available']) ? 'provisioned' : 'not provisioned') . '</span></span></span><div class="dzn-list__action"><a class="button button-small" href="' . esc_url($url) . '">' . esc_html($action) . '</a>';
+        echo '<li class="dzn-list__item dzn-class-list__item"><span class="dzn-list__time"><bdi>' . esc_html($time) . '</bdi>' . ($timezone !== '' ? '<small>' . esc_html($timezone) . '</small>' : '') . '</span><span class="dzn-list__body"><a class="dzn-list__title" data-dzn-class-admin data-dzn-class-admin-label="' . esc_attr($student) . '" href="' . esc_url($url) . '">' . esc_html($student) . '</a><span class="dzn-list__meta">' . esc_html($instrument) . ' · ' . esc_html($teacher) . '</span><span class="dzn-class-facts"><span><b>' . ($completed === null ? '—' : esc_html((string) (int) $completed)) . '</b> completed</span><span><b>' . ($remaining === null ? '—' : esc_html((string) (int) $remaining)) . '</b> remaining</span><span><b>' . ($replacement === null ? '—' : esc_html((string) (int) $replacement)) . '</b> replacements left</span><span><b>' . esc_html($term) . '</b></span></span><span class="dzn-class-list__state"><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $row->class_status) . '</span><span class="dzn-class-state dzn-class-state--' . esc_attr(self::classroomStateTone($classroom)) . '">Classroom: ' . esc_html(self::livekitStateLabel($classroom)) . ' · Co-host: ' . esc_html((string) ($classroom['cohost_state'] ?? 'pending')) . '</span><span class="dzn-class-state dzn-class-state--' . (!empty($classroom['meet_available']) ? 'ready' : 'missing') . '">Meet: ' . (!empty($classroom['meet_available']) ? 'provisioned' : 'not provisioned') . '</span></span></span><div class="dzn-list__action"><a class="button button-small" data-dzn-class-admin data-dzn-class-admin-label="' . esc_attr($student) . '" href="' . esc_url($url) . '">' . esc_html($action) . '</a>';
         echo '<details class="dzn-class-actions"><summary class="button button-small">Classroom &amp; actions</summary><div class="dzn-class-actions__panel">';
         if (!empty($classroom['meet_available'])) {
             echo '<form method="post" target="_blank" rel="noopener noreferrer" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-class-actions__form">';
@@ -312,7 +314,7 @@ final class AcademyOperationsController {
             self::attendanceAction($row);
             self::scheduleChangeAction($row);
         }
-        echo '<a class="button button-small" href="' . esc_url($url) . '">' . esc_html($action) . '</a>';
+        echo '<a class="button button-small" data-dzn-class-admin data-dzn-class-admin-label="' . esc_attr($student) . '" href="' . esc_url($url) . '">' . esc_html($action) . '</a>';
         echo '<p class="dzn-class-actions__status" role="status" aria-live="polite"></p>';
         echo '</div></details></div></li>';
     }
@@ -739,9 +741,9 @@ final class AcademyOperationsController {
 
     private static function classUrl(object $row): string {
         if (($row->record_model ?? '') === 'confirmed_intro_booking_v1') {
-            return add_query_arg(array('page' => 'dzn-booking-requests', 'request_id' => (int) $row->booking_request_id), admin_url('admin.php'));
+            return add_query_arg(array('page' => 'dzn-enrolment-workspace', 'request_id' => (int) $row->booking_request_id), admin_url('admin.php'));
         }
-        return add_query_arg(array('page' => 'dzn-lesson', 'id' => (int) $row->id), admin_url('admin.php'));
+        return add_query_arg(array('page' => 'dzn-enrolment-workspace', 'class_id' => (int) $row->id), admin_url('admin.php'));
     }
 
     private static function scheduleDateInAcademyTimezone(object $row): string {
@@ -777,7 +779,7 @@ final class AcademyOperationsController {
         if (!$r->match_attention_code) return '<span aria-label="No active matching attention">—</span>';
         $labels = array('no_current_coverage' => 'No current teacher coverage', 'instrument_unavailable' => 'Instrument unavailable', 'selected_course_unavailable' => 'Selected intro course unavailable', 'default_intro_course_unavailable' => 'Default intro course unavailable');
         $label = $labels[(string) $r->match_attention_code] ?? 'Matching needs attention';
-        $action = current_user_can('dzn_prepare_booking_request_matches') ? self::link('dzn-booking-requests', 'Review request', array('request_id' => (int) $r->request_id)) : 'Read-only';
+        $action = current_user_can('dzn_prepare_booking_request_matches') ? self::link('dzn-enrolment-workspace', 'Review request', array('request_id' => (int) $r->request_id)) : 'Read-only';
         if ($r->match_attention_code === 'no_current_coverage' && current_user_can('dzn_manage_teachers')) $action .= ' ' . self::link('dzn-teachers-menu', 'View supply gaps');
         return '<strong>' . esc_html($label) . '</strong><br>' . $action;
     }
@@ -786,13 +788,13 @@ final class AcademyOperationsController {
         if ($r->match_attention_code === 'no_current_coverage') {
             $links = array();
             if (current_user_can('dzn_manage_teachers')) $links[] = self::link('dzn-teachers-menu', 'Review teacher availability');
-            if (current_user_can('dzn_prepare_booking_request_matches')) $links[] = self::link('dzn-booking-requests', 'Reassess request', array('request_id' => (int) $r->request_id));
-            if (current_user_can('dzn_manage_booking_request_coordination') && $r->case_id) $links[] = self::link('dzn-booking-request-coordination', 'Continue coordination', array('case_id' => (int) $r->case_id));
+            if (current_user_can('dzn_prepare_booking_request_matches')) $links[] = self::link('dzn-enrolment-workspace', 'Reassess request', array('request_id' => (int) $r->request_id));
+            if (current_user_can('dzn_manage_booking_request_coordination') && $r->case_id) $links[] = self::link('dzn-enrolment-workspace', 'Continue coordination', array('request_id' => (int) $r->request_id));
             return $links ? implode('<br>', $links) : 'Await authorised coverage review';
         }
-        if (!$r->case_id) return current_user_can('dzn_manage_booking_request_coordination') ? '<strong>Blocker:</strong> coordination has not started.<br>' . self::link('dzn-booking-request-coordination', 'Open coordination', array('booking_request_id' => (int) $r->request_id)) : '<strong>Unavailable:</strong> coordination requires booking-coordination capability.';
+        if (!$r->case_id) return current_user_can('dzn_manage_booking_request_coordination') ? '<strong>Blocker:</strong> coordination has not started.<br>' . self::link('dzn-enrolment-workspace', 'Open coordination', array('request_id' => (int) $r->request_id)) : '<strong>Unavailable:</strong> coordination requires booking-coordination capability.';
         if (!$r->student_id) return current_user_can('dzn_resolve_booking_request_student_identity') && current_user_can('dzn_view_student_acceptance_eligibility') ? '<strong>Blocker:</strong> booking identity is unresolved; review evidence and resolve or record an outcome.<br>' . self::link('dzn-student-identity-authority', 'Review student identity', array('booking_request_id' => (int) $r->request_id)) : '<strong>Unavailable:</strong> identity review requires identity-resolution and acceptance-eligibility access.';
-        if (!$r->arrangement_id) return current_user_can('dzn_manage_booking_request_coordination') ? '<strong>Blocker:</strong> no accepted Service Arrangement exists; confirm acceptance authority and complete coordination.<br>' . self::link('dzn-booking-request-coordination', 'Continue coordination', array('case_id' => (int) $r->case_id)) : '<strong>Unavailable:</strong> no accepted arrangement; coordination capability is required.';
+        if (!$r->arrangement_id) return current_user_can('dzn_manage_booking_request_coordination') ? '<strong>Blocker:</strong> no accepted Service Arrangement exists; confirm acceptance authority and complete coordination.<br>' . self::link('dzn-enrolment-workspace', 'Continue coordination', array('request_id' => (int) $r->request_id)) : '<strong>Unavailable:</strong> no accepted arrangement; coordination capability is required.';
         if ($r->arrangement_id && !$r->enrolment_id) return current_user_can('dzn_convert_service_arrangements_to_enrolments') ? '<strong>Blocker:</strong> accepted arrangement has not been converted to an Enrolment.<br>' . self::link('dzn-core-dataset-readiness', 'Convert accepted arrangement', array('accepted_service_arrangement_id' => (int) $r->arrangement_id)) : '<strong>Unavailable:</strong> Enrolment conversion capability is required.';
         if ($r->enrolment_id && !$r->assignment_id) return current_user_can('dzn_manage_teacher_assignments') ? '<strong>Blocker:</strong> Enrolment exists; initial assignment follows its accepted arrangement.<br>' . self::link('dzn-core-dataset-readiness', 'Assign accepted Teacher', array('enrolment_id' => (int) $r->enrolment_id)) : '<strong>Unavailable:</strong> teacher-assignment capability is required.';
         if ($r->enrolment_id && $r->claim_state === 'active') return '<strong>Student account:</strong> invitation is active; review its lifecycle before replacing it.';

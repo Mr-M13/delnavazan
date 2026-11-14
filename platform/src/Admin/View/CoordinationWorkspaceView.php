@@ -9,6 +9,7 @@ use Delnavazan\Platform\Admin\Controller\CoordinationCaseController;
  * the controller to the owning application service.
  */
 final class CoordinationWorkspaceView {
+    private static int $embeddedRequestId = 0;
     private const CAPABILITY_LABELS = array(
         'dzn_manage_booking_request_coordination' => 'Booking coordination',
         'dzn_resolve_booking_request_student_identity' => 'Student identity resolution',
@@ -126,6 +127,37 @@ final class CoordinationWorkspaceView {
         echo '</aside></div></div>';
     }
 
+    /** Render the existing coordination authorities inside one booking record. */
+    public static function embeddedDetail(array $detail): void {
+        self::$embeddedRequestId = (int) ($detail['request']['id'] ?? $detail['case']['booking_request_id'] ?? 0);
+        echo '<section class="dzn-enrolment__section dzn-coordination dzn-coordination--embedded" id="dzn-coordination-workflow">';
+        echo '<div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Human review</p><h2>Coordinate this intro</h2><p>Work through the next blocker, then record the agreement and acceptance evidence. Completed steps stay available for review.</p></div></div>';
+        self::actionRequired($detail);
+        self::recommendation($detail);
+        echo '<details class="dzn-record-stage" open><summary>1. Review request, Student and Teacher</summary><div class="dzn-record-stage__body">';
+        self::overview($detail);
+        self::identity($detail);
+        self::teacherMatching($detail);
+        self::agreements($detail);
+        echo '</div></details>';
+        echo '<details class="dzn-record-stage"><summary>2. Proposal and acceptance</summary><div class="dzn-record-stage__body">';
+        self::proposals($detail);
+        self::acceptance($detail);
+        echo '</div></details>';
+        echo '<details class="dzn-record-stage"><summary>3. Enrolment and scheduling</summary><div class="dzn-record-stage__body">';
+        self::enrolment($detail);
+        self::scheduling($detail);
+        echo '</div></details>';
+        echo '<details class="dzn-record-stage"><summary>Evidence and exceptional recovery</summary><div class="dzn-record-stage__body">';
+        self::finance($detail);
+        self::communications($detail);
+        self::caseState($detail);
+        self::activity($detail);
+        self::advanced($detail);
+        echo '</div></details></section>';
+        self::$embeddedRequestId = 0;
+    }
+
     /** @param array<string,mixed> $detail */
     private static function summary(array $detail): void {
         $request = $detail['request'];
@@ -151,6 +183,7 @@ final class CoordinationWorkspaceView {
         echo '<section class="dzn-coordination__section dzn-coordination__section--blockers" id="action-required"><div class="dzn-coordination__section-head"><div><p class="dzn-eyebrow">Prioritised by operational impact</p><h2>Action required</h2></div><span class="dzn-count-chip">' . esc_html((string) count($assessment['blockers'])) . ' open</span></div>';
         if (!$assessment['blockers']) {
             echo '<div class="dzn-coordination__resolved"><strong>No blockers detected.</strong><p>The supported coordination lifecycle is complete or requires no further decision. Review the activity and advanced details for evidence.</p></div>';
+            echo '</section>';
             return;
         }
         foreach ($assessment['blockers'] as $blocker) {
@@ -737,9 +770,11 @@ final class CoordinationWorkspaceView {
     /** @param array<string,mixed> $detail @param array<string,mixed> $hidden */
     private static function formStart(array $detail, string $action, array $hidden = array()): void {
         $caseId = (int) $detail['case']['id'];
-        echo '<form method="post" class="dzn-coordination__form">';
+        $formAction = self::$embeddedRequestId > 0 ? admin_url('admin.php?page=' . CoordinationCaseController::PAGE) : '';
+        echo '<form method="post" class="dzn-coordination__form"' . ($formAction !== '' ? ' action="' . esc_url($formAction) . '"' : '') . '>';
         wp_nonce_field('dzn_coordination_action_' . $caseId);
         echo '<input type="hidden" name="dzn_coordination_action" value="' . esc_attr($action) . '"><input type="hidden" name="case_id" value="' . esc_attr((string) $caseId) . '">';
+        if (self::$embeddedRequestId > 0) echo '<input type="hidden" name="dzn_record_request_id" value="' . esc_attr((string) self::$embeddedRequestId) . '"><input type="hidden" name="dzn_modal" value="' . (isset($_GET['dzn_modal']) ? '1' : '0') . '">';
         foreach ($hidden as $name => $value) echo '<input type="hidden" name="' . esc_attr((string) $name) . '" value="' . esc_attr((string) $value) . '">';
     }
 

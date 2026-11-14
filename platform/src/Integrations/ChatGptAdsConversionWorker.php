@@ -9,7 +9,7 @@ final class ChatGptAdsConversionWorker {
 
     public static function register(): void {
         // Installation watermark prevents accidentally uploading historical bookings.
-        if (!get_option(self::START_OPTION)) add_option(self::START_OPTION, gmdate('Y-m-d H:i:s'), '', false);
+        if (get_option(self::START_OPTION, null) === null) add_option(self::START_OPTION, gmdate('Y-m-d H:i:s'), '', false);
         add_action(self::HOOK, array(__CLASS__, 'run'));
         add_action('init', array(__CLASS__, 'schedule'));
     }
@@ -64,13 +64,14 @@ final class ChatGptAdsConversionWorker {
         $state = get_option($key, null);
         if (is_array($state) && ($state['status'] ?? '') === 'delivered') return;
         if (is_array($state) && (int) ($state['next_at'] ?? 0) > time()) return;
+        if (is_array($state) && (int) ($state['attempts'] ?? 0) >= 12) return;
         // An atomic add_option lease protects concurrent WP-Cron invocations.
         $lease = $key . '_lease';
         if (!add_option($lease, time(), '', false)) {
-            $started = (int) get_option($lease, 0);
-            if ($started > time() - 300) return;
-            delete_option($lease);
-            if (!add_option($lease, time(), '', false)) return;
+            // A stale lease is not automatically replayed: an HTTP request might
+            // have succeeded just before a worker crash. Manual reconciliation
+            // is required to avoid duplicate conversion reporting.
+            return;
         }
         try {
             // Re-check immediately before delivery, including cancellations after scan.
@@ -109,7 +110,8 @@ final class ChatGptAdsConversionWorker {
           JOIN {$wpdb->prefix}dzn_booking_requests r ON r.id=c.booking_request_id
           WHERE c.id=%d AND c.state='confirmed' AND d.state='confirmed'
           AND r.lifecycle_status='closed' AND r.resolution_state='teacher_confirmed'
-          AND r.privacy_erased_at IS NULL AND c.provider_event_digest IS NOT NULL
+          AND r.privacy_erased_at IS NULL AND c.provider_code='google_calendar'
+          AND c.provider_event_digest IS NOT NULL
           AND NOT EXISTS (SELECT 1 FROM {$wpdb->prefix}dzn_lessons l WHERE l.booking_request_id=r.id AND l.status='cancelled')", $id));
     }
 }

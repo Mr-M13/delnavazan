@@ -104,8 +104,8 @@ $contains($lifecycle, array('reset_pending', 'protectedHistory', 'teacher_histor
 $contains($read('src/Admin/Controller/AdminShellController.php'), array('public static function viewport', "width=device-width"), 'The admin shell must declare a mobile viewport so the workspace reflows below 600px.');
 
 // Golden-hour overview moved to Overview, while teacher coverage stays in the profile.
-$contains($academy, array("AcademyDashboardScreen::shows('coverage')", 'AcademyCoverageController::renderAtlas', 'Golden-hour coverage'), 'Academy Overview must host the academy-wide golden-hour coverage.');
-$contains($dashboard, array("'coverage' => 'Golden-hour coverage'"), 'Golden-hour coverage must be a Screen Options section on Overview.');
+$contains($academy, array("AcademyDashboardScreen::shows('coverage')", 'AcademyCoverageController::renderAtlas', 'Coverage Clock'), 'Academy Overview must host the academy-wide golden-hour coverage.');
+$contains($dashboard, array("'coverage' => 'Coverage Clock'"), 'Golden-hour coverage must be a Screen Options section on Overview.');
 $expect(!str_contains($screen, 'teacherCoverage'), 'The Teachers administration route must not render the academy-wide coverage atlas.');
 $contains($view, array('Golden-hour coverage', 'Selected golden-hour windows'), 'Each Teacher profile must retain individual golden-hour coverage.');
 $contains($css, array('.dzn-tw-table-scroll', '.dzn-tw-snapshot__body', '.dzn-tw-status-icon--complete', '.dzn-tw-status-icon--unknown', '.dzn-tw-status-icon[data-dzn-tip]:focus-visible::after', '@media (max-width: 782px)', 'overflow-x: hidden', 'min-inline-size: 0'), 'The workspace must be responsive, keyboard accessible and visually consistent.');

@@ -12,26 +12,26 @@ require_once dirname(__DIR__) . '/src/Admin/AcademyDashboardScreen.php';
 
 $screen = 'Delnavazan\\Platform\\Admin\\AcademyDashboardScreen';
 $sections = $screen::sections();
-if (count($sections) !== 9) throw new RuntimeException('Screen Options must expose nine Overview sections');
-foreach (array('quick', 'kpis', 'actions', 'schedule', 'pipeline', 'activity', 'finance', 'coverage', 'queue') as $key) {
+if (count($sections) !== 4) throw new RuntimeException('Screen Options must expose four Overview sections');
+foreach (array('actions', 'schedule', 'finance', 'coverage') as $key) {
     if (!isset($sections[$key])) throw new RuntimeException('Missing dashboard section: ' . $key);
 }
 
-$saved = $screen::save(false, 'dzn_academy_sections', array('quick' => '1', 'kpis' => '0', 'unknown' => '1'));
-if (!isset($saved['quick'], $saved['kpis']) || (int) $saved['quick'] !== 1 || (int) $saved['kpis'] !== 0) {
+$saved = $screen::save(false, 'dzn_academy_sections', array('actions' => '1', 'schedule' => '0', 'unknown' => '1'));
+if (!isset($saved['actions'], $saved['schedule']) || (int) $saved['actions'] !== 1 || (int) $saved['schedule'] !== 0) {
     throw new RuntimeException('Screen Options must persist known section values');
 }
 if (isset($saved['unknown'])) throw new RuntimeException('Screen Options must discard unknown section keys');
-if (count($saved) !== 9) throw new RuntimeException('Screen Options must persist every known section key');
+if (count($saved) !== 4) throw new RuntimeException('Screen Options must persist every known section key');
 
-$GLOBALS['dzn_screen_meta']['dzn_academy_sections'] = array('quick' => 0, 'kpis' => 1);
+$GLOBALS['dzn_screen_meta']['dzn_academy_sections'] = array('actions' => 0, 'schedule' => 1);
 $visible = $screen::visible();
-if (!empty($visible['quick']) || empty($visible['kpis']) || empty($visible['actions'])) {
+if (!empty($visible['actions']) || empty($visible['schedule']) || empty($visible['finance'])) {
     throw new RuntimeException('Stored section visibility or unset defaults were not applied');
 }
-if ($screen::shows('quick') || !$screen::shows('actions')) throw new RuntimeException('shows() must reflect the stored map');
+if ($screen::shows('actions') || !$screen::shows('schedule')) throw new RuntimeException('shows() must reflect the stored map');
 
-$wrong = $screen::save('sentinel', 'another_option', array('quick' => 1));
+$wrong = $screen::save('sentinel', 'another_option', array('actions' => 1));
 if ($wrong !== array()) throw new RuntimeException('save() must ignore a different screen option');
 
 echo "Admin dashboard screen options unit passed\n";

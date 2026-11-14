@@ -190,7 +190,6 @@ final class AdministratorIntroBookingService {
     private function assertAvailableForPreview(int $teacherId, object $course, string $date, string $time, string $timezone): void {
         $interval = $this->interval($course, $date, $time, $timezone);
         if ($interval['starts_at_utc'] <= gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('Choose a future introductory time');
-        if (RequestedTimeNormalizer::overlapsStudentQuietHours($interval)) throw new \InvalidArgumentException(BookingRequestValidationService::BLOCKED_STUDENT_TIME_MESSAGE);
         if ($this->occupancy->overlapping($teacherId, $interval['starts_at_utc'], $interval['occupied_ends_at_utc'])) throw new \InvalidArgumentException('The Teacher already has a class at that time. Choose another slot.');
         try {
             CanonicalContinuationCapacityAuthority::assertNoActiveHold($teacherId, $interval['starts_at_utc'], $interval['occupied_ends_at_utc']);

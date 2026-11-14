@@ -66,7 +66,6 @@ final class AdministratorBookingMatchService {
             $requestedTimeId, $requestId
         ));
         if (!$time) throw new \InvalidArgumentException('Choose one of the requested times');
-        if (RequestedTimeNormalizer::overlapsStudentQuietHours((array) $time)) throw new \InvalidArgumentException(BookingRequestValidationService::BLOCKED_STUDENT_TIME_MESSAGE);
         $start = (string) $time->starts_at_utc;
         if ($start <= gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('The chosen time must be in the future');
         $courseId = (int) ($request->selected_intro_course_id ?? 0);

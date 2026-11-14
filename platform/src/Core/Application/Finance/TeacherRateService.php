@@ -121,7 +121,7 @@ final class TeacherRateService {
         $payload=FinanceSupport::payload(array('rate_id'=>$rateId,'reason'=>$reason,'operation'=>'withdraw'));
         $command=array('command_domain'=>FinanceRule::DOMAIN,'operation'=>'withdraw','command_key_digest'=>$digest,'command_payload_digest'=>$payload,'teacher_id'=>$teacherId,'rate_id'=>$rateId,'scope_kind'=>(string)$hint->scope_kind,'course_scope_id'=>(int)$hint->course_scope_id,'result_state'=>'withdrawn','result_rate_id'=>$rateId,'reason_code'=>$reason,'created_at'=>$now,'created_by'=>$actor);
         $lock=static fn()=>FinanceSupport::lockTeacherRoot($teacherId,$actor);
-        return FinanceSupport::runCommand($lock,'finance_teacher_rate_commands',$command,function()use($rateId,$actor,$now,$payload,$digest,&$command,$reason){
+        return FinanceSupport::runCommand($lock,'finance_teacher_rate_commands',$command,function()use($rateId,$actor,$now,$payload,$digest,&$command,$reason,$input){
             if($existing=$this->rates->command($digest))return $this->replay($existing,$payload,'withdraw');
             $row=$this->rates->byId($rateId,true);
             if(!$row||(string)$row->status==='withdrawn')throw new FinanceRefusalException('teacher_rate_state_not_resolvable','Only an active or superseded row may be withdrawn');

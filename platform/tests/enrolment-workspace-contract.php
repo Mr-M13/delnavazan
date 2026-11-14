@@ -120,7 +120,7 @@ $contains($manual, array(
     "CAPABILITY = 'dzn_manage_booking_request_coordination'",
     "ASSENT_CAPABILITY = 'dzn_manage_teacher_availability_assent'",
     'Resolve the student identity before confirming a Teacher match',
-    '->overlapping($teacherId, $start, $occupiedEnd)',
+    '->overlapping($teacherId, $start, $occupiedEnd, 0, $requestId)',
     'CanonicalContinuationCapacityAuthority::assertNoActiveHold',
     'availability_override',
     'agreement_reference_digest',

@@ -508,6 +508,12 @@ function dzn_theme_render_virtual_route() {
 	if ( 'booking' === $raw_path ) { wp_safe_redirect( dzn_theme_legacy_booking_redirect_url(), 302 ); exit; }
 	$route = dzn_theme_route();
 	if ( ! $route ) { return; }
+	// The virtual route renders before wp_enqueue_scripts runs, so the booking
+	// CSRF cookie must be issued here while headers are still mutable. The
+	// localized token later reads the same cached value.
+	if ( 'booking' === $route && function_exists( 'dzn_theme_booking_csrf_token' ) ) {
+		dzn_theme_booking_csrf_token();
+	}
 	$is_legal_pending = str_starts_with( $route, 'legal:' );
 	$protected = ! $is_legal_pending && in_array( $route, array( 'login', 'dashboard', 'student-portal', 'teacher-portal', 'teacher-invitation', 'student-account-claim', 'admin-operations', 'music-classroom' ), true );
 	// Protected redirects must carry the same no-store/noindex contract as the

@@ -30,6 +30,18 @@ final class AdminAttendanceConfirmationService {
         $key = trim($rawKey);
         if ($key === '') throw new \InvalidArgumentException('attendance_command_key_required');
 
+        // Refuse a future occurrence before the claim is committed. Without this
+        // preflight, submitClaim() commits a durable case and the later adjudication
+        // refuses an occurrence that has not started, leaving a misleading case.
+        global $wpdb;
+        $schedule = $wpdb->get_row($wpdb->prepare(
+            "SELECT starts_at_utc FROM {$wpdb->prefix}dzn_canonical_lesson_schedule_versions WHERE id=%d AND lesson_id=%d AND applicable_slot=1 LIMIT 1",
+            $scheduleVersionId,
+            $lessonId
+        ));
+        if (!$schedule || trim((string) $schedule->starts_at_utc) === '') throw new \InvalidArgumentException('canonical_occurrence_required');
+        if ((string) $schedule->starts_at_utc > gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('occurrence_not_started');
+
         $intake = new CanonicalAttendanceIntakeService();
         $claim = $intake->submitClaim($lessonId, $scheduleVersionId, array(
             'claim_kind' => 'attendance_claim',

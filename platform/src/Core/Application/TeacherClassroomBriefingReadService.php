@@ -44,7 +44,7 @@ final class TeacherClassroomBriefingReadService {
 
         global $wpdb;$p=$wpdb->prefix.'dzn_';
         $lesson=$wpdb->get_row($wpdb->prepare(
-            "SELECT l.id,l.uid,l.reference_code,l.teacher_id,l.student_id,l.course_id,l.term_id,l.lesson_kind,
+            "SELECT l.id,l.uid,l.reference_code,l.teacher_id,l.student_id,l.course_id,l.term_id,l.lesson_type AS lesson_kind,
                     l.lifecycle_state,l.record_model,l.archived_at,l.canonical_sequence,
                     l.canonical_replacement_origin_lesson_id,
                     COALESCE(NULLIF(i.name_fa,''),NULLIF(i.name_en,''),NULLIF(c.name_fa,''),NULLIF(c.name_en,''),'') course_name,
@@ -137,7 +137,7 @@ final class TeacherClassroomBriefingReadService {
         $cancelled=max(0,(int)($aggregate->cancelled??0));
 
         $rows=$wpdb->get_results($wpdb->prepare(
-            "SELECT l.id lesson_id,l.uid lesson_uid,l.reference_code,l.canonical_sequence,l.lesson_kind,l.lifecycle_state,
+            "SELECT l.id lesson_id,l.uid lesson_uid,l.reference_code,l.canonical_sequence,l.lesson_type AS lesson_kind,l.lifecycle_state,
                     v.starts_at_utc,v.ends_at_utc,v.schedule_timezone,
                     (SELECT d.outcome_code FROM {$p}canonical_lesson_delivery_outcomes d
                      WHERE d.lesson_id=l.id AND d.applicable_slot=1 LIMIT 1) delivery_outcome,

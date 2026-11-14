@@ -206,6 +206,16 @@ $teacherAvailability->setOwnRecurringRule( array(
 ) );
 $teacherOnboarding->refreshOwnProgress();
 
+// Mandatory teacher recording consent is now an onboarding gate.
+$publisher = new \Delnavazan\Platform\Core\Application\RecordingNoticePublicationService();
+foreach ( array( 'teacher_terms', 'teacher_lesson_recording', 'teacher_research_model_training', 'privacy_terms' ) as $audience ) {
+	try { $publisher->publish( $audience, 'en', 'Acceptance local synthetic notice for ' . $audience, 1 ); } catch ( \Throwable $noticeError ) {}
+}
+( new \Delnavazan\Platform\Core\Application\UnifiedConsentService() )->acceptTeacherUnified( 'acceptance-claim-teacher-consent-' . (int) $teacherIssued['teacher_id'], 'en' );
+$teacherOnboarding->submitOwn();
+wp_set_current_user( 1 );
+$teacherOnboarding->review( (int) $teacherIssued['teacher_id'], 'approve' );
+
 wp_set_current_user( 1 );
 $teacherId = (int) $teacherIssued['teacher_id'];
 ( new TeachingEligibilityService() )->setEligibility( array(

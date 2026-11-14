@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 BIN := bin
-.PHONY: smoke teacher-onboarding teacher-workspace student-account-claim booking-student-account enrolment-workspace coordination-command-centre teacher-intro-opportunity protected-headers reset seed destroy check-cache
+.PHONY: smoke teacher-onboarding teacher-workspace student-account-claim booking-student-account enrolment-workspace coordination-command-centre teacher-intro-opportunity protected-headers booking-csrf portal-authorization reset seed destroy check-cache
 
 check-cache: ; @$(BIN)/check-cache.sh
 reset: ; @$(BIN)/reset.sh
@@ -14,4 +14,6 @@ enrolment-workspace: ; @$(BIN)/run-enrolment-workspace-acceptance.sh
 coordination-command-centre: ; @$(BIN)/run-coordination-command-centre-acceptance.sh
 teacher-intro-opportunity: ; @$(BIN)/run-teacher-intro-opportunity-acceptance.sh
 protected-headers: ; @$(BIN)/check-protected-redirect-headers.sh
+booking-csrf: ; @$(BIN)/check-booking-csrf.sh
+portal-authorization: ; @$(BIN)/run-portal-authorization-acceptance.sh
 destroy: ; @$(BIN)/destroy.sh $(CONFIRM)

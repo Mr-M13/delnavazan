@@ -98,7 +98,7 @@ final class AdministratorBookingMatchService {
         $end = (string) $time->instructional_ends_at_utc;
         $occupiedEnd = (string) $time->occupied_ends_at_utc;
         if ($end <= $start || $occupiedEnd < $end) throw new \InvalidArgumentException('The requested time is invalid');
-        $conflict = $this->occupancy->overlapping($teacherId, $start, $occupiedEnd);
+        $conflict = $this->occupancy->overlapping($teacherId, $start, $occupiedEnd, 0, $requestId);
         if ($conflict) throw new \InvalidArgumentException('The Teacher already has a class at that time. Choose another slot.');
         try {
             CanonicalContinuationCapacityAuthority::assertNoActiveHold($teacherId, $start, $occupiedEnd);
@@ -184,7 +184,13 @@ final class AdministratorBookingMatchService {
                 'idempotency_key' => $auditKey,
                 'occurred_at' => $now,
             ));
-            if ($inserted === false) throw new \RuntimeException('Manual match audit evidence could not be recorded');
+            if ($inserted === false) {
+                // Two identical commands may race the audit pre-check. The unique
+                // idempotency key is the authority: a duplicate means the same
+                // evidence was already recorded, not that the command failed.
+                $existingAudit = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}dzn_platform_audit_events WHERE idempotency_key=%s", $auditKey));
+                if ($existingAudit === null) throw new \RuntimeException('Manual match audit evidence could not be recorded');
+            }
         }
         // The administrator path must use the same provider projection as a Teacher-owned
         // acceptance. Without it the confirmation never becomes portal-visible and no

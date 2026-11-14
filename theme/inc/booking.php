@@ -284,7 +284,7 @@ function dzn_theme_enqueue_booking_assets(): void {
     $style_path = get_theme_file_path( 'assets/css/booking.css' );
     wp_enqueue_style( 'delnavazan-booking', get_theme_file_uri( 'assets/css/booking.css' ), array( 'delnavazan-theme' ), file_exists( $style_path ) ? (string) filemtime( $style_path ) : wp_get_theme()->get( 'Version' ) );
     wp_enqueue_script( 'delnavazan-booking', get_theme_file_uri( 'assets/js/booking.js' ), array(), file_exists( $script_path ) ? (string) filemtime( $script_path ) : wp_get_theme()->get( 'Version' ), array( 'strategy' => 'defer', 'in_footer' => true ) );
-    wp_localize_script( 'delnavazan-booking', 'dznBooking', array( 'apiRoot' => esc_url_raw( rest_url() ), 'privacyVersion' => '2026-09-05', 'restNonce' => is_user_logged_in() ? wp_create_nonce( 'wp_rest' ) : '', 'csrfToken' => dzn_theme_booking_csrf_token() ) );
+    wp_localize_script( 'delnavazan-booking', 'dznBooking', array( 'apiRoot' => esc_url_raw( rest_url() ), 'privacyVersion' => '2026-09-05', 'restNonce' => is_user_logged_in() ? wp_create_nonce( 'wp_rest' ) : '', 'csrfToken' => dzn_theme_booking_csrf_token(), 'horizonDays' => dzn_theme_booking_horizon_days() ) );
 }
 
 function dzn_theme_booking_csrf_token(): string {
@@ -303,4 +303,18 @@ function dzn_theme_booking_csrf_token(): string {
     ) );
     $_COOKIE['dzn_booking_csrf'] = $token;
     return $token;
+}
+
+/** Effective public booking window, shared with the server-side intake guard. */
+function dzn_theme_booking_horizon_days(): int {
+    $class = '\\Delnavazan\\Platform\\Core\\Application\\BookingRequestValidationService';
+    if ( class_exists( $class ) ) {
+        try {
+            $days = (int) ( $class::horizonConfiguration()['days'] ?? 90 );
+            if ( $days >= 1 && $days <= 728 ) { return $days; }
+        } catch ( Throwable ) {
+            // Fall through to the built-in default.
+        }
+    }
+    return 90;
 }

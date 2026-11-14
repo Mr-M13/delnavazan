@@ -28,7 +28,8 @@ final class BookingAvailabilityPreviewService {
             if ( ! is_array( $time ) || array_diff( array_keys( $time ), array( 'local_date', 'local_start_time', 'timezone' ) ) ) throw new \InvalidArgumentException( 'Malformed requested time' );
             foreach ( array( 'local_date', 'local_start_time', 'timezone' ) as $field ) if ( ! isset( $time[$field] ) || ! is_string( $time[$field] ) ) throw new \InvalidArgumentException( 'Malformed requested time' );
             try {
-                $normalized[] = RequestedTimeNormalizer::normalize( $time, (int) $option['duration_minutes'], (int) $option['buffer_minutes'] );
+                $item = RequestedTimeNormalizer::normalize( $time, (int) $option['duration_minutes'], (int) $option['buffer_minutes'] );
+                $normalized[] = BookingRequestValidationService::isWithinHorizon( $item ) ? $item : null;
             } catch ( UnavailableLocalTimeException ) {
                 // A valid DST gap/fold wall time is not schedulable, but must not discard other preferences.
                 $normalized[] = null;

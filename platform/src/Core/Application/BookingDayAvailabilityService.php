@@ -35,6 +35,7 @@ final class BookingDayAvailabilityService {
             } catch ( \InvalidArgumentException ) {
                 continue;
             }
+            if ( ! BookingRequestValidationService::isWithinHorizon( $normalized ) ) continue;
             $scored = $assessment->assess( $normalized );
             if ( $scored['status'] === 'blocked' ) continue;
             $times[] = array( 'local_start_time' => substr( $normalized['local_start_time'], 0, 5 ), 'status' => $scored['status'] );

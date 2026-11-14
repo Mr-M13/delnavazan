@@ -171,7 +171,6 @@ final class StudentRepository extends BaseRepository {
                          COALESCE((SELECT MAX(l.created_at) FROM {$p}lessons l WHERE l.student_id=s.id AND l.archived_at IS NULL),'1970-01-01 00:00:00'),
                          COALESCE((SELECT MAX(e.updated_at) FROM {$p}enrolments e WHERE e.student_id=s.id),'1970-01-01 00:00:00'),
                          COALESCE((SELECT MAX(br.updated_at) FROM {$p}booking_requests br WHERE br.student_id=s.id AND br.privacy_erased_at IS NULL),'1970-01-01 00:00:00'),
-                         COALESCE((SELECT MIN(COALESCE(csv.starts_at_utc,lsv.starts_at_utc)) FROM {$p}lessons nl LEFT JOIN {$p}canonical_lesson_schedule_versions csv ON csv.lesson_id=nl.id AND csv.applicable_slot=1 AND csv.superseded_at IS NULL LEFT JOIN {$p}lesson_schedule_versions lsv ON lsv.id=nl.current_schedule_version_id AND lsv.lesson_id=nl.id AND lsv.superseded_at IS NULL WHERE nl.student_id=s.id AND nl.archived_at IS NULL AND COALESCE(nl.lifecycle_state,nl.status) IN ('authorised','scheduled') AND COALESCE(csv.starts_at_utc,lsv.starts_at_utc)>=UTC_TIMESTAMP()),'1970-01-01 00:00:00'),
                          COALESCE(s.created_at,'1970-01-01 00:00:00')
                        ) last_activity_at
                 FROM {$this->table} s

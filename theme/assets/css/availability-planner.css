@@ -290,6 +290,11 @@
 .dzn-ap__legend .is-unallocated i { background: var(--dzn-ap-line); }
 .dzn-ap__legend .is-booked i { background: var(--dzn-ap-ink); opacity: .35; }
 .dzn-ap__legend .is-golden i { background: var(--dzn-ap-gold); }
+.dzn-ap__golden-note {
+	margin: 0;
+	text-align: center;
+}
+
 .dzn-ap__legend .is-gap i { background: repeating-linear-gradient(135deg, var(--dzn-ap-gap) 0 3px, transparent 3px 6px); border: 1px solid var(--dzn-ap-gap); }
 
 .dzn-ap__day-panel {

@@ -197,6 +197,7 @@
 		var gaps = data.gaps || {};
 		var booked = data.booked || {};
 		var intake = Number(data.intake || 0);
+		var goldenPolicyTimezone = String(data.golden_policy_timezone || '');
 		var dragging = null;
 
 		function activeSchedule() {
@@ -381,6 +382,24 @@
 			dial.appendChild(svg);
 		}
 
+		function updateGoldenNote() {
+			var node = root.querySelector('[data-dzn-ap-golden-note]');
+			if (!node) return;
+			var bands = golden[state.day] || [];
+			if (!bands.length) {
+				node.textContent = 'برای این روز ساعت طلایی تنظیم نشده است.';
+				return;
+			}
+			var text = 'ساعت طلایی این روز به وقت محلی شما: ' + bands.map(function (band) { return band.start + '–' + band.end; }).join('، ');
+			if (goldenPolicyTimezone && data.timezone && goldenPolicyTimezone !== data.timezone) {
+				text += ' · تنظیم مدیریت به وقت ' + goldenPolicyTimezone;
+			}
+			if (data.golden_configured === false) {
+				text += ' · تنظیمات مدیریت هنوز اعمال نشده است.';
+			}
+			node.textContent = text;
+		}
+
 		function renderRanges() {
 			if (!rangesBox) return;
 			rangesBox.replaceChildren();
@@ -498,6 +517,7 @@
 				button.setAttribute('aria-selected', active ? 'true' : 'false');
 			});
 			if (dayTitle) dayTitle.textContent = days[state.day] || '';
+			updateGoldenNote();
 			draw();
 			renderRanges();
 			setStatus('');
@@ -512,6 +532,7 @@
 				button.setAttribute('aria-selected', active ? 'true' : 'false');
 			});
 			syncFields();
+			updateGoldenNote();
 			draw();
 			renderRanges();
 			computeOverview();
@@ -627,6 +648,7 @@
 
 		syncFields();
 		setDay(state.day);
+		updateGoldenNote();
 		setInstrument(state.instrument);
 		draw();
 		renderRanges();

@@ -62,6 +62,14 @@ $portal = new PortalAuthenticatedReadService();
 $expect( $onboarding->requiresOnboarding(), 'incomplete linked teacher was treated as ready' );
 $refuse( static fn() => $portal->teacher(), 'incomplete teacher portal was not denied' );
 
+// Synthetic notice publication + mandatory teacher recording consent. No
+// external provider or real notice content is used.
+$publisher = new \Delnavazan\Platform\Core\Application\RecordingNoticePublicationService();
+foreach ( array( 'teacher_terms', 'teacher_lesson_recording', 'teacher_research_model_training', 'privacy_terms' ) as $audience ) {
+	try { $publisher->publish( $audience, 'en', 'Acceptance local synthetic notice for ' . $audience, 1 ); } catch ( \Throwable $noticeError ) {}
+}
+( new \Delnavazan\Platform\Core\Application\UnifiedConsentService() )->acceptTeacherUnified( 'acceptance-teacher-consent-' . (int) $issued['teacher_id'], 'en' );
+
 $onboarding->updateOwnProfile( array(
 	'display_name' => 'Acceptance Onboarding Teacher', 'email' => 'onboarding-created@example.invalid',
 	'country_code' => 'AU', 'city' => 'Brisbane', 'timezone' => 'Australia/Brisbane',

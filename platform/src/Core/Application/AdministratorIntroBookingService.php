@@ -37,12 +37,18 @@ final class AdministratorIntroBookingService {
         foreach (array('email', 'phone', 'country_code', 'city', 'timezone') as $field) {
             if (trim((string) ($student->{$field} ?? '')) === '') throw new \InvalidArgumentException('The Student needs a verified email, phone, country, city and timezone before an introductory booking can be created');
         }
+        $requestKey = 'admin-intro-request-' . $idempotencyKey;
+        // Idempotency must win over the occupancy preflight: a repeated command
+        // must return its existing confirmation, not mistake that confirmation
+        // for a collision with a different class.
+        $replay = $this->existingIntroConfirmation($requestKey, $teacherId);
+        if ($replay !== null) return $replay;
         $date = (string) ($slot['local_date'] ?? '');
         $time = (string) ($slot['local_start_time'] ?? '');
         $timezone = (string) ($slot['timezone'] ?? $student->timezone);
         $this->assertAvailableForPreview($teacherId, $course, $date, $time, $timezone);
-        $requestKey = 'admin-intro-request-' . $idempotencyKey;
-        $submission = (new BookingRequestSubmissionService())->submitPublic(array(
+        $submissions = new BookingRequestSubmissionService();
+        $submission = $submissions->submitPublic(array(
             'requested_instrument_id' => (int) $course->instrument_id,
             'selected_intro_course_id' => $courseId,
             'full_name' => (string) ($student->display_name ?: trim((string) $student->first_name . ' ' . (string) $student->last_name)),
@@ -73,6 +79,7 @@ final class AdministratorIntroBookingService {
         if ($requestId < 1) throw new \RuntimeException('Introductory booking request could not be resolved');
         $request = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}dzn_booking_requests WHERE id=%d", $requestId));
         if (!$request) throw new \RuntimeException('Introductory booking request could not be resolved');
+        try {
         $existingConfirmation = $wpdb->get_row($wpdb->prepare(
             "SELECT id,state FROM {$wpdb->prefix}dzn_booking_request_confirmations WHERE booking_request_id=%d ORDER BY id DESC LIMIT 1",
             $requestId
@@ -116,6 +123,43 @@ final class AdministratorIntroBookingService {
             'confirmation_id' => (int) ($match['confirmation_id'] ?? 0),
             'state' => (string) ($match['state'] ?? 'accepting'),
         );
+        } catch (\Throwable $error) {
+            if (empty($submission['replayed'])) {
+                try {
+                    $submissions->discardCreatedRequest($requestId, 'admin_intro_failed');
+                } catch (\Throwable $cleanup) {
+                    error_log('[delnavazan admin intro] compensation failed ' . get_class($cleanup) . ' ' . $cleanup->getMessage());
+                }
+            }
+            throw $error;
+        }
+    }
+
+    /** Return the confirmation already produced by this exact admin command, if any. */
+    private function existingIntroConfirmation(string $requestKey, int $teacherId): ?array {
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $digest = BookingRequestIdempotency::keyDigest($requestKey);
+        $requestId = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT booking_request_id FROM {$p}booking_request_submission_keys WHERE key_digest=%s AND state='completed' AND booking_request_id IS NOT NULL LIMIT 1",
+            $digest
+        ));
+        if ($requestId < 1) return null;
+        $confirmation = $wpdb->get_row($wpdb->prepare(
+            "SELECT id,state,teacher_id FROM {$p}booking_request_confirmations WHERE booking_request_id=%d ORDER BY id DESC LIMIT 1",
+            $requestId
+        ));
+        if (!$confirmation || (int) $confirmation->teacher_id !== $teacherId) return null;
+        $request = $wpdb->get_row($wpdb->prepare("SELECT reference_code FROM {$p}booking_requests WHERE id=%d", $requestId));
+        return array(
+            'request_id' => $requestId,
+            'request_reference' => (string) ($request->reference_code ?? ''),
+            'requested_time_id' => 0,
+            'teacher_id' => $teacherId,
+            'confirmation_id' => (int) $confirmation->id,
+            'state' => (string) $confirmation->state,
+            'idempotent' => true,
+        );
     }
 
     /** @return array<string,mixed> */
@@ -146,6 +190,7 @@ final class AdministratorIntroBookingService {
     private function assertAvailableForPreview(int $teacherId, object $course, string $date, string $time, string $timezone): void {
         $interval = $this->interval($course, $date, $time, $timezone);
         if ($interval['starts_at_utc'] <= gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('Choose a future introductory time');
+        if (RequestedTimeNormalizer::overlapsStudentQuietHours($interval)) throw new \InvalidArgumentException(BookingRequestValidationService::BLOCKED_STUDENT_TIME_MESSAGE);
         if ($this->occupancy->overlapping($teacherId, $interval['starts_at_utc'], $interval['occupied_ends_at_utc'])) throw new \InvalidArgumentException('The Teacher already has a class at that time. Choose another slot.');
         try {
             CanonicalContinuationCapacityAuthority::assertNoActiveHold($teacherId, $interval['starts_at_utc'], $interval['occupied_ends_at_utc']);
@@ -156,7 +201,7 @@ final class AdministratorIntroBookingService {
         }
     }
 
-    /** @return array{starts_at_utc:string,ends_at_utc:string,occupied_ends_at_utc:string} */
+    /** @return array{local_date:string,local_start_time:string,timezone:string,starts_at_utc:string,ends_at_utc:string,occupied_ends_at_utc:string} */
     private function interval(object $course, string $date, string $time, string $timezone): array {
         $timezone = $this->safeTimezone($timezone);
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/D', $date)) throw new \InvalidArgumentException('Valid local date required');
@@ -169,6 +214,9 @@ final class AdministratorIntroBookingService {
         $occupied = $end->modify('+' . max(0, (int) $course->default_buffer_minutes) . ' minutes');
         $utc = new \DateTimeZone('UTC');
         return array(
+            'local_date' => $date,
+            'local_start_time' => $time,
+            'timezone' => $timezone,
             'starts_at_utc' => $local->setTimezone($utc)->format('Y-m-d H:i:s'),
             'ends_at_utc' => $end->setTimezone($utc)->format('Y-m-d H:i:s'),
             'occupied_ends_at_utc' => $occupied->setTimezone($utc)->format('Y-m-d H:i:s'),

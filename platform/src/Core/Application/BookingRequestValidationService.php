@@ -6,6 +6,7 @@ final class BookingRequestValidationService {
     public const MAX_REQUESTED_TIMES = 3;
     public const BOOKING_HORIZON_DAYS = 90;
     public const BLOCKED_TIME_MESSAGE = 'Requested interval overlaps Iran quiet hours';
+    private static ?array $horizonCache = null;
 
     public function normalizePublic(array $input): array {
         $allowed = array( 'requested_instrument_id', 'selected_intro_course_id', 'full_name', 'email', 'mobile', 'country', 'city', 'timezone', 'communication_language', 'whatsapp_same_as_mobile', 'whatsapp_number', 'privacy_notice_accepted', 'privacy_notice_version', 'adult_self_attested', 'recording_research_consent_accepted', 'requested_times' );
@@ -35,7 +36,20 @@ final class BookingRequestValidationService {
         if ( ! $instrument || $instrument->status !== 'active' || $instrument->archived_at !== null ) throw new \InvalidArgumentException( 'Active Instrument required' );
         $duration = 30; $buffer = 15;
         if ( $data['course_id'] ) { if ( ! $course || $course->status !== 'active' || $course->archived_at !== null || $course->course_type !== 'introductory' || (int) $course->instrument_id !== (int) $instrument->id ) throw new \InvalidArgumentException( 'Valid active Intro Course for Instrument required' ); $duration = Normalizer::count( $course->default_duration_minutes, 5, 480 ); $buffer = Normalizer::count( $course->default_buffer_minutes, 0, 240 ); }
-        $times = array(); $seen = array(); $horizonDays = $this->bookingHorizonDays(); foreach ( $data['requested_times'] as $time ) { $item = RequestedTimeNormalizer::normalize( $time, $duration, $buffer ); $zone = new \DateTimeZone( $item['timezone'] ); $today = new \DateTimeImmutable( 'today', $zone ); $first = $today->modify( '+1 day' ); $last = $first->modify( '+' . ( $horizonDays - 1 ) . ' days' ); $requested = new \DateTimeImmutable( $item['local_date'] . ' 00:00:00', $zone ); if ( $requested < $first || $requested > $last ) throw new \InvalidArgumentException( 'Requested time outside booking horizon' ); $key = implode( '|', array( $item['local_date'], $item['local_start_time'], $item['timezone'], $duration, $buffer ) ); if ( isset( $seen[$key] ) ) throw new \InvalidArgumentException( 'Duplicate requested time' ); $seen[$key] = true; $times[] = $item; }
+        $times = array(); $seenUtc = array();
+        foreach ( $data['requested_times'] as $time ) {
+            $item = RequestedTimeNormalizer::normalize( $time, $duration, $buffer );
+            if ( ! self::isWithinHorizon( $item ) ) throw new \InvalidArgumentException( 'Requested time outside booking horizon' );
+            $utcKey = (string) $item['starts_at_utc'];
+            if ( isset( $seenUtc[ $utcKey ] ) ) throw new \InvalidArgumentException( 'Duplicate requested time' );
+            $seenUtc[ $utcKey ] = true;
+            foreach ( $times as $existing ) {
+                if ( $item['starts_at_utc'] < $existing['occupied_ends_at_utc'] && $existing['starts_at_utc'] < $item['occupied_ends_at_utc'] ) {
+                    throw new \InvalidArgumentException( 'Overlapping requested times' );
+                }
+            }
+            $times[] = $item;
+        }
         $data['times'] = $times; unset( $data['requested_times'] ); return $data;
     }
 
@@ -47,6 +61,7 @@ final class BookingRequestValidationService {
      * @return array{source:string,weeks:?int,days:int,version:?int,read_error:bool,recorded:bool,recorded_value:?string,recorded_value_type:?string}
      */
     public static function horizonConfiguration(): array {
+        if (self::$horizonCache !== null) return self::$horizonCache;
         $default = array('source' => 'default', 'weeks' => null, 'days' => self::BOOKING_HORIZON_DAYS, 'version' => null, 'read_error' => false, 'recorded' => false, 'recorded_value' => null, 'recorded_value_type' => null);
         try {
             $policy = (new CommercialPolicyService())->current('INTRO_BOOKING_HORIZON');
@@ -57,17 +72,33 @@ final class BookingRequestValidationService {
                 if ($default['recorded_value_type'] === 'weeks') {
                     $weeks = (int) $default['recorded_value'];
                     if ($weeks >= 1 && $weeks <= 104) {
-                        return array('source' => 'policy', 'weeks' => $weeks, 'days' => $weeks * 7, 'version' => isset($policy['version']) ? (int) $policy['version'] : null, 'read_error' => false, 'recorded' => true, 'recorded_value' => $default['recorded_value'], 'recorded_value_type' => 'weeks');
+                        return self::$horizonCache = array('source' => 'policy', 'weeks' => $weeks, 'days' => $weeks * 7, 'version' => isset($policy['version']) ? (int) $policy['version'] : null, 'read_error' => false, 'recorded' => true, 'recorded_value' => $default['recorded_value'], 'recorded_value_type' => 'weeks');
                     }
                 }
             }
         } catch (\Throwable) {
             $default['read_error'] = true;
         }
-        return $default;
+        return self::$horizonCache = $default;
     }
     private function bookingHorizonDays(): int {
         return self::horizonConfiguration()['days'];
+    }
+
+    /** True when a normalized requested time lies inside the effective public window. */
+    public static function isWithinHorizon(array $item): bool {
+        if (!isset($item['local_date'], $item['timezone'])) return false;
+        $days = max(1, (int) (self::horizonConfiguration()['days'] ?? self::BOOKING_HORIZON_DAYS));
+        try {
+            $zone = new \DateTimeZone( (string) $item['timezone'] );
+            $today = new \DateTimeImmutable('today', $zone);
+            $first = $today->modify( '+1 day' );
+            $last = $first->modify('+' . ($days - 1) . ' days');
+            $requested = new \DateTimeImmutable((string) $item['local_date'] . ' 00:00:00', $zone);
+            return $requested >= $first && $requested <= $last;
+        } catch (\Throwable) {
+            return false;
+        }
     }
     /** Reject compound public values before a normalizer or PHP cast can inspect them. */
     private function assertScalarFields(array $input, array $fields): void {

@@ -29,7 +29,7 @@ final class RecordingPlaybackGrantService {
         $now=$this->now();
         $recording=$this->control->recordingByUid($recordingUid);
         $principal=null;
-        try{$principal=(new PortalPrincipalResolver())->resolve('any');}
+        try{$principal=$this->principalForRecording($recording?(int)$recording->teacher_id:0,$recording?(int)$recording->student_id:0);}
         catch(\Throwable $error){
             if($recording)$this->control->recordPlaybackEvent((int)$recording->id,(int)$recording->content_version,'unknown',0,'refuse','principal_unresolved',hash('sha256',$recordingUid.'|'.$now),null,null,null,$source);
             throw new \RuntimeException('recording_playback_denied:principal_required');
@@ -89,7 +89,7 @@ final class RecordingPlaybackGrantService {
         $row=$wpdb->get_row($wpdb->prepare("SELECT r.uid,r.lifecycle_state,r.disposition_state,r.content_version,r.lesson_id,r.teacher_id,r.student_id,l.uid lesson_uid FROM {$wpdb->prefix}dzn_recordings r INNER JOIN {$wpdb->prefix}dzn_lessons l ON l.id=r.lesson_id WHERE l.uid=%s ORDER BY r.id DESC LIMIT 1",$lessonUid));
         if(!$row)return $empty;
         $principal=null;
-        try{$principal=(new PortalPrincipalResolver())->resolve('any');}catch(\Throwable $error){return $empty;}
+        try{$principal=$this->principalForRecording((int)$row->teacher_id,(int)$row->student_id);}catch(\Throwable $error){return $empty;}
         $kind=(string)$principal['kind'];$id=(int)$principal['id'];
         $owned=($kind==='teacher'&&$id===(int)$row->teacher_id)||($kind==='student'&&$id===(int)$row->student_id)||($kind==='guardian'&&(int)($principal['grant_id']??0)>0);
         $health=RecordingFeatureFlags::serviceHealth();
@@ -110,6 +110,22 @@ final class RecordingPlaybackGrantService {
         elseif(RecordingLifecycle::playbackCandidate((string)$row->lifecycle_state)&&(string)$row->disposition_state==='none'&&$archive!==true)$label='بایگانی موقتاً در دسترس نیست.';
         return array('available'=>$available,'recording_uid'=>(string)$row->uid,'status'=>(string)$row->lifecycle_state,
             'label'=>$label,'state'=>(string)$row->lifecycle_state,'content_version'=>(int)$row->content_version);
+    }
+
+    /**
+     * Resolve the principal that owns the exact recording. A dual-role account
+     * has both a Student and a Teacher link; resolving `any` would be ambiguous,
+     * so prefer the side that owns this recording before falling back.
+     */
+    private function principalForRecording(int $teacherId, int $studentId): array {
+        $resolver = new PortalPrincipalResolver();
+        if ($teacherId > 0) {
+            try { $principal = $resolver->resolve('teacher'); if ((int) $principal['id'] === $teacherId) return $principal; } catch (\Throwable) {}
+        }
+        if ($studentId > 0) {
+            try { $principal = $resolver->resolve('student'); if ((int) $principal['id'] === $studentId) return $principal; } catch (\Throwable) {}
+        }
+        return $resolver->resolve('any');
     }
 
     private function now():int{return $this->now??(function_exists('time')?(int)time():0);}

@@ -57,6 +57,13 @@ function dzn_u_fix_chain(array $fixture):array{
     $initial=$assignmentService->assignInitial($enrolmentId,dzn_u_fix_key('assignment'));
     $courseId=(int)$wpdb->get_var($wpdb->prepare("SELECT course_id FROM {$p}enrolments WHERE id=%d",$enrolmentId));
     $teacherId=(int)(new TeacherService())->create(array('display_name'=>'Synthetic U Chain Teacher','email'=>'u-chain-'.wp_generate_uuid4().'@phase-2a2u.invalid'));
+    $now = gmdate('Y-m-d H:i:s');
+    $wpdb->insert($p . 'teacher_onboarding_states', array(
+        'teacher_id' => $teacherId, 'state' => 'active', 'readiness_state' => 'ready',
+        'profile_state' => 'complete', 'availability_state' => 'complete',
+        'agreement_state' => 'not_required', 'version' => 1,
+        'created_at' => $now, 'updated_at' => $now, 'created_by' => 1, 'updated_by' => 1,
+    ));
     (new TeacherAcceptingStateService())->set(array('teacher_id'=>$teacherId,'state'=>'accepting','reason_code'=>'synthetic_provision'));
     (new TeacherAvailabilityService())->setProfile(array('teacher_id'=>$teacherId,'timezone'=>'UTC','status'=>'active','reason_code'=>'synthetic_provision'));
     for($weekday=1;$weekday<=7;$weekday++)(new TeacherAvailabilityService())->setRecurringRule(array('teacher_id'=>$teacherId,'timezone'=>'UTC','weekday'=>$weekday,'local_start_time'=>'00:00:00','local_end_time'=>'23:59:59','state'=>'requestable','status'=>'active','reason_code'=>'synthetic_provision'));

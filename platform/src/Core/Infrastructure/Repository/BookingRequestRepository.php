@@ -10,6 +10,17 @@ final class BookingRequestRepository {
     /** Catalogue lock order is Instrument then Course, matching Core catalogue mutations. */
     public function instrumentForUpdate(int $id): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}instruments WHERE id=%d FOR UPDATE", $id ) ); }
     public function courseForUpdate(int $id): ?object { global $wpdb; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}courses WHERE id=%d FOR UPDATE", $id ) ); }
+    /** Resolve the instrument's active default introductory Course while the intake holds its locks. */
+    public function defaultIntroCourseForUpdate(int $instrumentId): ?object {
+        global $wpdb;
+        return $wpdb->get_row( $wpdb->prepare(
+            "SELECT c.* FROM {$this->prefix}instrument_intro_course_defaults d
+             INNER JOIN {$this->prefix}courses c ON c.id=d.course_id
+             WHERE d.instrument_id=%d AND d.status='active' AND c.status='active' AND c.archived_at IS NULL
+             ORDER BY d.id DESC LIMIT 1 FOR UPDATE",
+            $instrumentId
+        ) );
+    }
     public function createRequest(array $data): int { return $this->privateWrite( function () use ( $data ) { global $wpdb; if ( $wpdb->insert( $this->prefix . 'booking_requests', $data ) === false ) throw new \RuntimeException( 'Booking Request persistence failed' ); return (int) $wpdb->insert_id; } ); }
     public function assignReference(int $id, string $reference): void { $this->privateWrite( function () use ( $id, $reference ) { global $wpdb; if ( $wpdb->update( $this->prefix . 'booking_requests', array( 'reference_code' => $reference ), array( 'id' => $id, 'reference_code' => null ) ) !== 1 ) throw new \RuntimeException( 'Booking Request reference assignment failed' ); } ); }
     public function createSnapshot(int $request, array $contact, string $now, array $digests = array()): int { $data = $contact + $digests + array( 'booking_request_id' => $request, 'snapshot_sequence' => 1, 'privacy_notice_version' => '2026-09-05', 'privacy_notice_accepted' => 1, 'privacy_notice_accepted_at' => $now, 'submission_source' => 'public_rest_booking_request', 'created_at' => $now ); return $this->privateWrite( function () use ( $data ) { global $wpdb; if ( $wpdb->insert( $this->prefix . 'booking_request_contact_snapshots', $data ) === false ) throw new \RuntimeException( 'Booking Request contact snapshot persistence failed' ); return (int) $wpdb->insert_id; } ); }

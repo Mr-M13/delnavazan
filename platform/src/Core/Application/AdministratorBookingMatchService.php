@@ -66,6 +66,7 @@ final class AdministratorBookingMatchService {
             $requestedTimeId, $requestId
         ));
         if (!$time) throw new \InvalidArgumentException('Choose one of the requested times');
+        if (RequestedTimeNormalizer::overlapsStudentQuietHours((array) $time)) throw new \InvalidArgumentException(BookingRequestValidationService::BLOCKED_STUDENT_TIME_MESSAGE);
         $start = (string) $time->starts_at_utc;
         if ($start <= gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('The chosen time must be in the future');
         $courseId = (int) ($request->selected_intro_course_id ?? 0);
@@ -98,7 +99,7 @@ final class AdministratorBookingMatchService {
         $end = (string) $time->instructional_ends_at_utc;
         $occupiedEnd = (string) $time->occupied_ends_at_utc;
         if ($end <= $start || $occupiedEnd < $end) throw new \InvalidArgumentException('The requested time is invalid');
-        $conflict = $this->occupancy->overlapping($teacherId, $start, $occupiedEnd);
+        $conflict = $this->occupancy->overlapping($teacherId, $start, $occupiedEnd, 0, $requestId);
         if ($conflict) throw new \InvalidArgumentException('The Teacher already has a class at that time. Choose another slot.');
         try {
             CanonicalContinuationCapacityAuthority::assertNoActiveHold($teacherId, $start, $occupiedEnd);

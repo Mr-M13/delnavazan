@@ -35,8 +35,10 @@ if ( ! $is_booking && preg_match( '/^[0-9A-Z]{26}$/D', $lesson_uid ) && preg_mat
 		 INNER JOIN {$p}teachers t ON t.id=l.teacher_id
 		INNER JOIN {$p}students s ON s.id=l.student_id
 		LEFT JOIN {$p}courses c ON c.id=l.course_id
-		WHERE l.uid=%s AND l.archived_at IS NULL LIMIT 1",
-		$lesson_uid
+		WHERE l.uid=%s AND l.archived_at IS NULL AND (l.teacher_id=%d OR l.student_id=%d) LIMIT 1",
+		$lesson_uid,
+		$teacher_id,
+		$student_id
 	) );
 	if ( is_object( $lesson ) ) {
 		$schedule = $wpdb->get_row( $wpdb->prepare(
@@ -49,13 +51,20 @@ if ( ! $is_booking && preg_match( '/^[0-9A-Z]{26}$/D', $lesson_uid ) && preg_mat
 $booking = null;
 if ( $is_booking && preg_match( '/^[0-9A-Z]{26}$/D', $confirmation_uid ) ) {
 	$booking = $wpdb->get_row( $wpdb->prepare(
-		"SELECT c.*,t.display_name AS teacher_name,s.full_name AS student_name
+		"SELECT c.*,t.display_name AS teacher_name,s.full_name AS student_name,r.student_id AS booking_student_id
 		 FROM {$p}booking_request_confirmations c
 		 INNER JOIN {$p}teachers t ON t.id=c.teacher_id
+		 INNER JOIN {$p}booking_requests r ON r.id=c.booking_request_id
 		 LEFT JOIN {$p}booking_request_contact_snapshots s ON s.booking_request_id=c.booking_request_id AND s.snapshot_sequence=1
-		 WHERE c.uid=%s LIMIT 1",
-		$confirmation_uid
+		 WHERE c.uid=%s AND (c.teacher_id=%d OR r.student_id=%d) LIMIT 1",
+		$confirmation_uid,
+		$teacher_id,
+		$student_id
 	) );
+	if ( $booking ) {
+		if ( $teacher_id > 0 && (int) $booking->teacher_id === $teacher_id ) { $role = 'teacher'; }
+		elseif ( $student_id > 0 && (int) ( $booking->booking_student_id ?? 0 ) === $student_id ) { $role = 'student'; }
+	}
 }
 $owned = false;
 if ( $lesson && $role === 'teacher' && (int) $lesson->teacher_id === $teacher_id ) { $owned = true; }
@@ -68,7 +77,13 @@ if ( $booking && 'student' === $role && $student_id > 0 ) {
         catch ( Throwable $e ) { $owned = false; }
     }
 }
-// Do not expose another participant's names, lesson time or briefing to a guessed URL.
+// Metadata is participant-only. A UID alone must never reveal the Teacher,
+// Student, course, or class time to another signed-in account.
+if ( ! $owned ) {
+	$lesson = null;
+	$schedule = null;
+	$booking = null;
+}
 $has_details = $owned && ( ( $lesson && $schedule ) || $booking );
 
 $course = is_object( $lesson ) ? ( $lesson->course_name ?? 'کلاس موسیقی دلنوازان' ) : 'کلاس موسیقی دلنوازان';

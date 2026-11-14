@@ -232,7 +232,7 @@ $expect( (string) $stored->english_name === 'Acceptance English Name' && (string
 $issuedF = $invitations->issueForEmail( 'workspace-current-state@example.invalid', 600, 'workspace-f-invite' );
 $userIdF = $claimInvitation( $issuedF, 'dzn-workspace-current-state' );
 $rowF = $row( (int) $issuedF['teacher_id'] );
-$expect( is_array( $rowF ) && $rowF['google']['ready_for_activation'] === false && $rowF['review']['label'] === 'Not ready', 'initial current-state row was not honest' );
+$expect( is_array( $rowF ) && $rowF['google']['ready_for_activation'] === true && $rowF['review']['label'] === 'Not ready', 'initial current-state row was not honest' );
 $expect( str_starts_with( (string) $rowF['delivery']['label'], 'Failed' ), 'failed invitation delivery was not shown to staff' );
 $expect( $rowF['availability']['state'] === 'pending', 'missing availability was not shown as pending' );
 $wpdb->update( $wpdb->prefix . 'dzn_teachers', array( 'country_code' => 'AU', 'timezone' => 'Australia/Brisbane', 'locale' => 'en_AU', 'calendar_preference' => 'gregorian' ), array( 'id' => (int) $issuedF['teacher_id'] ) );

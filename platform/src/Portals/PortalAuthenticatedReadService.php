@@ -340,9 +340,73 @@ final class PortalAuthenticatedReadService {
         );
         $rows = array();
         foreach ((array) $ids as $id) {
+            $model = (string) $wpdb->get_var($wpdb->prepare("SELECT record_model FROM {$table} WHERE id=%d", (int) $id));
+            if ($model === 'legacy_phase1') {
+                $rows[] = $this->legacyEnrolmentFor($studentId, (int) $id);
+                continue;
+            }
             $rows[] = PortalAccessPolicy::assertObject('student_portal', 'enrolment', (int) $id, $principal);
         }
         return $rows;
+    }
+
+    /**
+     * Read-only projection for an imported Enrolment. Historical records are not
+     * canonical aggregates, but failing the whole portal because one exists is
+     * worse than showing a clearly marked legacy, non-actionable card.
+     */
+    private function legacyEnrolmentFor(int $studentId, int $enrolmentId): array {
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT e.*,c.reference_code course_reference,c.name_fa course_name_fa,c.name_en course_name_en,
+                    t.display_name teacher_name,t.reference_code teacher_reference,
+                    s.display_name student_name,s.reference_code student_reference,
+                    i.name_fa instrument_name_fa,i.name_en instrument_name_en
+             FROM {$p}enrolments e
+             INNER JOIN {$p}students s ON s.id=e.student_id
+             LEFT JOIN {$p}courses c ON c.id=e.course_id
+             LEFT JOIN {$p}teachers t ON t.id=e.teacher_id
+             LEFT JOIN {$p}instruments i ON i.id=c.instrument_id
+             WHERE e.id=%d AND e.student_id=%d AND e.archived_at IS NULL LIMIT 1",
+            $enrolmentId,
+            $studentId
+        ));
+        if (!$row || $wpdb->last_error !== '') throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');
+        $instrumentName = trim((string) ($row->instrument_name_fa ?? ''));
+        if ($instrumentName === '') $instrumentName = trim((string) ($row->instrument_name_en ?? ''));
+        $courseName = trim((string) ($row->course_name_fa ?? ''));
+        if ($courseName === '') $courseName = trim((string) ($row->course_name_en ?? ''));
+        return array(
+            'assignment_uid' => '',
+            'enrolment_uid' => (string) $row->uid,
+            'course_reference' => (string) ($row->course_reference ?? ''),
+            'course_name' => $courseName,
+            'instrument_name' => $instrumentName,
+            'teacher_name' => trim((string) ($row->teacher_name ?? '')),
+            'student_name' => trim((string) ($row->student_name ?? '')),
+            'term_reference' => '',
+            'term_sequence' => 0,
+            'assignment_state' => 'legacy_read_only',
+            'accepted_at' => null,
+            'student_display_reference' => (string) ($row->student_reference ?? ''),
+            'enrolment_reference' => (string) ($row->reference_code ?? ''),
+            'lifecycle_state' => 'current',
+            'assigned_teacher_display_reference' => (string) ($row->teacher_reference ?? ''),
+            'schedule_summary' => array('frequency_per_week' => 0, 'timezone' => ''),
+            'fulfilment_state' => 'legacy_read_only',
+            'payment_verified' => null,
+            'provisioning_message_code' => '',
+            'term_state' => 'legacy_read_only',
+            'replacement_allowance' => 0,
+            'replacement_used' => 0,
+            'replacement_pending_allocated' => 0,
+            'replacement_allocated_total' => 0,
+            'replacement_available' => 0,
+            'replacement_remaining' => 0,
+            'replacement_lessons' => array(),
+            'legacy_read_only' => true,
+        );
     }
 
     private function teacherAssignments(int $teacherId, array $principal): array {

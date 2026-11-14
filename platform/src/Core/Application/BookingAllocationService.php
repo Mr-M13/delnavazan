@@ -87,6 +87,9 @@ final class BookingAllocationService {
         $requestedTimeId??=(int)$delivery->requested_time_id;
         $times=array_values(array_filter($this->repo->times((int)$delivery->booking_request_id),static fn(object $time):bool=>(int)$time->id===$requestedTimeId));
         if(!$times)throw new \InvalidArgumentException('Choose one of the requested times');
+        foreach($times as $time){
+            if(RequestedTimeNormalizer::overlapsStudentQuietHours((array)$time))throw new \InvalidArgumentException(BookingRequestValidationService::BLOCKED_STUDENT_TIME_MESSAGE);
+        }
         $candidates=$this->candidates((int)$delivery->selected_intro_course_id,$times,$now,false,(int)$delivery->booking_request_id,false,$allowOutsideAvailability);
         $candidate=$candidates[(int)$delivery->teacher_id]??null;
         if(!$candidate||(int)$candidate['requested_time_id']!==$requestedTimeId)throw new \InvalidArgumentException('Booking time is no longer available');

@@ -11,6 +11,7 @@ use Delnavazan\Platform\Core\Application\BookingRequestRateLimitException;
 
 final class BookingRequestRestController {
     private const CSRF_COOKIE = 'dzn_booking_csrf';
+    private const CSRF_TTL_SECONDS = 7200;
 
     public static function register(): void {
         register_rest_route( 'delnavazan-platform/v1', '/booking-requests', array(
@@ -27,7 +28,8 @@ final class BookingRequestRestController {
         } catch ( \Throwable ) {
             $token = hash_hmac( 'sha256', wp_generate_password( 64, true, true ), wp_salt( 'dzn_booking_csrf_entropy' ) );
         }
-        return $token . '.' . hash_hmac( 'sha256', $token, wp_salt( 'dzn_booking_csrf' ) );
+        $expires = (string) ( time() + self::CSRF_TTL_SECONDS );
+        return $token . '.' . $expires . '.' . hash_hmac( 'sha256', $token . '.' . $expires, wp_salt( 'dzn_booking_csrf' ) );
     }
 
     public static function permission( \WP_REST_Request $request ): bool|\WP_Error {
@@ -74,7 +76,7 @@ final class BookingRequestRestController {
             return new \WP_REST_Response( array( 'success' => false, 'code' => 'account_authentication_failed', 'login_url' => wp_login_url( home_url( '/enrol/' ) ) ), 401 );
         } catch ( \InvalidArgumentException $e ) {
             if ( $e->getMessage() === 'csrf_invalid' ) return new \WP_REST_Response( array( 'success' => false, 'code' => 'csrf_invalid' ), 403 );
-            $code = $e->getMessage() === BookingRequestValidationService::BLOCKED_TIME_MESSAGE ? 'blocked_time' : 'invalid_request';
+            $code = in_array( $e->getMessage(), array( BookingRequestValidationService::BLOCKED_TIME_MESSAGE, BookingRequestValidationService::BLOCKED_STUDENT_TIME_MESSAGE ), true ) ? 'blocked_time' : 'invalid_request';
             return new \WP_REST_Response( array( 'success' => false, 'code' => $code ), 400 );
         } catch ( IdempotencyConflictException ) {
             return new \WP_REST_Response( array( 'success' => false, 'code' => 'idempotency_conflict' ), 409 );
@@ -96,9 +98,10 @@ final class BookingRequestRestController {
         $cookie = isset( $_COOKIE[ self::CSRF_COOKIE ] ) && is_string( $_COOKIE[ self::CSRF_COOKIE ] ) ? $_COOKIE[ self::CSRF_COOKIE ] : '';
         if ( ! is_string( $header ) || $header === '' || $cookie === '' || ! hash_equals( $cookie, $header ) ) throw new \InvalidArgumentException( 'csrf_invalid' );
         $parts = explode( '.', $header );
-        if ( count( $parts ) !== 2 || ! preg_match( '/\\A[a-f0-9]{64}\\z/', $parts[0] ) || ! preg_match( '/\\A[a-f0-9]{64}\\z/', $parts[1] ) ) throw new \InvalidArgumentException( 'csrf_invalid' );
-        $expected = hash_hmac( 'sha256', $parts[0], wp_salt( 'dzn_booking_csrf' ) );
-        if ( ! hash_equals( $expected, $parts[1] ) ) throw new \InvalidArgumentException( 'csrf_invalid' );
+        if ( count( $parts ) !== 3 || ! preg_match( '/\\A[a-f0-9]{64}\\z/', $parts[0] ) || ! preg_match( '/\\A[0-9]{10}\\z/', $parts[1] ) || ! preg_match( '/\\A[a-f0-9]{64}\\z/', $parts[2] ) ) throw new \InvalidArgumentException( 'csrf_invalid' );
+        if ( (int) $parts[1] < time() ) throw new \InvalidArgumentException( 'csrf_invalid' );
+        $expected = hash_hmac( 'sha256', $parts[0] . '.' . $parts[1], wp_salt( 'dzn_booking_csrf' ) );
+        if ( ! hash_equals( $expected, $parts[2] ) ) throw new \InvalidArgumentException( 'csrf_invalid' );
         if ( get_current_user_id() > 0 && ! wp_verify_nonce( (string) $request->get_header( 'x-wp-nonce' ), 'wp_rest' ) ) throw new \InvalidArgumentException( 'csrf_invalid' );
     }
 }

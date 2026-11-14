@@ -13,6 +13,7 @@ final class BookingDayAvailabilityRestController {
     }
 
     public static function handle( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
+        if ( ! ( new BookingDayAvailabilityRateLimiter() )->allow() ) return new \WP_REST_Response( array( 'success' => false, 'code' => 'rate_limited' ), 429 );
         try {
             $body = $request->get_json_params();
             if ( ! is_array( $body ) ) throw new \InvalidArgumentException( 'JSON object required' );

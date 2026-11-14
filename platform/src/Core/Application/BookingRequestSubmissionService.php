@@ -18,6 +18,66 @@ final class BookingRequestSubmissionService {
         $this->repo->begin(); try { $result = $this->submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate, $studentId ); $this->repo->commit(); unset( $result['request_id'] ); return $result; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
     }
 
+    /**
+     * Compensate a failed administrator-created intro. The public intake commits
+     * before the Teacher match, so a later refusal must not leave an orphan
+     * request/delivery in the queue. Only an unconfirmed, still-unresolved
+     * request created by the same command is removable.
+     */
+    public function discardCreatedRequest(int $requestId, string $reasonCode): void {
+        if ($requestId < 1) return;
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $this->repo->begin();
+        try {
+            $request = $wpdb->get_row($wpdb->prepare("SELECT id,lifecycle_status,resolution_state,privacy_erased_at FROM {$p}booking_requests WHERE id=%d FOR UPDATE", $requestId));
+            if (!$request || (string) $request->lifecycle_status !== 'submitted' || (string) $request->resolution_state !== 'unresolved' || $request->privacy_erased_at !== null) { $this->repo->commit(); return; }
+            if ((int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}booking_request_confirmations WHERE booking_request_id=%d LIMIT 1", $requestId)) > 0) { $this->repo->commit(); return; }
+            $deliveryIds = array_map('intval', (array) $wpdb->get_col($wpdb->prepare("SELECT id FROM {$p}booking_request_teacher_deliveries WHERE booking_request_id=%d", $requestId)));
+            $offerIds = array_map('intval', (array) $wpdb->get_col($wpdb->prepare("SELECT id FROM {$p}booking_allocation_offers WHERE booking_request_id=%d", $requestId)));
+            if ($deliveryIds) {
+                $in = implode(',', $deliveryIds);
+                $wpdb->query("DELETE FROM {$p}booking_request_student_notifications WHERE delivery_id IN ({$in})");
+                $wpdb->query("DELETE FROM {$p}booking_request_teacher_commands WHERE delivery_id IN ({$in})");
+                $wpdb->query("DELETE FROM {$p}booking_request_confirmations WHERE delivery_id IN ({$in})");
+            }
+            if ($offerIds) {
+                $in = implode(',', $offerIds);
+                $wpdb->query("DELETE FROM {$p}booking_allocation_notifications WHERE offer_id IN ({$in})");
+            }
+            foreach (array(
+                'booking_allocation_offers' => 'booking_request_id',
+                'booking_allocation_alerts' => 'booking_request_id',
+                'booking_request_teacher_declines' => 'booking_request_id',
+                'booking_request_teacher_deliveries' => 'booking_request_id',
+                'booking_request_intro_outcomes' => 'booking_request_id',
+                'booking_request_contact_snapshots' => 'booking_request_id',
+                'booking_request_requested_times' => 'booking_request_id',
+                'booking_request_identity_resolution_events' => 'booking_request_id',
+                'booking_request_submission_keys' => 'booking_request_id',
+            ) as $table => $column) {
+                if ($wpdb->delete($p . $table, array($column => $requestId)) === false) throw new \RuntimeException('Booking Request compensation failed: ' . $table);
+            }
+            foreach (array('booking_request_id', 'candidate_booking_request_id') as $column) {
+                if ($wpdb->delete($p . 'booking_request_duplicate_flags', array($column => $requestId)) === false) throw new \RuntimeException('Booking Request compensation failed: duplicate flags');
+            }
+            $detail = wp_json_encode(array('request_id' => $requestId, 'reason_code' => sanitize_key($reasonCode)));
+            $wpdb->insert($p . 'platform_audit_events', array(
+                'aggregate_type' => 'booking_request', 'aggregate_id' => $requestId,
+                'event_type' => 'booking_request.admin_intro_compensated', 'actor_type' => 'administrator',
+                'actor_id' => (int) get_current_user_id(), 'reason_code' => sanitize_key($reasonCode),
+                'safe_detail' => is_string($detail) ? $detail : null,
+                'idempotency_key' => hash_hmac('sha256', 'admin-intro-compensate:' . $requestId, wp_salt('dzn_platform_audit')),
+                'occurred_at' => gmdate('Y-m-d H:i:s'),
+            ));
+            if ($wpdb->delete($p . 'booking_requests', array('id' => $requestId)) === false) throw new \RuntimeException('Booking Request compensation failed: request');
+            $this->repo->commit();
+        } catch (\Throwable $error) {
+            $this->repo->rollback();
+            throw $error;
+        }
+    }
+
     /** Internal composition seam for an owner that already holds the transaction. */
     public function submitWithinTransaction(array $input, string $idempotencyKey, ?callable $newSubmissionGate = null, ?int $studentId = null): array {
         $data = $this->validator->normalizePublic( $input ); $now = gmdate( 'Y-m-d H:i:s' ); $retention = gmdate( 'Y-m-d H:i:s', strtotime( '+24 months', strtotime( $now . ' UTC' ) ) ); $keyDigest = BookingRequestIdempotency::keyDigest($idempotencyKey); $payloadDigest = BookingRequestIdempotency::payloadDigest($data); $expires = gmdate('Y-m-d H:i:s', strtotime('+' . BookingRequestIdempotency::WINDOW_SECONDS . ' seconds', strtotime($now . ' UTC')));
@@ -34,7 +94,14 @@ final class BookingRequestSubmissionService {
                 $this->repo->ensureAndLockStudentRoot( $studentId, $now, max( 0, (int) get_current_user_id() ) );
                 do_action( 'dzn_booking_student_root_held', 'submission', $studentId );
             }
-            $instrument = $this->repo->instrumentForUpdate( $data['instrument_id'] ); $course = $data['course_id'] ? $this->repo->courseForUpdate( $data['course_id'] ) : null; $data = $this->validator->resolveLockedCatalogue( $data, $instrument, $course );
+            $instrument = $this->repo->instrumentForUpdate( $data['instrument_id'] ); $course = $data['course_id'] ? $this->repo->courseForUpdate( $data['course_id'] ) : null;
+            if ( ! $data['course_id'] ) {
+                $defaultCourse = $this->repo->defaultIntroCourseForUpdate( (int) $data['instrument_id'] );
+                if ( ! $defaultCourse ) throw new \InvalidArgumentException( 'Valid active Intro Course for Instrument required' );
+                $data['course_id'] = (int) $defaultCourse->id;
+                $course = $defaultCourse;
+            }
+            $data = $this->validator->resolveLockedCatalogue( $data, $instrument, $course );
             if ( $studentId !== null && $studentId > 0 && $this->repo->studentHasActiveInstrumentEnrolment( $studentId, (int) $data['instrument_id'] ) ) {
                 throw new BookingRequestInstrumentEnrollmentException( 'student_instrument_already_enrolled' );
             }

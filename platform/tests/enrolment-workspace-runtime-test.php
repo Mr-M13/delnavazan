@@ -19,12 +19,24 @@ global $wpdb;
 $p = $wpdb->prefix . 'dzn_';
 $assert = static function (bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); };
 $now = gmdate('Y-m-d H:i:s');
+$runtimeSuffix = substr(hash('sha256', wp_generate_uuid4()), 0, 8);
+$runtimeStudent = (new StudentService())->create(array(
+    'display_name' => 'Runtime Intro Student ' . $runtimeSuffix,
+    'email' => 'runtime-intro-' . $runtimeSuffix . '@example.invalid',
+    'phone' => '+61400000000',
+    'country_code' => 'AU',
+    'city' => 'Brisbane',
+    'timezone' => 'Australia/Brisbane',
+    'locale' => 'en_AU',
+    'calendar_preference' => 'gregorian',
+    'status' => 'active',
+));
 
 $introKey = 'runtime-intro-idempotent-' . substr(hash('sha256', wp_generate_uuid4()), 0, 12);
-$slot = array('local_date' => gmdate('Y-m-d', strtotime('+33 days')), 'local_start_time' => '18:00', 'timezone' => 'Australia/Brisbane');
+$slot = array('local_date' => gmdate('Y-m-d', strtotime('+33 days')), 'local_start_time' => '14:00', 'timezone' => 'Australia/Brisbane');
 $agreement = array('agreement_channel' => 'phone', 'agreement_reference' => 'runtime-teacher-call', 'agreement_at' => $now, 'staff_reason' => 'Runtime idempotency proof', 'override_reason_code' => '');
-$first = (new AdministratorIntroBookingService())->create((int) $fixture['student_id'], (int) $fixture['intro_course_id'], (int) $fixture['teacher_id'], $slot, $agreement, $introKey);
-$second = (new AdministratorIntroBookingService())->create((int) $fixture['student_id'], (int) $fixture['intro_course_id'], (int) $fixture['teacher_id'], $slot, $agreement, $introKey);
+$first = (new AdministratorIntroBookingService())->create($runtimeStudent, (int) $fixture['intro_course_id'], (int) $fixture['teacher_id'], $slot, $agreement, $introKey);
+$second = (new AdministratorIntroBookingService())->create($runtimeStudent, (int) $fixture['intro_course_id'], (int) $fixture['teacher_id'], $slot, $agreement, $introKey);
 $assert((int) $first['request_id'] === (int) $second['request_id'], 'A repeated introductory action created a second request');
 $assert((int) $first['confirmation_id'] === (int) $second['confirmation_id'], 'A repeated introductory action created a second confirmation');
 $count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_confirmations WHERE booking_request_id=%d", (int) $first['request_id']));
@@ -51,7 +63,7 @@ $assert($cancelAudit === 1, 'Cancellation audit evidence missing');
 
 // A second introductory booking proves the Teacher/Admin reschedule path. The same disposable
 // Teacher is already known to be free in this synthetic slot after the first one is cancelled.
-$secondIntro = (new AdministratorIntroBookingService())->create((int) $fixture['student_id'], (int) $fixture['intro_course_id'], (int) $fixture['teacher_id'], $slot, $agreement, 'runtime-intro-reschedule-' . wp_generate_uuid4());
+$secondIntro = (new AdministratorIntroBookingService())->create($runtimeStudent, (int) $fixture['intro_course_id'], (int) $fixture['teacher_id'], $slot, $agreement, 'runtime-intro-reschedule-' . wp_generate_uuid4());
 $newDate = gmdate('Y-m-d', strtotime('+33 days'));
 $rescheduled = (new IntroLessonLifecycleService())->reschedule((int) $secondIntro['request_id'], 'admin', array('local_date' => $newDate, 'local_start_time' => '20:00', 'timezone' => 'Australia/Brisbane'), 'operational_change', 'runtime-intro-reschedule-command-' . wp_generate_uuid4());
 $assert(str_contains((string) $rescheduled['local_label'], '20:00'), 'Reschedule did not return the requested local time');
@@ -64,7 +76,7 @@ $assert($rescheduleAudit === 1, 'Reschedule audit evidence missing');
 
 $importKey = 'runtime-import-idempotent-' . substr(hash('sha256', wp_generate_uuid4()), 0, 12);
 $importInput = array(
-    'student_id' => (int) $fixture['student_id'], 'teacher_id' => (int) $fixture['teacher_id'], 'course_id' => (int) $fixture['standard_course_id'],
+    'student_id' => $runtimeStudent, 'teacher_id' => (int) $fixture['teacher_id'], 'course_id' => (int) $fixture['standard_course_id'],
     'original_start_date' => gmdate('Y-m-d', strtotime('-30 days')), 'completed_classes' => 2, 'remaining_classes' => 4,
     'weekday' => 3, 'next_class_date' => gmdate('Y-m-d', strtotime('+10 days')), 'local_time' => '18:00', 'timezone' => 'Australia/Brisbane',
     'replacement_allowance' => 1, 'payment_status' => 'unknown', 'attendance_evidence_state' => 'historical_status_unknown',

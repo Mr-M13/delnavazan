@@ -81,7 +81,8 @@
   tomorrow.setHours(0, 0, 0, 0);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const latest = new Date(tomorrow);
-  latest.setDate(latest.getDate() + 89);
+  const horizonDays = Math.max(1, Number(window.dznBooking?.horizonDays) || 90);
+  latest.setDate(latest.getDate() + (horizonDays - 1));
   const minDate = localDate(tomorrow);
   const maxDate = localDate(latest);
   const detectedZone = detectZone();

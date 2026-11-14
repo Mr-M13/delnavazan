@@ -18,8 +18,6 @@ final class AdminShellController {
         ]],
         'enrolment' => ['Enrolment', [
             ['Enrolment', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP],
-            // Catalogue management belongs with enrolment work, not Settings → General.
-            ['Courses & instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP],
         ]],
         'notifications' => ['Notifications', [
             ['Notifications', 'dzn-notifications', Menu::NOTIFICATION_MANAGEMENT_CAP],
@@ -52,7 +50,7 @@ final class AdminShellController {
         // Notifications is a primary workspace. These routes remain protected aliases.
         'integrations' => ['Integrations', [
             'dzn-integrations', 'dzn-integration-email', 'dzn-integration-whatsapp',
-            'dzn-integration-sms', 'dzn-integration-google',
+            'dzn-integration-sms', 'dzn-integration-google', 'dzn-stripe-settings',
         ]],
         'diagnostics' => ['Diagnostics', ['dzn-system-health', 'dzn-portal-capabilities', 'dzn-core-dataset-readiness']],
     ];
@@ -75,6 +73,7 @@ final class AdminShellController {
         'dzn-integration-whatsapp' => 'dzn_access_provider_integration_settings',
         'dzn-integration-sms' => 'dzn_access_provider_integration_settings',
         'dzn-integration-google' => 'dzn_access_provider_integration_settings',
+        'dzn-stripe-settings' => PaymentExecutionController::CAPABILITY,
         'dzn-system-health' => 'dzn_access_system_health',
         'dzn-portal-capabilities' => 'dzn_view_portal_capabilities',
         'dzn-core-dataset-readiness' => Menu::CORE_WORKFLOW_CAP,
@@ -93,12 +92,12 @@ final class AdminShellController {
         'dzn-enrolment' => 'enrolment', 'dzn-term' => 'enrolment', 'dzn-course' => 'enrolment', 'dzn-instrument' => 'enrolment',
         'dzn-exception' => 'enrolment',
         'dzn-commercial-catalogue' => 'finance', 'dzn-payment-execution' => 'finance', 'dzn-finance-cashbook' => 'finance',
-        'dzn-finance' => 'finance', 'dzn-finance-reconciliation' => 'finance', 'dzn-finance-policies' => 'finance', 'dzn-stripe-settings' => 'finance',
+        'dzn-finance' => 'finance', 'dzn-finance-reconciliation' => 'finance', 'dzn-finance-policies' => 'finance',
         'dzn-finance-rates' => 'finance', 'dzn-finance-statements' => 'finance', 'dzn-finance-payability' => 'finance',
         'dzn-general' => 'settings', 'dzn-integration-email' => 'settings', 'dzn-integration-whatsapp' => 'settings',
         'dzn-policies' => 'settings', 'dzn-delegated-access' => 'settings',
         'dzn-integration-sms' => 'settings', 'dzn-notifications' => 'notifications', 'dzn-communications' => 'notifications', 'dzn-communications-templates' => 'notifications',
-        'dzn-integrations' => 'settings', 'dzn-integration-google' => 'settings', 'dzn-staff-access' => 'settings',
+        'dzn-integrations' => 'settings', 'dzn-integration-google' => 'settings', 'dzn-stripe-settings' => 'settings', 'dzn-staff-access' => 'settings',
         'dzn-system-health' => 'settings', 'dzn-portal-capabilities' => 'settings', 'dzn-core-dataset-readiness' => 'settings',
         'dzn-recording-notices' => 'settings',
     ];

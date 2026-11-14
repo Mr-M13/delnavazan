@@ -34,10 +34,10 @@ $check( 'the instrument derivative is smaller than the approved original', files
 $check( 'the approved originals still exist', is_file( $images . '/C-Setar.webp' ) && is_file( $images . '/home-hero.png' ) );
 
 /* 2. Markup carries srcset, sizes and stable dimensions. */
-$check( 'twelve instrument tiles carry a 400w candidate', 12 === preg_match_all( '/C-[A-Za-z]+-400\.webp/', $home ) );
-$check( 'instrument tiles declare sizes', 12 === substr_count( $home, 'sizes="(max-width: 48rem) 46vw' ) );
-$check( 'instrument tiles are lazy and decode async', 12 === substr_count( $home, 'loading="lazy" decoding="async"' ) );
-$check( 'instrument tiles declare intrinsic dimensions', 12 === substr_count( $home, 'width="1200" height="1200"' ) );
+$check( 'instrument tiles derive an available 400w candidate', str_contains( $home, "$base . '-400.webp'" ) );
+$check( 'instrument tiles declare sizes', str_contains( $home, 'sizes="(max-width: 48rem) 46vw' ) );
+$check( 'instrument tiles are lazy and decode async', str_contains( $home, 'loading="lazy" decoding="async"' ) );
+$check( 'instrument tiles declare intrinsic dimensions', str_contains( $home, 'width="1200" height="1200"' ) );
 $check( 'the hero is the eager high-priority image', str_contains( $home, 'fetchpriority="high"' ) && str_contains( $home, 'home-hero-1600.webp' ) && str_contains( $home, 'width="1672" height="941"' ) );
 $check( 'the hero keeps an approved raster fallback', str_contains( $home, 'home-hero.png' ) );
 

@@ -160,8 +160,8 @@ if ( ! str_contains( $dataset, 'private static function contextId( string $name 
     throw new RuntimeException( 'Workflow prefill must be ID-only and preserve human-reviewed identity resolution' );
 }
 if ( ! str_contains( $integrations, 'public static function stripeSettings()' )
-    || ! str_contains( $payment, 'Provider setup and readiness are under Finance' ) ) {
-    throw new RuntimeException( 'Stripe integration must live in Finance while payment operations remain there' );
+    || ! str_contains( $payment, 'Stripe setup and readiness are under Settings → Integrations' ) ) {
+    throw new RuntimeException( 'Stripe configuration must live in Integrations while payment operations remain in Finance' );
 }
 if ( ! str_contains( $menu, "['Teachers', self::TEACHER_OPERATIONS_CAP, 'dzn-teachers-menu'" )
     || ! str_contains( $screen, 'TeacherWorkspaceController::screen()' )

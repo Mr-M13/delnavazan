@@ -50,6 +50,7 @@ final class Menu {
             'dzn_revoke_teacher_invitations',
         ]);
         if ($cap === self::ENROLMENT_WORKSPACE_CAP) return self::mappedAnyCaps($userId, [
+            'dzn_manage_courses',
             'dzn_view_booking_requests',
             'dzn_manage_booking_request_coordination',
             'dzn_manage_enrolments',

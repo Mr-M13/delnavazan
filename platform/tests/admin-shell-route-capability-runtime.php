@@ -67,13 +67,13 @@ if ( str_contains( (string) file_get_contents( dirname( __DIR__ ) . '/src/Admin/
     throw new RuntimeException( 'General still owns catalogue management.' );
 }
 
-$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_access_catalogue_workspace' );
+$GLOBALS['dzn_shell_test_caps'] = array( 'dzn_access_catalogue_workspace', 'dzn_access_enrolment_workspace' );
 $_GET['page'] = 'dzn-catalogue-workspace';
 ob_start();
 \Delnavazan\Platform\Admin\Controller\AdminShellController::renderNavigation();
 $catalogueHtml = ob_get_clean();
-if ( ! str_contains( $catalogueHtml, 'page=dzn-catalogue-workspace' ) || ! str_contains( $catalogueHtml, '>Enrolment<' ) ) {
-    throw new RuntimeException( 'Catalogue-only staff lost the protected Enrolment destination.' );
+if ( ! str_contains( $catalogueHtml, '>Enrolment<' ) || str_contains( $catalogueHtml, 'page=dzn-catalogue-workspace' ) ) {
+    throw new RuntimeException( 'Catalogue-only staff must use the consolidated Enrolment destination.' );
 }
 
 // A restricted operator with only student authority sees that route and cannot

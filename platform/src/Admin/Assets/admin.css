@@ -5113,6 +5113,37 @@ body.dzn-admin-page .dzn-coordination a.button-primary:focus-visible {
   .dzn-enrolment-snapshot__grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
 }
 .dzn-mini-stats .dzn-task-chip--danger { border-color: var(--dzn-error); background: var(--dzn-accent-soft); }
+
+/* The Enrolment workspace keeps creation forms out of the operational queue. */
+.dzn-enrolment__hero-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.dzn-workspace-dialog { border:0; border-radius:16px; box-shadow:0 24px 70px rgba(19,36,43,.25); padding:24px; width:min(720px,calc(100vw - 32px)); max-height:calc(100vh - 48px); overflow:auto; color:var(--dzn-text); background:var(--dzn-surface); }
+.dzn-workspace-dialog::backdrop { background:rgba(19,36,43,.55); }
+.dzn-dialog-head { display:flex; align-items:start; justify-content:space-between; gap:16px; }
+.dzn-dialog-head h2 { margin:0; }
+.dzn-term-table { min-inline-size:690px; border:0; border-collapse:separate; border-spacing:0 6px; }
+.dzn-term-table th,.dzn-term-table td { border:0 !important; padding:14px; background:var(--dzn-surface-soft); vertical-align:top; }
+.dzn-term-table td:first-child { border-radius:10px 0 0 10px; }
+.dzn-term-table td:last-child { border-radius:0 10px 10px 0; }
+.dzn-term-table .is-attention td,.dzn-unified-table .is-attention td { background:var(--dzn-accent-soft); border:0 !important; box-shadow:none; }
+.dzn-unified-table { border:0; border-collapse:separate; border-spacing:0 6px; }
+.dzn-unified-table th,.dzn-unified-table td { border:0 !important; }
+.dzn-unified-table tr td { background:var(--dzn-surface-soft); }
+.dzn-unified-table tr.is-today td { background:var(--dzn-gold-soft); box-shadow:none; }
+.dzn-unified-table tr.is-attention td { background:var(--dzn-accent-soft); }
+.dzn-term-classes { margin:12px 0 0; }
+.dzn-term-classes li { display:flex; align-items:center; gap:12px; padding:8px 0; }
+.dzn-term-classes small { color:var(--dzn-muted); }
+.dzn-offer-list { display:grid; gap:8px; }
+.dzn-offer-row { border-radius:10px; background:var(--dzn-surface-soft); padding:12px 16px; }
+.dzn-offer-row summary { display:flex; align-items:center; gap:14px; cursor:pointer; }
+.dzn-offer-row summary strong { min-inline-size:120px; }
+.dzn-offer-row summary small { margin-inline-start:auto; }
+.dzn-offer-edit { display:flex; flex-wrap:wrap; align-items:end; gap:12px; padding:18px 0 4px; }
+.dzn-offer-edit label { display:grid; gap:4px; }
+.dzn-stripe-environment { margin:20px 0; padding:18px; border:1px solid var(--dzn-border); border-radius:12px; background:var(--dzn-surface); }
+.dzn-stripe-environment > summary { cursor:pointer; font-size:17px; }
+.dzn-finance-settings-nav { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0; }
+.dzn-finance-settings-nav a { padding:9px 13px; border-radius:999px; background:var(--dzn-surface-soft); text-decoration:none; }
 .dzn-mini-stats .dzn-task-chip--danger strong { color: var(--dzn-error); }
 
 /* Settings consolidation: policy cards, delegated access, diagnostics accordion. */

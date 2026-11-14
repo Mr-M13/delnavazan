@@ -72,7 +72,7 @@ final class IntegrationControlPlaneController {
     public static function smsSettings():void{self::settingsForm('sms');self::settingsForm('sms_ir');}
     public static function emailSettings():void{self::settingsForm('email');}
 
-    /** Stripe configuration/readiness remains with Payment Execution. */
+    /** Canonical Stripe configuration in Settings → Integrations. */
     public static function stripeSettings():void{
         if(!current_user_can(PaymentExecutionController::CAPABILITY))wp_die('Forbidden',403);
         echo '<div class="wrap"><h1>Stripe setup</h1>';
@@ -135,6 +135,7 @@ final class IntegrationControlPlaneController {
             'live_activation_failed'=>'Live activation did not complete. The account was returned to a fail-closed state; review readiness and try again.',
             'save_failed'=>'Stripe configuration could not be confirmed. Check readiness before repeating the save; credential values are never shown here.'
         );echo '<div class="notice notice-info"><p>'.esc_html($messages[$result]??'Stripe operation completed.').'</p></div>';}
+        ob_start();
         $webhookUrl=rest_url('delnavazan-platform/v1/payment-provider-events/stripe/'.$configuration->webhookReference());
         echo '<h2>Test mode configuration</h2><p>Webhook endpoint: <code id="dzn-stripe-test-webhook">'.esc_html($webhookUrl).'</code> <button type="button" class="button" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById(\'dzn-stripe-test-webhook\').textContent)">Copy URL</button></p>';
         echo '<p><strong>Signing secret:</strong> '.esc_html(!empty($saved['webhook'])?'configured':'missing').' · <strong>Webhook readiness:</strong> '.esc_html((($readiness['checks']['test_webhook_secret']['state']??'blocked')==='ready')?'configured':'not verified').'</p>';
@@ -167,7 +168,13 @@ final class IntegrationControlPlaneController {
         echo '<table class="widefat striped"><tbody>';
         foreach($readiness['checks'] as $key=>$check)echo '<tr><th>'.esc_html((string)$key).'</th><td>'.esc_html((string)$check['state']).'</td><td>'.esc_html((string)$check['detail']).'</td></tr>';
         echo '</tbody></table><p>Payment execution and reconciliation are under Finance.</p>';
-        if($liveConfiguration!==null)self::renderStripeLivePanel($liveConfiguration,$liveReadiness,$saved,$liveSaved,$embedded);
+        $testContent=(string)ob_get_clean();
+        if($liveConfiguration!==null){
+            echo '<details class="dzn-stripe-environment" id="stripe-live"><summary><strong>Live settings</strong> · '.esc_html((string)($liveReadiness['stage']??'Not configured')).'</summary>';
+            self::renderStripeLivePanel($liveConfiguration,$liveReadiness,$saved,$liveSaved,false);
+            echo '</details>';
+        }
+        echo '<details class="dzn-stripe-environment" id="stripe-test"><summary><strong>Test settings</strong> · '.esc_html(self::stripeReadinessSummary($readiness)).'</summary>'.$testContent.'</details>';
     }
 
     /** Dedicated Stripe Live Mode panel: environment, credentials, webhook operations and activation. */
@@ -193,7 +200,7 @@ final class IntegrationControlPlaneController {
         $lastSuccess=null;$lastFailure=null;
         foreach($evidence as $row){if($lastSuccess===null&&(string)$row->processing_state==='accepted')$lastSuccess=$row;if($lastFailure===null&&in_array((string)$row->processing_state,array('rejected','unmatched'),true))$lastFailure=$row;}
 
-        echo '<hr><h2 id="stripe-live">Stripe Live Mode</h2>';
+        echo '<h2>Stripe Live Mode</h2>';
         echo '<p><strong>Environment:</strong> '.esc_html($production?'Production':'Not production').' · <strong>Live state:</strong> <span class="dzn-status-badge '.($stage===StripeLiveReadinessService::STAGE_ACTIVE?'is-ok':'is-warn').'">'.esc_html($stage).'</span></p>';
         echo '<table class="widefat striped"><tbody>';
         foreach(array(
@@ -286,11 +293,9 @@ final class IntegrationControlPlaneController {
         ) as $step)echo '<li>'.esc_html($step).'</li>';
         echo '</ol>';
     }
-    /** Return to the consolidated Finance settings tab when the embedded form requested it. */
+    /** Return all provider operations to the canonical integration screen. */
     private static function redirectStripe(string $result):never{
-        $target=isset($_POST['return_to_finance'])&&(string)$_POST['return_to_finance']==='1'
-            ? add_query_arg(array('page'=>FinanceAdminController::MENU_SLUG,'tab'=>FinanceAdminController::TAB_SETTINGS,'stripe_result'=>$result),admin_url('admin.php'))
-            : add_query_arg(array('page'=>'dzn-stripe-settings','stripe_result'=>$result),admin_url('admin.php'));
+        $target=add_query_arg(array('page'=>'dzn-stripe-settings','stripe_result'=>$result),admin_url('admin.php'));
         wp_safe_redirect($target);exit;
     }
     /** Activation is an independent setting; effective readiness still requires every prerequisite. */
@@ -591,7 +596,7 @@ final class IntegrationControlPlaneController {
         echo '<section class="dzn-settings-card dzn-integration-card"><h2>Stripe</h2>';
         echo '<p><span class="dzn-status-badge '.($allowed?'is-warn':'is-locked').'">'.esc_html($allowed?((string)($last['state']??'')==='success'?'Test connection confirmed':'Configuration authority available'):'Restricted').'</span> <span class="dzn-status-badge '.($liveStage==='Active'?'is-ok':'is-warn').'">'.esc_html('Live: '.$liveStage).'</span></p>';
         echo '<p>Checkout, payment evidence and reconciliation remain Finance-owned. Stripe test and live credentials, webhook management and readiness use the existing Finance payment-provider authority and encrypted vault; this page does not create a second secret store.</p>';
-        if($allowed)echo '<p><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page=dzn-stripe-settings#stripe-live')).'">Configure Stripe</a> <a class="button" href="'.esc_url(admin_url('admin.php?page=dzn-finance&tab=settings#stripe')).'">Configure in Finance</a></p>';
+        if($allowed)echo '<p><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page=dzn-stripe-settings')).'">Configure Stripe</a></p>';
         else echo '<p>Stripe configuration is available to staff with payment-provider authority.</p>';
         if($last)echo '<p class="dzn-settings-meta">Last test: '.esc_html((string)($last['state']??'unknown')).' · <code dir="ltr">'.esc_html((string)($last['code']??'')).'</code> · '.esc_html((string)($last['at']??'')).'</p>';
         echo '</section>';

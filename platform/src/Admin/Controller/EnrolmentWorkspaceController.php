@@ -12,6 +12,7 @@ use Delnavazan\Platform\Core\Application\CanonicalLessonDeliveryService;
 use Delnavazan\Platform\Core\Application\CanonicalLessonScheduleReadService;
 use Delnavazan\Platform\Core\Application\CanonicalLessonScheduleService;
 use Delnavazan\Platform\Core\Application\CanonicalTermAuthorityService;
+use Delnavazan\Platform\Core\Application\CatalogueService;
 use Delnavazan\Platform\Core\Application\CoordinationCaseService;
 use Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService;
 use Delnavazan\Platform\Core\Application\HistoricalEnrolmentImportService;
@@ -45,6 +46,8 @@ final class EnrolmentWorkspaceController {
 
     public static function screen(): void {
         if (!current_user_can(Menu::ENROLMENT_WORKSPACE_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
+        $operationalCaps = array('dzn_view_booking_requests', 'dzn_manage_booking_request_coordination', 'dzn_manage_lessons', 'dzn_manage_canonical_lessons', 'dzn_manage_canonical_lesson_schedules', 'dzn_manage_canonical_attendance_review', 'dzn_manage_post_intro_automation', 'dzn_manage_enrolments', 'dzn_manage_terms');
+        if (!array_filter($operationalCaps, 'current_user_can')) { EnrolmentWorkspaceView::offerOnly(); return; }
         $requestId = absint($_GET['request_id'] ?? 0);
         $classId = absint($_GET['class_id'] ?? 0);
         $read = new EnrolmentWorkspaceReadService();
@@ -101,6 +104,24 @@ final class EnrolmentWorkspaceController {
         $requestId = absint($post['request_id'] ?? 0);
         $classId = absint($post['class_id'] ?? 0);
         switch ($operation) {
+            case 'create_instrument':
+                self::requireCap('dzn_manage_courses');
+                (new CatalogueService())->setupInstrument(array(
+                    'name_fa' => sanitize_text_field((string)($post['name_fa'] ?? '')),
+                    'name_en' => sanitize_text_field((string)($post['name_en'] ?? '')),
+                    'standard_duration_minutes' => absint($post['standard_duration_minutes'] ?? 30),
+                    'gap_between_lessons_minutes' => absint($post['gap_between_lessons_minutes'] ?? 15),
+                ));
+                return 'Instrument, introductory and standard courses, and public booking offer are ready.';
+            case 'update_instrument':
+                self::requireCap('dzn_manage_courses');
+                (new CatalogueService())->updateInstrument(
+                    absint($post['instrument_id'] ?? 0),
+                    sanitize_text_field((string)($post['name_fa'] ?? '')),
+                    sanitize_text_field((string)($post['name_en'] ?? '')),
+                    sanitize_key((string)($post['status'] ?? ''))
+                );
+                return 'Instrument offer updated.';
             case 'identity_resolve':
                 self::requireCap('dzn_resolve_booking_request_student_identity');
                 self::requireCap('dzn_view_student_acceptance_eligibility');

@@ -53,7 +53,7 @@ $check( 'the homepage no longer claims a base price fallback', ! str_contains( $
 $check( 'the approval disclaimers were removed', ! str_contains( $home, 'تقریبی' ) && ! str_contains( $home, 'نشانی دقیق شما را ذخیره نمی‌کند' ) );
 $check( 'the script no longer carries the approval disclaimer', ! str_contains( $price, 'انتخاب دستی شما همیشه مقدم است' ) && ! str_contains( $price, 'این منطقه فقط' ) );
 $check( 'the selector exposes ISO currency codes', str_contains( $home, '<option value="AU">AUD</option>' ) && str_contains( $home, '<option value="NZ">NZD</option>' ) && str_contains( $price, 'item.currency || code' ) );
-$check( 'the tiles carry the canonical catalogue URL', 12 === substr_count( $home, 'data-enrol-url=' ) && str_contains( $js, "card.getAttribute('data-enrol-url')" ) );
+$check( 'the active catalogue tiles carry canonical enrolment URLs', str_contains( $home, 'foreach ( dzn_theme_booking_options() as $instrument )' ) && 1 === substr_count( $home, 'data-enrol-url=' ) && str_contains( $js, "card.getAttribute('data-enrol-url')" ) );
 
 if ( $failures ) {
 	throw new RuntimeException( 'Public acquisition contract failed: ' . implode( '; ', $failures ) );

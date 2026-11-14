@@ -1,0 +1,1311 @@
+{
+  "audit": "Delnavazan introductory booking engine stress test",
+  "date_utc": "2026-11-15",
+  "commit_under_test": "27f789463e4282c8fb0e3eee4623d6a403e9632b (origin/main; PR #623 merge)",
+  "environment": {
+    "wordpress": "7.1.2 (disposable)",
+    "php_host": "8.3.35",
+    "php_container": "8.3.33",
+    "database": "MariaDB 11.4.13",
+    "schema": 61,
+    "host_url": "http://127.0.0.1:18083",
+    "docker_vm_memory_mib": 3916,
+    "synthetic_only": true,
+    "external_calls": "none (no Google, Stripe, mail, SMS or WhatsApp)"
+  },
+  "run_window_utc": {
+    "first_scenario_at": "2026-11-14T23:52:25+00:00",
+    "last_scenario_at": "2026-11-14T23:52:54+00:00",
+    "request_rows_first": "2026-11-14 23:51:58",
+    "request_rows_last": "2026-11-14 23:53:44"
+  },
+  "database_after_audit": {
+    "max_used_connections": 100,
+    "innodb_deadlocks": 0,
+    "innodb_row_lock_waits_cumulative_since_restart": 1271,
+    "innodb_row_lock_time_avg_ms": 485,
+    "final_run_requests": 2625,
+    "final_run_confirmations": 516,
+    "final_run_referrals": 228,
+    "note": "Counters are from the disposable stack; final_run_* filtered on created_at >= 2026-11-14 23:51:50."
+  },
+  "scenarios": [
+    {
+      "scenario": "A_identical_setar_fairness",
+      "at": "2026-11-14T23:52:25+00:00",
+      "pass": true,
+      "teacher_ids": [
+        460,
+        461,
+        462,
+        463,
+        464
+      ],
+      "results": {
+        "scale_50": {
+          "requests": 50,
+          "allocated": 50,
+          "referred": 0,
+          "errors": 0,
+          "distribution": {
+            "460": 10,
+            "461": 10,
+            "462": 10,
+            "463": 10,
+            "464": 10
+          },
+          "fairness": {
+            "n": 5,
+            "min": 10,
+            "max": 10,
+            "spread": 0,
+            "gini": 0,
+            "cv": 0
+          },
+          "sequence_matches_cycle": true,
+          "latency": {
+            "n": 50,
+            "min_ms": 15.4,
+            "median_ms": 16.95,
+            "p95_ms": 18.77,
+            "p99_ms": 32.36,
+            "max_ms": 32.36
+          }
+        },
+        "scale_100": {
+          "requests": 100,
+          "allocated": 100,
+          "referred": 0,
+          "errors": 0,
+          "distribution": {
+            "460": 20,
+            "461": 20,
+            "462": 20,
+            "463": 20,
+            "464": 20
+          },
+          "fairness": {
+            "n": 5,
+            "min": 20,
+            "max": 20,
+            "spread": 0,
+            "gini": 0,
+            "cv": 0
+          },
+          "sequence_matches_cycle": true,
+          "latency": {
+            "n": 100,
+            "min_ms": 15.29,
+            "median_ms": 17.09,
+            "p95_ms": 18.81,
+            "p99_ms": 20.62,
+            "max_ms": 26.08
+          }
+        },
+        "scale_500": {
+          "requests": 500,
+          "allocated": 500,
+          "referred": 0,
+          "errors": 0,
+          "distribution": {
+            "460": 100,
+            "461": 100,
+            "462": 100,
+            "463": 100,
+            "464": 100
+          },
+          "fairness": {
+            "n": 5,
+            "min": 100,
+            "max": 100,
+            "spread": 0,
+            "gini": 0,
+            "cv": 0
+          },
+          "sequence_matches_cycle": true,
+          "latency": {
+            "n": 500,
+            "min_ms": 15.5,
+            "median_ms": 17.3,
+            "p95_ms": 20.12,
+            "p99_ms": 33.85,
+            "max_ms": 72.71
+          }
+        },
+        "scale_1000": {
+          "requests": 1000,
+          "allocated": 1000,
+          "referred": 0,
+          "errors": 0,
+          "distribution": {
+            "460": 200,
+            "461": 200,
+            "462": 200,
+            "463": 200,
+            "464": 200
+          },
+          "fairness": {
+            "n": 5,
+            "min": 200,
+            "max": 200,
+            "spread": 0,
+            "gini": 0,
+            "cv": 0
+          },
+          "sequence_matches_cycle": true,
+          "latency": {
+            "n": 1000,
+            "min_ms": 7.06,
+            "median_ms": 12.91,
+            "p95_ms": 19.23,
+            "p99_ms": 28.52,
+            "max_ms": 77.7
+          }
+        }
+      }
+    },
+    {
+      "scenario": "B_multi_instrument_scope",
+      "at": "2026-11-14T23:52:27+00:00",
+      "pass": true,
+      "policy_observed": "per-course cursor; fairness is measured separately within each introductory instrument",
+      "multi_first_created": {
+        "roles": {
+          "A_multi": 465,
+          "B_setar": 466,
+          "C_tar": 467
+        },
+        "sequence": {
+          "tar": [
+            465,
+            467
+          ],
+          "setar": [
+            465,
+            466
+          ]
+        },
+        "totals": {
+          "A_multi": 2,
+          "B_setar": 1,
+          "C_tar": 1
+        },
+        "multi_received_lessons": 2
+      },
+      "multi_last_created": {
+        "roles": {
+          "A_multi": 470,
+          "B_setar": 468,
+          "C_tar": 469
+        },
+        "sequence": {
+          "tar": [
+            469,
+            470
+          ],
+          "setar": [
+            468,
+            470
+          ]
+        },
+        "totals": {
+          "A_multi": 2,
+          "B_setar": 1,
+          "C_tar": 1
+        },
+        "multi_received_lessons": 2
+      },
+      "implication": "Total introductory workload is not equalised across Teachers with different instrument portfolios"
+    },
+    {
+      "scenario": "C_mixed_instrument_pressure",
+      "at": "2026-11-14T23:52:47+00:00",
+      "pass": true,
+      "requests": {
+        "tar": 260,
+        "setar": 160,
+        "santur": 80,
+        "total": 500
+      },
+      "accepted": 500,
+      "referred": 0,
+      "errors": 0,
+      "accept_errors": 0,
+      "per_teacher": [
+        {
+          "teacher_id": 471,
+          "role": "tar_only",
+          "tar": 38,
+          "setar": 0,
+          "santur": 0,
+          "total_offers": 38,
+          "confirmed": 38
+        },
+        {
+          "teacher_id": 472,
+          "role": "tar_only",
+          "tar": 37,
+          "setar": 0,
+          "santur": 0,
+          "total_offers": 37,
+          "confirmed": 37
+        },
+        {
+          "teacher_id": 473,
+          "role": "tar_only",
+          "tar": 37,
+          "setar": 0,
+          "santur": 0,
+          "total_offers": 37,
+          "confirmed": 37
+        },
+        {
+          "teacher_id": 474,
+          "role": "tar_only",
+          "tar": 37,
+          "setar": 0,
+          "santur": 0,
+          "total_offers": 37,
+          "confirmed": 37
+        },
+        {
+          "teacher_id": 475,
+          "role": "setar_only",
+          "tar": 0,
+          "setar": 27,
+          "santur": 0,
+          "total_offers": 27,
+          "confirmed": 27
+        },
+        {
+          "teacher_id": 476,
+          "role": "setar_only",
+          "tar": 0,
+          "setar": 27,
+          "santur": 0,
+          "total_offers": 27,
+          "confirmed": 27
+        },
+        {
+          "teacher_id": 477,
+          "role": "setar_only",
+          "tar": 0,
+          "setar": 27,
+          "santur": 0,
+          "total_offers": 27,
+          "confirmed": 27
+        },
+        {
+          "teacher_id": 478,
+          "role": "tar_setar",
+          "tar": 37,
+          "setar": 27,
+          "santur": 0,
+          "total_offers": 64,
+          "confirmed": 64
+        },
+        {
+          "teacher_id": 479,
+          "role": "tar_setar",
+          "tar": 37,
+          "setar": 26,
+          "santur": 0,
+          "total_offers": 63,
+          "confirmed": 63
+        },
+        {
+          "teacher_id": 480,
+          "role": "all_three",
+          "tar": 37,
+          "setar": 26,
+          "santur": 80,
+          "total_offers": 143,
+          "confirmed": 143
+        }
+      ],
+      "fairness_per_instrument": {
+        "tar": {
+          "n": 7,
+          "min": 37,
+          "max": 38,
+          "spread": 1,
+          "gini": 0.003297,
+          "cv": 0.009421
+        },
+        "setar": {
+          "n": 6,
+          "min": 26,
+          "max": 27,
+          "spread": 1,
+          "gini": 0.008333,
+          "cv": 0.017678
+        },
+        "santur": {
+          "n": 1,
+          "min": 80,
+          "max": 80,
+          "spread": 0,
+          "gini": 0,
+          "cv": 0
+        }
+      },
+      "fairness_global_workload": {
+        "n": 10,
+        "min": 27,
+        "max": 143,
+        "spread": 116,
+        "gini": 0.2972,
+        "cv": 0.67088
+      },
+      "double_bookings": 0,
+      "capacity_violations": 0,
+      "allocation_latency": {
+        "n": 500,
+        "min_ms": 4.27,
+        "median_ms": 24.47,
+        "p95_ms": 28.54,
+        "p99_ms": 36.22,
+        "max_ms": 46.12
+      },
+      "acceptance_latency": {
+        "n": 500,
+        "min_ms": 7.71,
+        "median_ms": 14.29,
+        "p95_ms": 18.35,
+        "p99_ms": 31.52,
+        "max_ms": 91.88
+      }
+    },
+    {
+      "scenario": "D_allocation_lifecycle",
+      "at": "2026-11-14T23:52:49+00:00",
+      "pass": true,
+      "teacher_ids": [
+        481,
+        482,
+        483
+      ],
+      "events": {
+        "decline": {
+          "first": 481,
+          "after_decline": 482,
+          "cursor": 481
+        },
+        "next_after_decline": {
+          "teacher": 482,
+          "cursor": 482
+        },
+        "expiry": {
+          "expired_teacher": 483,
+          "next_teacher": 481,
+          "cursor": 483
+        },
+        "cancellation": {
+          "cancelled_teacher": 482,
+          "reoffered_teacher": 482,
+          "occupancy_after_cancel": 0
+        },
+        "projection_failure": {
+          "teacher": 483,
+          "confirmation_state": "pending_projection",
+          "delivery_state": "accepting",
+          "same_interval_offered_to": 481
+        },
+        "terminal_failure": {
+          "teacher": 483,
+          "offered_again": 483
+        },
+        "completion": {
+          "cursor_before": 483,
+          "cursor_after": 481,
+          "next_teacher": 481
+        }
+      },
+      "final_cursor": 481
+    },
+    {
+      "scenario": "E_availability_boundaries",
+      "at": "2026-11-14T23:52:51+00:00",
+      "pass": true,
+      "cases": [
+        {
+          "label": "E1-partial-tail",
+          "teacher_id": 484,
+          "timezone": "UTC",
+          "ranges": [
+            [
+              "10:00:00",
+              "10:15:00"
+            ]
+          ],
+          "start_utc": "2026-12-10 10:00:00",
+          "occupied_end_utc": "2026-12-10 10:45:00",
+          "coverage": null,
+          "offered": false,
+          "offered_teacher": null
+        },
+        {
+          "label": "E2-partial-head",
+          "teacher_id": 485,
+          "timezone": "UTC",
+          "ranges": [
+            [
+              "10:15:00",
+              "10:45:00"
+            ]
+          ],
+          "start_utc": "2026-12-10 10:00:00",
+          "occupied_end_utc": "2026-12-10 10:45:00",
+          "coverage": null,
+          "offered": false,
+          "offered_teacher": null
+        },
+        {
+          "label": "E3-partial-both",
+          "teacher_id": 486,
+          "timezone": "UTC",
+          "ranges": [
+            [
+              "10:00:00",
+              "10:30:00"
+            ]
+          ],
+          "start_utc": "2026-12-10 10:15:00",
+          "occupied_end_utc": "2026-12-10 11:00:00",
+          "coverage": null,
+          "offered": false,
+          "offered_teacher": null
+        },
+        {
+          "label": "E4-adjacent-no-buffer",
+          "teacher_id": 487,
+          "timezone": "UTC",
+          "ranges": [
+            [
+              "10:00:00",
+              "10:15:00"
+            ],
+            [
+              "10:15:00",
+              "10:30:00"
+            ]
+          ],
+          "start_utc": "2026-12-10 10:00:00",
+          "occupied_end_utc": "2026-12-10 10:30:00",
+          "coverage": "preferred",
+          "offered": true,
+          "offered_teacher": 487
+        },
+        {
+          "label": "E4b-adjacent-with-buffer",
+          "teacher_id": 488,
+          "timezone": "UTC",
+          "ranges": [
+            [
+              "10:00:00",
+              "10:15:00"
+            ],
+            [
+              "10:15:00",
+              "10:45:00"
+            ]
+          ],
+          "start_utc": "2026-12-10 10:00:00",
+          "occupied_end_utc": "2026-12-10 10:45:00",
+          "coverage": "preferred",
+          "offered": true,
+          "offered_teacher": 488
+        },
+        {
+          "label": "E5-buffer-short",
+          "teacher_id": 489,
+          "timezone": "UTC",
+          "ranges": [
+            [
+              "10:00:00",
+              "10:30:00"
+            ]
+          ],
+          "start_utc": "2026-12-10 10:00:00",
+          "occupied_end_utc": "2026-12-10 10:45:00",
+          "coverage": null,
+          "offered": false,
+          "offered_teacher": null
+        },
+        {
+          "label": "E5b-buffer-exact",
+          "teacher_id": 490,
+          "timezone": "UTC",
+          "ranges": [
+            [
+              "10:00:00",
+              "10:45:00"
+            ]
+          ],
+          "start_utc": "2026-12-10 10:00:00",
+          "occupied_end_utc": "2026-12-10 10:45:00",
+          "coverage": "preferred",
+          "offered": true,
+          "offered_teacher": 490
+        },
+        {
+          "label": "E6-exact-end",
+          "teacher_id": 491,
+          "timezone": "UTC",
+          "ranges": [
+            [
+              "10:00:00",
+              "10:45:00"
+            ]
+          ],
+          "start_utc": "2026-12-10 10:00:00",
+          "occupied_end_utc": "2026-12-10 10:45:00",
+          "coverage": "preferred",
+          "offered": true,
+          "offered_teacher": 491
+        },
+        {
+          "label": "E7-one-minute-past",
+          "teacher_id": 492,
+          "timezone": "UTC",
+          "ranges": [
+            [
+              "10:00:00",
+              "10:44:00"
+            ]
+          ],
+          "start_utc": "2026-12-10 10:00:00",
+          "occupied_end_utc": "2026-12-10 10:45:00",
+          "coverage": null,
+          "offered": false,
+          "offered_teacher": null
+        },
+        {
+          "label": "E8-midnight-inside",
+          "teacher_id": 493,
+          "timezone": "UTC",
+          "ranges": [
+            [
+              "22:00:00",
+              "24:00:00"
+            ]
+          ],
+          "start_utc": "2026-12-11 23:00:00",
+          "occupied_end_utc": "2026-12-11 23:45:00",
+          "coverage": "preferred",
+          "offered": true,
+          "offered_teacher": 493
+        },
+        {
+          "label": "E9-midnight-cross",
+          "teacher_id": 494,
+          "timezone": "UTC",
+          "ranges": [
+            [
+              "22:00:00",
+              "24:00:00"
+            ]
+          ],
+          "start_utc": "2026-12-11 23:30:00",
+          "occupied_end_utc": "2026-12-12 00:15:00",
+          "coverage": null,
+          "offered": false,
+          "offered_teacher": null
+        },
+        {
+          "label": "E10-dst-spring-valid",
+          "teacher_id": 495,
+          "timezone": "America/New_York",
+          "ranges": [
+            [
+              "01:00:00",
+              "04:00:00"
+            ]
+          ],
+          "start_utc": "2027-03-14 07:00:00",
+          "occupied_end_utc": "2027-03-14 07:45:00",
+          "coverage": "preferred",
+          "offered": true,
+          "offered_teacher": 495
+        },
+        {
+          "label": "E11-dst-fall-valid",
+          "teacher_id": 496,
+          "timezone": "America/New_York",
+          "ranges": [
+            [
+              "00:00:00",
+              "03:00:00"
+            ]
+          ],
+          "start_utc": "2027-11-07 07:00:00",
+          "occupied_end_utc": "2027-11-07 07:45:00",
+          "coverage": "preferred",
+          "offered": true,
+          "offered_teacher": 496
+        },
+        {
+          "label": "E12-timezone-conversion",
+          "teacher_id": 497,
+          "timezone": "UTC",
+          "ranges": [
+            [
+              "06:30:00",
+              "07:30:00"
+            ]
+          ],
+          "start_utc": "2026-12-10 06:30:00",
+          "occupied_end_utc": "2026-12-10 07:15:00",
+          "coverage": "preferred",
+          "offered": true,
+          "offered_teacher": 497
+        },
+        {
+          "label": "E13-jalali-date",
+          "teacher_id": 498,
+          "timezone": "Asia/Tehran",
+          "ranges": [
+            [
+              "00:00:00",
+              "24:00:00"
+            ]
+          ],
+          "start_utc": "2026-12-15 06:30:00",
+          "occupied_end_utc": "2026-12-15 07:15:00",
+          "coverage": "preferred",
+          "offered": true,
+          "offered_teacher": 498
+        }
+      ],
+      "dst_gap_rejected": true,
+      "dst_fold_rejected": true,
+      "jalali_2026_12_15": [
+        1405,
+        9,
+        24
+      ],
+      "notes": "Coverage and allocation use the full occupied interval (instructional duration + course buffer). Adjacent rules are merged by the availability resolver."
+    },
+    {
+      "scenario": "E14_existing_lesson_occupancy",
+      "pass": true,
+      "declared_coverage": "preferred",
+      "overlap_offer": false,
+      "non_overlap_offer": true
+    },
+    {
+      "scenario": "E15_E17_leave_limited_leadtime",
+      "pass": true,
+      "leave_excluded": true,
+      "limited_offer": "possible",
+      "lead_times": {
+        "24 hours 30 minutes": {
+          "start_utc": "2026-11-16 00:22:51",
+          "offered": false
+        },
+        "25 hours": {
+          "start_utc": "2026-11-16 00:52:51",
+          "offered": false
+        },
+        "26 hours": {
+          "start_utc": "2026-11-16 01:52:51",
+          "offered": true
+        }
+      }
+    },
+    {
+      "scenario": "F_preferences_and_claim",
+      "at": "2026-11-14T23:52:53+00:00",
+      "pass": true,
+      "cases": {
+        "first_preference": {
+          "label": "first-preference",
+          "teachers": [
+            503
+          ],
+          "requested_time_ids": [
+            14197,
+            14198,
+            14199
+          ],
+          "offered_time_id": 14197,
+          "offered_teacher": 503,
+          "match_strength": "strong"
+        },
+        "third_preference": {
+          "label": "third-preference",
+          "teachers": [
+            504
+          ],
+          "requested_time_ids": [
+            14200,
+            14201,
+            14202
+          ],
+          "offered_time_id": 14202,
+          "offered_teacher": 504,
+          "match_strength": "strong"
+        },
+        "ordered_windows": {
+          "label": "ordered-windows",
+          "teachers": [
+            505
+          ],
+          "requested_time_ids": [
+            14203,
+            14204,
+            14205
+          ],
+          "offered_time_id": 14203,
+          "offered_teacher": 505,
+          "match_strength": "strong"
+        },
+        "teacher_id_vs_preference": {
+          "low": 506,
+          "high": 507,
+          "offered_teacher": 506,
+          "offered_time_id": 14206
+        },
+        "match_strength": {
+          "possible_teacher": 508,
+          "strong_teacher": 509,
+          "offered_teacher": 508,
+          "offered_match_strength": "possible"
+        },
+        "claim": {
+          "teacher": 510,
+          "second_teacher_blocked": true,
+          "audit_reason": "teacher_claim_availability_override",
+          "later_offer": false,
+          "cursor_before": 0,
+          "cursor_after": 0
+        },
+        "opportunity_board": {
+          "setar1_before": true,
+          "setar2_before": true,
+          "tar_only": false,
+          "setar1_after_decline": false,
+          "setar2_after_decline": true,
+          "setar1_after_claim": false,
+          "setar2_after_claim": false
+        }
+      }
+    },
+    {
+      "scenario": "G_failure_recovery",
+      "at": "2026-11-14T23:52:54+00:00",
+      "pass": true,
+      "cases": {
+        "offer_notification_failure": {
+          "error": "Allocation notification persistence failed",
+          "committed_requests": 0
+        },
+        "delivery_failure": {
+          "error": "Booking request teacher delivery persistence failed",
+          "committed_requests": 0
+        },
+        "notification_failure_recovery": {
+          "first_state": null,
+          "retry_state": "2026-11-14 23:52:54",
+          "inbox_rows": 1
+        },
+        "projection_failure_replay": {
+          "confirmation_state": "pending_projection",
+          "confirmation_id": 2089,
+          "confirmations": 1,
+          "replay_idempotent": true
+        }
+      }
+    },
+    {
+      "scenario": "concurrency_setup",
+      "pass": true,
+      "suffix": "concurrency-45p8olm0",
+      "levels": [
+        2,
+        5,
+        10,
+        25,
+        50,
+        100
+      ],
+      "submission_students": 192,
+      "acceptance_requests": 192
+    },
+    {
+      "level": 2,
+      "action": "submit",
+      "workers": 2,
+      "successes": 2,
+      "failures": 0,
+      "failure_messages": [],
+      "distinct_db_connections": 2,
+      "latency_from_release": {
+        "n": 2,
+        "min_ms": 77.26,
+        "median_ms": 77.26,
+        "p95_ms": 143.49,
+        "p99_ms": 143.49,
+        "max_ms": 143.49
+      },
+      "intake_requests": 2,
+      "active_offers": 1,
+      "referrals": 1,
+      "confirmations": 0,
+      "offer_history": [
+        {
+          "booking_request_id": "14372",
+          "teacher_id": "518",
+          "state": "pending",
+          "active_slot": "1"
+        }
+      ],
+      "partial_overlap": false,
+      "scenario": "concurrency_submit_2",
+      "pass": true
+    },
+    {
+      "level": 5,
+      "action": "submit",
+      "workers": 5,
+      "successes": 5,
+      "failures": 0,
+      "failure_messages": [],
+      "distinct_db_connections": 5,
+      "latency_from_release": {
+        "n": 5,
+        "min_ms": 86.38,
+        "median_ms": 194.61,
+        "p95_ms": 318.53,
+        "p99_ms": 318.53,
+        "max_ms": 318.53
+      },
+      "intake_requests": 5,
+      "active_offers": 1,
+      "referrals": 4,
+      "confirmations": 0,
+      "offer_history": [
+        {
+          "booking_request_id": "14374",
+          "teacher_id": "520",
+          "state": "pending",
+          "active_slot": "1"
+        }
+      ],
+      "partial_overlap": false,
+      "scenario": "concurrency_submit_5",
+      "pass": true
+    },
+    {
+      "level": 10,
+      "action": "submit",
+      "workers": 10,
+      "successes": 10,
+      "failures": 0,
+      "failure_messages": [],
+      "distinct_db_connections": 10,
+      "latency_from_release": {
+        "n": 10,
+        "min_ms": 88.47,
+        "median_ms": 263.98,
+        "p95_ms": 398.48,
+        "p99_ms": 398.48,
+        "max_ms": 398.48
+      },
+      "intake_requests": 10,
+      "active_offers": 1,
+      "referrals": 9,
+      "confirmations": 0,
+      "offer_history": [
+        {
+          "booking_request_id": "14379",
+          "teacher_id": "522",
+          "state": "pending",
+          "active_slot": "1"
+        }
+      ],
+      "partial_overlap": false,
+      "scenario": "concurrency_submit_10",
+      "pass": true
+    },
+    {
+      "level": 25,
+      "action": "submit",
+      "workers": 25,
+      "successes": 25,
+      "failures": 0,
+      "failure_messages": [],
+      "distinct_db_connections": 25,
+      "latency_from_release": {
+        "n": 25,
+        "min_ms": 107.89,
+        "median_ms": 500.19,
+        "p95_ms": 738.39,
+        "p99_ms": 760.72,
+        "max_ms": 760.72
+      },
+      "intake_requests": 25,
+      "active_offers": 1,
+      "referrals": 24,
+      "confirmations": 0,
+      "offer_history": [
+        {
+          "booking_request_id": "14389",
+          "teacher_id": "524",
+          "state": "pending",
+          "active_slot": "1"
+        }
+      ],
+      "partial_overlap": false,
+      "scenario": "concurrency_submit_25",
+      "pass": true
+    },
+    {
+      "level": 50,
+      "action": "submit",
+      "workers": 50,
+      "successes": 50,
+      "failures": 0,
+      "failure_messages": [],
+      "distinct_db_connections": 50,
+      "latency_from_release": {
+        "n": 50,
+        "min_ms": 39.26,
+        "median_ms": 601.42,
+        "p95_ms": 1173.76,
+        "p99_ms": 1212.95,
+        "max_ms": 1212.95
+      },
+      "intake_requests": 50,
+      "active_offers": 1,
+      "referrals": 49,
+      "confirmations": 0,
+      "offer_history": [
+        {
+          "booking_request_id": "14414",
+          "teacher_id": "526",
+          "state": "pending",
+          "active_slot": "1"
+        }
+      ],
+      "partial_overlap": false,
+      "scenario": "concurrency_submit_50",
+      "pass": true
+    },
+    {
+      "level": 100,
+      "action": "submit",
+      "workers": 100,
+      "successes": 100,
+      "failures": 0,
+      "failure_messages": [],
+      "distinct_db_connections": 100,
+      "latency_from_release": {
+        "n": 100,
+        "min_ms": 45.42,
+        "median_ms": 1606.53,
+        "p95_ms": 2759.44,
+        "p99_ms": 2862.4,
+        "max_ms": 2887.2
+      },
+      "intake_requests": 100,
+      "active_offers": 1,
+      "referrals": 99,
+      "confirmations": 0,
+      "offer_history": [
+        {
+          "booking_request_id": "14464",
+          "teacher_id": "528",
+          "state": "pending",
+          "active_slot": "1"
+        }
+      ],
+      "partial_overlap": false,
+      "scenario": "concurrency_submit_100",
+      "pass": true
+    },
+    {
+      "level": 2,
+      "action": "accept",
+      "workers": 2,
+      "successes": 1,
+      "failures": 1,
+      "failure_messages": {
+        "teacher_slot_conflict": 1
+      },
+      "distinct_db_connections": 2,
+      "latency_from_release": {
+        "n": 2,
+        "min_ms": 57.55,
+        "median_ms": 57.55,
+        "p95_ms": 67.44,
+        "p99_ms": 67.44,
+        "max_ms": 67.44
+      },
+      "confirmations": 1,
+      "accepted_deliveries": 1,
+      "pending_losing_deliveries": 1,
+      "scenario": "concurrency_accept_2",
+      "pass": true
+    },
+    {
+      "level": 5,
+      "action": "accept",
+      "workers": 5,
+      "successes": 1,
+      "failures": 4,
+      "failure_messages": {
+        "teacher_slot_conflict": 4
+      },
+      "distinct_db_connections": 5,
+      "latency_from_release": {
+        "n": 5,
+        "min_ms": 54.75,
+        "median_ms": 62.39,
+        "p95_ms": 78.61,
+        "p99_ms": 78.61,
+        "max_ms": 78.61
+      },
+      "confirmations": 1,
+      "accepted_deliveries": 1,
+      "pending_losing_deliveries": 4,
+      "scenario": "concurrency_accept_5",
+      "pass": true
+    },
+    {
+      "level": 10,
+      "action": "accept",
+      "workers": 10,
+      "successes": 1,
+      "failures": 9,
+      "failure_messages": {
+        "teacher_slot_conflict": 9
+      },
+      "distinct_db_connections": 10,
+      "latency_from_release": {
+        "n": 10,
+        "min_ms": 67.52,
+        "median_ms": 90.29,
+        "p95_ms": 125.53,
+        "p99_ms": 125.53,
+        "max_ms": 125.53
+      },
+      "confirmations": 1,
+      "accepted_deliveries": 1,
+      "pending_losing_deliveries": 9,
+      "scenario": "concurrency_accept_10",
+      "pass": true
+    },
+    {
+      "level": 25,
+      "action": "accept",
+      "workers": 25,
+      "successes": 1,
+      "failures": 24,
+      "failure_messages": {
+        "teacher_slot_conflict": 24
+      },
+      "distinct_db_connections": 25,
+      "latency_from_release": {
+        "n": 25,
+        "min_ms": 122.51,
+        "median_ms": 227.6,
+        "p95_ms": 315.09,
+        "p99_ms": 323.14,
+        "max_ms": 323.14
+      },
+      "confirmations": 1,
+      "accepted_deliveries": 1,
+      "pending_losing_deliveries": 24,
+      "scenario": "concurrency_accept_25",
+      "pass": true
+    },
+    {
+      "level": 50,
+      "action": "accept",
+      "workers": 50,
+      "successes": 1,
+      "failures": 49,
+      "failure_messages": {
+        "teacher_slot_conflict": 49
+      },
+      "distinct_db_connections": 50,
+      "latency_from_release": {
+        "n": 50,
+        "min_ms": 98.19,
+        "median_ms": 252.71,
+        "p95_ms": 412.44,
+        "p99_ms": 423.35,
+        "max_ms": 423.35
+      },
+      "confirmations": 1,
+      "accepted_deliveries": 1,
+      "pending_losing_deliveries": 49,
+      "scenario": "concurrency_accept_50",
+      "pass": true
+    },
+    {
+      "level": 100,
+      "action": "accept",
+      "workers": 100,
+      "successes": 1,
+      "failures": 99,
+      "failure_messages": {
+        "teacher_slot_conflict": 99
+      },
+      "distinct_db_connections": 100,
+      "latency_from_release": {
+        "n": 100,
+        "min_ms": 244.02,
+        "median_ms": 721.36,
+        "p95_ms": 1169.88,
+        "p99_ms": 1293.69,
+        "max_ms": 1296.24
+      },
+      "confirmations": 1,
+      "accepted_deliveries": 1,
+      "pending_losing_deliveries": 99,
+      "scenario": "concurrency_accept_100",
+      "pass": true
+    },
+    {
+      "level": 25,
+      "action": "submit_partial",
+      "workers": 25,
+      "successes": 25,
+      "failures": 0,
+      "failure_messages": [],
+      "distinct_db_connections": 25,
+      "latency_from_release": {
+        "n": 25,
+        "min_ms": 50.3,
+        "median_ms": 310.61,
+        "p95_ms": 564.62,
+        "p99_ms": 587.67,
+        "max_ms": 587.67
+      },
+      "intake_requests": 25,
+      "active_offers": 1,
+      "referrals": 24,
+      "confirmations": 0,
+      "offer_history": [
+        {
+          "booking_request_id": "14564",
+          "teacher_id": "531",
+          "state": "pending",
+          "active_slot": "1"
+        }
+      ],
+      "partial_overlap": true,
+      "scenario": "concurrency_submit_partial_25",
+      "pass": true
+    },
+    {
+      "level": 2,
+      "action": "process",
+      "workers": 2,
+      "successes": 2,
+      "failures": 0,
+      "failure_messages": [],
+      "distinct_db_connections": 2,
+      "latency_from_release": {
+        "n": 2,
+        "min_ms": 42.02,
+        "median_ms": 42.02,
+        "p95_ms": 42.08,
+        "p99_ms": 42.08,
+        "max_ms": 42.08
+      },
+      "offers": [
+        {
+          "id": "13278",
+          "teacher_id": "533",
+          "offer_sequence": "1",
+          "state": "expired",
+          "active_slot": null
+        },
+        {
+          "id": "13286",
+          "teacher_id": "534",
+          "offer_sequence": "2",
+          "state": "pending",
+          "active_slot": "1"
+        }
+      ],
+      "active_offers": 1,
+      "cursor": 533,
+      "scenario": "concurrency_process_2",
+      "pass": true
+    },
+    {
+      "level": 25,
+      "action": "idempotent",
+      "workers": 25,
+      "successes": 25,
+      "failures": 0,
+      "failure_messages": [],
+      "distinct_db_connections": 25,
+      "latency_from_release": {
+        "n": 25,
+        "min_ms": 82.32,
+        "median_ms": 137.19,
+        "p95_ms": 250.43,
+        "p99_ms": 319.07,
+        "max_ms": 319.07
+      },
+      "requests_created": 1,
+      "distinct_references": 1,
+      "reference": "REQ-01M7E7PAK3R00MGRF7TF7E9S64",
+      "scenario": "concurrency_idempotent_25",
+      "pass": true
+    },
+    {
+      "level": 5,
+      "action": "submit_crash",
+      "workers": 5,
+      "successes": 5,
+      "failures": 0,
+      "failure_messages": [],
+      "distinct_db_connections": 5,
+      "latency_from_release": {
+        "n": 5,
+        "min_ms": 35.43,
+        "median_ms": 96.23,
+        "p95_ms": 175.84,
+        "p99_ms": 175.84,
+        "max_ms": 175.84
+      },
+      "intake_requests": 5,
+      "active_offers": 1,
+      "referrals": 4,
+      "confirmations": 0,
+      "offer_history": [
+        {
+          "booking_request_id": "14590",
+          "teacher_id": "532",
+          "state": "pending",
+          "active_slot": "1"
+        }
+      ],
+      "partial_overlap": false,
+      "scenario": "concurrency_submit_crash_5",
+      "pass": true
+    }
+  ],
+  "pure_tests": {
+    "booking-allocation-unit.php": "PASS",
+    "booking-teacher-delivery-unit.php": "PASS",
+    "booking-preference-order-contract.php": "PASS",
+    "booking-availability-timezone-dst-contract.php": "PASS",
+    "quiet-hours-advisory-unit.php": "PASS",
+    "persian-calendar-unit.php": "PASS"
+  },
+  "not_executed": [
+    "Real Google Calendar/Meet provider calls (a failing projector was injected instead).",
+    "Real email, SMS or WhatsApp delivery (only the durable portal notification obligation was exercised).",
+    "Stripe/payment execution (no financial transaction was created).",
+    "Student no-show attendance effect on allocation (no allocation code path reads attendance; code review only).",
+    "Production data or production configuration.",
+    "Manual administrator reassignment cursor effect (code review only)."
+  ]
+}

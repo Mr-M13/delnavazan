@@ -51,6 +51,11 @@ final class EnrolmentWorkspaceController {
         $requestId = absint($_GET['request_id'] ?? 0);
         $classId = absint($_GET['class_id'] ?? 0);
         $read = new EnrolmentWorkspaceReadService();
+        if (($_GET['view'] ?? '') === 'insights') {
+            if (!current_user_can(Menu::ENROLMENT_TRIALS_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
+            EnrolmentWorkspaceView::introInsights($read, $_GET);
+            return;
+        }
         if ($requestId > 0) {
             if (!current_user_can(Menu::ENROLMENT_TRIALS_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
             $case = $read->bookingCase($requestId);
@@ -93,6 +98,11 @@ final class EnrolmentWorkspaceController {
                 ), 120);
                 self::redirect($return, $message, true, array('dzn_form' => 'intro'), 'dzn-create-intro');
             }
+            if ($operation === 'create_instrument') {
+                set_transient('dzn_instrument_form_' . get_current_user_id(), array('message'=>$message,'values'=>array_intersect_key(wp_unslash($_POST),array_flip(array('name_fa','name_en','standard_duration_minutes','gap_between_lessons_minutes')))), 120);
+                self::redirect($return,$message,true,array('dzn_form'=>'instrument'),'dzn-create-instrument');
+            }
+            if ($operation === 'create_standard_class') self::redirect($return,$message,true,array('dzn_form'=>'standard'),'dzn-create-standard');
             self::redirect($return, $message, true);
         }
     }
@@ -105,7 +115,7 @@ final class EnrolmentWorkspaceController {
         $classId = absint($post['class_id'] ?? 0);
         switch ($operation) {
             case 'create_instrument':
-                self::requireCap('dzn_manage_courses');
+                self::requireOfferCaps();
                 (new CatalogueService())->setupInstrument(array(
                     'name_fa' => sanitize_text_field((string)($post['name_fa'] ?? '')),
                     'name_en' => sanitize_text_field((string)($post['name_en'] ?? '')),
@@ -114,7 +124,7 @@ final class EnrolmentWorkspaceController {
                 ));
                 return 'Instrument, introductory and standard courses, and public booking offer are ready.';
             case 'update_instrument':
-                self::requireCap('dzn_manage_courses');
+                self::requireOfferCaps();
                 (new CatalogueService())->updateInstrument(
                     absint($post['instrument_id'] ?? 0),
                     sanitize_text_field((string)($post['name_fa'] ?? '')),
@@ -615,6 +625,12 @@ final class EnrolmentWorkspaceController {
 
     private static function requireCap(string $capability): void {
         if (!current_user_can($capability)) throw new \RuntimeException('Unauthorized');
+    }
+
+    private static function requireOfferCaps(): void {
+        foreach (array('dzn_manage_courses','dzn_manage_teaching_eligibility','dzn_manage_commercial_catalogue') as $capability) {
+            if (!current_user_can($capability)) wp_die('Instrument offer authority required', 'Delnavazan', array('response'=>403));
+        }
     }
 
     private static function notFound(string $message): void {

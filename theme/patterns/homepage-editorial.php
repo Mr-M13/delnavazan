@@ -44,7 +44,9 @@
 <div class="wp-block-columns"><!-- wp:column {"width":"100%"} -->
 <div class="wp-block-column" style="flex-basis:100%"><!-- wp:group {"align":"wide","className":"dzn-instrument-folio","layout":{"type":"constrained"}} -->
 <div class="wp-block-group alignwide dzn-instrument-folio">
-<?php foreach ( dzn_theme_booking_options() as $instrument ) :
+<?php $instruments = dzn_theme_ordered_booking_options(); ?>
+<?php if ( ! $instruments ) : ?><p class="dzn-instrument-empty">برای آگاهی از سازهای در دسترس با دلنوازان تماس بگیرید.</p><?php endif; ?>
+<?php foreach ( $instruments as $instrument ) :
     $label = (string) ( $instrument['name_fa'] ?: $instrument['name_en'] );
     $image = dzn_theme_instrument_image( $label );
     if ( '' === $image ) { $image = dzn_theme_instrument_image( (string) $instrument['name_en'] ); }

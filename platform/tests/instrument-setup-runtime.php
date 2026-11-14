@@ -40,6 +40,7 @@ dzn_instrument_setup_assert((string)$instrument->name_fa===$offerFa&&(string)$in
 $introCourse=(new \Delnavazan\Platform\Core\Infrastructure\Repository\CourseRepository())->find((int)$offer['introductory_course_id']);
 $standardCourse=(new \Delnavazan\Platform\Core\Infrastructure\Repository\CourseRepository())->find((int)$offer['standard_course_id']);
 dzn_instrument_setup_assert((string)$introCourse->name_en==='Introductory '.$offerEn&&(string)$standardCourse->name_en==='Standard '.$offerEn,'Both generated courses must use the English name');
+$wpdb->update($p.'courses',array('name_en'=>'Standard '.$offerFa),array('id'=>(int)$offer['standard_course_id'])); // Legacy generator used the Persian label in both languages.
 $visible=static fn():bool=>in_array((int)$offer['instrument_id'],array_column((new \Delnavazan\Platform\Core\Application\PublicBookingOptionsReadService())->introductoryInstruments(),'id'),true);
 dzn_instrument_setup_assert($visible(),'New offer must appear in booking options');
 $catalogue->updateInstrument((int)$offer['instrument_id'],$offerFa.' نو',$offerEn.' New','inactive');
@@ -48,6 +49,9 @@ $catalogue->updateInstrument((int)$offer['instrument_id'],$offerFa.' نو',$offe
 dzn_instrument_setup_assert($visible(),'Reactivated offer must return to booking options');
 $renamedCourse=(new \Delnavazan\Platform\Core\Infrastructure\Repository\CourseRepository())->find((int)$offer['standard_course_id']);
 dzn_instrument_setup_assert((string)$renamedCourse->name_en==='Standard '.$offerEn.' New','Generated course names must follow instrument edits');
+$product=(new \Delnavazan\Platform\Core\Infrastructure\Repository\CommercialAuthorityRepository())->product((int)$offer['product_id']);
+dzn_instrument_setup_assert((string)$product->name_en===$offerEn.' New'&&(int)$product->updated_by===$actor,'Generated product names must follow instrument edits with actor attribution');
+dzn_instrument_setup_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}platform_audit_events WHERE aggregate_type='instrument' AND aggregate_id=%d AND event_type='instrument.offer_updated'",(int)$offer['instrument_id']))===2,'Offer changes must leave one audit event each');
 
 $catalogue->course(array('instrument_id'=>$instrumentId,'name_fa'=>$name,'name_en'=>$name,'course_type'=>'standard','status'=>'active','default_duration_minutes'=>45,'default_buffer_minutes'=>20));
 dzn_instrument_setup_fails(static fn()=>$catalogue->setupInstrument($input),'Ambiguous standard Courses must fail closed');

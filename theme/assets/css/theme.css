@@ -3488,6 +3488,18 @@
       hidden;
   }
 
+  .dzn-instrument-tile__placeholder {
+    display: grid;
+    place-items: center;
+    inline-size: 100%;
+    block-size: 100%;
+    min-block-size: 7rem;
+    color: var(--dzn-color-accent);
+    background: rgba(177, 139, 83, .12);
+    font-size: clamp(3rem, 6vw, 5rem);
+    line-height: 1;
+  }
+
   .dzn-instrument-tile__media img {
     display:
       block;

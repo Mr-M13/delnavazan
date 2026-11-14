@@ -135,7 +135,8 @@ final class IntegrationControlPlaneController {
             'live_activation_failed'=>'Live activation did not complete. The account was returned to a fail-closed state; review readiness and try again.',
             'save_failed'=>'Stripe configuration could not be confirmed. Check readiness before repeating the save; credential values are never shown here.'
         );echo '<div class="notice notice-info"><p>'.esc_html($messages[$result]??'Stripe operation completed.').'</p></div>';}
-        ob_start();
+        $bufferLevel=ob_get_level();ob_start();
+        try {
         $webhookUrl=rest_url('delnavazan-platform/v1/payment-provider-events/stripe/'.$configuration->webhookReference());
         echo '<h2>Test mode configuration</h2><p>Webhook endpoint: <code id="dzn-stripe-test-webhook">'.esc_html($webhookUrl).'</code> <button type="button" class="button" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById(\'dzn-stripe-test-webhook\').textContent)">Copy URL</button></p>';
         echo '<p><strong>Signing secret:</strong> '.esc_html(!empty($saved['webhook'])?'configured':'missing').' · <strong>Webhook readiness:</strong> '.esc_html((($readiness['checks']['test_webhook_secret']['state']??'blocked')==='ready')?'configured':'not verified').'</p>';
@@ -169,6 +170,7 @@ final class IntegrationControlPlaneController {
         foreach($readiness['checks'] as $key=>$check)echo '<tr><th>'.esc_html((string)$key).'</th><td>'.esc_html((string)$check['state']).'</td><td>'.esc_html((string)$check['detail']).'</td></tr>';
         echo '</tbody></table><p>Payment execution and reconciliation are under Finance.</p>';
         $testContent=(string)ob_get_clean();
+        } finally { if(ob_get_level()>$bufferLevel)ob_end_clean(); }
         if($liveConfiguration!==null){
             echo '<details class="dzn-stripe-environment" id="stripe-live"><summary><strong>Live settings</strong> · '.esc_html((string)($liveReadiness['stage']??'Not configured')).'</summary>';
             self::renderStripeLivePanel($liveConfiguration,$liveReadiness,$saved,$liveSaved,false);

@@ -15,10 +15,11 @@ final class EnrolmentWorkspaceView {
         echo '<div class="wrap dzn-enrolment"><h1>Enrolment · instruments</h1>';
         self::notices();
         if (self::canManageOffer()) {
-            echo '<button type="button" class="button button-primary" onclick="document.getElementById(\'dzn-create-instrument\').showModal()">Create instrument</button>';
+            echo '<button type="button" class="button button-primary" aria-haspopup="dialog" data-dzn-open-dialog="dzn-create-instrument">Create instrument</button>';
             self::createInstrumentPanel();
         }
         self::instrumentsPanel();
+        self::dialogScript();
         echo '</div>';
     }
 
@@ -39,9 +40,9 @@ final class EnrolmentWorkspaceView {
         self::notices();
         echo '<header class="dzn-enrolment__page-head"><div><h1>Enrolment</h1>';
         echo '<p>Coordinate introductory requests and scheduled terms from one workspace.</p></div><div class="dzn-enrolment__hero-actions">';
-        if ($canCreateIntro) echo '<button type="button" class="button button-primary" data-dzn-open-dialog="dzn-create-intro">Create intro</button>';
-        if ($canCreateStandard) echo '<button type="button" class="button" data-dzn-open-dialog="dzn-create-standard">Create standard class</button>';
-        if (self::canManageOffer()) echo '<button type="button" class="button" data-dzn-open-dialog="dzn-create-instrument">Create instrument</button>';
+        if ($canCreateIntro) echo '<button type="button" class="button button-primary" aria-haspopup="dialog" data-dzn-open-dialog="dzn-create-intro">Create intro</button>';
+        if ($canCreateStandard) echo '<button type="button" class="button" aria-haspopup="dialog" data-dzn-open-dialog="dzn-create-standard">Create standard class</button>';
+        if (self::canManageOffer()) echo '<button type="button" class="button" aria-haspopup="dialog" data-dzn-open-dialog="dzn-create-instrument">Create instrument</button>';
         if (current_user_can('dzn_manage_booking_request_coordination')) echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-booking-request-coordination')) . '">Class admin</a>';
         echo '</div></header>';
 
@@ -58,6 +59,7 @@ final class EnrolmentWorkspaceView {
         if ((int) $queue['counts']['attendance'] > 0) echo '<span class="dzn-task-chip"><strong>' . esc_html((string) $queue['counts']['attendance']) . '</strong> attendance decisions</span>';
         echo '</div>';
         self::queueFiltersForm($filters);
+        if ($canIntros) echo '<p><a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=insights')) . '">Conversion, survey and follow-up evidence</a></p>';
         if (!$queue['rows']) echo '<div class="dzn-empty-state"><h3>No intros or classes match</h3><p>Reset the filters or create a new intro or standard class.</p></div>';
         else {
             $intros = array_values(array_filter($queue['rows'], static fn(array $row): bool => $row['kind'] === 'intro'));
@@ -76,7 +78,19 @@ final class EnrolmentWorkspaceView {
         if (!$history['rows']) echo '<p>No completed or cancelled records match this search.</p>';
         else { self::queueTable($history['rows'], true); self::queuePagination($historyFilters, $history, true); }
         echo '</div></details>';
-        echo '<script>(function(){document.querySelectorAll("[data-dzn-open-dialog]").forEach(function(button){button.addEventListener("click",function(){var dialog=document.getElementById(button.dataset.dznOpenDialog);if(dialog&&dialog.showModal)dialog.showModal();});});document.querySelectorAll(".dzn-enrolment dialog").forEach(function(dialog){dialog.addEventListener("click",function(event){if(event.target===dialog)dialog.close();});});var failed=document.querySelector("#dzn-create-intro[data-open-on-load]");if(failed&&failed.showModal)failed.showModal();})();</script></div>';
+        self::dialogScript();
+        echo '</div>';
+    }
+
+    /** Retain the evidence on a dedicated protected view without a dashboard section. */
+    public static function introInsights(EnrolmentWorkspaceReadService $read, array $query): void {
+        echo '<div class="wrap dzn-enrolment"><h1>Intro evidence and follow-up</h1><p><a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE)) . '">← Back to Enrolment</a></p>';
+        self::conversionPanel($read, $query);
+        echo '</div>';
+    }
+
+    private static function dialogScript(): void {
+        echo '<script>(function(){document.querySelectorAll("[data-dzn-open-dialog]").forEach(function(button){button.addEventListener("click",function(){var dialog=document.getElementById(button.dataset.dznOpenDialog);if(dialog&&dialog.showModal)dialog.showModal();});});var failed=document.querySelector(".dzn-enrolment dialog[data-open-on-load]");if(failed&&failed.showModal)failed.showModal();})();</script>';
     }
 
     /** @param array<string,mixed> $snapshot */
@@ -111,7 +125,8 @@ final class EnrolmentWorkspaceView {
         $enrolments = array_values(array_filter($read->enrolmentOptions(), static function (object $enrolment) use ($canCanonical, $canLegacy): bool {
             return (string) $enrolment->record_model === 'legacy_phase1' ? $canLegacy : $canCanonical;
         }));
-        echo '<dialog class="dzn-workspace-dialog" id="dzn-create-standard" aria-labelledby="dzn-standard-title"><div class="dzn-dialog-head"><h2 id="dzn-standard-title">Create standard class</h2><button type="button" class="button" onclick="this.closest(\'dialog\').close()">Close</button></div><p>Allocate a class to an active enrolment. Schedule and Teacher occupancy are checked.</p><div class="dzn-create-intro__body">';
+        echo '<dialog class="dzn-workspace-dialog" id="dzn-create-standard" aria-labelledby="dzn-standard-title"' . ((string)($_GET['dzn_form']??'')==='standard'?' data-open-on-load="1"':'') . '><div class="dzn-dialog-head"><h2 id="dzn-standard-title">Create standard class</h2><button type="button" class="button" onclick="this.closest(\'dialog\').close()">Close</button></div><p>Allocate a class to an active enrolment. Schedule and Teacher occupancy are checked.</p><div class="dzn-create-intro__body">';
+        if ((string)($_GET['dzn_form']??'')==='standard') echo '<div class="notice notice-error inline" role="alert"><p>' . esc_html(sanitize_text_field(wp_unslash((string)($_GET['dzn_workspace_notice']??'Class could not be created.')))) . '</p></div>';
         if (!$enrolments) {
             echo '<div class="dzn-empty-state dzn-empty-state--compact"><p><strong>No eligible Enrolment.</strong> A standard class needs an active Enrolment with a current Term, an assigned Teacher and remaining allocation.</p></div></div></dialog>';
             return;
@@ -143,11 +158,11 @@ final class EnrolmentWorkspaceView {
         $survey = (current_user_can('dzn_manage_post_intro_automation') || current_user_can('dzn_view_booking_requests') || current_user_can('dzn_manage_booking_request_coordination'))
             ? $read->surveyInsights()
             : array('total' => 0, 'reasons' => array(), 'recent' => array());
-        echo '<details class="dzn-history dzn-enrolment__section dzn-conversion-panel" id="dzn-conversion"><summary><span><strong>Intro conversion and onboarding signals</strong><br><small>Conversion table, post-intro survey results and the review queue an administrator needs to get a Student onboard.</small></span><span class="dzn-count-chip">' . esc_html((string) $report['denominator']) . ' intros</span></summary><div class="dzn-history__body">';
+        echo '<div class="dzn-conversion-panel" id="dzn-conversion"><p>Conversion report · ' . esc_html((string) $report['denominator']) . ' intros</p>';
         self::reportPanel($report);
         self::surveyPanel($survey);
         if (current_user_can(Menu::ENROLMENT_TRIALS_CAP)) self::reviewPanel($read);
-        echo '</div></details>';
+        echo '</div>';
     }
 
     /** @param array<string,mixed> $survey */
@@ -290,15 +305,20 @@ final class EnrolmentWorkspaceView {
     }
 
     private static function createInstrumentPanel(): void {
-        echo '<dialog class="dzn-workspace-dialog" id="dzn-create-instrument" aria-labelledby="dzn-instrument-title"><div class="dzn-dialog-head"><h2 id="dzn-instrument-title">Create instrument</h2><button type="button" class="button" onclick="this.closest(\'dialog\').close()">Close</button></div>';
+        $failed=(string)($_GET['dzn_form']??'')==='instrument';
+        $key='dzn_instrument_form_'.get_current_user_id();$state=$failed?get_transient($key):array();
+        if($failed)delete_transient($key);
+        $values=is_array($state)?(array)($state['values']??array()):array();
+        echo '<dialog class="dzn-workspace-dialog" id="dzn-create-instrument" aria-labelledby="dzn-instrument-title"' . ($failed?' data-open-on-load="1"':'') . '><div class="dzn-dialog-head"><h2 id="dzn-instrument-title">Create instrument</h2><button type="button" class="button" onclick="this.closest(\'dialog\').close()">Close</button></div>';
+        if($failed)echo '<div class="notice notice-error inline" role="alert"><p>' . esc_html((string)($state['message']??'Instrument could not be created.')) . '</p></div>';
         echo '<p>The introductory and standard courses, pricing product and booking option are created together. Regional prices are managed in Finance settings.</p>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-create-intro__form">';
         wp_nonce_field(EnrolmentWorkspaceController::ACTION);
         echo '<input type="hidden" name="action" value="' . esc_attr(EnrolmentWorkspaceController::ACTION) . '"><input type="hidden" name="operation" value="create_instrument">';
-        self::input('name_fa', 'Persian instrument name', 'text', '', true);
-        self::input('name_en', 'English instrument name', 'text', '', true);
-        self::input('standard_duration_minutes', 'Lesson duration (minutes)', 'number', '30', true);
-        self::input('gap_between_lessons_minutes', 'Changeover buffer (minutes)', 'number', '15', true);
+        self::input('name_fa', 'Persian instrument name', 'text', sanitize_text_field((string)($values['name_fa']??'')), true);
+        self::input('name_en', 'English instrument name', 'text', sanitize_text_field((string)($values['name_en']??'')), true);
+        self::input('standard_duration_minutes', 'Lesson duration (minutes)', 'number', (string)absint($values['standard_duration_minutes']??30), true);
+        self::input('gap_between_lessons_minutes', 'Changeover buffer (minutes)', 'number', (string)absint($values['gap_between_lessons_minutes']??15), true);
         echo '<button class="button button-primary">Create instrument and courses</button></form></dialog>';
     }
 

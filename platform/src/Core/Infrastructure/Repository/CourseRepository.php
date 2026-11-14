@@ -22,6 +22,19 @@ final class CourseRepository extends BaseRepository {
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->table} WHERE instrument_id=%d AND course_type=%s AND status='active' AND archived_at IS NULL ORDER BY id",$instrumentId,$courseType)) ?: array();
     }
 
+    public function forInstrumentAndType(int $instrumentId, string $type): array {
+        global $wpdb;
+        return $wpdb->get_results($wpdb->prepare("SELECT id,name_fa,name_en FROM {$this->table} WHERE instrument_id=%d AND course_type=%s AND archived_at IS NULL", $instrumentId, $type)) ?: array();
+    }
+
+    public function updateGeneratedNames(int $id, array $changes, int $actor): void {
+        global $wpdb;
+        if (!$changes) return;
+        $changes['updated_at'] = gmdate('Y-m-d H:i:s');
+        $changes['updated_by'] = $actor;
+        if ($wpdb->update($this->table, $changes, array('id'=>$id)) === false) throw new \RuntimeException('Course name update failed');
+    }
+
     /** Human-labelled Course choices for Teacher eligibility administration. */
     public function operatorOptions(): array {
         global $wpdb;

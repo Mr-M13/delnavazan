@@ -13,6 +13,8 @@ and the combined integration branch are local commits awaiting review.
 
 ## Shape
 
+**2026-11-14 update:** The visible Enrolment workspace now has one page with top actions for creating an intro, standard class and instrument, plus Class admin. The creation forms are dialogs. Active intro requests and scheduled terms are separate tables; class history and offered instruments remain below. Creating an instrument produces bilingual introductory and standard Courses, a product, intro default and active public offer. Conversion, survey and post-intro review evidence remains accessible through the protected “Conversion, survey and follow-up evidence” link beside intro requests. The old Catalogue subtab is no longer visible. Existing protected deep links continue to resolve. The detailed Class admin consolidation is separate ongoing work. The original description below records the 2026-11-02 implementation and is historical.
+
 The visible Enrolment area now has three sub-tabs:
 
 1. **Intro** — incoming requests, identity and coordination blockers, Teacher matching, the introductory booking, the recorded outcome, the post-intro decision/payment period and conversion reporting. See [ENROLMENT-INTRO-REVIEW-2026-11-02.md](ENROLMENT-INTRO-REVIEW-2026-11-02.md) for the 2026-11-02 follow-up changes.

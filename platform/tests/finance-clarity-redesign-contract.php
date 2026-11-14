@@ -89,7 +89,10 @@ $contains($calendar, array('monthRange', 'previousMonthForInstant', 'isFirstDayO
 $assert(str_contains($platform, 'TeacherStatementScheduleService::register()'), 'The Persian statement scheduler must remain registered');
 
 // Settings.
-$assert(!str_contains(substr($finance, strpos($finance, 'private static function renderSettings('), strpos($finance, 'private static function renderTeacherSettings(') - strpos($finance, 'private static function renderSettings(')), 'renderFinanceSummaryStrip'), 'Settings must not duplicate finance operational summaries');
+$settingsStart = strpos($finance, 'private static function renderSettings(');
+$settingsEnd = strpos($finance, 'private static function renderTeacherSettings(');
+$assert($settingsStart !== false && $settingsEnd !== false && $settingsEnd > $settingsStart, 'Settings and Teacher settings methods must remain locatable in order');
+$assert(!str_contains(substr($finance, $settingsStart, $settingsEnd - $settingsStart), 'renderFinanceSummaryStrip'), 'Settings must not duplicate finance operational summaries');
 $contains($finance, array('save_regional_pricing_bundle', 'regions[', 'introductory_mode', 'effective_from', 'dzn-finance-pricing-preview', 'Save regional pricing'), 'Regional pricing must be one shared-mode, effective-dated, previewed form');
 $contains($regional, array('previewBundle', 'saveBundle', 'standardPrice', 'saveRegion'), 'The regional bundle must validate the whole form through the existing versioned writer');
 $contains($finance, array('save_intro_payability', 'Introductory lessons are payable to the Teacher', 'Student introductory pricing is configured only in Regional pricing'), 'Teacher intro payability must be one distinct checkbox');

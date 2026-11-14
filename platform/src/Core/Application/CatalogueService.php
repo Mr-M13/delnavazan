@@ -48,9 +48,37 @@ final class CatalogueService {
         try{
             $old=$repo->locked($id);
             if(!$old||$old->archived_at!==null)throw new \InvalidArgumentException('Instrument not found');
-            $repo->updateOffer($id,$persian,$english,$status,(string)$old->name_fa,(string)$old->name_en);
+            $repo->updateOffer($id,$persian,$english,$status);
+            $this->renameGeneratedOffer($id,$old,$persian,$english);
+            global $wpdb;
+            if ($wpdb->insert($wpdb->prefix.'dzn_platform_audit_events',array(
+                'aggregate_type'=>'instrument','aggregate_id'=>$id,'event_type'=>'instrument.offer_updated',
+                'actor_type'=>'administrator','actor_id'=>get_current_user_id(),'reason_code'=>'offer_administration',
+                'safe_detail'=>wp_json_encode(array('before'=>array('name_fa'=>$old->name_fa,'name_en'=>$old->name_en,'status'=>$old->status),'after'=>array('name_fa'=>$persian,'name_en'=>$english,'status'=>$status))),
+                'idempotency_key'=>hash('sha256','instrument-offer:'.$id.':'.wp_generate_uuid4()),'occurred_at'=>gmdate('Y-m-d H:i:s'),
+            ))!==1) throw new \RuntimeException('Instrument audit persistence failed');
             $repo->commit();
         }catch(\Throwable $error){$repo->rollback();throw $error;}
+    }
+    /** Rename only generated labels; custom Course and product names remain editorially owned. */
+    private function renameGeneratedOffer(int $id,object $old,string $fa,string $en):void{
+        $courses=new CourseRepository();$commercial=new CommercialAuthorityRepository();$actor=(int)get_current_user_id();
+        foreach(array('introductory','standard') as $type){
+            foreach($courses->forInstrumentAndType($id,$type) as $course){
+                $changes=array();
+                if(in_array((string)$course->name_fa,array($this->courseNameFa($type,(string)$old->name_fa),$this->courseNameFa($type,(string)$old->name_en)),true)) $changes['name_fa']=$this->courseNameFa($type,$fa);
+                if(in_array((string)$course->name_en,array($this->courseNameEn($type,(string)$old->name_en),$this->courseNameEn($type,(string)$old->name_fa)),true)) $changes['name_en']=$this->courseNameEn($type,$en);
+                $courses->updateGeneratedNames((int)$course->id,$changes,$actor);
+                if($type!=='standard')continue;
+                foreach($commercial->productsForCourse((int)$course->id) as $product){
+                    if($product->archived_at!==null)continue;
+                    $labels=array();
+                    if((string)$product->name_fa===(string)$old->name_fa)$labels['name_fa']=$fa;
+                    if(in_array((string)$product->name_en,array((string)$old->name_en,(string)$old->name_fa),true))$labels['name_en']=$en;
+                    if($labels)$commercial->updateProduct((int)$product->id,array_merge($labels,array('updated_at'=>gmdate('Y-m-d H:i:s'),'updated_by'=>$actor)));
+                }
+            }
+        }
     }
     /** Persian catalogue prefixes are the single generated naming authority for new setup Courses. */
     private function courseNameFa(string $type,string $name):string{$prefix=$type==='introductory'?self::INTRO_PREFIX_FA:self::STANDARD_PREFIX_FA;$available=max(1,191-strlen($prefix));return $prefix.mb_strcut(trim($name),0,$available,'UTF-8');}

@@ -35,11 +35,13 @@ $entry_args = $is_booking
 		'schedule_version_uid' => (string) ( $item['schedule_version_uid'] ?? '' ),
 	);
 $entry_url = add_query_arg( $entry_args, home_url( '/music-classroom/' ) );
+// Keep mobile app handoffs in one browser tab; desktop retains its separate classroom tab.
+$join_target = stripos( (string) ( $_SERVER['HTTP_USER_AGENT'] ?? '' ), 'Android' ) !== false ? '_self' : '_blank';
 ?>
 <div class="dzn-classroom-actions">
 	<?php if ( $join_available && $has_identifiers ) : ?>
 		<?php if ( 'student' === $role ) : ?>
-			<form class="dzn-classroom-actions__form" method="post" target="_blank" action="<?php echo esc_url( $join_action_url ); ?>">
+			<form class="dzn-classroom-actions__form" method="post" target="<?php echo esc_attr( $join_target ); ?>" action="<?php echo esc_url( $join_action_url ); ?>">
 				<input type="hidden" name="action" value="<?php echo esc_attr( $join_action ); ?>">
 				<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( $join_nonce ); ?>">
 				<?php if ( $is_booking ) : ?>
@@ -51,7 +53,7 @@ $entry_url = add_query_arg( $entry_args, home_url( '/music-classroom/' ) );
 				<button class="<?php echo esc_attr( $primary_class ); ?>" type="submit">ورود به کلاس Google Meet</button>
 			</form>
 		<?php else : ?>
-			<a class="<?php echo esc_attr( $primary_class ); ?>" href="<?php echo esc_url( $entry_url ); ?>" target="_blank" rel="noopener noreferrer">ورود به کلاس Google Meet</a>
+			<a class="<?php echo esc_attr( $primary_class ); ?>" href="<?php echo esc_url( $entry_url ); ?>" target="<?php echo esc_attr( $join_target ); ?>" rel="noopener noreferrer">ورود به کلاس Google Meet</a>
 		<?php endif; ?>
 	<?php elseif ( '' !== $message ) : ?>
 		<p class="dzn-portal-help dzn-classroom-actions__unavailable"><?php echo esc_html( $message ); ?></p>

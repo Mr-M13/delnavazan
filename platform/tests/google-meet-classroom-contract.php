@@ -134,7 +134,7 @@ $workspace = $read('platform/src/Core/Application/TeacherOnboardingWorkspaceRead
 $check('Admin blockers no longer require a Teacher Google account', !str_contains($workspace, 'Google Calendar account is not connected'));
 
 $actions = $read('theme/template-parts/components/classroom-actions.php');
-$check('Teacher portal action opens the branded entry page', str_contains($actions, "home_url( '/music-classroom/' )") && str_contains($actions, 'target="_blank"'));
+$check('Teacher portal action opens the branded entry page', str_contains($actions, "home_url( '/music-classroom/' )") && str_contains($actions, "'Android' ) !== false ? '_self' : '_blank'"));
 $check('Teacher portal action is labelled Google Meet', str_contains($actions, 'ورود به کلاس Google Meet'));
 $check('Student portal action posts straight to the authenticated join controller', str_contains($actions, "'student' === \$role") && str_contains($actions, 'dzn_student_join_class') && str_contains($actions, 'dzn_student_join_booking_class'));
 $check('Student join is one navigation instead of a branded intermediate window', str_contains($actions, '<form class="dzn-classroom-actions__form" method="post"'));

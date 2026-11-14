@@ -4,6 +4,7 @@
 **Code under test:** `origin/main` at `27f789463e4282c8fb0e3eee4623d6a403e9632b` (PR #623 merge), schema 61
 **Environment:** disposable WordPress 7.1.2 + MariaDB 11.4.13, loopback only
 **Status:** completed audit and regression assets; no production change, no merge, no deployment
+**Draft PR:** https://github.com/Mr-M13/delnavazan/pull/626
 
 ---
 

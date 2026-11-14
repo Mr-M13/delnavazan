@@ -4,11 +4,12 @@ require_once __DIR__ . '/../src/Public/ResearchNameSuggestionController.php';
 use Delnavazan\Platform\Public\ResearchNameSuggestionController as Inbox;
 $options = $transients = $posts = [];
 $storageFails = false;
+$missOnce = false;
 function wp_verify_nonce($nonce, $action) { return $nonce === 'valid' && $action === Inbox::ACTION; }
 function sanitize_text_field($text) { return trim(strip_tags($text)); }
 function wp_salt($type) { return 'test-only-secret'; }
 function wp_slash($value) { return addslashes($value); }
-function get_transient($key) { global $transients; return $transients[$key] ?? false; }
+function get_transient($key) { global $transients, $missOnce; if ($missOnce) { $missOnce=false; return false; } return $transients[$key] ?? false; }
 function set_transient($key, $value, $ttl) { global $transients; $transients[$key] = $value; }
 function add_option($key, $value, $deprecated, $autoload) { global $options; if (isset($options[$key])) return false; $options[$key] = $value; return true; }
 function get_option($key) { global $options; return $options[$key] ?? false; }
@@ -26,6 +27,8 @@ check(count($posts) === 0, 'Rejected submissions must not be stored');
 check(Inbox::receive($valid, '192.0.2.1', 'POST') === 'received', 'Guest Persian suggestion accepted');
 check($posts[0]['post_status'] === 'private' && $posts[0]['post_author'] === 0, 'Suggestion private and anonymous');
 check(Inbox::receive($valid, '192.0.2.1', 'POST') === 'received' && count($posts) === 1, 'Retry must not duplicate');
+$missOnce = true;
+check(Inbox::receive($valid, '192.0.2.1', 'POST') === 'received' && count($posts) === 1, 'Recheck after acquiring lock prevents a stale-read duplicate');
 check(Inbox::receive(array_replace($valid, ['project_name'=>'Other']), '192.0.2.1', 'POST') === 'limited', 'Burst must be limited');
 check(Inbox::receive(array_replace($valid, ['project_name'=>str_repeat('ن',120)]), '192.0.2.2', 'POST') === 'received', '120 Unicode characters allowed');
 $storageFails = true;

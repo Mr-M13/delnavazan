@@ -54,6 +54,9 @@ final class ResearchNameSuggestionController {
             return 'limited';
         }
         try {
+            // Another request may have completed between our first read and lock acquisition.
+            $recent = get_transient($key);
+            if (is_array($recent)) return ($recent['name'] ?? '') === $digest ? 'received' : 'limited';
             $post = wp_insert_post([
                 'post_type' => self::POST_TYPE, 'post_status' => 'private',
                 'post_title' => wp_slash($name), 'post_author' => 0,

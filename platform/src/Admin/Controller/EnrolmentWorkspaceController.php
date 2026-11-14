@@ -5,6 +5,9 @@ use Delnavazan\Platform\Admin\View\EnrolmentWorkspaceView;
 use Delnavazan\Platform\Core\Application\AdministratorBookingMatchService;
 use Delnavazan\Platform\Core\Application\AdministratorIntroBookingService;
 use Delnavazan\Platform\Core\Application\BookingNotificationRecoveryService;
+use Delnavazan\Platform\Core\Application\BookingAllocationService;
+use Delnavazan\Platform\Core\Application\BookingRequestMatchAssessmentService;
+use Delnavazan\Platform\Core\Application\BookingRequestPrivacyService;
 use Delnavazan\Platform\Core\Application\CanonicalAttendanceIntakeService;
 use Delnavazan\Platform\Core\Application\CanonicalEnrolmentLifecycleService;
 use Delnavazan\Platform\Core\Application\CanonicalLessonAuthorityService;
@@ -13,6 +16,7 @@ use Delnavazan\Platform\Core\Application\CanonicalLessonScheduleReadService;
 use Delnavazan\Platform\Core\Application\CanonicalLessonScheduleService;
 use Delnavazan\Platform\Core\Application\CanonicalTermAuthorityService;
 use Delnavazan\Platform\Core\Application\CoordinationCaseService;
+use Delnavazan\Platform\Core\Application\CoordinationWorkspaceReadService;
 use Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService;
 use Delnavazan\Platform\Core\Application\HistoricalEnrolmentImportService;
 use Delnavazan\Platform\Core\Application\IntroLessonLifecycleService;
@@ -26,14 +30,15 @@ use Delnavazan\Platform\Core\Application\StudentService;
 use Delnavazan\Platform\Core\Application\TeacherAssignmentService;
 use Delnavazan\Platform\Core\Application\TeacherAvailabilityAssentService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestIntakeRepository;
 use Delnavazan\Platform\Integrations\BookingCalendarProjectionService;
 use Delnavazan\Platform\Integrations\GoogleWorkspace\MeetAdministratorClassroomService;
 
 /**
  * Consolidated Enrolment administration workspace.
  *
- * Two operational sub-tabs share one read projection and one class-action renderer. The old
- * protected routes remain registered; this controller only adds a contextual operator surface.
+ * One queue and record workflow share the existing booking and class authorities.
+ * Older protected routes remain registered for existing deep links and handlers.
  */
 final class EnrolmentWorkspaceController {
     public const PAGE = 'dzn-enrolment-workspace';
@@ -52,7 +57,23 @@ final class EnrolmentWorkspaceController {
             if (!current_user_can(Menu::ENROLMENT_TRIALS_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
             $case = $read->bookingCase($requestId);
             if (!$case) { self::notFound('Booking request not found'); return; }
-            EnrolmentWorkspaceView::bookingCase($case, self::classroomForBooking($case));
+            $coordination = null;
+            $caseId = (int) ($case['coordination']['case_id'] ?? 0);
+            if ($caseId > 0 && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_view_booking_requests')) {
+                $coordination = (new CoordinationWorkspaceReadService())->caseDetail($caseId);
+            }
+            $intake = current_user_can('dzn_view_booking_requests')
+                ? $read->bookingIntake($requestId, (string) ($_GET['dzn_allocation_preview'] ?? '') === '1')
+                : null;
+            if ($intake !== null) {
+                $assessmentKey = 'dzn_match_assessment_' . get_current_user_id() . '_' . $requestId;
+                $assessment = get_transient($assessmentKey);
+                if (is_array($assessment)) {
+                    $intake['assessment'] = $assessment;
+                    delete_transient($assessmentKey);
+                }
+            }
+            EnrolmentWorkspaceView::bookingCase($case, self::classroomForBooking($case), $coordination, $intake);
             return;
         }
         if ($classId > 0) {
@@ -101,6 +122,43 @@ final class EnrolmentWorkspaceController {
         $requestId = absint($post['request_id'] ?? 0);
         $classId = absint($post['class_id'] ?? 0);
         switch ($operation) {
+            case 'assess_matches':
+                self::requireCap('dzn_view_booking_requests');
+                self::requireCap('dzn_prepare_booking_request_matches');
+                if ($requestId < 1) throw new \InvalidArgumentException('Choose a booking request first.');
+                $assessment = (new BookingRequestMatchAssessmentService())->assess($requestId, get_current_user_id());
+                set_transient('dzn_match_assessment_' . get_current_user_id() . '_' . $requestId, $assessment, 300);
+                return 'Current Teacher match assessment completed. Review its coverage below.';
+            case 'recover_allocation':
+                self::requireCap('dzn_view_booking_requests');
+                self::requireCap('dzn_manage_booking_request_coordination');
+                if ($requestId < 1) throw new \InvalidArgumentException('Choose a booking request first.');
+                $recovery = (new BookingAllocationService())->recover($requestId, gmdate('Y-m-d H:i:s'));
+                return match ((string) ($recovery['action'] ?? '')) {
+                    'preserve_existing_lifecycle' => 'No recovery was applied; this request is no longer eligible.',
+                    'already_allocated' => 'No recovery was applied; an allocation offer already exists.',
+                    'missing' => 'No recovery was applied; the booking request was not found.',
+                    'reconcile_legacy_offer' => 'The existing Teacher offer was reconciled. Review its current state.',
+                    'start_offer' => 'A reviewed Teacher offer was started. Review its current state.',
+                    'refer_administrator', 'manual_review' => 'The booking was referred for administrator review.',
+                    default => 'Allocation recovery was reviewed. Check the current request state.',
+                };
+            case 'review_duplicate':
+                self::requireCap('dzn_view_booking_requests');
+                self::requireCap('dzn_review_booking_request_duplicates');
+                $flagId = absint($post['flag_id'] ?? 0);
+                $status = sanitize_key((string) ($post['review_status'] ?? ''));
+                $reason = sanitize_key((string) ($post['reason'] ?? ''));
+                if ($requestId < 1 || $flagId < 1 || !in_array($status, array('reviewed_no_match', 'reviewed_possible_duplicate', 'dismissed'), true) || !preg_match('/^[a-z0-9_]{3,64}$/D', $reason)) throw new \InvalidArgumentException('Choose a duplicate review decision and reason.');
+                (new BookingRequestIntakeRepository())->reviewDuplicateFlag($requestId, $flagId, $status, $reason, get_current_user_id(), gmdate('Y-m-d H:i:s'));
+                return 'Duplicate review recorded.';
+            case 'erase_request_pii':
+                self::requireCap('dzn_view_booking_requests');
+                self::requireCap('dzn_erase_booking_request_pii');
+                $reason = sanitize_key((string) ($post['reason'] ?? ''));
+                if ($requestId < 1 || !preg_match('/^[a-z0-9_]{3,64}$/D', $reason)) throw new \InvalidArgumentException('Record a reason for privacy erasure.');
+                (new BookingRequestPrivacyService())->erase($requestId, get_current_user_id(), $reason);
+                return 'Booking request identifying data erased through the privacy authority.';
             case 'identity_resolve':
                 self::requireCap('dzn_resolve_booking_request_student_identity');
                 self::requireCap('dzn_view_student_acceptance_eligibility');
@@ -518,9 +576,10 @@ final class EnrolmentWorkspaceController {
 
     private static function returnUrl(): string {
         $args = array('page' => self::PAGE);
-        foreach (array('view', 'request_id', 'class_id', 'q', 'stage', 'type', 'attention', 'when', 'teacher_id', 'student_id', 'course_id', 'term_id', 'date', 'action') as $key) {
-            if (!isset($_GET[$key]) || !is_scalar($_GET[$key])) continue;
-            $value = wp_unslash((string) $_GET[$key]);
+        foreach (array('view', 'request_id', 'class_id', 'q', 'stage', 'type', 'attention', 'when', 'teacher_id', 'student_id', 'course_id', 'term_id', 'date', 'action', 'dzn_modal') as $key) {
+            $raw = $_GET[$key] ?? (in_array($key, array('request_id', 'class_id', 'dzn_modal'), true) ? ($_POST[$key] ?? null) : null);
+            if (!is_scalar($raw)) continue;
+            $value = wp_unslash((string) $raw);
             $args[$key] = in_array($key, array('request_id', 'class_id', 'teacher_id', 'student_id', 'course_id', 'term_id'), true) ? absint($value) : sanitize_text_field($value);
         }
         return add_query_arg($args, admin_url('admin.php'));

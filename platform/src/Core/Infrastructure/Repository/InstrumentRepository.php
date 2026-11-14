@@ -50,8 +50,7 @@ final class InstrumentRepository extends BaseRepository {
         global $wpdb;
         $courses = $wpdb->prefix . 'dzn_courses';
         $now = gmdate('Y-m-d H:i:s');
-        $actor = get_current_user_id();
-        $updated = $wpdb->update($this->table, array('name_fa'=>$fa, 'name_en'=>$en, 'status'=>$status, 'updated_at'=>$now, 'updated_by'=>$actor), array('id'=>$id, 'archived_at'=>null));
+        $updated = $wpdb->update($this->table, array('name_fa'=>$fa, 'name_en'=>$en, 'status'=>$status, 'updated_at'=>$now), array('id'=>$id, 'archived_at'=>null));
         if ($updated === false) throw new \RuntimeException('Instrument update failed');
         foreach (array('introductory'=>array('کلاس معارفه ', 'Introductory '), 'standard'=>array('کلاس ', 'Standard ')) as $type=>$prefixes) {
             $rows = $wpdb->get_results($wpdb->prepare("SELECT id,name_fa,name_en FROM {$courses} WHERE instrument_id=%d AND course_type=%s AND archived_at IS NULL", $id, $type)) ?: array();

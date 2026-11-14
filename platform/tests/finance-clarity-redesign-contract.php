@@ -89,19 +89,22 @@ $contains($calendar, array('monthRange', 'previousMonthForInstant', 'isFirstDayO
 $assert(str_contains($platform, 'TeacherStatementScheduleService::register()'), 'The Persian statement scheduler must remain registered');
 
 // Settings.
-$contains($finance, array('renderFinanceSummaryStrip($summary, \'Finance summary\')', 'Confirmed receipts this month', 'Outstanding due this month', 'Expected due next month', 'not a sales forecast'), 'Settings must start with a sourced finance summary');
+$settingsStart = strpos($finance, 'private static function renderSettings(');
+$settingsEnd = strpos($finance, 'private static function renderTeacherSettings(');
+$assert($settingsStart !== false && $settingsEnd !== false && $settingsEnd > $settingsStart, 'Settings and Teacher settings methods must remain locatable in order');
+$assert(!str_contains(substr($finance, $settingsStart, $settingsEnd - $settingsStart), 'renderFinanceSummaryStrip'), 'Settings must not duplicate finance operational summaries');
 $contains($finance, array('save_regional_pricing_bundle', 'regions[', 'introductory_mode', 'effective_from', 'dzn-finance-pricing-preview', 'Save regional pricing'), 'Regional pricing must be one shared-mode, effective-dated, previewed form');
 $contains($regional, array('previewBundle', 'saveBundle', 'standardPrice', 'saveRegion'), 'The regional bundle must validate the whole form through the existing versioned writer');
 $contains($finance, array('save_intro_payability', 'Introductory lessons are payable to the Teacher', 'Student introductory pricing is configured only in Regional pricing'), 'Teacher intro payability must be one distinct checkbox');
 $contains($goldenRule, array('normalizeRules', 'assertNoOverlaps', 'golden_hour_period_overlap', 'effective_from'), 'Golden-hour rules must validate overlaps and retain row effective dates');
 $contains($goldenPay, array('$rules = is_array($policy[\'rules\']', 'effective_from'), 'Golden-hour calculation must honour row rules and effective dates');
-$contains($finance, array('golden_rules[', 'Local start', 'Local finish', 'Bonus %', 'Retire', 'Copy row', 'Golden-hour coverage', 'AcademyCoverageController::renderAtlas'), 'Golden-hour settings must be editable rows with copy/retire and coverage charts immediately below');
+$contains($finance, array('golden_rules[', 'Local start', 'Local finish', 'Bonus %', 'Retire', 'Copy row'), 'Golden-hour settings must keep editable rows and their history');
 $assert(str_contains($finance, 'overflow') || str_contains($finance, 'Overnight') || str_contains($finance, 'cross midnight'), 'Golden-hour UI must document overnight support');
 $assert(!str_contains($general, 'INTRO_BOOKING_HORIZON') && !str_contains($general, 'dzn_general_booking_horizon'), 'Booking horizon must not remain a General Settings control');
 $contains($policies, array('Introductory booking horizon', 'INTRO_BOOKING_HORIZON', 'academy scheduling rule', 'horizonConfiguration'), 'Booking horizon must live under Settings → Policies with its effective configuration');
 $assert(!str_contains($finance, '<option value="INTRO_BOOKING_HORIZON"'), 'Finance must not keep the booking horizon as a selectable commercial policy');
 $assert(str_contains($finance, "'reason_code' => 'finance_policy_update'"), 'Finance commercial policy saves must supply the controlled reason code the commercial authority requires');
-$contains($finance, array('<details class="dzn-finance-settings-section" id="stripe"><summary><strong>Stripe integration and safeguards</strong>'), 'Stripe settings must stay collapsed');
+$assert(!str_contains($finance, 'Stripe integration and safeguards'), 'Stripe configuration must be removed from Finance settings');
 $contains($finance, array("current_user_can(ManualPaymentSettlementService::MANAGE_CAPABILITY)", "current_user_can('dzn_manage_refund_reviews')", "current_user_can('dzn_manage_finance_statements')", "current_user_can(TeacherStatementBatchWorkflowService::MANAGE_CAPABILITY)", "check_admin_referer('dzn_finance_statement_workflow')", "check_admin_referer('dzn_finance_receipts_report')"), 'Every new write/read surface must keep its capability and nonce gate');
 
 // Manual ledger remains independent.

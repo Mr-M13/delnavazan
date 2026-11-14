@@ -17,7 +17,6 @@ foreach (array(
     "['Teachers', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP]",
     "['Directory', 'dzn-student', 'dzn_manage_students']",
     "['Enrolment', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
-    "['Courses & instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
     "['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']]",
     "'general' => ['General'", "'access' => ['Administration & Delegated Access'",
     "'policy' => ['Policy'", "'notifications' => ['Notifications'",

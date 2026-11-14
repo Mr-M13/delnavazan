@@ -90,8 +90,8 @@ $contains($finance, array('Statement template and sample', 'Sample statement and
 $assert(str_contains($template, 'script|style|iframe|object|embed|form') && str_contains($template, 'javascript'), 'Template sanitizer must explicitly block scripts and unsafe URLs');
 
 // Stripe and finance policies are consolidated without changing security or commercial rules.
-$contains($finance, array('Stripe integration', 'stripeSettingsContent(true)', 'Finance policies', 'save_finance_policy', 'save_commercial_policy', 'Structural accounting invariants are not configurable'), 'Stripe and policies must be consolidated into Settings');
-$contains($read('src/Admin/Controller/IntegrationControlPlaneController.php'), array('stripeSettingsContent', 'return_to_finance', 'redirectStripe'), 'Stripe settings must support the embedded Finance tab while retaining the direct route');
+$contains($finance, array('Finance policies', 'save_finance_policy', 'save_commercial_policy', 'Structural accounting invariants are not configurable'), 'Finance policies remain in Settings');
+$contains($read('src/Admin/Controller/IntegrationControlPlaneController.php'), array('stripeSettingsContent', 'dzn-stripe-environment', 'redirectStripe'), 'Stripe configuration must live in Integrations');
 $assert(!str_contains($finance, 'sk_live_') && !str_contains($finance, 'sk_test_'), 'Secret keys must never be embedded in the Finance UI');
 
 // Manual ledger independence.

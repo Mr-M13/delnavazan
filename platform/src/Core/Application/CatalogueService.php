@@ -12,31 +12,74 @@ final class CatalogueService {
     /** @return array{instrument_id:int,introductory_course_id:int,standard_course_id:int,product_id:int} */
     public function setupInstrument(array $input):array{
         $this->requireSetupCapabilities();
-        $name=Normalizer::text($input['name']??'',191,true);$duration=Normalizer::count($input['standard_duration_minutes']??0,5,480);$buffer=Normalizer::count($input['gap_between_lessons_minutes']??0,0,240);
+        $name=Normalizer::text($input['name_fa']??$input['name']??'',191,true);
+        $english=Normalizer::text($input['name_en']??$input['name']??'',191,true);
+        $duration=Normalizer::count($input['standard_duration_minutes']??0,5,480);$buffer=Normalizer::count($input['gap_between_lessons_minutes']??0,0,240);
         $billing=Normalizer::one($input['introductory_lesson_billing']??'free',['free','paid'],'introductory lesson billing');
         // Introductory pricing is now a global Finance setting, not an instrument field. The legacy
         // input is accepted for compatibility but never becomes a second pricing authority.
-        $slug=sanitize_title($name);if($slug==='')$slug='instrument-'.substr(hash('sha256',$name),0,16);
+        $slug=sanitize_title($english);if($slug==='')$slug='instrument-'.substr(hash('sha256',$name),0,16);
         $lock=$this->acquireSetupLock($slug);$instruments=new InstrumentRepository();
         $transaction=false;
         try{
             $instruments->begin();$transaction=true;
             $instrument=$instruments->bySlug($slug);
-            if(!$instrument){$instrumentId=$this->instrument(array('slug'=>$slug,'name_fa'=>$name,'name_en'=>$name,'status'=>'active'),true);$instrument=$instruments->find($instrumentId);}
+            if(!$instrument){$instrumentId=$this->instrument(array('slug'=>$slug,'name_fa'=>$name,'name_en'=>$english,'status'=>'active'),true);$instrument=$instruments->find($instrumentId);}
             if(!$instrument||$instrument->archived_at!==null||(string)$instrument->status!=='active')throw new \InvalidArgumentException('instrument_setup_inactive_instrument');
-            if((string)$instrument->name_fa!==$name&&(string)$instrument->name_en!==$name)throw new \InvalidArgumentException('instrument_setup_name_conflict');
+            if((string)$instrument->name_fa!==$name||(string)$instrument->name_en!==$english)throw new \InvalidArgumentException('instrument_setup_name_conflict');
             $instrumentId=(int)$instrument->id;$courses=new CourseRepository();
             // A normal setup supplies one lesson shape. Introductory booking occupancy must use
             // that same duration and gap; specialised courses remain explicit catalogue work.
-            $intro=$this->reconcileCourse($courses,$instrumentId,'introductory',$name,$duration,$buffer);$standard=$this->reconcileCourse($courses,$instrumentId,'standard',$name,$duration,$buffer);
+            $intro=$this->reconcileCourse($courses,$instrumentId,'introductory',$name,$english,$duration,$buffer);$standard=$this->reconcileCourse($courses,$instrumentId,'standard',$name,$english,$duration,$buffer);
             $commercial=new CommercialAuthorityRepository();$products=array_values(array_filter($commercial->productsForCourse((int)$standard->id),static fn(object $product):bool=>$product->archived_at===null&&(string)$product->status==='active'));
             if(count($products)>1)throw new \InvalidArgumentException('instrument_setup_ambiguous_standard_product');
-            if(!$products){$created=(new CommercialCatalogueService($commercial))->createProduct(array('course_id'=>(int)$standard->id,'name_fa'=>$name,'name_en'=>$name,'status'=>'active','evidence_channel'=>'authenticated_platform','evidence_reference'=>'instrument-setup:'.$instrumentId.':standard-product','evidence_at'=>gmdate('Y-m-d H:i:s')),'instrument-setup:'.$instrumentId.':standard-product',true);$productId=(int)$created['product_id'];}else $productId=(int)$products[0]->id;
+            if(!$products){$created=(new CommercialCatalogueService($commercial))->createProduct(array('course_id'=>(int)$standard->id,'name_fa'=>$name,'name_en'=>$english,'status'=>'active','evidence_channel'=>'authenticated_platform','evidence_reference'=>'instrument-setup:'.$instrumentId.':standard-product','evidence_at'=>gmdate('Y-m-d H:i:s')),'instrument-setup:'.$instrumentId.':standard-product',true);$productId=(int)$created['product_id'];}else $productId=(int)$products[0]->id;
             $defaults=new InstrumentIntroCourseDefaultService();$default=$defaults->resolve($instrumentId);if($default&&(int)$default->course_id!==(int)$intro->id)throw new \InvalidArgumentException('instrument_setup_introductory_default_conflict');if(!$default)$defaults->set(array('instrument_id'=>$instrumentId,'course_id'=>(int)$intro->id,'status'=>'active','reason_code'=>'instrument_setup'),true);
             $instruments->commit();$transaction=false;return array('instrument_id'=>$instrumentId,'introductory_course_id'=>(int)$intro->id,'standard_course_id'=>(int)$standard->id,'product_id'=>$productId);
         }catch(\Throwable $error){if($transaction)$instruments->rollback();throw $error;}finally{$this->releaseSetupLock($lock);}
     }
-    private function reconcileCourse(CourseRepository $courses,int $instrumentId,string $type,string $name,int $duration,int $buffer):object{$existing=$courses->activeForInstrumentAndType($instrumentId,$type);if(count($existing)>1)throw new \InvalidArgumentException('instrument_setup_ambiguous_'.$type.'_course');if(!$existing){$id=$this->course(array('instrument_id'=>$instrumentId,'name_fa'=>$this->courseNameFa($type,$name),'name_en'=>$this->courseNameEn($type,$name),'course_type'=>$type,'status'=>'active','default_duration_minutes'=>$duration,'default_buffer_minutes'=>$buffer),true);$course=$courses->find($id);if(!$course)throw new \RuntimeException('instrument_setup_course_persistence_failed');return $course;}$course=$existing[0];if((int)$course->default_duration_minutes!==$duration||(int)$course->default_buffer_minutes!==$buffer)throw new \InvalidArgumentException('instrument_setup_'.$type.'_course_configuration_conflict');return $course;}
+    private function reconcileCourse(CourseRepository $courses,int $instrumentId,string $type,string $name,string $english,int $duration,int $buffer):object{$existing=$courses->activeForInstrumentAndType($instrumentId,$type);if(count($existing)>1)throw new \InvalidArgumentException('instrument_setup_ambiguous_'.$type.'_course');if(!$existing){$id=$this->course(array('instrument_id'=>$instrumentId,'name_fa'=>$this->courseNameFa($type,$name),'name_en'=>$this->courseNameEn($type,$english),'course_type'=>$type,'status'=>'active','default_duration_minutes'=>$duration,'default_buffer_minutes'=>$buffer),true);$course=$courses->find($id);if(!$course)throw new \RuntimeException('instrument_setup_course_persistence_failed');return $course;}$course=$existing[0];if((int)$course->default_duration_minutes!==$duration||(int)$course->default_buffer_minutes!==$buffer)throw new \InvalidArgumentException('instrument_setup_'.$type.'_course_configuration_conflict');return $course;}
+    /** Change the public offer without touching historical bookings or committed class snapshots. */
+    public function updateInstrument(int $id,string $persian,string $english,string $status):void{
+        $this->requireSetupCapabilities();
+        $persian=Normalizer::text($persian,191,true);$english=Normalizer::text($english,191,true);
+        $status=Normalizer::one($status,['active','inactive'],'instrument state');
+        $repo=new InstrumentRepository();$repo->begin();
+        try{
+            $old=$repo->locked($id);
+            if(!$old||$old->archived_at!==null)throw new \InvalidArgumentException('Instrument not found');
+            $repo->updateOffer($id,$persian,$english,$status);
+            $this->renameGeneratedOffer($id,$old,$persian,$english);
+            global $wpdb;
+            if ($wpdb->insert($wpdb->prefix.'dzn_platform_audit_events',array(
+                'aggregate_type'=>'instrument','aggregate_id'=>$id,'event_type'=>'instrument.offer_updated',
+                'actor_type'=>'administrator','actor_id'=>get_current_user_id(),'reason_code'=>'offer_administration',
+                'safe_detail'=>wp_json_encode(array('before'=>array('name_fa'=>$old->name_fa,'name_en'=>$old->name_en,'status'=>$old->status),'after'=>array('name_fa'=>$persian,'name_en'=>$english,'status'=>$status))),
+                'idempotency_key'=>hash('sha256','instrument-offer:'.$id.':'.wp_generate_uuid4()),'occurred_at'=>gmdate('Y-m-d H:i:s'),
+            ))!==1) throw new \RuntimeException('Instrument audit persistence failed');
+            $repo->commit();
+        }catch(\Throwable $error){$repo->rollback();throw $error;}
+    }
+    /** Rename only generated labels; custom Course and product names remain editorially owned. */
+    private function renameGeneratedOffer(int $id,object $old,string $fa,string $en):void{
+        $courses=new CourseRepository();$commercial=new CommercialAuthorityRepository();$actor=(int)get_current_user_id();
+        foreach(array('introductory','standard') as $type){
+            foreach($courses->forInstrumentAndType($id,$type) as $course){
+                $changes=array();
+                if(in_array((string)$course->name_fa,array($this->courseNameFa($type,(string)$old->name_fa),$this->courseNameFa($type,(string)$old->name_en)),true)) $changes['name_fa']=$this->courseNameFa($type,$fa);
+                if(in_array((string)$course->name_en,array($this->courseNameEn($type,(string)$old->name_en),$this->courseNameEn($type,(string)$old->name_fa)),true)) $changes['name_en']=$this->courseNameEn($type,$en);
+                $courses->updateGeneratedNames((int)$course->id,$changes,$actor);
+                if($type!=='standard')continue;
+                foreach($commercial->productsForCourse((int)$course->id) as $product){
+                    if($product->archived_at!==null)continue;
+                    $labels=array();
+                    if((string)$product->name_fa===(string)$old->name_fa)$labels['name_fa']=$fa;
+                    if(in_array((string)$product->name_en,array((string)$old->name_en,(string)$old->name_fa),true))$labels['name_en']=$en;
+                    if($labels)$commercial->updateProduct((int)$product->id,array_merge($labels,array('updated_at'=>gmdate('Y-m-d H:i:s'),'updated_by'=>$actor)));
+                }
+            }
+        }
+    }
     /** Persian catalogue prefixes are the single generated naming authority for new setup Courses. */
     private function courseNameFa(string $type,string $name):string{$prefix=$type==='introductory'?self::INTRO_PREFIX_FA:self::STANDARD_PREFIX_FA;$available=max(1,191-strlen($prefix));return $prefix.mb_strcut(trim($name),0,$available,'UTF-8');}
     private function courseNameEn(string $type,string $name):string{$prefix=$type==='introductory'?'Introductory ':'Standard ';$available=max(1,191-strlen($prefix));return $prefix.mb_strcut(trim($name),0,$available,'UTF-8');}

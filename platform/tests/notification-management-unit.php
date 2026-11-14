@@ -38,6 +38,18 @@ namespace {
     if (!function_exists('delete_option')) {
         function delete_option($key) { unset($GLOBALS['dzn_test_options'][$key]); return true; }
     }
+    if (!function_exists('sanitize_text_field')) {
+        function sanitize_text_field($value) { return trim(strip_tags((string) $value)); }
+    }
+    if (!function_exists('sanitize_key')) {
+        function sanitize_key($value) { return preg_replace('/[^a-z0-9_-]/', '', strtolower((string) $value)); }
+    }
+    if (!function_exists('wp_unslash')) {
+        function wp_unslash($value) { return is_string($value) ? stripslashes($value) : $value; }
+    }
+    if (!function_exists('admin_url')) {
+        function admin_url($path = '') { return 'https://academy.example/wp-admin/' . $path; }
+    }
     if (!function_exists('wp_kses')) {
         function wp_kses($text, $allowed) { return strip_tags($text); }
     }
@@ -255,6 +267,9 @@ namespace {
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/NotificationCopyResolver.php';
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/DelnavazanEmailRenderer.php';
     require_once dirname(__DIR__) . '/src/Portals/PortalNotificationInbox.php';
+    require_once dirname(__DIR__) . '/src/Core/Application/IntegrationSettingsService.php';
+    require_once dirname(__DIR__) . '/src/Core/Application/SmsProviderRoutingPolicy.php';
+    require_once dirname(__DIR__) . '/src/Admin/Controller/NotificationManagementController.php';
 
     use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
     use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
@@ -390,30 +405,28 @@ namespace {
     try{$discoveredLibrary->saveProviderMapping('booking.new.teacher','whatsapp','fa-IR','legacy_teacher_booking_fa','fa');}catch(InvalidArgumentException){$conflictingMap=true;}
     $fail('manual mapping cannot contradict approved discovery', $conflictingMap);
 
+    $provider->upsertTemplate(array(
+        'uid'=>'01TESTMARKETINGTEMPLATE001','provider'=>'telnyx','template_name'=>'delnavazan_teacher_new_booking_fa','language'=>'fa',
+        'provider_template_id'=>'meta-marketing','category'=>'MARKETING','status'=>'APPROVED','event_key'=>'booking.new.teacher','audience'=>'teacher',
+        'variable_order'=>'teacher,course,student,when','last_verified_at'=>'2026-11-01 00:00:00','created_at'=>'2026-11-01 00:00:00','updated_at'=>'2026-11-01 00:00:00',
+    ));
+    $marketingLibrary = new NotificationTemplateLibrary(null,null,new TelnyxTemplateAuthority($provider));
+    $fail('approved Marketing provider templates cannot map transactional notifications', $marketingLibrary->status('booking.new.teacher','whatsapp','fa-IR')['provider_state'] === 'contract_mismatch');
+
     $library->publish($event, 'whatsapp', 'fa-IR', 'عنوان واتس‌اپ', "سلام {{name}} {{when}} {{portal_url}}\nمتن تازهٔ واتس‌اپ");
     $fail('whatsapp copy requires provider approval after publication', $library->status($event, 'whatsapp', 'fa-IR')['provider_state'] === 'approval_required');
 
-    /* 5. Channel policy cannot disable mandatory channels. */
-    $policies = $library->saveChannelPolicy(array(
-        'security' => array('email' => false, 'website' => false, 'whatsapp' => true, 'sms' => true, 'sms_fallback' => true),
-        'optional' => array('email' => true, 'website' => true, 'whatsapp' => false, 'sms' => false, 'sms_fallback' => false),
-    ));
-    $fail('security channels stay locked', $policies['security']['email'] === true && $policies['security']['website'] === true && $policies['security']['whatsapp'] === false && $policies['security']['sms'] === false);
-    $fail('claim event offers only email', $library->permittedChannels('account.claim_issued.student') === array('email'));
+    /* 5. Per-event channel controls cannot disable mandatory channels. */
+    $claimEmail = false;
+    try { $library->saveEventChannel('account.claim_issued.student', 'email', false); } catch (InvalidArgumentException $error) { $claimEmail = true; }
+    $fail('mandatory email stays locked', $claimEmail && $library->eventChannelEnabled('account.claim_issued.student', 'email') === true);
+    $fail('claim event declares WhatsApp and SMS for explicit future activation', $library->channelOffered('account.claim_issued.student', 'whatsapp') && $library->channelOffered('account.claim_issued.student', 'sms'));
     $claimWhatsApp = $library->status('account.claim_issued.student', 'whatsapp', 'fa-IR');
-    $fail('a policy-disabled channel is not advertised', $library->catalogueRows('whatsapp', 'fa-IR') === array());
-    $fail('a policy-disabled channel keeps its factual provider state', $claimWhatsApp['permitted'] === false && $claimWhatsApp['provider_state'] === 'not_mapped');
-    $fail('a policy-disabled channel does not demand a Meta mapping', !str_contains(implode(' ', $claimWhatsApp['issues']), 'Meta-approved template'));
+    $fail('a disabled channel is not advertised as active', !in_array('whatsapp', $library->permittedChannels('account.claim_issued.student'), true));
+    $fail('a disabled channel keeps its factual provider state', $claimWhatsApp['permitted'] === false && $claimWhatsApp['provider_state'] === 'not_mapped');
+    $fail('a disabled channel reports its own state rather than a provider demand', str_contains(implode(' ', $claimWhatsApp['issues']), 'disabled'));
     $operational = $library->permittedChannels('booking.confirmed.student');
     $fail('operational events default to email and portal', $operational === array('website', 'email'));
-
-    /* 5b. SMS is fallback-only: a direct SMS flag cannot survive save or policy read. */
-    $direct = $library->saveChannelPolicy(array('booking' => array('sms' => true, 'sms_fallback' => false)));
-    $fail('direct SMS alone is refused', $direct['booking']['sms'] === false && $direct['booking']['sms_fallback'] === false);
-    $fallback = $library->saveChannelPolicy(array('booking' => array('sms_fallback' => true)));
-    $fail('SMS fallback enables the derived SMS capability', $fallback['booking']['sms_fallback'] === true && $fallback['booking']['sms'] === true);
-    $library->saveChannelPolicy(array('booking' => array('email' => true, 'website' => true, 'whatsapp' => false, 'sms_fallback' => false)));
-    $fail('SMS fallback and SMS capability stay in sync', $library->channelPolicy('booking')['sms'] === false && $library->channelPolicy('booking')['sms_fallback'] === false);
 
     /* 6. Resolver: published copy wins, missing variables and unknown events fall back. */
     $resolved = NotificationCopyResolver::email($event, 'fa-IR', array('name' => 'باران', 'when' => 'شنبه', 'portal_url' => 'https://delnavazan.com/student-portal/', 'teacher' => 'استاد', 'course' => 'تار', 'join_url' => 'https://example.invalid/join'), array('subject' => 'fallback', 'body' => 'fallback'));
@@ -423,11 +436,13 @@ namespace {
     $unknown = NotificationCopyResolver::email('not.a.real.event', 'fa-IR', array(), array('subject' => 's', 'body' => 'b'));
     $fail('resolver falls back for an unknown event', $unknown['source'] === 'fallback');
 
-    /* 7. Channel policy keeps mandatory categories locked and gates optional channels. */
+    /* 7. Event controls keep mandatory channels locked and gate optional channels. */
     $fail('security never allows WhatsApp', NotificationChannelPolicy::allows('account.claim_issued.student', 'whatsapp') === false);
-    $fail('security never allows SMS fallback', NotificationChannelPolicy::allowsSmsFallback('account.claim_issued.student') === false);
+    $fail('security never allows SMS', NotificationChannelPolicy::allows('account.claim_issued.student', 'sms') === false);
     $fail('website is allowed for an operational event', NotificationChannelPolicy::allows('booking.confirmed.student', 'website') === true);
     $fail('a channel outside the event is refused', NotificationChannelPolicy::allows('post_intro.activated.student', 'sms') === false);
+    $library->saveEventChannel('booking.confirmed.student', 'whatsapp', true);
+    $fail('an event-scoped WhatsApp decision enables only that event', NotificationChannelPolicy::allows('booking.confirmed.student', 'whatsapp') === true);
 
     /* 8. Website inbox: dedupe, ownership and read state. */
     $GLOBALS['wpdb']->seed('dzn_students', array(array('id' => 9, 'wordpress_user_id' => 7, 'status' => 'active', 'archived_at' => null, 'locale' => 'fa_IR')));
@@ -443,6 +458,55 @@ namespace {
     $fail('mark read succeeds for the owner', $inbox->markRead(7, $inboxId) === true);
     $fail('unread count drops after read', $inbox->unreadCount(7) === 0);
     $fail('admin summary stays separate', isset($inbox->adminSummary()['student']) && $inbox->adminSummary()['admin']['total'] === 0);
+
+    /* 9. The catalogue's displayed result set uses every filter after editor return, and blockers
+     * remain visible even while an event channel is switched off. */
+    $controllerClass = 'Delnavazan\\Platform\\Admin\\Controller\\NotificationManagementController';
+    $matches = new \ReflectionMethod($controllerClass, 'tableFilterMatches');
+    $matches->setAccessible(true);
+    $visibleRow = array('event'=>array('category'=>'booking','audience'=>'student'),'offered'=>array('email','sms'),'states'=>array('email'=>array('state'=>'enabled')),'search_text'=>'booking confirmed lesson');
+    $hiddenRow = array('event'=>array('category'=>'finance','audience'=>'admin'),'offered'=>array('email'),'states'=>array('email'=>array('state'=>'enabled')),'search_text'=>'statement');
+    $allFilters = array('search'=>'lesson','category'=>'booking','recipient'=>'student','channel'=>'email','status'=>'enabled');
+    $fail('displayed table rows apply all preserved filters', $matches->invoke(null,$visibleRow,$allFilters)===true && $matches->invoke(null,$hiddenRow,$allFilters)===false);
+    $stateMethod = new \ReflectionMethod($controllerClass, 'effectiveChannelState');
+    $stateMethod->setAccessible(true);
+    $library->saveEventChannel($event, 'whatsapp', false);
+    $offWhatsApp = $stateMethod->invoke(null, $library, $event, 'whatsapp');
+    $fail('off WhatsApp still shows approval blocker', $offWhatsApp['state']==='disabled' && !empty($offWhatsApp['enable_blocked']) && str_contains($offWhatsApp['reason'], 'Provider approval'));
+    $smsEvent = 'booking.new.teacher';
+    $library->saveEventChannel($smsEvent, 'sms', false);
+    $offSms = $stateMethod->invoke(null, $library, $smsEvent, 'sms');
+    $fail('off SMS still shows unavailable selected routes', $offSms['state']==='disabled' && !empty($offSms['enable_blocked']) && str_contains($offSms['reason'], 'unavailable'));
+    $controllerSource=(string)file_get_contents(dirname(__DIR__).'/src/Admin/Controller/NotificationManagementController.php');
+    $fail('server rejects enabling blocked channels', str_contains($controllerSource, "notification_channel_unavailable") && str_contains($controllerSource, 'channelBlocker'));
+
+    /* 10. Template/provider readiness is evaluated independently of the current on/off value. A
+     * configured WhatsApp provider with no mapped template must still block enabling, and the
+     * same blocker is what the toggle handler consumes. A ready channel remains enableable. */
+    (new \Delnavazan\Platform\Core\Application\IntegrationSettingsService())->save('whatsapp', array(
+        'app_id'=>'1234567890','business_account_id'=>'0987654321','phone_number_id'=>'1122334455',
+        'access_token'=>'test-access-token','test_template_name'=>'delnavazan_test_template',
+    ));
+    $blockerMethod = new \ReflectionMethod($controllerClass, 'channelBlocker');
+    $blockerMethod->setAccessible(true);
+    $unmappedEvent = 'lesson.reminder.student';
+    $fail('the unmapped event offers WhatsApp', $library->channelOffered($unmappedEvent, 'whatsapp'));
+    $fail('the unmapped WhatsApp channel starts off', $library->eventChannelEnabled($unmappedEvent, 'whatsapp') === false);
+    $unmappedStatus = $library->status($unmappedEvent, 'whatsapp', 'fa-IR');
+    $unmappedIssues = implode(' ', (array) $unmappedStatus['issues']);
+    $fail('a configured provider without a mapping stays not_mapped', $unmappedStatus['provider_state'] === 'not_mapped');
+    $fail('an off channel keeps both the off notice and its provider issue', str_contains($unmappedIssues, 'disabled') && str_contains($unmappedIssues, 'Meta'));
+    $unmappedState = $stateMethod->invoke(null, $library, $unmappedEvent, 'whatsapp');
+    $fail('configured provider without a mapping blocks enabling', $unmappedState['state'] === 'disabled' && $unmappedState['enable_blocked'] === true && str_contains($unmappedState['reason'], 'Provider approval'));
+    $unmappedBlocker = $blockerMethod->invoke(null, $library, $unmappedEvent, 'whatsapp');
+    $fail('the toggle handler receives the same unavailable blocker', is_array($unmappedBlocker) && $unmappedBlocker['state'] === 'missing_provider');
+    $canonicalBlocker = $blockerMethod->invoke(null, $library, 'account.claim_issued.student', 'whatsapp');
+    $fail('a required missing canonical version blocks independently of provider state', is_array($canonicalBlocker) && $canonicalBlocker['state'] === 'missing_template');
+    $fail('a ready channel has no blocker', $blockerMethod->invoke(null, $library, $event, 'website') === null);
+    $library->saveEventChannel($event, 'website', false);
+    $readyOff = $stateMethod->invoke(null, $library, $event, 'website');
+    $fail('a ready off channel remains enableable', $readyOff['state'] === 'disabled' && empty($readyOff['enable_blocked']) && $blockerMethod->invoke(null, $library, $event, 'website') === null);
+    $library->saveEventChannel($event, 'website', true);
 
     echo "Notification management unit passed\n";
 }

@@ -45,7 +45,12 @@ final class TelnyxTemplateAuthority {
         $order=self::order((string)($row->variable_order??''));
         $expected=is_array($definition)?array_values((array)($definition['variable_order']??array())):array();
         $available=$event===null?array():NotificationCatalogue::variables($eventKey);
-        $valid=$definition!==null
+        // Transactional Delnavazan events may only use Meta/Telnyx Utility templates. Marketing
+        // templates are never eligible for account, operational or financial notices, even when
+        // their names and placeholder counts happen to match.
+        $utility=strtoupper(trim((string)($row->category??'')))==='UTILITY';
+        $valid=$utility
+            &&$definition!==null
             &&$event!==null
             &&(string)($definition['event_key']??'')===$eventKey
             &&(string)($row->event_key??'')===$eventKey
@@ -55,7 +60,10 @@ final class TelnyxTemplateAuthority {
             &&$order!==array()
             &&$order===$expected
             &&array_diff($order,$available)===array();
-        if(!$valid)return self::result(self::CONTRACT_MISMATCH,$name,(string)($row->language??''),$order,$row,'The approved provider template does not match the local event contract.');
+        if(!$valid){
+            $reason=$utility?'The approved provider template does not match the local event contract.':'The provider template is not a Utility template and cannot be used for transactional delivery.';
+            return self::result(self::CONTRACT_MISMATCH,$name,(string)($row->language??''),$order,$row,$reason);
+        }
         return self::result(self::MAPPED,$name,$language,$order,$row,'');
     }
 

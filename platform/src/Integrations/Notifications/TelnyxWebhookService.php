@@ -33,13 +33,7 @@ final class TelnyxWebhookService {
     }
 
     public static function fromSettings($settings):self{
-        $recipients=new \Delnavazan\Platform\Core\Infrastructure\ReadModel\StudentNotificationRecipientReadModel();
-        $fallbacks=new \Delnavazan\Platform\Core\Application\NotificationSmsFallbackService(
-            recipients:$recipients,
-            smsPolicy:static fn(string $eventKey):bool=>NotificationChannelPolicy::allowsSmsFallback($eventKey)
-        );
-        $states=new NotificationDeliveryStateService(null,null,$fallbacks);
-        return new self(TelnyxWebhookSignature::fromSettings((new TelnyxConfiguration($settings))->webhookPublicKey()),states:$states);
+        return new self(TelnyxWebhookSignature::fromSettings((new TelnyxConfiguration($settings))->webhookPublicKey()));
     }
 
     /**
@@ -62,8 +56,7 @@ final class TelnyxWebhookService {
         if($existing){
             $this->provider->incrementReplay((int)$existing->id);
             if($this->terminal((string)$existing->outcome_code)){
-                // Delivery receipts are replayed by providers.  Re-running the aggregate application is
-                // idempotent and lets a fallback/cancellation side effect recover after a transient error.
+                // Delivery receipts are replayed by providers. Re-running the aggregate application is idempotent.
                 if((int)($existing->notification_id??0)>0&&str_starts_with((string)$existing->outcome_code,'delivery_'))$this->applyAggregate((int)$existing->notification_id);
                 return array('http'=>200,'outcome'=>(string)$existing->outcome_code,'replayed'=>true);
             }

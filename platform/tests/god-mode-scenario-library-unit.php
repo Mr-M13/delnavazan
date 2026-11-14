@@ -7,7 +7,7 @@ $required=array(
     'teacher_onboarding','introductory_class_booking','direct_class_booking','teacher_assignment','teacher_acceptance','booking_conflict_handling','booking_cancellation','class_rescheduling',
     'google_calendar_event_creation','google_meet_provisioning','teacher_invitation','host_cohost_permissions','teacher_join_access','student_join_access','automatic_recording_configuration','recording_availability_verification',
     'automatic_attendance_detection','teacher_manual_attendance_confirmation','class_completion','post_intro_continuation','payment_link_generation_simulation','enrolment_workflow_simulation',
-    'portal_notification','email_notification','whatsapp_notification','primary_sms','sms_fallback','notification_failure_retry',
+    'portal_notification','email_notification','whatsapp_notification','primary_sms','notification_failure_retry',
     'teacher_onboarding_end_to_end','introductory_class_end_to_end','regular_class_end_to_end','google_meet_recording_end_to_end','booking_to_attendance_end_to_end',
 );
 $all=GodModeScenarioLibrary::all();
@@ -20,7 +20,7 @@ foreach($required as $code){
 }
 if(count($all)!==count($required))throw new RuntimeException('The library must not silently contain a different scenario count.');
 $manual=array_filter($all,static fn(array $scenario):bool=>!empty($scenario['manual_verification']));
-if(!isset($manual['teacher_onboarding_end_to_end'],$manual['recording_availability_verification'],$manual['sms_fallback']))throw new RuntimeException('Human/provider-dependent scenarios must be marked for manual verification.');
+if(!isset($manual['teacher_onboarding_end_to_end'],$manual['recording_availability_verification'],$manual['primary_sms']))throw new RuntimeException('Human/provider-dependent scenarios must be marked for manual verification.');
 foreach(array('teacher_onboarding','introductory_class_booking','post_intro_continuation','enrolment_workflow_simulation','teacher_onboarding_end_to_end','introductory_class_end_to_end','regular_class_end_to_end','booking_to_attendance_end_to_end') as $gapCode){
     if(empty($all[$gapCode]['framework_gap']))throw new RuntimeException('Incomplete scenario must be explicitly gated: '.$gapCode);
 }

@@ -112,6 +112,7 @@ namespace {
     $singleFutureHtml = $render('classes', $model(array('classes' => array($future), 'today_classes' => array(), 'upcoming_classes' => array($future))));
     $check('the student filter is shown even with one future student', str_contains($singleFutureHtml, 'data-dzn-tp-student-filter-select') && str_contains($singleFutureHtml, '<option value="Student One">Student One</option>'));
     $check('home uses the simple welcome header without a Delnavazan brand link', str_contains($html, 'درود بر شما') && !str_contains($html, 'dzn-tp-appbar__brand') && !str_contains($html, 'صفحهٔ اصلی'));
+    $check('teacher account support shows the Iran artistic-director contact', str_contains($html, 'مدیر هنری دلنوازان (ایران)') && str_contains($html, 'tel:+989101401910') && str_contains($html, '09101401910'));
     $check('classes render as an ordered list of labelled articles', substr_count($classes_html, '<ol class="dzn-tp-class-list">') === 1 && substr_count($classes_html, 'aria-labelledby="tp-class-title-') === 2 && str_contains($classes_html, 'id="tp-class-title-0"') && str_contains($classes_html, 'id="tp-class-title-1"'));
     $check('date and timezone are visible on a booking class that has no details panel', str_contains($classes_html, 'Sunday 4 October، 18:30 · Australia/Brisbane') && !str_contains($classes_html, 'id="tp-details-1"'));
     $check('lesson date badge and machine-readable start are rendered', str_contains($classes_html, 'class="dzn-tp-time-date">Sunday 4 October') && str_contains($classes_html, 'class="dzn-tp-time-date">Saturday 3 October') && str_contains($classes_html, 'datetime="2026-10-03T06:30:00Z"'));
@@ -293,7 +294,7 @@ namespace {
     $check('toggle swaps its label and keeps aria-expanded in sync', str_contains($js, 'dznTpLabelOpen') && str_contains($js, "setAttribute('aria-expanded'"));
     $accountSource = (string) file_get_contents($theme . '/template-parts/teacher-portal/account.php');
     $check('settings reuses booking instrument thumbnails with selected colour state', str_contains($accountSource, 'dzn-tp-instrument-grid') && str_contains($accountSource, 'is-selected') && str_contains($accountSource, 'dzn_theme_instrument_image($instrument_name)') && str_contains($accountSource, 'width="80" height="80"'));
-    $check('settings explains positive-only availability, timezone and holidays', str_contains($accountSource, 'فقط زمان‌هایی را انتخاب کنید که برای تدریس در دسترس هستید') && str_contains($accountSource, 'سایر زمان‌ها به‌صورت خودکار غیرقابل رزرو خواهند بود') && str_contains($accountSource, 'منطقهٔ زمانی شما') && str_contains($accountSource, 'مثلاً تولد، سفر یا مناسبت خانوادگی'));
+    $check('settings renders one instrument-aware interactive planner with Golden Hour and gap guidance', str_contains($accountSource, "'availability-planner'") && !str_contains($accountSource, 'روزهای تعطیل و تاریخ‌های استثنایی') && !str_contains($accountSource, 'ظرفیت هفتگی'));
     $check('the accepting-students section is removed', ! str_contains($accountSource, 'tp-accepting') && ! str_contains($accountSource, 'پذیرش هنرجو'));
     $check('empty attention is not rendered', str_contains($parts['attention'], 'if ( ! $items ) { return; }'));
     $css = (string) file_get_contents($theme . '/assets/css/teacher-portal.css');

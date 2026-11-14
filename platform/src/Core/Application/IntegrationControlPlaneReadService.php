@@ -35,8 +35,14 @@ final class IntegrationControlPlaneReadService {
         try{$providerTemplates=(new TelnyxTemplateDiscoveryService($settings))->status();}catch(\Throwable){}
         $providerEvents=array();$providerRecent=array();$providerMessages=array();
         try{$providerEvents=$provider->eventOutcomeCounts('telnyx');$providerRecent=$provider->recentEvents('telnyx',10);$providerMessages=$provider->messageCounts('telnyx');}catch(\Throwable){}
-        $channelPolicies=(new NotificationTemplateLibrary())->channelPolicies();
-        $enabledCategories=function(string $channel)use($channelPolicies):array{$out=array();foreach($channelPolicies as $category=>$flags)if(!empty($flags[$channel]))$out[]=(string)$category;return $out;};
+        $notificationLibrary=new NotificationTemplateLibrary();
+        $enabledEvents=function(string $channel)use($notificationLibrary):array{
+            $out=array();
+            foreach(\Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::events() as $eventKey=>$event){
+                if(in_array($channel,(array)($event['channels']??array()),true)&&$notificationLibrary->channelPermitted((string)$eventKey,$channel))$out[]=(string)$eventKey;
+            }
+            return $out;
+        };
         $dispatchActor=(int)get_option(NotificationSystemActor::USER_OPTION,0);
         $dispatchActorValid=$dispatchActor>0&&($user=get_user_by('id',$dispatchActor)) instanceof \WP_User&&user_can($user,NotificationSystemActor::CAPABILITY);
         $googleConfigured=GoogleOAuthController::configured();
@@ -76,6 +82,7 @@ final class IntegrationControlPlaneReadService {
                     'email'=>isset($configuredChannels['email'])?'configured':'not_configured',
                     'whatsapp'=>isset($configuredChannels['whatsapp'])?'configured':'not_configured',
                     'sms'=>isset($configuredChannels['sms'])?'configured':'not_configured',
+                    'sms_ir'=>(new IntegrationSettingsService())->ready('sms_ir')?'configured':'not_configured',
                 ),
             ),
             'google_calendar'=>array(
@@ -122,9 +129,8 @@ final class IntegrationControlPlaneReadService {
                     'student_route_filter'=>has_filter('dzn_notification_student_route')?'configured':'not_configured',
                     'student_consent_filter'=>has_filter('dzn_notification_student_opted_in')?'configured':'not_configured',
                     'student_guardian_filter'=>has_filter('dzn_notification_student_guardian_authority')?'configured':'not_configured',
-                    'whatsapp_enabled_categories'=>$enabledCategories('whatsapp'),
-                    'sms_enabled_categories'=>$enabledCategories('sms'),
-                    'sms_fallback_categories'=>$enabledCategories('sms_fallback'),
+                    'whatsapp_enabled_events'=>$enabledEvents('whatsapp'),
+                    'sms_enabled_events'=>$enabledEvents('sms'),
                 ),
             ),
             'generated_at'=>current_time('mysql',true),

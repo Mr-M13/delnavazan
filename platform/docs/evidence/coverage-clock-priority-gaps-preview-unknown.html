@@ -1,0 +1,885 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin priority coverage gaps preview</title><style>body{margin:0;padding:24px;background:#f4f1f9;color:#241f35;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif}.preview{max-width:1180px;margin:0 auto 30px}.preview-label{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#6b647e;margin-bottom:8px}.preview-panel{background:#fff;border:1px solid #ded8ea;border-radius:18px;padding:18px}@media(max-width:600px){body{padding:10px}.preview-panel{padding:12px}}/* Delnavazan seven-day instrument coverage clock. */
+.dzn-clock {
+	--dzn-clock-ink: var(--dzn-ink, #241f35);
+	--dzn-clock-muted: var(--dzn-muted, #6b647e);
+	--dzn-clock-line: var(--dzn-line, #ded8ea);
+	--dzn-clock-surface: var(--dzn-surface, #fff);
+	--dzn-clock-soft: var(--dzn-soft, #f6f3fb);
+	--dzn-clock-grey: #e6e2ee;
+	--dzn-clock-gold: var(--dzn-gold, #c79417);
+	--dzn-clock-focus: #171325;
+	--dzn-day-6: #4f8f6f;
+	--dzn-day-7: #4f9b86;
+	--dzn-day-1: #4b9aa5;
+	--dzn-day-2: #4c8fb5;
+	--dzn-day-3: #547fc0;
+	--dzn-day-4: #6b6fc4;
+	--dzn-day-5: #8663b8;
+	position: relative;
+	overflow-x: clip;
+	margin-block: 1.25rem;
+	color: var(--dzn-clock-ink);
+}
+.dzn-clock__head { display: flex; flex-wrap: wrap; gap: .9rem 1.4rem; align-items: flex-end; justify-content: space-between; margin-block-end: .7rem; }
+.dzn-clock__intro { flex: 1 1 20rem; }
+.dzn-clock__intro h2 { margin: 0 0 .2rem; font-size: clamp(1.2rem, 2vw, 1.55rem); }
+.dzn-clock__intro p { margin: 0; color: var(--dzn-clock-muted); font-size: .86rem; }
+.dzn-clock__controls { display: flex; flex-wrap: wrap; gap: .5rem .7rem; align-items: flex-end; }
+.dzn-clock__controls label { display: grid; gap: .18rem; color: var(--dzn-clock-muted); font-size: .72rem; font-weight: 700; }
+.dzn-clock__instruments { display: flex; flex: 1 1 100%; flex-wrap: wrap; gap: .3rem; align-items: stretch; }
+.dzn-clock__instrument { display: grid; inline-size: 3.9rem; justify-items: center; gap: .08rem; padding: .22rem .28rem .3rem; border: 1px solid var(--dzn-clock-line); border-radius: 9px; background: var(--dzn-clock-surface); color: var(--dzn-clock-ink); font: inherit; cursor: pointer; }
+.dzn-clock__instrument:hover { border-color: #b9accd; background: var(--dzn-clock-soft); }
+.dzn-clock__instrument:focus-visible { outline: 2px solid var(--dzn-clock-focus); outline-offset: 1px; }
+.dzn-clock__instrument.is-selected { border-color: #6d3bd1; background: #f3edff; box-shadow: inset 0 0 0 1px #6d3bd1; }
+.dzn-clock__instrument img { inline-size: 1.9rem; block-size: 1.9rem; object-fit: contain; }
+.dzn-clock__instrument-fallback { display: grid; inline-size: 1.9rem; block-size: 1.9rem; place-items: center; border-radius: 50%; background: var(--dzn-clock-soft); font-size: .8rem; font-weight: 800; }
+.dzn-clock__instrument-name { max-inline-size: 100%; overflow: hidden; color: var(--dzn-clock-muted); font-size: .53rem; font-weight: 700; line-height: 1.2; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.dzn-clock__controls select,
+.dzn-clock__controls input[type="date"] { min-height: 2.15rem; padding: .3rem .45rem; border: 1px solid var(--dzn-clock-line); border-radius: 8px; background: var(--dzn-clock-surface); color: var(--dzn-clock-ink); font: inherit; }
+.dzn-clock__weekline { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; justify-content: space-between; padding: .45rem .7rem; margin-block-end: .8rem; border-radius: 9px; background: var(--dzn-clock-soft); }
+.dzn-clock__week-nav { display: flex; gap: .45rem; align-items: center; }
+.dzn-clock__week-nav a { display: grid; inline-size: 1.7rem; block-size: 1.7rem; place-items: center; border: 1px solid var(--dzn-clock-line); border-radius: 50%; color: var(--dzn-clock-ink); text-decoration: none; font-size: 1.1rem; line-height: 1; }
+.dzn-clock__week-nav strong { font-size: .88rem; }
+.dzn-clock__tz { color: var(--dzn-clock-muted); font-size: .76rem; }
+.dzn-clock__period-label { color: var(--dzn-clock-muted); font-size: .74rem; font-weight: 700; }
+
+.dzn-clock__priority { margin-block-end: .9rem; padding: .7rem .8rem; border: 1px solid var(--dzn-clock-line); border-radius: 11px; background: var(--dzn-clock-surface); }
+.dzn-clock__priority-head { display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: flex-start; justify-content: space-between; margin-block-end: .55rem; }
+.dzn-clock__priority-head h3 { margin: 0 0 .1rem; font-size: .92rem; }
+.dzn-clock__priority-head p { margin: 0; max-inline-size: 62ch; color: var(--dzn-clock-muted); font-size: .72rem; line-height: 1.55; }
+.dzn-clock__priority-head a { flex: 0 0 auto; font-size: .76rem; font-weight: 700; }
+.dzn-clock__priority-empty { margin: .2rem 0 0; color: var(--dzn-clock-muted); font-size: .8rem; }
+.dzn-clock__gap-list { display: grid; gap: .35rem; margin: 0; padding: 0; list-style: none; }
+.dzn-clock__gap { display: grid; grid-template-columns: minmax(6.5rem, .8fr) minmax(9rem, 1.15fr) minmax(5.5rem, .75fr) minmax(8rem, 1.3fr); gap: .25rem .7rem; align-items: center; min-block-size: 2.7rem; padding: .4rem .55rem; border: 1px solid var(--dzn-clock-line); border-inline-start: 3px solid var(--dzn-clock-line); border-radius: 8px; color: var(--dzn-clock-ink); text-decoration: none; font-size: .74rem; line-height: 1.4; }
+.dzn-clock__gap:hover { background: var(--dzn-clock-soft); }
+.dzn-clock__gap:focus-visible { outline: 2px solid var(--dzn-clock-focus); outline-offset: 1px; }
+.dzn-clock__gap.is-active { border-color: var(--dzn-clock-focus); border-inline-start-color: var(--dzn-clock-focus); background: #f7f3ff; }
+.dzn-clock__gap--rank-0 { border-inline-start-color: var(--dzn-clock-gold); }
+.dzn-clock__gap--rank-1 { border-inline-start-color: #b56576; }
+.dzn-clock__gap--rank-2 { border-inline-start-color: #b5892f; }
+.dzn-clock__gap.is-golden .dzn-clock__gap-instrument::before { content: "★"; margin-inline-end: .3rem; color: var(--dzn-clock-gold); }
+.dzn-clock__gap-instrument { font-weight: 800; overflow-wrap: anywhere; }
+.dzn-clock__gap-when { display: grid; gap: .05rem; color: var(--dzn-clock-ink); }
+.dzn-clock__gap-when bdi { color: var(--dzn-clock-muted); font-variant-numeric: tabular-nums; }
+.dzn-clock__gap-meta { color: var(--dzn-clock-muted); }
+.dzn-clock__gap-cause { color: var(--dzn-clock-ink); font-weight: 600; overflow-wrap: anywhere; }
+.dzn-clock__quality { margin-block-end: .9rem; padding: .55rem .8rem; border: 1px dashed var(--dzn-clock-line); border-radius: 10px; background: #fbfaf7; }
+.dzn-clock__quality-summary { display: block; color: inherit; text-decoration: none; border-radius: 7px; }
+.dzn-clock__quality-summary:hover .dzn-clock__quality-title { color: var(--dzn-clock-ink); }
+.dzn-clock__quality-summary:focus-visible { outline: 2px solid var(--dzn-clock-focus); outline-offset: 2px; }
+.dzn-clock__quality-summary.is-active { box-shadow: inset 2px 0 0 var(--dzn-clock-focus); padding-inline-start: .35rem; }
+.dzn-clock__quality-head { display: flex; flex-wrap: wrap; gap: .15rem .7rem; align-items: baseline; }
+.dzn-clock__quality-title { color: var(--dzn-clock-muted); font-size: .68rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.dzn-clock__quality-head strong { font-size: .82rem; }
+.dzn-clock__quality-scope { color: var(--dzn-clock-muted); font-size: .72rem; }
+.dzn-clock__quality-note { color: var(--dzn-clock-muted); font-size: .7rem; }
+.dzn-clock__quality-list { display: grid; gap: .25rem; margin: .45rem 0 0; padding: 0; list-style: none; }
+.dzn-clock__quality-row { display: grid; grid-template-columns: minmax(10rem, 1.2fr) minmax(7rem, .8fr) minmax(7rem, .8fr); gap: .25rem .7rem; align-items: center; min-block-size: 2.4rem; padding: .35rem .5rem; border: 1px solid transparent; border-radius: 7px; color: var(--dzn-clock-ink); text-decoration: none; font-size: .72rem; line-height: 1.4; }
+.dzn-clock__quality-row:hover { background: var(--dzn-clock-soft); }
+.dzn-clock__quality-row:focus-visible { outline: 2px solid var(--dzn-clock-focus); outline-offset: 1px; }
+.dzn-clock__quality-row.is-active { border-color: var(--dzn-clock-focus); background: #f7f3ff; }
+.dzn-clock__quality-when { font-weight: 700; overflow-wrap: anywhere; }
+.dzn-clock__quality-time { color: var(--dzn-clock-muted); font-variant-numeric: tabular-nums; }
+.dzn-clock__quality-reason { font-weight: 600; overflow-wrap: anywhere; }
+
+.dzn-clock__layout { display: grid; grid-template-columns: minmax(9.5rem, .32fr) minmax(0, 1.8fr); gap: clamp(.7rem, 1.6vw, 1.3rem); align-items: start; }
+.dzn-clock__ring-key { display: grid; gap: .35rem; }
+.dzn-clock__ring-row { display: grid; grid-template-columns: .9rem 1fr auto; grid-template-areas: "dot name pct" "dot date pct"; gap: 0 .4rem; align-items: center; padding: .35rem .45rem; border: 1px solid transparent; border-radius: 9px; background: var(--dzn-clock-surface); color: var(--dzn-clock-ink); text-align: start; font: inherit; cursor: pointer; }
+.dzn-clock__ring-row--6 { --ring-color: var(--dzn-day-6); }
+.dzn-clock__ring-row--7 { --ring-color: var(--dzn-day-7); }
+.dzn-clock__ring-row--1 { --ring-color: var(--dzn-day-1); }
+.dzn-clock__ring-row--2 { --ring-color: var(--dzn-day-2); }
+.dzn-clock__ring-row--3 { --ring-color: var(--dzn-day-3); }
+.dzn-clock__ring-row--4 { --ring-color: var(--dzn-day-4); }
+.dzn-clock__ring-row--5 { --ring-color: var(--dzn-day-5); }
+.dzn-clock__ring-row:hover,
+.dzn-clock__ring-row.is-active { border-color: var(--ring-color); background: #fbf9fe; }
+.dzn-clock__ring-row:focus-visible { outline: 2px solid var(--dzn-clock-focus); outline-offset: 1px; }
+.dzn-clock__ring-dot { grid-area: dot; inline-size: .8rem; block-size: .8rem; border-radius: 50%; background: var(--ring-color); box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+.dzn-clock__ring-name { grid-area: name; font-size: .82rem; font-weight: 700; }
+.dzn-clock__ring-date { grid-area: date; color: var(--dzn-clock-muted); font-size: .68rem; }
+.dzn-clock__ring-pct { grid-area: pct; font-size: .78rem; font-weight: 800; color: var(--ring-color); }
+.dzn-clock__ring-row.is-today { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ring-color) 55%, transparent); }
+.dzn-clock__today { grid-column: 2 / 4; justify-self: start; margin-block-start: .1rem; padding: .05rem .35rem; border-radius: 999px; background: var(--dzn-clock-soft); color: var(--dzn-clock-muted); font-size: .62rem; font-weight: 700; }
+
+.dzn-clock__main { min-inline-size: 0; }
+.dzn-clock__metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .35rem; margin-block-end: .5rem; }
+.dzn-clock__metric { display: grid; gap: .05rem; padding: .35rem .45rem; border: 1px solid var(--dzn-clock-line); border-radius: 9px; background: var(--dzn-clock-surface); }
+.dzn-clock__metric span { color: var(--dzn-clock-muted); font-size: .62rem; font-weight: 700; line-height: 1.25; }
+.dzn-clock__metric strong { font-size: .98rem; line-height: 1.15; }
+.dzn-clock__metric--golden strong { color: #8a6510; }
+.dzn-clock__metric--golden-gap strong { color: #8a6510; }
+.dzn-clock__metric--uncovered strong { color: #8c3d52; }
+
+.dzn-clock__stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(13rem, .55fr); gap: .8rem; align-items: start; }
+.dzn-clock__canvas { position: relative; width: 100%; aspect-ratio: 1; min-inline-size: 0; }
+.dzn-clock__svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: manipulation; }
+.dzn-clock__tick { stroke: #d9d2e5; stroke-width: .8; }
+.dzn-clock__tick.is-major { stroke: #a89fb9; stroke-width: 1.2; }
+.dzn-clock__hour { fill: var(--dzn-clock-muted); font-family: inherit; font-variant-numeric: tabular-nums; }
+.dzn-clock__hour.is-major { font-size: 13px; font-weight: 700; }
+.dzn-clock__hour.is-minor { font-size: 9px; font-weight: 600; opacity: .55; }
+.dzn-clock__golden-base { fill: #efeaf6; }
+.dzn-clock__golden-arc { fill: var(--dzn-clock-gold); pointer-events: none; }
+.dzn-clock__golden-seg { cursor: pointer; outline: none; }
+.dzn-clock__golden-seg:hover .dzn-clock__golden-arc { fill: #a8790a; }
+.dzn-clock__golden-seg:focus-visible .dzn-clock__golden-arc { stroke: var(--dzn-clock-focus); stroke-width: 2; }
+.dzn-clock__golden-seg.is-selected .dzn-clock__golden-arc { stroke: var(--dzn-clock-focus); stroke-width: 2.4; }
+
+.dzn-clock__ring--6 { --ring-color: var(--dzn-day-6); }
+.dzn-clock__ring--7 { --ring-color: var(--dzn-day-7); }
+.dzn-clock__ring--1 { --ring-color: var(--dzn-day-1); }
+.dzn-clock__ring--2 { --ring-color: var(--dzn-day-2); }
+.dzn-clock__ring--3 { --ring-color: var(--dzn-day-3); }
+.dzn-clock__ring--4 { --ring-color: var(--dzn-day-4); }
+.dzn-clock__ring--5 { --ring-color: var(--dzn-day-5); }
+.dzn-clock__seg { cursor: pointer; outline: none; }
+.dzn-clock__seg-half { stroke: rgba(255,255,255,.18); stroke-width: .4; }
+.dzn-clock__seg-half.is-covered,
+.dzn-clock__seg-half.is-limited { fill: var(--ring-color); }
+.dzn-clock__seg-half.is-uncovered { fill: var(--dzn-clock-grey); }
+.dzn-clock__seg-half.is-unknown { fill: #f1edf7; }
+.dzn-clock__seg-hatch { pointer-events: none; }
+.dzn-clock__golden-edge { fill: var(--dzn-clock-gold); opacity: .7; pointer-events: none; }
+.dzn-clock__seg-outline { fill: none; stroke: transparent; stroke-width: 2.4; pointer-events: none; }
+.dzn-clock__seg.is-past { opacity: .4; }
+.dzn-clock__seg:hover .dzn-clock__seg-half { filter: brightness(1.1); }
+.dzn-clock__seg.is-selected .dzn-clock__seg-outline,
+.dzn-clock__seg:focus-visible .dzn-clock__seg-outline { stroke: var(--dzn-clock-focus); }
+.dzn-clock__seg.is-gap-selected .dzn-clock__seg-outline { stroke: var(--dzn-clock-focus); stroke-width: 3; stroke-dasharray: 4 2; }
+.dzn-clock__seg.is-gap-selected .dzn-clock__seg-half { filter: saturate(1.2) brightness(1.04); }
+.dzn-clock__seg.is-unknown-selected .dzn-clock__seg-outline { stroke: #5d5470; stroke-width: 3; stroke-dasharray: 2 3; }
+.dzn-clock__seg.is-unknown-selected .dzn-clock__seg-half { filter: saturate(.7) brightness(1.02); }
+.dzn-clock__ring-label { fill: var(--dzn-clock-ink); font-family: inherit; font-size: 9px; font-weight: 800; letter-spacing: .02em; opacity: .78; paint-order: stroke; stroke: rgba(255,255,255,.82); stroke-linejoin: round; stroke-width: 2.6px; pointer-events: none; }
+.dzn-clock__seg.is-proposed .dzn-clock__seg-outline { stroke: #0f7a63; stroke-dasharray: 3 2; }
+.dzn-clock__today-outline { fill: none; stroke: var(--dzn-clock-ink); stroke-width: 1.1; opacity: .22; pointer-events: none; }
+.dzn-clock__hub-disc { fill: var(--dzn-clock-surface); stroke: var(--dzn-clock-line); stroke-width: .8; }
+.dzn-clock__hub-time { fill: var(--dzn-clock-ink); font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.dzn-clock__hub-state { fill: var(--dzn-clock-muted); font-size: 10px; font-weight: 600; }
+
+.dzn-clock__details { min-block-size: 12rem; padding: .8rem; border: 1px solid var(--dzn-clock-line); border-radius: 11px; background: var(--dzn-clock-soft); }
+.dzn-clock__details-empty { margin: 0; color: var(--dzn-clock-muted); font-size: .82rem; line-height: 1.7; }
+.dzn-clock__detail-head { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; justify-content: space-between; margin-block-end: .35rem; }
+.dzn-clock__detail-head strong { font-size: 1.02rem; font-variant-numeric: tabular-nums; }
+.dzn-clock__detail-state { padding: .12rem .45rem; border-radius: 999px; background: #ece7f5; font-size: .68rem; font-weight: 800; }
+.dzn-clock__detail-state.is-state-2 { background: #e3f0e8; color: #27553b; }
+.dzn-clock__detail-state.is-state-1 { background: #f4e7c8; color: #7a5200; }
+.dzn-clock__detail-state.is-state-4 { background: #e8edf7; color: #334f80; }
+.dzn-clock__detail-state.is-state-0 { background: #ece9f1; color: #5c5470; }
+.dzn-clock__detail-state.is-state-3 { background: #f1edf7; color: #5c5470; }
+.dzn-clock__detail-state.is-golden { background: #f7e8b8; color: #6d4d08; }
+.dzn-clock__detail-meta { margin: 0 0 .5rem; color: var(--dzn-clock-muted); font-size: .72rem; line-height: 1.6; }
+.dzn-clock__detail-list { display: grid; grid-template-columns: auto 1fr; gap: .26rem .65rem; margin: 0; font-size: .76rem; line-height: 1.55; }
+.dzn-clock__detail-list dt { color: var(--dzn-clock-muted); }
+.dzn-clock__detail-list dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.dzn-clock__detail-note { margin: .55rem 0 0; color: var(--dzn-clock-muted); font-size: .72rem; }
+.dzn-clock__use { margin-block-start: .65rem; padding: .4rem .65rem; border: 1px solid #4d23a8; border-radius: 8px; background: #4d23a8; color: #fff; font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.dzn-clock__use:disabled { opacity: .4; cursor: not-allowed; }
+
+.dzn-clock__legend { display: flex; flex-wrap: wrap; gap: .35rem .9rem; margin-block-start: .7rem; padding-block-start: .55rem; border-block-start: 1px solid var(--dzn-clock-line); color: var(--dzn-clock-muted); font-size: .72rem; }
+.dzn-clock__legend span { display: inline-flex; gap: .35rem; align-items: center; }
+.dzn-clock__swatch { inline-size: .85rem; block-size: .85rem; border-radius: 3px; border: 1px solid rgba(0,0,0,.08); }
+.dzn-clock__swatch--covered { background: linear-gradient(90deg, var(--dzn-day-6), var(--dzn-day-2), var(--dzn-day-5)); }
+.dzn-clock__swatch--limited { background: repeating-linear-gradient(45deg, #547fc0 0 3px, #b7c7e5 3px 6px); }
+.dzn-clock__swatch--partial { background: linear-gradient(90deg, #547fc0 50%, var(--dzn-clock-grey) 50%); }
+.dzn-clock__swatch--uncovered { background: var(--dzn-clock-grey); }
+.dzn-clock__swatch--golden { background: var(--dzn-clock-gold); }
+.dzn-clock__note { margin: .5rem 0 0; color: var(--dzn-clock-muted); font-size: .74rem; line-height: 1.7; }
+.dzn-clock__empty { margin: .6rem 0; color: var(--dzn-clock-muted); }
+
+.dzn-tp-availability-editor.is-clock-target { box-shadow: 0 0 0 3px rgba(15, 122, 99, .28); border-radius: 14px; }
+.dzn-tp-availability-editor.is-clock-target input[name="local_start_time"] { outline: 2px solid #0f7a63; outline-offset: 2px; }
+
+@media (max-width: 1100px) {
+	.dzn-clock__layout { grid-template-columns: minmax(8rem, .28fr) minmax(0, 1.8fr); }
+	.dzn-clock__metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+	.dzn-clock__layout { grid-template-columns: 1fr; }
+	.dzn-clock__gap { grid-template-columns: minmax(0, 1fr); gap: .15rem .5rem; min-block-size: 3.15rem; padding: .55rem .6rem; font-size: .78rem; }
+	.dzn-clock__gap-instrument,
+	.dzn-clock__gap-when,
+	.dzn-clock__gap-meta,
+	.dzn-clock__gap-cause { grid-column: 1 / -1; grid-row: auto; text-align: start; }
+	.dzn-clock__ring-row { min-block-size: 2.9rem; }
+	.dzn-clock__instruments { grid-column: 1 / -1; }
+	.dzn-clock__instrument { inline-size: 3.35rem; }
+	.dzn-clock__instrument img,
+	.dzn-clock__instrument-fallback { inline-size: 1.65rem; block-size: 1.65rem; }
+	.dzn-clock__quality-row { grid-template-columns: minmax(0, 1fr); }
+	.dzn-clock__quality-when,
+	.dzn-clock__quality-time,
+	.dzn-clock__quality-reason { grid-column: 1 / -1; }
+	.dzn-clock__ring-key { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.dzn-clock__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.dzn-clock__stage { grid-template-columns: 1fr; }
+	.dzn-clock__canvas { width: min(100%, 30rem); margin-inline: auto; }
+	.dzn-clock__details { min-block-size: 0; }
+	.dzn-clock__controls { display: grid; inline-size: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.dzn-clock__controls label,
+	.dzn-clock__controls select,
+	.dzn-clock__controls input[type="date"] { min-inline-size: 0; max-inline-size: 100%; }
+	.dzn-clock__controls .button { grid-column: 1 / -1; inline-size: 100%; }
+	.dzn-clock__weekline > * { min-inline-size: 0; }
+	.dzn-clock__period-label { overflow-wrap: anywhere; }
+}
+@media (max-width: 480px) {
+	.dzn-clock__ring-key { grid-template-columns: 1fr; }
+	.dzn-clock__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.dzn-clock__hour { font-size: 11px; }
+	.dzn-clock__priority { padding: .55rem .5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.dzn-clock * { transition: none !important; }
+}
+</style></head><body><div class="preview"><div class="preview-label">Admin · instrument coverage clock · representative data</div><div class="preview-panel"><section class="dzn-clock dzn-clock--admin" id="dzn-instrument-coverage" dir="ltr" aria-labelledby="dzn-clock-title" data-dzn-clock-root data-dzn-clock-scope="admin" data-dzn-clock-focus="4:32"><header class="dzn-clock__head"><div class="dzn-clock__intro"><h2 id="dzn-clock-title">Weekly coverage clock</h2><p>Seven days, one clock. Select a segment for details.</p></div><form method="get" action="#admin.php" class="dzn-clock__controls"><input type="hidden" name="page" value="dzn-academy-coverage"><input type="hidden" name="coverage_week_start" value="2026-11-10"><div class="dzn-clock__instruments" role="group" aria-label="Instrument"><button type="submit" name="coverage_instrument" value="1" class="dzn-clock__instrument is-selected" aria-pressed="true" title="Piano"><img src="/theme/assets/images/C-Piano.webp" alt="" width="34" height="34"><span class="dzn-clock__instrument-name">Piano</span></button><button type="submit" name="coverage_instrument" value="2" class="dzn-clock__instrument" aria-pressed="false" title="Tar"><img src="/theme/assets/images/C-Tar.webp" alt="" width="34" height="34"><span class="dzn-clock__instrument-name">Tar</span></button><button type="submit" name="coverage_instrument" value="3" class="dzn-clock__instrument" aria-pressed="false" title="Tombak"><img src="/theme/assets/images/C-Tombak.webp" alt="" width="34" height="34"><span class="dzn-clock__instrument-name">Tombak</span></button><button type="submit" name="coverage_instrument" value="4" class="dzn-clock__instrument" aria-pressed="false" title="Setar"><img src="/theme/assets/images/C-Setar.webp" alt="" width="34" height="34"><span class="dzn-clock__instrument-name">Setar</span></button><button type="submit" name="coverage_instrument" value="5" class="dzn-clock__instrument" aria-pressed="false" title="Santur"><img src="/theme/assets/images/C-santour.webp" alt="" width="34" height="34"><span class="dzn-clock__instrument-name">Santur</span></button><button type="submit" name="coverage_instrument" value="6" class="dzn-clock__instrument" aria-pressed="false" title="Kamancheh"><img src="/theme/assets/images/C-Kamancheh.webp" alt="" width="34" height="34"><span class="dzn-clock__instrument-name">Kamancheh</span></button><button type="submit" name="coverage_instrument" value="7" class="dzn-clock__instrument" aria-pressed="false" title="Daf"><img src="/theme/assets/images/C-Daf.webp" alt="" width="34" height="34"><span class="dzn-clock__instrument-name">Daf</span></button><button type="submit" name="coverage_instrument" value="8" class="dzn-clock__instrument" aria-pressed="false" title="Violin"><img src="/theme/assets/images/C-Violin.webp" alt="" width="34" height="34"><span class="dzn-clock__instrument-name">Violin</span></button></div><label>Week of (Gregorian date)<input type="date" name="coverage_date" value="2026-11-10"></label><label>Calendar<select name="coverage_calendar"><option value="gregorian" selected="selected">Gregorian</option><option value="persian">Persian</option></select></label><button class="button button-primary" type="submit">Show</button></form></header><div class="dzn-clock__weekline"><div class="dzn-clock__week-nav"><a href="#admin.php?page=dzn-academy-coverage&amp;coverage_instrument=1&amp;coverage_calendar=gregorian&amp;coverage_date=2026-11-03&amp;coverage_week_start=2026-11-03" aria-label="Previous week">‹</a><strong><bdi dir="ltr">10 Nov – 16 Nov 2026</bdi></strong><a href="#admin.php?page=dzn-academy-coverage&amp;coverage_instrument=1&amp;coverage_calendar=gregorian&amp;coverage_date=2026-11-17&amp;coverage_week_start=2026-11-17" aria-label="Next week">›</a></div><span class="dzn-clock__period-label">Remaining this week · elapsed slots excluded · as of 10 Nov 2026 09:00</span><span class="dzn-clock__tz">Asia/Tehran</span></div><section class="dzn-clock__quality" aria-labelledby="dzn-clock-quality-title"><a class="dzn-clock__quality-summary" href="#admin.php?page=dzn-academy-coverage&amp;coverage_instrument=1&amp;coverage_calendar=gregorian&amp;coverage_date=2026-11-12&amp;coverage_focus=4%3A32&amp;coverage_week_start=2026-11-10" data-dzn-unknown data-dzn-unknown-instrument="1" data-dzn-unknown-weekday="4" data-dzn-unknown-date="2026-11-12" data-dzn-unknown-visual-start="32" data-dzn-unknown-visual-indexes="32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47"><span class="dzn-clock__quality-head"><span class="dzn-clock__quality-title" id="dzn-clock-quality-title">Data quality</span><strong>1 unknown interval · 8h</strong><span class="dzn-clock__quality-scope">Piano · 12 Nov 2026</span><span class="dzn-clock__quality-note">Not counted as available or as a confirmed gap.</span></span></a><ul class="dzn-clock__quality-list"><li><a class="dzn-clock__quality-row" href="#admin.php?page=dzn-academy-coverage&amp;coverage_instrument=1&amp;coverage_calendar=gregorian&amp;coverage_date=2026-11-12&amp;coverage_focus=4%3A32&amp;coverage_week_start=2026-11-10" data-dzn-unknown data-dzn-unknown-instrument="1" data-dzn-unknown-weekday="4" data-dzn-unknown-date="2026-11-12" data-dzn-unknown-visual-start="32" data-dzn-unknown-visual-indexes="32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47"><span class="dzn-clock__quality-when">Piano · Thursday · 12 Nov 2026</span><span class="dzn-clock__quality-time"><bdi dir="ltr">16:00–24:00</bdi> · 8h</span><span class="dzn-clock__quality-reason">Unknown coverage data</span></a></li></ul></section><div class="dzn-clock__layout"><div class="dzn-clock__ring-key" role="list" aria-label="Weekday rings"><button type="button" class="dzn-clock__ring-row dzn-clock__ring-row--2 is-today" role="listitem" data-dzn-clock-ring="0" data-dzn-clock-weekday="2" aria-pressed="false" title="Tuesday"><i class="dzn-clock__ring-dot" aria-hidden="true"></i><span class="dzn-clock__ring-name">Tuesday</span><span class="dzn-clock__ring-date"><bdi dir="ltr">10 Nov 2026</bdi></span><span class="dzn-clock__ring-pct" title="Remaining today">93%</span><span class="dzn-clock__today">Today</span></button><button type="button" class="dzn-clock__ring-row dzn-clock__ring-row--3" role="listitem" data-dzn-clock-ring="1" data-dzn-clock-weekday="3" aria-pressed="false" title="Wednesday"><i class="dzn-clock__ring-dot" aria-hidden="true"></i><span class="dzn-clock__ring-name">Wednesday</span><span class="dzn-clock__ring-date"><bdi dir="ltr">11 Nov 2026</bdi></span><span class="dzn-clock__ring-pct" title="Full day">99%</span></button><button type="button" class="dzn-clock__ring-row dzn-clock__ring-row--4" role="listitem" data-dzn-clock-ring="2" data-dzn-clock-weekday="4" aria-pressed="false" title="Thursday"><i class="dzn-clock__ring-dot" aria-hidden="true"></i><span class="dzn-clock__ring-name">Thursday</span><span class="dzn-clock__ring-date"><bdi dir="ltr">12 Nov 2026</bdi></span><span class="dzn-clock__ring-pct" title="Full day">67%</span></button><button type="button" class="dzn-clock__ring-row dzn-clock__ring-row--5" role="listitem" data-dzn-clock-ring="3" data-dzn-clock-weekday="5" aria-pressed="false" title="Friday"><i class="dzn-clock__ring-dot" aria-hidden="true"></i><span class="dzn-clock__ring-name">Friday</span><span class="dzn-clock__ring-date"><bdi dir="ltr">13 Nov 2026</bdi></span><span class="dzn-clock__ring-pct" title="Full day">67%</span></button><button type="button" class="dzn-clock__ring-row dzn-clock__ring-row--6" role="listitem" data-dzn-clock-ring="4" data-dzn-clock-weekday="6" aria-pressed="false" title="Saturday"><i class="dzn-clock__ring-dot" aria-hidden="true"></i><span class="dzn-clock__ring-name">Saturday</span><span class="dzn-clock__ring-date"><bdi dir="ltr">14 Nov 2026</bdi></span><span class="dzn-clock__ring-pct" title="Full day">100%</span></button><button type="button" class="dzn-clock__ring-row dzn-clock__ring-row--7" role="listitem" data-dzn-clock-ring="5" data-dzn-clock-weekday="7" aria-pressed="false" title="Sunday"><i class="dzn-clock__ring-dot" aria-hidden="true"></i><span class="dzn-clock__ring-name">Sunday</span><span class="dzn-clock__ring-date"><bdi dir="ltr">15 Nov 2026</bdi></span><span class="dzn-clock__ring-pct" title="Full day">100%</span></button><button type="button" class="dzn-clock__ring-row dzn-clock__ring-row--1" role="listitem" data-dzn-clock-ring="6" data-dzn-clock-weekday="1" aria-pressed="false" title="Monday"><i class="dzn-clock__ring-dot" aria-hidden="true"></i><span class="dzn-clock__ring-name">Monday</span><span class="dzn-clock__ring-date"><bdi dir="ltr">16 Nov 2026</bdi></span><span class="dzn-clock__ring-pct" title="Full day">100%</span></button></div><div class="dzn-clock__main"><div class="dzn-clock__metrics" role="list"><div class="dzn-clock__metric dzn-clock__metric--coverage" role="listitem"><span>Coverage</span><strong>89%</strong></div><div class="dzn-clock__metric dzn-clock__metric--golden" role="listitem"><span>Golden coverage</span><strong>68%</strong></div><div class="dzn-clock__metric dzn-clock__metric--golden-gap" role="listitem"><span>Golden gaps</span><strong>6h 15m</strong></div><div class="dzn-clock__metric dzn-clock__metric--uncovered" role="listitem"><span>Uncovered</span><strong>9h 15m</strong></div><div class="dzn-clock__metric dzn-clock__metric--teachers" role="listitem" title="Instrument-wide count; this is not the number free at the selected time." aria-label="Eligible teachers. Instrument-wide count; this is not the number free at the selected time."><span>Eligible teachers</span><strong>4</strong></div></div><div class="dzn-clock__stage"><div class="dzn-clock__canvas" data-dzn-clock-canvas role="group" aria-label="Piano"><noscript><p>JavaScript is required to draw the interactive clock.</p></noscript></div><aside class="dzn-clock__details" data-dzn-clock-details aria-live="polite" aria-label="Segment details"><div data-dzn-clock-details-body><p class="dzn-clock__details-empty">Select a segment for details.</p></div></aside></div></div></div><div class="dzn-clock__legend" role="group" aria-label="Clock legend"><span><i class="dzn-clock__swatch dzn-clock__swatch--covered"></i>Capacity</span><span><i class="dzn-clock__swatch dzn-clock__swatch--limited"></i>One teacher</span><span><i class="dzn-clock__swatch dzn-clock__swatch--partial"></i>Partial</span><span><i class="dzn-clock__swatch dzn-clock__swatch--uncovered"></i>No capacity</span><span><i class="dzn-clock__swatch dzn-clock__swatch--golden"></i>Golden Hours</span></div><script type="application/json" data-dzn-clock-data>{"scope":"admin","timezone":"Asia/Tehran","timezone_label":"Asia/Tehran","calendar":"gregorian","week_start":"2026-11-10","week_end":"2026-11-16","week_order":[2,3,4,5,6,7,1],"period_key":"current","period_label":"Remaining this week · elapsed slots excluded","gap_period_label":"Priority gaps this week","metric_source":"actionable","as_of_local":"10 Nov 2026 09:00","focus":"4:32","priority_gaps":[{"rank":0,"date":"2026-11-13","weekday":5,"date_label":"13 Nov 2026","date_label_fa":"آبان 1405","start_minute":960,"end_minute":1260,"duration_minutes":300,"state":"uncovered","reason":"no_availability","golden":true,"bonus_applies":true,"partial":false,"regions":[{"key":"GB","label":"United Kingdom"}],"visual_indexes":[32,33,34,35,36,37,38,39,40,41],"teacher_count":0,"declared_teacher_count":0,"booked_teacher_count":0,"held_teacher_count":0,"start_time":"16:00","end_time":"21:00","time_label":"16:00–21:00","visual_start_index":32,"instrument_id":1,"instrument_name":"Piano"},{"rank":0,"date":"2026-11-10","weekday":2,"date_label":"10 Nov 2026","date_label_fa":"آبان 1405","start_minute":960,"end_minute":1020,"duration_minutes":60,"state":"uncovered","reason":"fully_booked","golden":true,"bonus_applies":true,"partial":false,"regions":[{"key":"GB","label":"United Kingdom"}],"visual_indexes":[32,33],"teacher_count":0,"declared_teacher_count":2,"booked_teacher_count":2,"held_teacher_count":0,"start_time":"16:00","end_time":"17:00","time_label":"16:00–17:00","visual_start_index":32,"instrument_id":1,"instrument_name":"Piano"},{"rank":0,"date":"2026-11-11","weekday":3,"date_label":"11 Nov 2026","date_label_fa":"آبان 1405","start_minute":975,"end_minute":990,"duration_minutes":15,"state":"uncovered","reason":"partial_15_minute","golden":true,"bonus_applies":true,"partial":true,"regions":[{"key":"EU","label":"Europe"}],"visual_indexes":[32],"teacher_count":0,"declared_teacher_count":0,"booked_teacher_count":0,"held_teacher_count":0,"start_time":"16:15","end_time":"16:30","time_label":"16:15–16:30","visual_start_index":32,"instrument_id":1,"instrument_name":"Piano"},{"rank":1,"date":"2026-11-13","weekday":5,"date_label":"13 Nov 2026","date_label_fa":"آبان 1405","start_minute":1260,"end_minute":1440,"duration_minutes":180,"state":"uncovered","reason":"no_availability","golden":false,"bonus_applies":false,"partial":false,"regions":[],"visual_indexes":[42,43,44,45,46,47],"teacher_count":0,"declared_teacher_count":0,"booked_teacher_count":0,"held_teacher_count":0,"start_time":"21:00","end_time":"24:00","time_label":"21:00–24:00","visual_start_index":42,"instrument_id":1,"instrument_name":"Piano"},{"rank":2,"date":"2026-11-11","weekday":3,"date_label":"11 Nov 2026","date_label_fa":"آبان 1405","start_minute":1020,"end_minute":1260,"duration_minutes":240,"state":"limited","reason":"one_teacher","golden":true,"bonus_applies":true,"partial":false,"regions":[{"key":"EU","label":"Europe"}],"visual_indexes":[34,35,36,37,38,39,40,41],"teacher_count":1,"declared_teacher_count":1,"booked_teacher_count":0,"held_teacher_count":0,"start_time":"17:00","end_time":"21:00","time_label":"17:00–21:00","visual_start_index":34,"instrument_id":1,"instrument_name":"Piano"},{"rank":2,"date":"2026-11-11","weekday":3,"date_label":"11 Nov 2026","date_label_fa":"آبان 1405","start_minute":1260,"end_minute":1440,"duration_minutes":180,"state":"limited","reason":"one_teacher","golden":false,"bonus_applies":false,"partial":false,"regions":[],"visual_indexes":[42,43,44,45,46,47],"teacher_count":1,"declared_teacher_count":1,"booked_teacher_count":0,"held_teacher_count":0,"start_time":"21:00","end_time":"24:00","time_label":"21:00–24:00","visual_start_index":42,"instrument_id":1,"instrument_name":"Piano"}],"unknown_data":{"interval_count":1,"segment_count":32,"duration_minutes":480,"ranges":[{"date":"2026-11-12","weekday":4,"date_label":"12 Nov 2026","date_label_fa":"آبان 1405","start_minute":960,"end_minute":1440,"duration_minutes":480,"reason":"unknown_data","golden":true,"visual_indexes":[32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47],"start_time":"16:00","end_time":"24:00","time_label":"16:00–24:00","visual_start_index":32,"instrument_id":1,"instrument_name":"Piano"}],"instruments":["Piano"],"dates":["12 Nov 2026"]},"selected_instrument":1,"instrument_name":"Piano","lesson_minutes":15,"buffer_minutes":0,"eligible_teacher_count":4,"golden_bonus":{"enabled":true,"percent":20,"timezone":"Asia/Tehran","label":"Golden Hours"},"golden_ring":[{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":true,"intensity":1,"regions":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3},{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}]},{"golden":true,"intensity":1,"regions":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3},{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}]},{"golden":true,"intensity":1,"regions":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3},{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}]},{"golden":true,"intensity":1,"regions":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3},{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}]},{"golden":true,"intensity":1,"regions":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3},{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}]},{"golden":true,"intensity":1,"regions":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3},{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}]},{"golden":true,"intensity":1,"regions":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3},{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}]},{"golden":true,"intensity":1,"regions":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3},{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}]},{"golden":true,"intensity":1,"regions":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3},{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}]},{"golden":true,"intensity":1,"regions":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3},{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5},{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6},{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]},{"golden":false,"intensity":0,"regions":[]}],"week":[{"date":"2026-11-10","weekday":2,"date_label":"10 Nov 2026","date_label_fa":"آبان 1405","is_today":true,"metric":{"source":"actionable","percent":93,"label":"Remaining today"},"summary":{"measured_segments":60,"covered_segments":56,"limited_segments":0,"uncovered_segments":4,"unknown_segments":0,"coverage_percent":93,"golden_segments":20,"golden_covered_segments":16,"golden_uncovered_segments":4,"golden_coverage_percent":80,"single_teacher_minutes":0,"uncovered_minutes":60,"golden_uncovered_minutes":60,"active_teacher_count":2,"unknown_teacher_count":0,"all_measured_segments":96,"all_covered_segments":92,"all_limited_segments":0,"all_uncovered_segments":4,"all_unknown_segments":0,"all_coverage_percent":96,"all_golden_segments":20,"all_golden_covered_segments":16,"all_golden_uncovered_segments":4,"all_golden_coverage_percent":80,"all_single_teacher_minutes":0,"all_uncovered_minutes":60,"all_golden_uncovered_minutes":60},"segments":[[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,1,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[0,0,0,1,0,0,0,0,0,0,1,1,1,2,2,2,2,2,0,2,2,0,0,0],[0,0,0,1,0,0,0,0,0,0,1,1,1,2,2,2,2,2,0,2,2,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0]],"golden_details":{"32":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2}],"33":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2}],"34":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2}],"35":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2}],"36":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2}],"37":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2}],"38":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2}],"39":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2}],"40":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2}],"41":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-10","weekday":2}]}},{"date":"2026-11-11","weekday":3,"date_label":"11 Nov 2026","date_label_fa":"آبان 1405","is_today":false,"metric":{"source":"all","percent":99,"label":"Full day"},"summary":{"measured_segments":96,"covered_segments":95,"limited_segments":28,"uncovered_segments":1,"unknown_segments":0,"coverage_percent":99,"golden_segments":20,"golden_covered_segments":19,"golden_uncovered_segments":1,"golden_coverage_percent":95,"single_teacher_minutes":420,"uncovered_minutes":15,"golden_uncovered_minutes":15,"active_teacher_count":2,"unknown_teacher_count":0,"all_measured_segments":96,"all_covered_segments":95,"all_limited_segments":28,"all_uncovered_segments":1,"all_unknown_segments":0,"all_coverage_percent":99,"all_golden_segments":20,"all_golden_covered_segments":19,"all_golden_uncovered_segments":1,"all_golden_coverage_percent":95,"all_single_teacher_minutes":420,"all_uncovered_minutes":15,"all_golden_uncovered_minutes":15},"segments":[[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[4,0,2,1,0,0,2,0,2,0,1,1,1,7,0,1,2,0,0,0,0,0,0,1],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[1,1,1,1,0,0,1,1,1,1,1,1,1,6,6,6,1,0,0,0,0,0,0,0],[1,1,1,1,0,0,1,1,1,1,1,1,1,6,6,6,1,0,0,0,0,0,0,0],[1,1,1,1,0,0,1,1,1,1,1,1,1,6,6,6,1,0,0,0,0,0,0,0],[1,1,1,1,0,0,1,1,1,1,1,1,1,6,6,6,1,0,0,0,0,0,0,0],[1,1,1,1,0,0,1,1,1,1,1,1,1,6,6,6,1,0,0,0,0,0,0,0],[1,1,1,1,0,0,1,1,1,1,1,1,1,6,6,6,1,0,0,0,0,0,0,0],[1,1,1,1,0,0,1,1,1,1,1,1,1,6,6,6,1,0,0,0,0,0,0,0],[1,1,1,1,0,0,1,1,1,1,1,1,1,6,6,6,1,0,0,0,0,0,0,0],[1,1,1,0,0,0,1,1,1,1,0,0,0,6,6,6,1,0,0,0,0,0,0,0],[1,1,1,0,0,0,1,1,1,1,0,0,0,6,6,6,1,0,0,0,0,0,0,0],[1,1,1,0,0,0,1,1,1,1,0,0,0,6,6,6,1,0,0,0,0,0,0,0],[1,1,1,0,0,0,1,1,1,1,0,0,0,6,6,6,1,0,0,0,0,0,0,0],[1,1,1,0,0,0,1,1,1,1,0,0,0,6,6,6,1,0,0,0,0,0,0,0],[1,1,1,0,0,0,1,1,1,1,0,0,0,6,6,6,1,0,0,0,0,0,0,0]],"golden_details":{"32":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3}],"33":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3}],"34":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3}],"35":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3}],"36":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3}],"37":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3}],"38":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3}],"39":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3}],"40":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3}],"41":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-11","weekday":3}]}},{"date":"2026-11-12","weekday":4,"date_label":"12 Nov 2026","date_label_fa":"آبان 1405","is_today":false,"metric":{"source":"all","percent":67,"label":"Full day"},"summary":{"measured_segments":96,"covered_segments":64,"limited_segments":0,"uncovered_segments":0,"unknown_segments":32,"coverage_percent":67,"golden_segments":20,"golden_covered_segments":0,"golden_uncovered_segments":0,"golden_coverage_percent":0,"single_teacher_minutes":0,"uncovered_minutes":0,"golden_uncovered_minutes":0,"active_teacher_count":2,"unknown_teacher_count":1,"all_measured_segments":96,"all_covered_segments":64,"all_limited_segments":0,"all_uncovered_segments":0,"all_unknown_segments":32,"all_coverage_percent":67,"all_golden_segments":20,"all_golden_covered_segments":0,"all_golden_uncovered_segments":0,"all_golden_coverage_percent":0,"all_single_teacher_minutes":0,"all_uncovered_minutes":0,"all_golden_uncovered_minutes":0},"segments":[[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[3,0,0,1,0,0,3,3,0,0,1,1,1,5,5,5,0,0,0,0,0,0,0,0],[3,0,0,1,0,0,3,3,0,0,1,1,1,5,5,5,0,0,0,0,0,0,0,0],[3,0,0,1,0,0,3,3,0,0,1,1,1,5,5,5,0,0,0,0,0,0,0,0],[3,0,0,1,0,0,3,3,0,0,1,1,1,5,5,5,0,0,0,0,0,0,0,0],[3,0,0,1,0,0,3,3,0,0,1,1,1,5,5,5,0,0,0,0,0,0,0,0],[3,0,0,1,0,0,3,3,0,0,1,1,1,5,5,5,0,0,0,0,0,0,0,0],[3,0,0,1,0,0,3,3,0,0,1,1,1,5,5,5,0,0,0,0,0,0,0,0],[3,0,0,1,0,0,3,3,0,0,1,1,1,5,5,5,0,0,0,0,0,0,0,0],[3,0,0,1,0,0,3,3,0,0,1,1,1,5,5,5,0,0,0,0,0,0,0,0],[3,0,0,1,0,0,3,3,0,0,1,1,1,5,5,5,0,0,0,0,0,0,0,0],[3,0,0,0,0,0,3,3,0,0,0,0,0,5,5,5,0,0,0,0,0,0,0,0],[3,0,0,0,0,0,3,3,0,0,0,0,0,5,5,5,0,0,0,0,0,0,0,0],[3,0,0,0,0,0,3,3,0,0,0,0,0,5,5,5,0,0,0,0,0,0,0,0],[3,0,0,0,0,0,3,3,0,0,0,0,0,5,5,5,0,0,0,0,0,0,0,0],[3,0,0,0,0,0,3,3,0,0,0,0,0,5,5,5,0,0,0,0,0,0,0,0],[3,0,0,0,0,0,3,3,0,0,0,0,0,5,5,5,0,0,0,0,0,0,0,0]],"golden_details":{"32":[{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4}],"33":[{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4}],"34":[{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4}],"35":[{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4}],"36":[{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4}],"37":[{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4}],"38":[{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4}],"39":[{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4}],"40":[{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4}],"41":[{"region":"AU","label":"Australia","timezone":"Australia/Brisbane","local_start":"16:00","local_end":"21:00","date":"2026-11-12","weekday":4}]}},{"date":"2026-11-13","weekday":5,"date_label":"13 Nov 2026","date_label_fa":"آبان 1405","is_today":false,"metric":{"source":"all","percent":67,"label":"Full day"},"summary":{"measured_segments":96,"covered_segments":64,"limited_segments":0,"uncovered_segments":32,"unknown_segments":0,"coverage_percent":67,"golden_segments":20,"golden_covered_segments":0,"golden_uncovered_segments":20,"golden_coverage_percent":0,"single_teacher_minutes":0,"uncovered_minutes":480,"golden_uncovered_minutes":300,"active_teacher_count":2,"unknown_teacher_count":0,"all_measured_segments":96,"all_covered_segments":64,"all_limited_segments":0,"all_uncovered_segments":32,"all_unknown_segments":0,"all_coverage_percent":67,"all_golden_segments":20,"all_golden_covered_segments":0,"all_golden_uncovered_segments":20,"all_golden_coverage_percent":0,"all_single_teacher_minutes":0,"all_uncovered_minutes":480,"all_golden_uncovered_minutes":300},"segments":[[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[0,0,0,1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0]],"golden_details":{"32":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5}],"33":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5}],"34":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5}],"35":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5}],"36":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5}],"37":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5}],"38":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5}],"39":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5}],"40":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5}],"41":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-13","weekday":5}]}},{"date":"2026-11-14","weekday":6,"date_label":"14 Nov 2026","date_label_fa":"آبان 1405","is_today":false,"metric":{"source":"all","percent":100,"label":"Full day"},"summary":{"measured_segments":96,"covered_segments":96,"limited_segments":0,"uncovered_segments":0,"unknown_segments":0,"coverage_percent":100,"golden_segments":20,"golden_covered_segments":20,"golden_uncovered_segments":0,"golden_coverage_percent":100,"single_teacher_minutes":0,"uncovered_minutes":0,"golden_uncovered_minutes":0,"active_teacher_count":2,"unknown_teacher_count":0,"all_measured_segments":96,"all_covered_segments":96,"all_limited_segments":0,"all_uncovered_segments":0,"all_unknown_segments":0,"all_coverage_percent":100,"all_golden_segments":20,"all_golden_covered_segments":20,"all_golden_uncovered_segments":0,"all_golden_coverage_percent":100,"all_single_teacher_minutes":0,"all_uncovered_minutes":0,"all_golden_uncovered_minutes":0},"segments":[[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0]],"golden_details":{"32":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6}],"33":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6}],"34":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6}],"35":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6}],"36":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6}],"37":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6}],"38":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6}],"39":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6}],"40":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6}],"41":[{"region":"EU","label":"Europe","timezone":"Europe/Berlin","local_start":"16:00","local_end":"21:00","date":"2026-11-14","weekday":6}]}},{"date":"2026-11-15","weekday":7,"date_label":"15 Nov 2026","date_label_fa":"آبان 1405","is_today":false,"metric":{"source":"all","percent":100,"label":"Full day"},"summary":{"measured_segments":96,"covered_segments":96,"limited_segments":0,"uncovered_segments":0,"unknown_segments":0,"coverage_percent":100,"golden_segments":20,"golden_covered_segments":20,"golden_uncovered_segments":0,"golden_coverage_percent":100,"single_teacher_minutes":0,"uncovered_minutes":0,"golden_uncovered_minutes":0,"active_teacher_count":2,"unknown_teacher_count":0,"all_measured_segments":96,"all_covered_segments":96,"all_limited_segments":0,"all_uncovered_segments":0,"all_unknown_segments":0,"all_coverage_percent":100,"all_golden_segments":20,"all_golden_covered_segments":20,"all_golden_uncovered_segments":0,"all_golden_coverage_percent":100,"all_single_teacher_minutes":0,"all_uncovered_minutes":0,"all_golden_uncovered_minutes":0},"segments":[[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0]],"golden_details":{"32":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}],"33":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}],"34":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}],"35":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}],"36":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}],"37":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}],"38":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}],"39":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}],"40":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}],"41":[{"region":"GB","label":"United Kingdom","timezone":"Europe/London","local_start":"16:00","local_end":"21:00","date":"2026-11-15","weekday":7}]}},{"date":"2026-11-16","weekday":1,"date_label":"16 Nov 2026","date_label_fa":"آبان 1405","is_today":false,"metric":{"source":"all","percent":100,"label":"Full day"},"summary":{"measured_segments":96,"covered_segments":96,"limited_segments":0,"uncovered_segments":0,"unknown_segments":0,"coverage_percent":100,"golden_segments":20,"golden_covered_segments":20,"golden_uncovered_segments":0,"golden_coverage_percent":100,"single_teacher_minutes":0,"uncovered_minutes":0,"golden_uncovered_minutes":0,"active_teacher_count":2,"unknown_teacher_count":0,"all_measured_segments":96,"all_covered_segments":96,"all_limited_segments":0,"all_uncovered_segments":0,"all_unknown_segments":0,"all_coverage_percent":100,"all_golden_segments":20,"all_golden_covered_segments":20,"all_golden_uncovered_segments":0,"all_golden_coverage_percent":100,"all_single_teacher_minutes":0,"all_uncovered_minutes":0,"all_golden_uncovered_minutes":0},"segments":[[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,1,0,0,2,2,2,2,1,1,1,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0],[2,2,2,0,0,0,2,2,2,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0]],"golden_details":{"32":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1}],"33":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1}],"34":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1}],"35":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1}],"36":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1}],"37":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1}],"38":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1}],"39":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1}],"40":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1}],"41":[{"region":"NA_EAST","label":"North America East","timezone":"America/Toronto","local_start":"16:00","local_end":"21:00","date":"2026-11-16","weekday":1}]}}],"labels":{"title":"Weekly coverage clock","description":"Seven days, one clock. Select a segment for details.","instrument":"Instrument","weekOf":"Week of (Gregorian date)","calendar":"Calendar","gregorian":"Gregorian","persian":"Persian","apply":"Show","prevWeek":"Previous week","nextWeek":"Next week","rings":"Weekday rings","weekdays":{"6":"Saturday","7":"Sunday","1":"Monday","2":"Tuesday","3":"Wednesday","4":"Thursday","5":"Friday"},"weekdaysShort":{"6":"Sat","7":"Sun","1":"Mon","2":"Tue","3":"Wed","4":"Thu","5":"Fri"},"today":"Today","coverage":"Coverage","goldenCoverage":"Golden coverage","goldenGaps":"Golden gaps","uncovered":"Uncovered","eligibleTeachers":"Eligible teachers","eligibleTeachersHelp":"Instrument-wide count; this is not the number free at the selected time.","remainingAtTime":"Remaining at this interval","instrumentWide":"instrument-wide","dataQuality":"Data quality","unknownInterval":"unknown interval","unknownIntervals":"unknown intervals","unknownHelp":"Not counted as available or as a confirmed gap.","reasonNoAvailability":"No declared availability","reasonFullyBooked":"Fully booked","reasonFullyHeld":"Held by another booking","reasonOneTeacher":"One teacher remaining","reasonPartial":"Partial 15-minute coverage","reasonUnknown":"Unknown coverage data","reasonNonExistent":"Nonexistent local time","reasonGap":"Coverage gap","bookedCount":"booked","heldCount":"held","dayGoldenDemand":"Golden Hours demand on this day","noDayGoldenDemand":"Not a Golden Hour on this day","covered":"Capacity","limited":"One teacher","partial":"Partial","uncoveredState":"No capacity","golden":"Golden Hours","legend":"Clock legend","details":"Segment details","select":"Select a segment for details.","useTime":"Use this time","teacherNote":"","noscript":"JavaScript is required to draw the interactive clock.","capacity":"Capacity","teachers":"eligible teachers","teacher":"eligible teacher","goldenTitle":"Golden Hours","demandWindow":"Demand window","regions":"Regions","localTime":"Local time","weekday":"Day","date":"Date","bonus":"Bonus","bonusOff":"Bonus is not active","bonusConditional":"only if the booking falls within the global bonus window","noDemandWindow":"No regional demand window is recorded for this segment.","partialFirst":"First half","partialSecond":"Second half","noCapacity":"No eligible teacher is available for the full class","booked":"Fully booked","past":"Already passed","unknown":"Unknown","selected":"Selected","aggregateGolden":"This ring aggregates week demand; the exact day eligibility is shown in each weekday ring.","assumption":"Assumes the complete class plus buffer","unavailable":"Coverage is not available.","empty":"No coverage is available to display."}}</script></section></div></div><script>/**
+ * Seven-day, 24-hour instrument coverage clock.
+ *
+ * One Golden Hours ring, then seven weekday rings in rolling order from today.
+ * The server sends 48 visual 30-minute segments per weekday; each segment keeps
+ * both 15-minute halves so partial availability stays visible. Booking precision
+ * remains in the server-side analyzer.
+ */
+(function () {
+	'use strict';
+
+	var NS = 'http://www.w3.org/2000/svg';
+	var SIZE = 720;
+	var CENTER = SIZE / 2;
+	var SEGMENTS = 48;
+	var DEGREES = 360 / SEGMENTS;
+	var ANGLE_OFFSET = -90; // 06:00 at the top
+	var RING_LABEL_ANGLE = 45;
+	var GOLD_OUTER = 342;
+	var GOLD_INNER = 334;
+	var RING_OUTER = 322;
+	var RING_THICKNESS = 29;
+	var RING_GAP = 4;
+	var HUB_RADIUS = 86;
+	var STATE = { UNCOVERED: 0, LIMITED: 1, COVERED: 2, UNKNOWN: 3, PARTIAL: 4 };
+	var WEEK_ORDER = [6, 7, 1, 2, 3, 4, 5];
+
+	function el(name, attributes, children) {
+		var node = document.createElementNS(NS, name);
+		if (attributes) Object.keys(attributes).forEach(function (key) {
+			if (attributes[key] !== null && attributes[key] !== undefined) node.setAttribute(key, String(attributes[key]));
+		});
+		(children || []).forEach(function (child) {
+			node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
+		});
+		return node;
+	}
+
+	function polar(radius, angle) {
+		var radians = (angle - 90) * Math.PI / 180;
+		return [CENTER + radius * Math.cos(radians), CENTER + radius * Math.sin(radians)];
+	}
+
+	function arcPath(outer, inner, startAngle, endAngle) {
+		var outerStart = polar(outer, startAngle);
+		var outerEnd = polar(outer, endAngle);
+		var innerEnd = polar(inner, endAngle);
+		var innerStart = polar(inner, startAngle);
+		var large = endAngle - startAngle > 180 ? 1 : 0;
+		return 'M' + outerStart[0].toFixed(2) + ' ' + outerStart[1].toFixed(2) +
+			'A' + outer + ' ' + outer + ' 0 ' + large + ' 1 ' + outerEnd[0].toFixed(2) + ' ' + outerEnd[1].toFixed(2) +
+			'L' + innerEnd[0].toFixed(2) + ' ' + innerEnd[1].toFixed(2) +
+			'A' + inner + ' ' + inner + ' 0 ' + large + ' 0 ' + innerStart[0].toFixed(2) + ' ' + innerStart[1].toFixed(2) + 'Z';
+	}
+
+	function minuteLabel(minute) {
+		if (minute >= 1440) return '24:00';
+		return String(Math.floor(minute / 60)).padStart(2, '0') + ':' + String(minute % 60).padStart(2, '0');
+	}
+
+	function render(root) {
+		var dataNode = root.querySelector('[data-dzn-clock-data]');
+		if (!dataNode) return;
+		var data;
+		try { data = JSON.parse(dataNode.textContent || '{}'); } catch (error) { return; }
+		if (!data || !Array.isArray(data.week) || !data.week.length) return;
+		var labels = data.labels || {};
+		var isFa = data.scope === 'teacher';
+		var isAdmin = data.scope === 'admin';
+		var angleOffset = isAdmin ? ANGLE_OFFSET : 0;
+		var faDigits = function (value) { return String(value).replace(/[0-9]/g, function (digit) { return '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]; }); };
+		var clockLabel = function (minute) { var value = minuteLabel(minute); return isFa ? faDigits(value) : value; };
+		var timeLabel = function (value) { return isFa ? faDigits(value) : String(value); };
+		var numberLabel = function (value) { return isFa ? faDigits(value) : String(value); };
+		var canvas = root.querySelector('[data-dzn-clock-canvas]');
+		var details = root.querySelector('[data-dzn-clock-details]');
+		var detailsBody = root.querySelector('[data-dzn-clock-details-body]');
+		var useButton = root.querySelector('[data-dzn-clock-use]');
+		if (!canvas) return;
+
+		var state = { ring: null, segment: null, golden: false, proposed: null };
+		var week = data.week.slice();
+		var goldenRing = Array.isArray(data.golden_ring) ? data.golden_ring : [];
+		var goldenBonus = data.golden_bonus || {};
+		var ringGroups = [];
+
+		function dayFor(index) { return week[index] || null; }
+		function weekdayLabel(day) { return (labels.weekdays || {})[String(day.weekday)] || ''; }
+		function shortWeekdayLabel(day) { return (labels.weekdaysShort || {})[String(day.weekday)] || weekdayLabel(day).slice(0, 3); }
+		function dateLabel(day) {
+			try {
+				var locale = isFa ? (data.calendar === 'persian' ? 'fa-IR-u-ca-persian' : 'fa-IR-u-ca-gregory') : (data.calendar === 'persian' ? 'en-GB-u-ca-persian' : 'en-GB');
+				return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(day.date + 'T12:00:00Z'));
+			} catch (error) { return data.calendar === 'persian' ? (day.date_label_fa || day.date_label) : (day.date_label || day.date_label_fa); }
+		}
+		function stateName(code) {
+			return code === STATE.COVERED ? (labels.covered || 'Capacity')
+				: code === STATE.LIMITED ? (labels.limited || 'One teacher')
+				: code === STATE.PARTIAL ? (labels.partial || 'Partial')
+				: code === STATE.UNKNOWN ? (labels.unknown || 'Unknown')
+				: (labels.uncoveredState || 'No capacity');
+		}
+		function halfStateName(code) {
+			return code === STATE.COVERED ? (labels.covered || 'Capacity')
+				: code === STATE.LIMITED ? (labels.limited || 'One teacher')
+				: code === STATE.UNKNOWN ? (labels.unknown || 'Unknown')
+				: (labels.uncoveredState || 'No capacity');
+		}
+		function capacityText(segment) {
+			var first = Number(segment[8] || 0);
+			var second = Number(segment[9] || 0);
+			var teachers = labels.teachers || 'eligible teachers';
+			var teacher = labels.teacher || 'eligible teacher';
+			if (first === second) return numberLabel(first) + ' ' + (first === 1 ? teacher : teachers);
+			return (labels.partialFirst || 'First half') + ': ' + numberLabel(first) + ' ' + (first === 1 ? teacher : teachers) + ' · ' + (labels.partialSecond || 'Second half') + ': ' + numberLabel(second) + ' ' + (second === 1 ? teacher : teachers);
+		}
+		function reasonName(code) {
+			return code === 1 ? (labels.reasonNoAvailability || 'No declared availability')
+				: code === 2 ? (labels.reasonFullyBooked || 'Fully booked')
+				: code === 3 ? (labels.reasonFullyHeld || 'Held by another booking')
+				: code === 4 ? (labels.reasonNonExistent || 'Nonexistent local time')
+				: code === 5 ? (labels.reasonUnknown || 'Unknown coverage data')
+				: code === 6 ? (labels.reasonOneTeacher || 'One teacher remaining')
+				: code === 7 ? (labels.reasonPartial || 'Partial 15-minute coverage')
+				: (labels.reasonGap || 'Coverage gap');
+		}
+		function causeText(segment) {
+			var code = Number(segment[13] || 0);
+			var text = reasonName(code);
+			if (code === 7) {
+				var firstReason = Number(segment[14] || 0);
+				var secondReason = Number(segment[15] || 0);
+				if (firstReason && secondReason && firstReason !== secondReason) {
+					text += ' · ' + (labels.partialFirst || 'First half') + ': ' + reasonName(firstReason) + ' · ' + (labels.partialSecond || 'Second half') + ': ' + reasonName(secondReason);
+				}
+			}
+			var booked = Number(segment[17] || 0);
+			var held = Number(segment[18] || 0);
+			if (booked > 0) text += ' · ' + numberLabel(booked) + ' ' + (labels.bookedCount || 'booked');
+			if (held > 0) text += ' · ' + numberLabel(held) + ' ' + (labels.heldCount || 'held');
+			return text;
+		}
+		function firstGapSegment(day) {
+			var best = null;
+			var bestRank = 9;
+			(day.segments || []).forEach(function (segment, index) {
+				if (Number(segment[5])) return;
+				var code = Number(segment[0]);
+				var rank = code === STATE.UNCOVERED && Number(segment[3]) ? 0 : (code === STATE.UNCOVERED ? 1 : (code === STATE.LIMITED ? 2 : 9));
+				if (rank < bestRank) { bestRank = rank; best = index; }
+			});
+			return best;
+		}
+		function addDetail(list, term, value) {
+			var dt = document.createElement('dt'); dt.textContent = term;
+			var dd = document.createElement('dd'); dd.textContent = value;
+			list.append(dt, dd);
+		}
+		function clearDetails() {
+			if (!detailsBody) return;
+			detailsBody.replaceChildren();
+			var empty = document.createElement('p');
+			empty.className = 'dzn-clock__details-empty';
+			empty.textContent = labels.select || 'Select a segment for details.';
+			detailsBody.appendChild(empty);
+			if (useButton) useButton.disabled = true;
+		}
+		function setUse(index) {
+			if (!useButton) return;
+			useButton.disabled = index === null;
+			useButton.setAttribute('data-dzn-clock-use-ring', index === null ? '' : String(index));
+			useButton.setAttribute('data-dzn-clock-use-seg', state.segment === null ? '' : String(state.segment));
+		}
+
+		function selectWeekday(ringIndex, segmentIndex, focus, gapRange, unknownRange) {
+			var day = dayFor(ringIndex);
+			if (!day) return;
+			var segment = day.segments[segmentIndex];
+			if (!segment) return;
+			state.ring = ringIndex; state.segment = segmentIndex; state.golden = false;
+			state.gapRange = gapRange && gapRange.length ? gapRange : null;
+			state.unknownRange = unknownRange && unknownRange.length ? unknownRange : null;
+			if (!detailsBody) return;
+			detailsBody.replaceChildren();
+			var head = document.createElement('div'); head.className = 'dzn-clock__detail-head';
+			var time = document.createElement('strong'); time.textContent = clockLabel(segmentIndex * 30) + '–' + clockLabel(segmentIndex * 30 + 30);
+			var badge = document.createElement('span'); badge.className = 'dzn-clock__detail-state is-state-' + Number(segment[0]); badge.textContent = (labels.selected || 'Selected') + ' · ' + stateName(segment[0]);
+			head.append(time, badge); detailsBody.appendChild(head);
+			var meta = document.createElement('p'); meta.className = 'dzn-clock__detail-meta'; meta.textContent = weekdayLabel(day) + ' · ' + dateLabel(day);
+			detailsBody.appendChild(meta);
+			var list = document.createElement('dl'); list.className = 'dzn-clock__detail-list';
+			addDetail(list, labels.remainingAtTime || 'Remaining at this interval', capacityText(segment));
+			addDetail(list, (labels.eligibleTeachers || 'Eligible teachers') + ' (' + (labels.instrumentWide || 'instrument-wide') + ')', numberLabel(Number(data.eligible_teacher_count || 0)) + ' ' + (labels.teachers || 'eligible teachers'));
+			if (Number(segment[0]) !== STATE.COVERED) addDetail(list, labels.reason || 'Cause', causeText(segment));
+			var goldenEntries = (day.golden_details || {})[String(segmentIndex)] || [];
+			var outerDemand = !!(goldenRing[segmentIndex] && goldenRing[segmentIndex].golden);
+			if (segment[3]) {
+				var goldenParts = goldenEntries.slice(0, 5).map(function (entry) {
+					return (entry.label || entry.region) + ' ' + timeLabel(entry.local_start) + '–' + timeLabel(entry.local_end);
+				});
+				addDetail(list, labels.goldenTitle || 'Golden Hours', goldenParts.length ? goldenParts.join(' · ') : (labels.dayGoldenDemand || 'Golden Hours demand on this day'));
+			} else if (outerDemand) {
+				addDetail(list, labels.goldenTitle || 'Golden Hours', labels.noDayGoldenDemand || 'Not a Golden Hour on this day');
+			}
+			if (goldenBonus.enabled && Number(segment[12])) addDetail(list, labels.bonus || 'Bonus', numberLabel(goldenBonus.percent) + '% · ' + (labels.bonusConditional || 'only if the booking falls within the global bonus window'));
+			if (segment[5]) addDetail(list, labels.past || 'Past', '');
+			detailsBody.appendChild(list);
+			if (useButton) { useButton.disabled = false; useButton.setAttribute('data-dzn-clock-use-ring', String(ringIndex)); useButton.setAttribute('data-dzn-clock-use-seg', String(segmentIndex)); }
+			syncTabindex(); paintSelection(); paintGapList(); paintQualityList(); updateHub();
+			if (focus) focusSegment(ringIndex, segmentIndex, false);
+		}
+
+		function selectGolden(segmentIndex, focus) {
+			var segment = goldenRing[segmentIndex] || {};
+			state.golden = true; state.ring = null; state.segment = segmentIndex; state.gapRange = null; state.unknownRange = null;
+			if (!detailsBody) return;
+			detailsBody.replaceChildren();
+			var head = document.createElement('div'); head.className = 'dzn-clock__detail-head';
+			var time = document.createElement('strong'); time.textContent = clockLabel(segmentIndex * 30) + '–' + clockLabel(segmentIndex * 30 + 30);
+			var badge = document.createElement('span'); badge.className = 'dzn-clock__detail-state ' + (segment.golden ? 'is-golden' : 'is-state-0'); badge.textContent = segment.golden ? (labels.golden || 'Golden Hours') : (labels.noDemandWindow || 'No regional demand window');
+			head.append(time, badge); detailsBody.appendChild(head);
+			var note = document.createElement('p'); note.className = 'dzn-clock__detail-meta'; note.textContent = labels.aggregateGolden || ''; detailsBody.appendChild(note);
+			var list = document.createElement('dl'); list.className = 'dzn-clock__detail-list';
+			var regions = Array.isArray(segment.regions) ? segment.regions : [];
+			if (!regions.length) addDetail(list, labels.goldenTitle || 'Golden Hours', labels.noDemandWindow || 'No regional demand window');
+			var payApplies = regions.some(function (entry) {
+				var day = week.find(function (candidate) { return Number(candidate.weekday) === Number(entry.weekday); });
+				return !!(day && day.segments[segmentIndex] && Number(day.segments[segmentIndex][12]));
+			});
+			regions.slice(0, 12).forEach(function (entry) {
+				var day = week.find(function (candidate) { return Number(candidate.weekday) === Number(entry.weekday); });
+				var dayName = day ? weekdayLabel(day) + ' ' + dateLabel(day) : '';
+				addDetail(list, dayName + ' · ' + (entry.label || entry.region), timeLabel(entry.local_start) + '–' + timeLabel(entry.local_end) + ' · ' + timeLabel((entry.timezone || '').replace(/_/g, ' ')));
+			});
+			if (goldenBonus.enabled && payApplies) addDetail(list, labels.bonus || 'Bonus', numberLabel(goldenBonus.percent) + '% · ' + (labels.bonusConditional || 'only if the booking falls within the global bonus window'));
+			detailsBody.appendChild(list);
+			if (useButton) useButton.disabled = true;
+			syncTabindex(); paintSelection(); paintGapList(); paintQualityList(); updateHub();
+			if (focus) focusSegment(null, segmentIndex, true);
+		}
+
+		function gapRangeFor(weekday, segmentIndex) {
+			var gaps = Array.isArray(data.priority_gaps) ? data.priority_gaps : [];
+			for (var index = 0; index < gaps.length; index++) {
+				var gap = gaps[index] || {};
+				if (Number(gap.instrument_id) !== Number(data.selected_instrument) || Number(gap.weekday) !== Number(weekday)) continue;
+				var indexes = (gap.visual_indexes || []).map(Number);
+				if (indexes.indexOf(Number(segmentIndex)) !== -1) return indexes;
+			}
+			return null;
+		}
+
+		function unknownRangeFor(weekday, segmentIndex) {
+			var dataQuality = data.unknown_data || {};
+			var ranges = Array.isArray(dataQuality.ranges) ? dataQuality.ranges : [];
+			for (var index = 0; index < ranges.length; index++) {
+				var range = ranges[index] || {};
+				if (Number(range.instrument_id) !== Number(data.selected_instrument) || Number(range.weekday) !== Number(weekday)) continue;
+				var indexes = (range.visual_indexes || []).map(Number);
+				if (indexes.indexOf(Number(segmentIndex)) !== -1) return indexes;
+			}
+			return null;
+		}
+
+		function revealDetails() {
+			if (!details || !window.matchMedia || !window.matchMedia('(max-width: 760px)').matches) return;
+			var rect = details.getBoundingClientRect();
+			if (rect.top >= window.innerHeight || rect.bottom <= 0) details.scrollIntoView({ block: 'start' });
+		}
+
+		function updateHub() {
+			var hub = canvas.querySelector('.dzn-clock__hub-time');
+			var sub = canvas.querySelector('.dzn-clock__hub-state');
+			if (!hub || !sub) return;
+			if (state.segment === null) {
+				hub.textContent = labels.clock || '24h';
+				sub.textContent = labels.select || '';
+				return;
+			}
+			hub.textContent = clockLabel(state.segment * 30) + '–' + clockLabel(state.segment * 30 + 30);
+			if (state.golden) { sub.textContent = labels.golden || 'Golden Hours'; return; }
+			var day = dayFor(state.ring || 0);
+			var segment = day ? day.segments[state.segment] : null;
+			sub.textContent = segment ? stateName(segment[0]) : '';
+		}
+
+		function paintSelection() {
+			canvas.querySelectorAll('[data-dzn-ring]').forEach(function (group) {
+				var ring = Number(group.getAttribute('data-dzn-ring'));
+				var seg = Number(group.getAttribute('data-dzn-seg'));
+				var selected = !state.golden && ring === state.ring && seg === state.segment;
+				var inGap = !state.golden && ring === state.ring && state.gapRange && state.gapRange.indexOf(seg) !== -1;
+				var inUnknown = !state.golden && ring === state.ring && state.unknownRange && state.unknownRange.indexOf(seg) !== -1;
+				group.classList.toggle('is-selected', selected);
+				group.classList.toggle('is-gap-selected', inGap);
+				group.classList.toggle('is-unknown-selected', inUnknown);
+				group.setAttribute('aria-pressed', selected ? 'true' : 'false');
+			});
+			canvas.querySelectorAll('[data-dzn-golden-seg]').forEach(function (group) {
+				var selected = state.golden && Number(group.getAttribute('data-dzn-golden-seg')) === state.segment;
+				group.classList.toggle('is-selected', selected);
+				group.setAttribute('aria-pressed', selected ? 'true' : 'false');
+			});
+			paintProposed();
+		}
+
+		function paintGapList() {
+			var rows = root.querySelectorAll('[data-dzn-gap]');
+			if (!rows.length) return;
+			var day = !state.golden && state.ring !== null ? dayFor(state.ring) : null;
+			var activeDate = day ? String(day.date) : '';
+			var indexes = day ? (state.gapRange || [state.segment]) : [];
+			rows.forEach(function (row) {
+				var sameInstrument = Number(row.getAttribute('data-dzn-gap-instrument')) === Number(data.selected_instrument);
+				var sameDate = String(row.getAttribute('data-dzn-gap-date') || '') === activeDate;
+				var listed = String(row.getAttribute('data-dzn-gap-visual-indexes') || '').split(',').map(Number);
+				var hit = sameInstrument && sameDate && listed.some(function (index) { return indexes.indexOf(index) !== -1; });
+				row.classList.toggle('is-active', hit);
+				if (hit) row.setAttribute('aria-current', 'true'); else row.removeAttribute('aria-current');
+			});
+			root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (button) {
+				var ringIndex = Number(button.getAttribute('data-dzn-clock-ring'));
+				button.classList.toggle('is-active', !state.golden && ringIndex === state.ring);
+			});
+		}
+
+		function paintQualityList() {
+			var rows = root.querySelectorAll('[data-dzn-unknown]');
+			if (!rows.length) return;
+			var day = !state.golden && state.ring !== null ? dayFor(state.ring) : null;
+			var activeDate = day ? String(day.date) : '';
+			var indexes = day && state.unknownRange ? state.unknownRange : [];
+			rows.forEach(function (row) {
+				var sameInstrument = Number(row.getAttribute('data-dzn-unknown-instrument')) === Number(data.selected_instrument);
+				var sameDate = String(row.getAttribute('data-dzn-unknown-date') || '') === activeDate;
+				var listed = String(row.getAttribute('data-dzn-unknown-visual-indexes') || '').split(',').map(Number);
+				var hit = sameInstrument && sameDate && listed.some(function (index) { return indexes.indexOf(index) !== -1; });
+				row.classList.toggle('is-active', hit);
+				if (hit) row.setAttribute('aria-current', 'true'); else row.removeAttribute('aria-current');
+			});
+		}
+
+		function paintProposed() {
+			canvas.querySelectorAll('[data-dzn-ring]').forEach(function (group) {
+				var ring = Number(group.getAttribute('data-dzn-ring'));
+				var seg = Number(group.getAttribute('data-dzn-seg'));
+				var day = dayFor(ring);
+				var proposed = state.proposed && day && Number(day.weekday) === Number(state.proposed.weekday) && seg * 30 < state.proposed.end && seg * 30 + 30 > state.proposed.start;
+				group.classList.toggle('is-proposed', !!proposed);
+			});
+		}
+
+		function syncTabindex() {
+			var any = false;
+			canvas.querySelectorAll('[data-dzn-ring], [data-dzn-golden-seg]').forEach(function (group) {
+				var selected = false;
+				if (group.hasAttribute('data-dzn-golden-seg')) selected = state.golden && Number(group.getAttribute('data-dzn-golden-seg')) === state.segment;
+				else selected = !state.golden && Number(group.getAttribute('data-dzn-ring')) === state.ring && Number(group.getAttribute('data-dzn-seg')) === state.segment;
+				group.setAttribute('tabindex', selected ? '0' : '-1');
+				if (selected) any = true;
+			});
+			if (!any) {
+				var first = canvas.querySelector('[data-dzn-ring="0"][data-dzn-seg="0"]');
+				if (first) first.setAttribute('tabindex', '0');
+			}
+		}
+
+		function focusSegment(ringIndex, segmentIndex, golden) {
+			var selector = golden ? '[data-dzn-golden-seg="' + segmentIndex + '"]' : '[data-dzn-ring="' + ringIndex + '"][data-dzn-seg="' + segmentIndex + '"]';
+			var target = canvas.querySelector(selector);
+			if (target) target.focus({ preventScroll: true });
+		}
+
+		function draw() {
+			canvas.replaceChildren();
+			var svg = el('svg', { viewBox: '0 0 ' + SIZE + ' ' + SIZE, class: 'dzn-clock__svg', role: 'group', 'aria-label': labels.clock || 'Weekly coverage clock' });
+			var defs = el('defs');
+			defs.appendChild(pattern('dzn-clock-limited', 7, 7, function (p) { p.appendChild(el('path', { d: 'M0 7L7 0', stroke: 'rgba(255,255,255,.5)', 'stroke-width': 1 })); }));
+			defs.appendChild(pattern('dzn-clock-unknown', 5, 5, function (p) { p.appendChild(el('path', { d: 'M0 5L5 0', stroke: 'rgba(58,48,82,.38)', 'stroke-width': 1 })); }));
+			svg.appendChild(defs);
+
+			for (var hour = 0; hour < 24; hour++) {
+				var a = hour * 15 + angleOffset;
+				var majorHour = hour % 6 === 0;
+				var t1 = polar(346, a), t2 = polar(342, a);
+				svg.appendChild(el('line', { x1: t1[0], y1: t1[1], x2: t2[0], y2: t2[1], class: 'dzn-clock__tick' + (majorHour ? ' is-major' : '') }));
+				if (isAdmin || majorHour) {
+					var point = polar(majorHour ? 360 : 350, a);
+					var hourText = String(hour).padStart(2, '0');
+					svg.appendChild(el('text', { x: point[0], y: point[1], class: 'dzn-clock__hour' + (majorHour ? ' is-major' : ' is-minor'), 'text-anchor': 'middle', 'dominant-baseline': 'middle' }, [isFa ? faDigits(hourText) : hourText]));
+				}
+			}
+
+			for (var i = 0; i < SEGMENTS; i++) {
+				var golden = goldenRing[i] || {};
+				var group = el('g', {
+					class: 'dzn-clock__golden-seg' + (golden.golden ? ' is-golden' : ''),
+					'data-dzn-golden-seg': i,
+					role: 'button',
+					tabindex: '-1',
+					'aria-pressed': 'false',
+					'aria-label': (labels.golden || 'Golden Hours') + ', ' + clockLabel(i * 30) + '–' + clockLabel(i * 30 + 30) + ', ' + ((golden.regions || []).length) + ' ' + (labels.regions || 'regions')
+				});
+				group.appendChild(el('title', null, [clockLabel(i * 30) + '–' + clockLabel(i * 30 + 30)]));
+				var goldenArc = arcPath(GOLD_OUTER, GOLD_INNER, i * DEGREES + angleOffset + 0.18, (i + 1) * DEGREES + angleOffset - 0.18);
+				group.appendChild(el('path', { d: goldenArc, class: 'dzn-clock__golden-base' }));
+				group.appendChild(el('path', {
+					d: goldenArc,
+					class: 'dzn-clock__golden-arc',
+					'fill-opacity': golden.golden ? (0.16 + 0.34 * Number(golden.intensity || 0)).toFixed(2) : '0'
+				}));
+				group.addEventListener('keydown', function (event) {
+					var index = Number(this.getAttribute('data-dzn-golden-seg'));
+					if (event.key === 'ArrowRight') { event.preventDefault(); selectGolden((index + 1) % SEGMENTS, true); }
+					else if (event.key === 'ArrowLeft') { event.preventDefault(); selectGolden((index + SEGMENTS - 1) % SEGMENTS, true); }
+					else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); selectWeekday(0, index, true); }
+					else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectGolden(index, true); }
+				});
+				svg.appendChild(group);
+			}
+
+			week.forEach(function (day, ringIndex) {
+				var outer = RING_OUTER - ringIndex * (RING_THICKNESS + RING_GAP);
+				var inner = outer - RING_THICKNESS;
+				var ring = el('g', { class: 'dzn-clock__ring dzn-clock__ring--' + day.weekday + (day.is_today ? ' is-today' : ''), 'aria-label': weekdayLabel(day) + ' ' + dateLabel(day) });
+				if (day.is_today) {
+					ring.appendChild(el('circle', { cx: CENTER, cy: CENTER, r: outer + 1.5, class: 'dzn-clock__today-outline' }));
+					ring.appendChild(el('circle', { cx: CENTER, cy: CENTER, r: inner - 1.5, class: 'dzn-clock__today-outline' }));
+				}
+				day.segments.forEach(function (segment, segIndex) {
+					var start = segIndex * DEGREES + angleOffset + 0.22;
+					var end = (segIndex + 1) * DEGREES + angleOffset - 0.22;
+					var mid = (start + end) / 2;
+					var group = el('g', {
+						class: 'dzn-clock__seg' + (segment[5] ? ' is-past' : ''),
+						'data-dzn-ring': ringIndex,
+						'data-dzn-seg': segIndex,
+						role: 'button',
+						tabindex: '-1',
+						'aria-pressed': 'false',
+						'aria-label': weekdayLabel(day) + ' ' + dateLabel(day) + ', ' + clockLabel(segIndex * 30) + '–' + clockLabel(segIndex * 30 + 30) + ', ' + stateName(segment[0]) + ', ' + capacityText(segment) + (segment[3] ? ', ' + (labels.golden || 'Golden Hours') : '')
+					});
+					group.appendChild(el('title', null, [weekdayLabel(day) + ' ' + dateLabel(day) + ' · ' + clockLabel(segIndex * 30) + '–' + clockLabel(segIndex * 30 + 30) + ' · ' + stateName(segment[0])]));
+					var halves = [[segment[6], segment[8], start, mid - 0.08, segment[10]], [segment[7], segment[9], mid + 0.08, end, segment[11]]];
+					halves.forEach(function (half) {
+						var halfState = Number(half[0]);
+						var fillClass = halfState === STATE.COVERED ? 'is-covered' : (halfState === STATE.LIMITED ? 'is-limited' : (halfState === STATE.UNKNOWN ? 'is-unknown' : 'is-uncovered'));
+						var halfPath = arcPath(outer, inner, half[2], half[3]);
+						group.appendChild(el('path', { d: halfPath, class: 'dzn-clock__seg-half ' + fillClass }));
+						if (halfState === STATE.LIMITED) group.appendChild(el('path', { d: halfPath, class: 'dzn-clock__seg-hatch', fill: 'url(#dzn-clock-limited)' }));
+						if (halfState === STATE.UNKNOWN) group.appendChild(el('path', { d: halfPath, class: 'dzn-clock__seg-hatch', fill: 'url(#dzn-clock-unknown)' }));
+						if (Number(half[4])) group.appendChild(el('path', { d: arcPath(inner + 2.2, inner, half[2], half[3]), class: 'dzn-clock__golden-edge' }));
+					});
+					group.appendChild(el('path', { d: arcPath(outer + 0.6, inner - 0.6, start, end), class: 'dzn-clock__seg-outline' }));
+					group.addEventListener('keydown', function (event) {
+						var r = Number(this.getAttribute('data-dzn-ring')); var s = Number(this.getAttribute('data-dzn-seg'));
+						if (event.key === 'ArrowRight') { event.preventDefault(); selectWeekday(r, (s + 1) % SEGMENTS, true); }
+						else if (event.key === 'ArrowLeft') { event.preventDefault(); selectWeekday(r, (s + SEGMENTS - 1) % SEGMENTS, true); }
+						else if (event.key === 'ArrowDown') { event.preventDefault(); selectWeekday(Math.min(week.length - 1, r + 1), s, true); }
+						else if (event.key === 'ArrowUp') { event.preventDefault(); if (r === 0) selectGolden(s, true); else selectWeekday(r - 1, s, true); }
+						else if (event.key === 'Home') { event.preventDefault(); selectWeekday(r, 0, true); }
+						else if (event.key === 'End') { event.preventDefault(); selectWeekday(r, SEGMENTS - 1, true); }
+						else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectWeekday(r, s, true); }
+					});
+					ring.appendChild(group);
+				});
+				if (isAdmin) {
+					var labelPoint = polar((outer + inner) / 2, RING_LABEL_ANGLE);
+					ring.appendChild(el('text', {
+						x: labelPoint[0],
+						y: labelPoint[1],
+						class: 'dzn-clock__ring-label',
+						'text-anchor': 'middle',
+						'dominant-baseline': 'middle',
+						'aria-hidden': 'true'
+					}, [shortWeekdayLabel(day)]));
+				}
+				ringGroups.push(ring);
+				svg.appendChild(ring);
+			});
+
+			var hub = el('g', { class: 'dzn-clock__hub' });
+			hub.appendChild(el('circle', { cx: CENTER, cy: CENTER, r: HUB_RADIUS, class: 'dzn-clock__hub-disc' }));
+			hub.appendChild(el('text', { x: CENTER, y: CENTER - 8, class: 'dzn-clock__hub-time', 'text-anchor': 'middle' }, [labels.clock || '24h']));
+			hub.appendChild(el('text', { x: CENTER, y: CENTER + 16, class: 'dzn-clock__hub-state', 'text-anchor': 'middle' }, [labels.select || '']));
+			svg.appendChild(hub);
+			canvas.appendChild(svg);
+
+			svg.addEventListener('click', function (event) {
+				var rect = svg.getBoundingClientRect();
+				var x = (event.clientX - rect.left) / rect.width * SIZE - CENTER;
+				var y = (event.clientY - rect.top) / rect.height * SIZE - CENTER;
+				var radius = Math.sqrt(x * x + y * y);
+				var angle = (Math.atan2(y, x) * 180 / Math.PI + 90 + 360) % 360;
+				var logicalAngle = (angle - angleOffset + 360) % 360;
+				var index = Math.floor(logicalAngle / DEGREES) % SEGMENTS;
+				if (radius >= GOLD_INNER && radius <= GOLD_OUTER) { selectGolden(index, true); return; }
+				if (radius > HUB_RADIUS && radius <= RING_OUTER + 2) {
+					var ringIndex = Math.floor((RING_OUTER - radius) / (RING_THICKNESS + RING_GAP));
+					ringIndex = Math.max(0, Math.min(week.length - 1, ringIndex));
+					selectWeekday(ringIndex, index, true);
+				}
+			});
+
+			canvas.querySelectorAll('[data-dzn-ring]').forEach(function (group) {
+				group.addEventListener('focus', function () {
+					var r = Number(this.getAttribute('data-dzn-ring')); var s = Number(this.getAttribute('data-dzn-seg'));
+					if (!state.golden && state.ring === r && state.segment === s) return;
+					selectWeekday(r, s, false);
+				});
+			});
+			canvas.querySelectorAll('[data-dzn-golden-seg]').forEach(function (group) {
+				group.addEventListener('focus', function () {
+					var s = Number(this.getAttribute('data-dzn-golden-seg'));
+					if (state.golden && state.segment === s) return;
+					selectGolden(s, false);
+				});
+			});
+			syncTabindex(); paintSelection(); updateHub();
+		}
+
+		function pattern(id, width, height, builder) {
+			var p = el('pattern', { id: id, width: width, height: height, patternUnits: 'userSpaceOnUse' });
+			builder(p);
+			return p;
+		}
+
+		root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (button) {
+			button.addEventListener('click', function () {
+				var ringIndex = Number(button.getAttribute('data-dzn-clock-ring'));
+				var day = dayFor(ringIndex);
+				if (!day) return;
+				var target = firstGapSegment(day);
+				if (target === null) target = state.ring === ringIndex && state.segment !== null ? state.segment : 0;
+				selectWeekday(ringIndex, target, true, gapRangeFor(day.weekday, target), null);
+				revealDetails();
+			});
+		});
+
+		root.querySelectorAll('[data-dzn-gap]').forEach(function (row) {
+			row.addEventListener('click', function (event) {
+				if (Number(row.getAttribute('data-dzn-gap-instrument')) !== Number(data.selected_instrument)) return;
+				var weekday = Number(row.getAttribute('data-dzn-gap-weekday'));
+				var ringIndex = week.findIndex(function (day) { return Number(day.weekday) === weekday; });
+				if (ringIndex < 0) return;
+				var indexes = String(row.getAttribute('data-dzn-gap-visual-indexes') || '').split(',').map(Number).filter(function (index) { return index >= 0; });
+				var target = indexes.length ? indexes[0] : Number(row.getAttribute('data-dzn-gap-visual-start') || 0);
+				if (!dayFor(ringIndex) || !dayFor(ringIndex).segments[target]) return;
+				event.preventDefault();
+				selectWeekday(ringIndex, target, true, indexes.length ? indexes : null, null);
+				root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (ringButton) {
+					var active = Number(ringButton.getAttribute('data-dzn-clock-ring')) === ringIndex;
+					ringButton.classList.toggle('is-active', active);
+					ringButton.setAttribute('aria-pressed', active ? 'true' : 'false');
+				});
+				revealDetails();
+			});
+		});
+
+		root.querySelectorAll('[data-dzn-unknown]').forEach(function (row) {
+			row.addEventListener('click', function (event) {
+				if (Number(row.getAttribute('data-dzn-unknown-instrument')) !== Number(data.selected_instrument)) return;
+				var weekday = Number(row.getAttribute('data-dzn-unknown-weekday'));
+				var ringIndex = week.findIndex(function (day) { return Number(day.weekday) === weekday; });
+				if (ringIndex < 0) return;
+				var indexes = String(row.getAttribute('data-dzn-unknown-visual-indexes') || '').split(',').map(Number).filter(function (index) { return index >= 0; });
+				var target = indexes.length ? indexes[0] : Number(row.getAttribute('data-dzn-unknown-visual-start') || 0);
+				if (!dayFor(ringIndex) || !dayFor(ringIndex).segments[target]) return;
+				event.preventDefault();
+				selectWeekday(ringIndex, target, true, null, indexes.length ? indexes : null);
+				root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (ringButton) {
+					var active = Number(ringButton.getAttribute('data-dzn-clock-ring')) === ringIndex;
+					ringButton.classList.toggle('is-active', active);
+					ringButton.setAttribute('aria-pressed', active ? 'true' : 'false');
+				});
+				revealDetails();
+			});
+		});
+
+		var controls = root.querySelector('form.dzn-clock__controls');
+		var dateField = controls && controls.querySelector('[name="coverage_date"]');
+		var weekField = controls && controls.querySelector('[name="coverage_week_start"]');
+		if (dateField && weekField) {
+			var releaseWeek = function () { weekField.disabled = true; };
+			dateField.addEventListener('input', releaseWeek);
+			dateField.addEventListener('change', releaseWeek);
+		}
+
+		var form = document.querySelector('[data-dzn-availability-form]');
+		if (form && root.hasAttribute('data-dzn-clock-teacher')) {
+			var weekdayField = form.querySelector('[name="weekday"]');
+			var startField = form.querySelector('[name="local_start_time"]');
+			var endField = form.querySelector('[name="local_end_time"]');
+			var parseTime = function (value) {
+				if (!value || !/^\d{2}:\d{2}/.test(value)) return null;
+				var parts = value.slice(0, 5).split(':');
+				return Number(parts[0]) * 60 + Number(parts[1]);
+			};
+			var updateProposal = function () {
+				var weekday = weekdayField ? Number(weekdayField.value) : 0;
+				var start = startField ? parseTime(startField.value) : null;
+				var end = endField ? parseTime(endField.value) : null;
+				state.proposed = (weekday >= 1 && weekday <= 7 && start !== null && end !== null && end > start) ? { weekday: weekday, start: start, end: end } : null;
+				paintProposed();
+			};
+			[weekdayField, startField, endField].forEach(function (field) { if (!field) return; field.addEventListener('input', updateProposal); field.addEventListener('change', updateProposal); });
+			if (useButton) useButton.addEventListener('click', function () {
+				var ringIndex = Number(useButton.getAttribute('data-dzn-clock-use-ring'));
+				var segIndex = Number(useButton.getAttribute('data-dzn-clock-use-seg'));
+				var day = dayFor(ringIndex);
+				if (!day) return;
+				var start = segIndex * 30;
+				var lesson = Number(data.lesson_minutes || 60);
+				var buffer = Number(data.buffer_minutes || 0);
+				var end = Math.min(1439, start + Math.max(30, Math.ceil((lesson + buffer) / 30) * 30));
+				if (weekdayField) weekdayField.value = String(day.weekday);
+				if (startField) startField.value = minuteLabel(start);
+				if (endField) endField.value = minuteLabel(end);
+				var section = form.closest('.dzn-tp-availability-editor') || form;
+				section.classList.add('is-clock-target');
+				updateProposal();
+				if (startField) startField.focus({ preventScroll: true });
+			});
+			updateProposal();
+		}
+
+		draw();
+		clearDetails();
+		var focusValue = String(data.focus || root.getAttribute('data-dzn-clock-focus') || '');
+		var focusMatch = focusValue.match(/^([1-7]):(\d{1,2})$/);
+		if (focusMatch) {
+			var focusWeekday = Number(focusMatch[1]);
+			var focusSegment = Number(focusMatch[2]);
+			var focusRing = week.findIndex(function (day) { return Number(day.weekday) === focusWeekday; });
+			if (focusRing >= 0 && dayFor(focusRing).segments[focusSegment]) {
+				var unknownIndexes = unknownRangeFor(focusWeekday, focusSegment);
+				selectWeekday(focusRing, focusSegment, false, unknownIndexes ? null : gapRangeFor(focusWeekday, focusSegment), unknownIndexes);
+				root.querySelectorAll('[data-dzn-clock-ring]').forEach(function (button) {
+					var active = Number(button.getAttribute('data-dzn-clock-ring')) === focusRing;
+					button.classList.toggle('is-active', active);
+					button.setAttribute('aria-pressed', active ? 'true' : 'false');
+				});
+			}
+		}
+		paintGapList();
+		paintQualityList();
+	}
+
+	document.querySelectorAll('[data-dzn-clock-root]').forEach(render);
+})();
+</script></body></html>

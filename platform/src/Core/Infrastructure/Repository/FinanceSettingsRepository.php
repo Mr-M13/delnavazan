@@ -42,6 +42,14 @@ final class FinanceSettingsRepository {
         if ($deleted !== 1) throw new \RuntimeException('Finance setting removal failed');
     }
 
+    /** Remove every version of one configuration key; immutable Finance facts live elsewhere. */
+    public function deleteByKey(string $key): int {
+        global $wpdb;
+        $deleted = $wpdb->delete($this->prefix . 'finance_settings', array('setting_key' => $key));
+        if ($deleted === false) throw new \RuntimeException('Finance setting history removal failed: ' . $wpdb->last_error);
+        return (int) $deleted;
+    }
+
     public function insert(array $data): int {
         global $wpdb;
         if ($wpdb->insert($this->prefix . 'finance_settings', $data) === false) throw new \RuntimeException('Finance setting persistence failed: ' . $wpdb->last_error);

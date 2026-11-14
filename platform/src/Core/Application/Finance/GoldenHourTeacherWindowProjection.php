@@ -32,11 +32,31 @@ final class GoldenHourTeacherWindowProjection {
             return self::result('inactive',$policy,$teacherTimezone,$policyTimezone,$percentageLabel,array());
         }
         $periods=self::periods($policy);
-        if($periods===array()){
-            return self::result('active',$policy,$teacherTimezone,$policyTimezone,$percentageLabel,array());
-        }
         $weekdays=array_values(array_unique(array_map('intval',(array)($policy['weekdays']??array(1,2,3,4,5,6,7)))));
         if($weekdays===array())$weekdays=array(1,2,3,4,5,6,7);
+        // The current editor stores one row per weekday group in `rules`. Honour
+        // every row; the legacy weekday/period fields only describe the first row.
+        $rules=is_array($policy['rules']??null)?array_values(array_filter($policy['rules'],'is_array')):array();
+        $ruleSets=array();
+        if($rules!==array()){
+            foreach($rules as$rule){
+                $ruleWeekdays=array_values(array_unique(array_map('intval',(array)($rule['weekdays']??$weekdays))));
+                if($ruleWeekdays===array())$ruleWeekdays=$weekdays;
+                $ruleStart=trim((string)($rule['start']??''));
+                $ruleEnd=trim((string)($rule['end']??''));
+                if(!self::time($ruleStart)||!self::time($ruleEnd)||$ruleStart===$ruleEnd)continue;
+                $ruleSets[]=array(
+                    'weekdays'=>$ruleWeekdays,
+                    'periods'=>array(array('start'=>$ruleStart,'end'=>$ruleEnd)),
+                    'basis_points'=>(int)($rule['bonus_basis_points']??0),
+                );
+            }
+        }elseif($periods!==array()){
+            $ruleSets[]=array('weekdays'=>$weekdays,'periods'=>$periods,'basis_points'=>$basisPoints);
+        }
+        if($ruleSets===array()){
+            return self::result('active',$policy,$teacherTimezone,$policyTimezone,$percentageLabel,array());
+        }
         $start=$start!==null?$start->setTimezone($teacherZone):new \DateTimeImmutable('today',$teacherZone);
         $start=$start->setTime(0,0,0);
         $dayCount=max(1,min(14,$days));
@@ -50,25 +70,27 @@ final class GoldenHourTeacherWindowProjection {
             // Policy dates immediately around the Teacher-local day cover midnight crossings.
             for($policyOffset=-1;$policyOffset<=1;$policyOffset++){
                 $policyDate=$policyDateBase->modify('+'.$policyOffset.' days');
-                if(!in_array((int)$policyDate->format('N'),$weekdays,true))continue;
-                foreach($periods as$period){
-                    $startWall=self::wall($policyDate->format('Y-m-d'),(string)$period['start'],$policyZone);
-                    $endWall=self::wall($policyDate->format('Y-m-d'),(string)$period['end'],$policyZone);
-                    if($endWall<=$startWall)$endWall=$endWall->modify('+1 day');
-                    $clipStart=$startWall->setTimezone($teacherZone);
-                    $clipEnd=$endWall->setTimezone($teacherZone);
-                    if($clipEnd<=$dayStart||$clipStart>=$dayEnd)continue;
-                    if($clipStart<$dayStart)$clipStart=$dayStart;
-                    if($clipEnd>$dayEnd)$clipEnd=$dayEnd;
-                    if($clipEnd<=$clipStart)continue;
-                    $intervals[]=array('start'=>$clipStart,'end'=>$clipEnd);
+                foreach($ruleSets as$set){
+                    if(!in_array((int)$policyDate->format('N'),$set['weekdays'],true))continue;
+                    foreach($set['periods'] as$period){
+                        $startWall=self::wall($policyDate->format('Y-m-d'),(string)$period['start'],$policyZone);
+                        $endWall=self::wall($policyDate->format('Y-m-d'),(string)$period['end'],$policyZone);
+                        if($endWall<=$startWall)$endWall=$endWall->modify('+1 day');
+                        $clipStart=$startWall->setTimezone($teacherZone);
+                        $clipEnd=$endWall->setTimezone($teacherZone);
+                        if($clipEnd<=$dayStart||$clipStart>=$dayEnd)continue;
+                        if($clipStart<$dayStart)$clipStart=$dayStart;
+                        if($clipEnd>$dayEnd)$clipEnd=$dayEnd;
+                        if($clipEnd<=$clipStart)continue;
+                        $intervals[]=array('start'=>$clipStart,'end'=>$clipEnd,'basis_points'=>(int)$set['basis_points']);
+                    }
                 }
             }
             usort($intervals,static fn(array $left,array $right):int=>$left['start']<=>$right['start']);
             $merged=array();
             foreach($intervals as$interval){
                 $last=count($merged)-1;
-                if($last>=0&&$interval['start']<=$merged[$last]['end']){
+                if($last>=0&&$interval['start']<=$merged[$last]['end']&&(int)$interval['basis_points']===(int)$merged[$last]['basis_points']){
                     if($interval['end']>$merged[$last]['end'])$merged[$last]['end']=$interval['end'];
                 }else{
                     $merged[]=$interval;
@@ -83,8 +105,8 @@ final class GoldenHourTeacherWindowProjection {
                     'end'=>$interval['end']->format('H:i'),
                     'label'=>$interval['start']->format('H:i').'–'.$interval['end']->format('H:i'),
                     'minutes'=>$minutes,
-                    'percentage'=>((int)$basisPoints)/100,
-                    'percentage_label'=>$percentageLabel,
+                    'percentage'=>((int)($interval['basis_points']??$basisPoints))/100,
+                    'percentage_label'=>self::percentageLabel((int)($interval['basis_points']??$basisPoints)),
                 );
             }
             $out[]=array(
@@ -110,6 +132,9 @@ final class GoldenHourTeacherWindowProjection {
             'timezone_label'=>$teacherTimezone,
             'policy_timezone'=>$policyTimezone,
             'label'=>(string)($policy['label']??''),
+            'configured'=>!empty($policy['configured']),
+            'effective_from'=>(string)($policy['effective_from']??''),
+            'setting_version'=>(int)($policy['setting_version']??0),
             'has_windows'=>$hasWindows,
             'days'=>$days,
         );
@@ -124,6 +149,7 @@ final class GoldenHourTeacherWindowProjection {
             $end=trim((string)($period['end']??''));
             if(self::time($start)&&self::time($end)&&$start!==$end)$periods[]=array('start'=>$start,'end'=>$end);
         }
+        if($periods===array()&&!empty($policy['rules_configured']))return array();
         if($periods===array()){
             $start=trim((string)($policy['start']??''));
             $end=trim((string)($policy['end']??''));

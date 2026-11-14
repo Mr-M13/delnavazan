@@ -112,6 +112,11 @@ $check($goldenWithout['summary']['golden_coverage_percent'] === 0, 'Uncovered Go
 $goldenWith = $build(array('golden' => $goldenWindow, 'teachers' => array($teacher(10, array($window('2026-11-12', '09:00:00', '12:00:00'))))));
 $check($segment($goldenWith, 600)['golden'] === true && $segment($goldenWith, 600)['bookable'] === true, 'Golden Hour with capacity must remain golden and bookable.');
 $check($goldenWith['summary']['golden_coverage_percent'] === 100, 'Covered Golden Hours must report 100% Golden coverage.');
+$goldenVisual = InstrumentCoverageClockAnalyzer::visualize($goldenWithout);
+$goldenIndexes = array();
+foreach ($goldenVisual as $visual) if (!empty($visual['golden'])) $goldenIndexes[] = (int) $visual['index'];
+$check($goldenIndexes === array(18, 19, 20, 21), 'The configured 09:00–11:00 Golden window must map to exactly four visual half-hour segments.');
+$check($goldenVisual[18]['time'] === '09:00' && $goldenVisual[21]['end_time'] === '11:00', 'Golden visual segments must keep the configured local time range.');
 
 // Weekly mode ignores dated occupancy; actual mode applies it.
 $weekly = $build(array('mode' => 'weekly', 'teachers' => array($teacher(10, array($window('2026-11-12', '09:00:00', '12:00:00')), array(array('starts_at_utc' => '2026-11-12 10:00:00', 'occupied_ends_at_utc' => '2026-11-12 11:00:00'))))));

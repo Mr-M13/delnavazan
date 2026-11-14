@@ -196,7 +196,7 @@ final class GodModeView {
         echo '<div class="dzn-gm-form-grid"><p class="dzn-gm-field"><label><span>Date</span><input type="date" name="local_date" value="'.esc_attr(substr((string)$s['starts_at_utc'],0,10)).'" required></label></p><p class="dzn-gm-field"><label><span>Time (UTC)</span><input type="time" name="local_time" value="'.esc_attr(substr((string)$s['starts_at_utc'],11,5)).'" required></label></p><p class="dzn-gm-field"><label><span>Timezone</span><select name="timezone">'.$this->timezoneOptions((string)$s['schedule_timezone']).'</select></label></p><p class="dzn-gm-field"><label><span>Duration</span><input type="number" name="duration_minutes" min="5" max="1440" value="'.esc_attr((string)$s['duration_minutes']).'"></label></p></div>';
         echo '<p><label class="dzn-gm-danger"><input type="checkbox" name="conflict_acknowledged" value="1"> Acknowledge any genuine conflict before moving this test class.</label></p><button class="button" type="submit">Reschedule test class</button></form>';
         echo '<h4>Notification test</h4><form method="post" action="'.esc_url(admin_url('admin-post.php')).'">';$this->actionFields('notification_test',array('session_id'=>$id));
-        echo '<p><select name="channel"><option value="portal">Portal</option><option value="email">Email</option><option value="whatsapp">WhatsApp</option><option value="sms">SMS</option><option value="sms_fallback">SMS fallback condition</option></select> <select name="recipient_kind"><option value="owner">Approved tester</option><option value="teacher">Participating teacher</option></select> <button class="button" type="submit">Send test</button></p></form>';
+        echo '<p><select name="channel"><option value="portal">Portal</option><option value="email">Email</option><option value="whatsapp">WhatsApp</option><option value="sms">SMS</option></select> <select name="recipient_kind"><option value="owner">Approved tester</option><option value="teacher">Participating teacher</option></select> <button class="button" type="submit">Send test</button></p></form>';
         echo '<p class="description">Transport hand-off is recorded. Recipient delivery requires separate verification.</p></aside></div>';
         echo '<h3>Chronological timeline</h3><table class="widefat striped dzn-gm-timeline"><thead><tr><th>Stage</th><th>State</th><th>Timestamp</th><th>Correlation ID</th><th>Evidence</th><th>Provider</th><th>Retry</th></tr></thead><tbody>';
         if(empty($inspector['timeline']))echo '<tr><td colspan="7">No timeline evidence recorded.</td></tr>';
@@ -224,9 +224,9 @@ final class GodModeView {
             }
             echo '</tbody></table>';
         }
-        echo '<h3>Notification attempts</h3><table class="widefat striped"><thead><tr><th>Channel</th><th>Recipient</th><th>State</th><th>Provider</th><th>Outcome</th><th>Fallback</th><th>Attempted</th></tr></thead><tbody>';
-        if(empty($inspector['notification_tests']))echo '<tr><td colspan="7">No notification attempts.</td></tr>';
-        foreach((array)$inspector['notification_tests'] as $n)echo '<tr><td>'.esc_html((string)$n->channel).'</td><td>'.esc_html((string)$n->recipient_kind).'</td><td>'.esc_html((string)$n->state).'</td><td>'.esc_html((string)($n->provider_key??'')).'</td><td>'.esc_html((string)($n->outcome_code??'')).'</td><td>'.($n->fallback_used?'used'.($n->fallback_condition_verified?' · condition verified':''):'not used').'</td><td>'.esc_html((string)$n->attempted_at).'</td></tr>';
+        echo '<h3>Notification attempts</h3><table class="widefat striped"><thead><tr><th>Channel</th><th>Recipient</th><th>State</th><th>Provider</th><th>Outcome</th><th>Attempted</th></tr></thead><tbody>';
+        if(empty($inspector['notification_tests']))echo '<tr><td colspan="6">No notification attempts.</td></tr>';
+        foreach((array)$inspector['notification_tests'] as $n)echo '<tr><td>'.esc_html((string)$n->channel).'</td><td>'.esc_html((string)$n->recipient_kind).'</td><td>'.esc_html((string)$n->state).'</td><td>'.esc_html((string)($n->provider_key??'')).'</td><td>'.esc_html((string)($n->outcome_code??'')).'</td><td>'.esc_html((string)$n->attempted_at).'</td></tr>';
         echo '</tbody></table>';
     }
 

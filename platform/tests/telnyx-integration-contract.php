@@ -41,6 +41,7 @@ $fail('WhatsApp payload supplies the required messaging profile',str_contains($w
 $fail('explicit WhatsApp test resolves a deterministic approved template',str_contains($read('platform/src/Integrations/IntegrationTestRunner.php'),'TelnyxWhatsAppTestTemplate::resolve')&&str_contains($read('platform/src/Integrations/Notifications/TelnyxWhatsAppTestTemplate.php'),'APPROVED'));
 $fail('explicit WhatsApp test surfaces safe provider errors',str_contains($whatsapp,'providerError')&&str_contains($whatsapp,'safeProviderText')&&str_contains($admin,'Safe provider test detail'));
 $fail('WhatsApp adapter never invents variables',str_contains($whatsapp,'variable_contract_mismatch')&&str_contains($whatsapp,'template_not_mapped'));
+$fail('WhatsApp failures never authorize SMS',!str_contains($whatsapp,'recipientRejection')&&!str_contains($whatsapp,'fallback'));
 $fail('WhatsApp locale maps to the approved fa language through the shared authority',str_contains($whatsapp,'TelnyxTemplateAuthority::providerLanguage')&&str_contains($authority,"str_starts_with(strtolower(\$locale),'fa')"));
 $fail('stored phone numbers are normalised to E.164',str_contains($sms,'PhoneNumberNormalizer')&&str_contains($whatsapp,'PhoneNumberNormalizer'));
 $fail('shared-number STOP suppresses every matching subject',str_contains($read('platform/src/Integrations/Notifications/StudentNotificationContactLookup.php'),'studentIdsForPhone')&&str_contains($read('platform/src/Integrations/Notifications/StudentNotificationContactLookup.php'),'teacherIdsForPhone')&&str_contains($service,'studentIdsForPhone')&&str_contains($service,'teacherIdsForPhone'));
@@ -56,7 +57,7 @@ $fail('template discovery is explicit and read-only',str_contains($discovery,'/v
 $fail('settings expose Telnyx webhook key and WABA',str_contains($settings,"'webhook_public_key'=>'text'")&&str_contains($settings,"'waba_id'=>'text'")&&str_contains($settings,"'sender_id'=>'text'"));
 $fail('admin shows verified webhook and discovery',str_contains($admin,'Verified webhook')&&str_contains($admin,'Refresh approved templates')&&str_contains($admin,'dzn_telnyx_template_sync')&&str_contains($admin,'Webhook URL'));
 $fail('admin readiness is secret-free',str_contains($readService,"'telnyx'=>array")&&str_contains($readService,'webhook_signature')&&str_contains($readService,'dispatch_actor'));
-$fail('fallback is policy-gated',str_contains($composite,'channelPolicy')&&str_contains($composite,'allowed(')&&str_contains($composite,'fallback'));
+$fail('mobile channels are independently policy-gated',str_contains($composite,'channelPolicy')&&str_contains($composite,'allowed(')&&str_contains($composite,'foreach'));
 $fail('no webhook code sends a live message',strpos($service,'wp_remote_post')===false&&strpos($controller,'wp_remote_post')===false);
 $fail('no provider secret is rendered by admin',strpos($admin,'api_key')===false||strpos($admin,'value(\'sms\',\'api_key\')')===false);
 $providerSection=substr($migration,(int)strpos($migration,'install_telnyx_provider_events'),(int)strpos($migration,'verify_telnyx_provider_events_schema')-(int)strpos($migration,'install_telnyx_provider_events'));

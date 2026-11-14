@@ -45,7 +45,7 @@ final class TeacherOnboardingController {
         try {
             $post = wp_unslash( $_POST );
             ( new TeacherAvailabilityService() )->setOwnRecurringRule( array(
-                'weekday' => $post['weekday'] ?? '', 'local_start_time' => self::time( $post['local_start_time'] ?? '' ),
+                'weekday' => $post['weekday'] ?? '', 'instrument_id' => $post['instrument_id'] ?? null, 'local_start_time' => self::time( $post['local_start_time'] ?? '' ),
                 'local_end_time' => self::time( $post['local_end_time'] ?? '' ), 'state' => $post['state'] ?? 'requestable',
                 'timezone' => $post['timezone'] ?? '',
             ) );

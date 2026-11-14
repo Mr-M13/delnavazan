@@ -18,7 +18,7 @@ use Delnavazan\Platform\Core\Support\CommunicationDesignTokens as Tokens;
  */
 final class DelnavazanEmailRenderer {
     /**
-     * @param array{locale?:string,preheader?:string,cta?:array{label?:string,url?:string},logo_url?:string,footer_note?:string,max_width?:int,header_meta?:string,footer_details?:string[]} $options
+     * @param array{locale?:string,audience?:string,preheader?:string,cta?:array{label?:string,url?:string},logo_url?:string,footer_note?:string,max_width?:int,header_meta?:string,footer_details?:string[]} $options
      * @return array{subject:string,html:string,text:string}
      */
     public static function render(string $subject, string $body, array $options = array()): array {
@@ -32,19 +32,21 @@ final class DelnavazanEmailRenderer {
      *
      * Callers must escape every dynamic value. This method never accepts template-authored markup.
      *
-     * @param array{locale?:string,preheader?:string,cta?:array{label?:string,url?:string},logo_url?:string,footer_note?:string,max_width?:int,header_meta?:string,footer_details?:string[]} $options
+     * @param array{locale?:string,audience?:string,preheader?:string,cta?:array{label?:string,url?:string},logo_url?:string,footer_note?:string,max_width?:int,header_meta?:string,footer_details?:string[]} $options
      * @return array{subject:string,html:string,text:string}
      */
     public static function renderTrustedHtml(string $subject, string $contentHtml, string $text, array $options = array()): array {
         $locale = NotificationCatalogue::normaliseLocale((string) ($options['locale'] ?? NotificationCatalogue::PRIMARY_LOCALE));
         $english = $locale === 'en';
+        $teacherAudience = strtolower(trim((string) ($options['audience'] ?? ''))) === 'teacher';
         $subject = self::oneLine($subject);
         $cta = self::cta($options['cta'] ?? array(), $english);
         $preheader = self::oneLine((string) ($options['preheader'] ?? ''));
-        $appearance = class_exists(EmailAppearance::class) ? EmailAppearance::values() : array();
-        $logo = self::logoUrl((string) ($options['logo_url'] ?? ($appearance['logo_url'] ?? '')));
-        $note = self::oneLine((string) ($options['footer_note'] ?? ($appearance['footer_note'] ?? '')));
-        $font = class_exists(EmailAppearance::class) ? EmailAppearance::fontStack((string) ($appearance['font'] ?? EmailAppearance::DEFAULT_FONT)) : Tokens::FONT_EMAIL;
+        // Email presentation is code-owned. Per-event copy may supply a note, but no global
+        // appearance option can alter the logo, font or shell used by future sends.
+        $logo = self::logoUrl('');
+        $note = self::oneLine((string) ($options['footer_note'] ?? ''));
+        $font = Tokens::FONT_EMAIL;
         $details = array();
         foreach ((array) ($options['footer_details'] ?? array()) as $detail) {
             $detail = self::oneLine((string) $detail);
@@ -88,10 +90,20 @@ final class DelnavazanEmailRenderer {
             . '<p style="margin:0 0 6px;">' . self::e($rights) . '</p>'
             . ($note !== '' ? '<p style="margin:0 0 6px;">' . self::e($note) . '</p>' : '');
         foreach ($details as $detail) $html .= '<p style="margin:0 0 6px;">' . self::e($detail) . '</p>';
-        $html .= '<p style="margin:0;">' . self::e($supportLabel) . ': ' . self::contactLinksHtml($english) . '</p>'
-            . '</td></tr></table></td></tr></table></body></html>';
+        $html .= '<p style="margin:0;">' . self::e($supportLabel) . ': ' . self::contactLinksHtml($english) . '</p>';
+        if ($teacherAudience) {
+            $teacherContact = BrandIdentity::teacherContactLink($english);
+            $html .= '<p style="margin:6px 0 0;">' . self::e($teacherContact['label']) . ': '
+                . '<a href="' . self::e($teacherContact['href']) . '" style="color:' . Tokens::color('text_secondary') . ';text-decoration:none;">'
+                . '<span dir="ltr" style="unicode-bidi:isolate;">' . self::e($teacherContact['display']) . '</span></a></p>';
+        }
+        $html .= '</td></tr></table></td></tr></table></body></html>';
 
-        return array('subject' => $subject, 'html' => $html, 'text' => trim($text));
+        $text = trim($text);
+        if ($teacherAudience) {
+            $text .= ($text !== '' ? "\n\n" : '') . BrandIdentity::teacherContactLine($english);
+        }
+        return array('subject' => $subject, 'html' => $html, 'text' => $text);
     }
 
     /**
@@ -178,12 +190,6 @@ final class DelnavazanEmailRenderer {
     }
 
     private static function logoUrl(string $override): string {
-        if ($override !== '') return $override;
-        if (function_exists('get_theme_file_uri')) {
-            $uri = (string) get_theme_file_uri('assets/images/delnavazan-logo.png');
-            if ($uri !== '') return $uri;
-        }
-        if (function_exists('apply_filters')) return (string) apply_filters('dzn_email_logo_url', BrandIdentity::SITE_URL . '/wp-content/themes/delnavazan/assets/images/delnavazan-logo.png');
         return BrandIdentity::SITE_URL . '/wp-content/themes/delnavazan/assets/images/delnavazan-logo.png';
     }
 

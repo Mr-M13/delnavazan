@@ -20,13 +20,79 @@ final class TeacherAvailabilityService {
     }
 
     public function setRecurringRule(array $input): int {
-        $this->admin(); $d = $this->rule( $input ); $now = current_time( 'mysql', true ); $this->repo->begin(); try { $profile = $this->profileForMutation( $d['teacher_id'], $d['timezone'] ); $d['profile_id'] = (int) $profile->id; $this->rejectOverlap($d); $id = $this->repo->saveRule( $d, $now, get_current_user_id() ?: null ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
+        $this->admin(); $d = $this->rule( $input ); $now = current_time( 'mysql', true ); $this->repo->begin(); try { $profile = $this->profileForMutation( $d['teacher_id'], $d['timezone'] ); $d['profile_id'] = (int) $profile->id; if($d['instrument_id']!==null){$this->prepareInstrument((int)$d['teacher_id'],(int)$d['instrument_id'],$now);}$this->rejectOverlap($d); $id = $this->repo->saveRule( $d, $now, get_current_user_id() ?: null ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
     }
 
     public function setOwnRecurringRule(array $input): int {
         $teacher = $this->ownTeacher(); $input['teacher_id'] = $teacher; $input['status'] = 'active'; $input['reason_code'] = 'teacher_onboarding'; $input['state'] = 'preferred';
         $d = $this->rule( $input ); $now = current_time( 'mysql', true );
-        $this->repo->begin(); try { $profile = $this->profileForMutation( $teacher, $d['timezone'] ); $d['profile_id'] = (int) $profile->id; $this->rejectOverlap($d); $id = $this->repo->saveRule( $d, $now, get_current_user_id() ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
+        $this->repo->begin(); try { $profile = $this->profileForMutation( $teacher, $d['timezone'] ); $d['profile_id'] = (int) $profile->id; if($d['instrument_id']!==null){$this->prepareInstrument($teacher,(int)$d['instrument_id'],$now);}$this->rejectOverlap($d); $id = $this->repo->saveRule( $d, $now, get_current_user_id() ); $this->repo->commit(); return $id; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
+    }
+    /** Mark an eligible instrument as intentionally configured, including an empty schedule. */
+    public function configureOwnInstrument(int $instrumentId): void {
+        $teacher=$this->selfServiceTeacher(); $instrument=Normalizer::id($instrumentId); global $wpdb; $allowed=(int)$wpdb->get_var($wpdb->prepare("SELECT 1 FROM {$wpdb->prefix}dzn_teacher_course_eligibilities e INNER JOIN {$wpdb->prefix}dzn_courses c ON c.id=e.course_id WHERE e.teacher_id=%d AND c.instrument_id=%d AND e.status='active' AND c.status='active' AND c.archived_at IS NULL LIMIT 1",$teacher,$instrument)); if(!$allowed)throw new \InvalidArgumentException('Instrument is not eligible for this Teacher'); $now=current_time('mysql',true);
+        $this->repo->begin(); try {
+            $this->usableTeacher($teacher);
+            // A configured-empty instrument must never continue to use an earlier
+            // instrument-specific schedule. Legacy (unscoped) rules remain intact
+            // for other instruments; saving this state also stops their inheritance.
+            $this->repo->retireOwnInstrumentRules($teacher,$instrument,$now,get_current_user_id());
+            $this->repo->saveInstrumentState($teacher,$instrument,$now,get_current_user_id());
+            $this->repo->commit();
+        } catch(\Throwable $e){$this->repo->rollback();throw $e;}
+    }
+
+    /**
+     * Replace one instrument's entire weekly schedule in a single transaction.
+     *
+     * The planner uses this instead of adding/retiring rows one at a time so a
+     * save is atomic. An empty range list is the explicit "no availability"
+     * state: the instrument's rules are retired and the configured marker is
+     * persisted, which stops legacy/unscoped inheritance for that instrument.
+     *
+     * @param list<array<string,mixed>> $ranges
+     */
+    public function replaceOwnWeeklySchedule(int $instrumentId, array $ranges): void {
+        $teacher = $this->selfServiceTeacher();
+        $instrument = Normalizer::id($instrumentId);
+        $this->assertInstrumentForTeacher($teacher, $instrument);
+        $normalized = TeacherAvailabilityPlanner::normalizeRanges($ranges);
+        $profile = $this->repo->profile($teacher);
+        if (!$profile || (string) $profile->status !== 'active') throw new \InvalidArgumentException('Active availability profile required');
+        $timezone = $this->authorityTimezone((string) $profile->timezone);
+        $now = current_time('mysql', true);
+        $actor = (int) get_current_user_id();
+        $this->repo->begin();
+        try {
+            $this->usableTeacher($teacher);
+            $profile = $this->profileForMutation($teacher, $timezone);
+            // Retire only this instrument's active rules. Legacy/unscoped rules and
+            // other instruments are deliberately untouched.
+            $this->repo->retireOwnInstrumentRules($teacher, $instrument, $now, $actor);
+            // Mark the instrument as configured even when the list is empty. This is
+            // what prevents legacy inheritance for an explicitly empty instrument.
+            $this->repo->saveInstrumentState($teacher, $instrument, $now, $actor);
+            foreach ($normalized as $range) {
+                $d = $this->rule(array(
+                    'teacher_id' => $teacher,
+                    'instrument_id' => $instrument,
+                    'weekday' => (int) $range['weekday'],
+                    'local_start_time' => TeacherAvailabilityPlanner::clock((int) $range['start']) . ':00',
+                    'local_end_time' => (int) $range['end'] >= 1440 ? '2400' : TeacherAvailabilityPlanner::clock((int) $range['end']) . ':00',
+                    'state' => 'preferred',
+                    'timezone' => $timezone,
+                    'status' => 'active',
+                    'reason_code' => 'teacher_self_service_schedule',
+                ));
+                $d['profile_id'] = (int) $profile->id;
+                $this->repo->saveRule($d, $now, $actor);
+            }
+            $this->repo->commit();
+            (new TeacherOnboardingService())->refreshOwnProgress();
+        } catch (\Throwable $error) {
+            $this->repo->rollback();
+            throw $error;
+        }
     }
 
     /** Copy every active rule from one weekday to explicitly selected weekdays atomically. */
@@ -43,13 +109,14 @@ final class TeacherAvailabilityService {
 
     public function setActiveOwnRecurringRule(array $input): int {
         $teacher=$this->activeOwnTeacher();$input['teacher_id']=$teacher;$input['status']='active';$input['reason_code']='teacher_self_service';$input['state']='preferred';$d=$this->rule($input);$now=current_time('mysql',true);
-        $this->repo->begin();try{$profile=$this->profileForMutation($teacher,$d['timezone']);$d['profile_id']=(int)$profile->id;$this->rejectOverlap($d);$id=$this->repo->saveRule($d,$now,get_current_user_id());$this->repo->commit();(new TeacherOnboardingService())->refreshOwnProgress();return $id;}catch(\Throwable $e){$this->repo->rollback();throw $e;}
+        $this->repo->begin();try{$profile=$this->profileForMutation($teacher,$d['timezone']);$d['profile_id']=(int)$profile->id;if($d['instrument_id']!==null){$this->prepareInstrument($teacher,(int)$d['instrument_id'],$now);}$this->rejectOverlap($d);$id=$this->repo->saveRule($d,$now,get_current_user_id());$this->repo->commit();(new TeacherOnboardingService())->refreshOwnProgress();return $id;}catch(\Throwable $e){$this->repo->rollback();throw $e;}
     }
     /** Invitation-linked teachers may retire only their own onboarding availability. */
-    public function retireOwnRecurringRule(int $ruleId): void {
+    public function retireOwnRecurringRule(int $ruleId, ?int $instrumentId = null): void {
         $teacher=$this->ownTeacher();$id=Normalizer::id($ruleId);$now=current_time('mysql',true);
         $this->repo->begin();
         try {
+            $id=(int)$this->editableOwnRule($teacher,$id,$instrumentId,$now)->id;
             $this->repo->retireOwnRule($id,$teacher,$now,get_current_user_id());
             $this->repo->commit();
             (new TeacherOnboardingService())->refreshOwnProgress();
@@ -57,7 +124,11 @@ final class TeacherAvailabilityService {
             $this->repo->rollback();throw $e;
         }
     }
-    public function retireActiveOwnRecurringRule(int $ruleId):void { $teacher=$this->activeOwnTeacher();$id=Normalizer::id($ruleId);$now=current_time('mysql',true);$this->repo->begin();try{$this->repo->retireOwnRule($id,$teacher,$now,get_current_user_id());$this->repo->commit();(new TeacherOnboardingService())->refreshOwnProgress();}catch(\Throwable $e){$this->repo->rollback();throw $e;} }
+    public function retireActiveOwnRecurringRule(int $ruleId, ?int $instrumentId = null):void { $teacher=$this->activeOwnTeacher();$id=Normalizer::id($ruleId);$now=current_time('mysql',true);$this->repo->begin();try{$id=(int)$this->editableOwnRule($teacher,$id,$instrumentId,$now)->id;$this->repo->retireOwnRule($id,$teacher,$now,get_current_user_id());$this->repo->commit();(new TeacherOnboardingService())->refreshOwnProgress();}catch(\Throwable $e){$this->repo->rollback();throw $e;} }
+    public function removeOwnRecurringRangePart(int $ruleId,string $start,string $end,?int $instrumentId=null):void {
+        $teacher=$this->selfServiceTeacher();$id=Normalizer::id($ruleId);$start=$this->time($start);$end=$end==='2400'?'24:00:00':$this->time($end);$now=current_time('mysql',true);
+        $this->repo->begin();try{$row=$this->editableOwnRule($teacher,$id,$instrumentId,$now);$id=(int)$row->id;if(!$row||(int)$row->teacher_id!==$teacher||(string)$row->status!=='active')throw new \InvalidArgumentException('Active availability rule not found');$min=static fn($v)=>$v==='24:00:00'?1440:(int)substr($v,0,2)*60+(int)substr($v,3,2);$a=$min($row->local_start_time);$b=$min($row->local_end_time);$x=$min($start);$y=$min($end);if($x<$a||$y>$b||$y<=$x)throw new \InvalidArgumentException('Removal range must be inside the saved range');$profile=$this->profileForMutation($teacher,$this->authorityTimezone((string)$row->timezone));$this->repo->retireOwnRule($id,$teacher,$now,get_current_user_id());foreach(array(array($a,$x),array($y,$b))as$part){if($part[1]<=$part[0])continue;$d=$this->rule(array('teacher_id'=>$teacher,'instrument_id'=>$row->instrument_id,'weekday'=>$row->weekday,'local_start_time'=>sprintf('%02d:%02d',(int)($part[0]/60),$part[0]%60),'local_end_time'=>$part[1]===1440?'2400':sprintf('%02d:%02d',(int)($part[1]/60),$part[1]%60),'state'=>$row->state,'timezone'=>$row->timezone,'status'=>'active','reason_code'=>'teacher_self_service_split'));$d['profile_id']=(int)$profile->id;$this->repo->saveRule($d,$now,get_current_user_id());}$this->repo->commit();}catch(\Throwable $e){$this->repo->rollback();throw $e;}
+    }
     /** Administrator retirement of one recurring window; historical records are untouched. */
     public function retireRule(int $teacherId, int $ruleId): void {
         $this->admin(); $teacher = Normalizer::id($teacherId); $rule = Normalizer::id($ruleId); $now = current_time('mysql', true);
@@ -122,13 +193,13 @@ final class TeacherAvailabilityService {
     public function upcomingOwnExceptions(int $limit=30): array { $teacher=$this->selfServiceTeacher();$profile=$this->repo->profile($teacher);$timezone=$profile?$this->authorityTimezone($profile->timezone):null;if(!$timezone)return array();$from=(new \DateTimeImmutable('today',new \DateTimeZone($timezone)))->format('Y-m-d');$until=(new \DateTimeImmutable($from,new \DateTimeZone($timezone)))->modify('+1 year')->format('Y-m-d');$rows=array_filter($this->repo->activeExceptions($teacher,$from,$until),static fn($row)=>(int)$row->all_day===1&&(string)$row->state==='blocked');return array_slice(array_values($rows),0,max(1,min(100,$limit))); }
 
     /** @return list<array{state:string,starts_at_utc:string,ends_at_utc:string,source:string}> */
-    public function effective(int $teacherId, string $fromUtc, string $untilUtc): array {
+    public function effective(int $teacherId, string $fromUtc, string $untilUtc, ?int $instrumentId = null): array {
         $teacher = Normalizer::id( $teacherId ); $from = $this->utc( $fromUtc ); $until = $this->utc( $untilUtc ); if ( $until <= $from ) throw new \InvalidArgumentException( 'Availability range end must follow start' );
         if ( ! $this->repo->evaluableTeacher( $teacher ) ) return array();
         $profile = $this->repo->profile( $teacher ); if ( ! $profile || $profile->status !== 'active' ) return array();
         $zone = new \DateTimeZone( $this->authorityTimezone( $profile->timezone ) ); $utc = new \DateTimeZone( 'UTC' ); $fromLocal = ( new \DateTimeImmutable( $from, $utc ) )->setTimezone( $zone ); $untilLocal = ( new \DateTimeImmutable( $until, $utc ) )->setTimezone( $zone );
         $startDate = $fromLocal->modify( '-1 day' )->format( 'Y-m-d' ); $endDate = $untilLocal->modify( '+1 day' )->format( 'Y-m-d' );
-        $facts = array(); $rules = $this->repo->activeRules( $teacher ); $exceptions = $this->repo->activeExceptions( $teacher, $startDate, $endDate );
+        $facts = array(); $rules = $this->repo->activeRules( $teacher, $instrumentId ); $exceptions = $this->repo->activeExceptions( $teacher, $startDate, $endDate );
         for ( $day = new \DateTimeImmutable( $startDate, $zone ); $day->format( 'Y-m-d' ) <= $endDate; $day = $day->modify( '+1 day' ) ) {
             $date = $day->format( 'Y-m-d' ); $weekday = (int) $day->format( 'N' );
             foreach ( $rules as $rule ) if ( (int) $rule->weekday === $weekday ) {
@@ -158,7 +229,7 @@ final class TeacherAvailabilityService {
      *
      * @return list<array{state:string,starts_at_utc:string,ends_at_utc:string,source:string}>
      */
-    public function recurring(int $teacherId, string $fromUtc, string $untilUtc): array {
+    public function recurring(int $teacherId, string $fromUtc, string $untilUtc, ?int $instrumentId = null): array {
         $teacher = Normalizer::id($teacherId);
         $from = $this->utc($fromUtc);
         $until = $this->utc($untilUtc);
@@ -173,7 +244,7 @@ final class TeacherAvailabilityService {
         $startDate = $fromLocal->modify('-1 day')->format('Y-m-d');
         $endDate = $untilLocal->modify('+1 day')->format('Y-m-d');
         $facts = array();
-        $rules = $this->repo->activeRules($teacher);
+        $rules = $this->repo->activeRules($teacher,$instrumentId);
         for ($day = new \DateTimeImmutable($startDate, $zone); $day->format('Y-m-d') <= $endDate; $day = $day->modify('+1 day')) {
             $date = $day->format('Y-m-d');
             $weekday = (int) $day->format('N');
@@ -189,11 +260,11 @@ final class TeacherAvailabilityService {
     }
 
     /** Exact availability state (`preferred`|`requestable`) covering a range, or null when it is not covered. */
-    public function coverage(int $teacherId, string $fromUtc, string $untilUtc): ?string {
+    public function coverage(int $teacherId, string $fromUtc, string $untilUtc, ?int $instrumentId = null): ?string {
         if ($untilUtc <= $fromUtc) { return null; }
         $cursor = $fromUtc;
         $state = 'preferred';
-        foreach ($this->effective($teacherId, $fromUtc, $untilUtc) as $segment) {
+        foreach ($this->effective($teacherId, $fromUtc, $untilUtc, $instrumentId) as $segment) {
             if ((string) $segment['starts_at_utc'] > $cursor) { return null; }
             if (!in_array((string) $segment['state'], array('preferred', 'requestable'), true)) { return null; }
             if ((string) $segment['state'] === 'requestable') { $state = 'requestable'; }
@@ -214,6 +285,10 @@ final class TeacherAvailabilityService {
         $timezone = $this->authorityTimezone( $profile->timezone );
         return $timezone;
     }
+    public function instrumentIdForCourse(int $courseId): ?int {
+        global $wpdb; $id=$wpdb->get_var($wpdb->prepare("SELECT instrument_id FROM {$wpdb->prefix}dzn_courses WHERE id=%d AND status='active' AND archived_at IS NULL",$courseId));
+        return $id ? (int)$id : null;
+    }
 
     private function authorityTimezone(mixed $value): string {
         try { $timezone = Normalizer::timezone( $value ); } catch ( \Throwable ) { throw new \RuntimeException( 'teacher_timezone_invalid' ); }
@@ -225,7 +300,8 @@ final class TeacherAvailabilityService {
         $teacher = Normalizer::id( $input['teacher_id'] ?? null ); $weekday = Normalizer::count( $input['weekday'] ?? null, 1, 7 ); $timezone = $this->timezone( $input['timezone'] ?? null ); $start = $this->time( $input['local_start_time'] ?? null ); $endInput = trim((string)($input['local_end_time'] ?? '')); $end = $endInput === '2400' ? '24:00:00' : $this->time( $endInput );
         // Validate a representative date as well as same-day half-open ordering.
         AvailabilityLocalTime::interval( '2026-01-05', $start, $end, $timezone );
-        return array( 'id' => Normalizer::id( $input['id'] ?? null, false ), 'teacher_id' => $teacher, 'weekday' => $weekday, 'local_start_time' => $start, 'local_end_time' => $end, 'state' => $this->state( $input['state'] ?? null ), 'timezone' => $timezone, 'status' => Normalizer::one( $input['status'] ?? 'active', array( 'active', 'inactive' ), 'availability rule status' ), 'reason_code' => Normalizer::text( $input['reason_code'] ?? null, 64 ) );
+        $instrument = array_key_exists('instrument_id',$input) && $input['instrument_id'] !== '' && $input['instrument_id'] !== null ? Normalizer::id($input['instrument_id']) : null;
+        return array( 'id' => Normalizer::id( $input['id'] ?? null, false ), 'teacher_id' => $teacher, 'instrument_id' => $instrument, 'weekday' => $weekday, 'local_start_time' => $start, 'local_end_time' => $end, 'state' => $this->state( $input['state'] ?? null ), 'timezone' => $timezone, 'status' => Normalizer::one( $input['status'] ?? 'active', array( 'active', 'inactive' ), 'availability rule status' ), 'reason_code' => Normalizer::text( $input['reason_code'] ?? null, 64 ) );
     }
     private function exception(array $input): array {
         $teacher = Normalizer::id( $input['teacher_id'] ?? null ); $timezone = $this->timezone( $input['timezone'] ?? null ); $date = AvailabilityLocalTime::date( (string) ( $input['local_date'] ?? '' ) ); $allDay = ! empty( $input['all_day'] ) ? 1 : 0; $state = $this->state( $input['state'] ?? null );
@@ -240,7 +316,10 @@ final class TeacherAvailabilityService {
     private function admin(): void { if ( ! current_user_can( 'dzn_manage_teacher_availability' ) ) throw new \RuntimeException( 'Unauthorized' ); }
     private function timezone(mixed $value): string { $timezone = Normalizer::timezone( $value ); if ( ! $timezone ) throw new \InvalidArgumentException( 'IANA timezone required' ); return $timezone; }
     private function time(mixed $value): string { $time = Normalizer::time( $value ); if ( ! $time ) throw new \InvalidArgumentException( 'Local time required' ); return $time; }
-    private function rejectOverlap(array $d): void { $minute = static fn($v) => $v === '24:00:00' ? 1440 : ((int)substr($v,0,2))*60+(int)substr($v,3,2); foreach ($this->repo->activeRulesForUpdate((int)$d['teacher_id']) as $rule) { if ((int)$rule->weekday !== (int)$d['weekday'] || (int)$rule->id === (int)($d['id'] ?? 0)) continue; if ($minute($d['local_start_time']) < $minute((string)$rule->local_end_time) && $minute((string)$rule->local_start_time) < $minute($d['local_end_time'])) throw new \InvalidArgumentException('Recurring availability overlaps an existing interval on this weekday'); } }
+    private function rejectOverlap(array $d): void { $minute = static fn($v) => $v === '24:00:00' ? 1440 : ((int)substr($v,0,2))*60+(int)substr($v,3,2); foreach ($this->repo->activeRulesForUpdate((int)$d['teacher_id'], $d['instrument_id']) as $rule) { if ((int)$rule->weekday !== (int)$d['weekday'] || (int)$rule->id === (int)($d['id'] ?? 0)) continue; if ($minute($d['local_start_time']) < $minute((string)$rule->local_end_time) && $minute((string)$rule->local_start_time) < $minute($d['local_end_time'])) throw new \InvalidArgumentException('Recurring availability overlaps an existing interval on this weekday'); } }
+    private function editableOwnRule(int $teacher,int $id,?int $instrument,string $now): object { $row=$this->repo->ruleForUpdate($id); if(!$row||(int)$row->teacher_id!==$teacher||(string)$row->status!=='active')throw new \InvalidArgumentException('Active availability rule not found'); if($instrument===null||$row->instrument_id!==null){if($instrument!==null&&$row->instrument_id!==null&&(int)$row->instrument_id!==$instrument)throw new \InvalidArgumentException('Availability rule belongs to another instrument');return $row;} $this->prepareInstrument($teacher,$instrument,$now); foreach($this->repo->activeRules($teacher,$instrument) as $candidate)if((int)$candidate->weekday===(int)$row->weekday&&(string)$candidate->local_start_time===(string)$row->local_start_time&&(string)$candidate->local_end_time===(string)$row->local_end_time&&(string)$candidate->state===(string)$row->state&&(string)$candidate->timezone===(string)$row->timezone)return $this->repo->ruleForUpdate((int)$candidate->id); throw new \InvalidArgumentException('Instrument availability rule not found'); }
+    private function prepareInstrument(int $teacher,int $instrument,string $now):void { $this->assertInstrumentForTeacher($teacher,$instrument); if($this->repo->instrumentConfigured($teacher,$instrument))return; foreach($this->repo->activeRules($teacher,null) as $legacy){if($legacy->instrument_id!==null)continue;$copy=get_object_vars($legacy);unset($copy['id'],$copy['created_at'],$copy['updated_at'],$copy['created_by'],$copy['updated_by'],$copy['version']);$copy['instrument_id']=$instrument;$copy['reason_code']='instrument_schedule_migrated';$this->repo->saveRule($copy,$now,get_current_user_id());} $this->repo->saveInstrumentState($teacher,$instrument,$now,get_current_user_id()); }
+    private function assertInstrumentForTeacher(int $teacher,int $instrument):void { global $wpdb; $allowed=(int)$wpdb->get_var($wpdb->prepare("SELECT 1 FROM {$wpdb->prefix}dzn_teacher_course_eligibilities e INNER JOIN {$wpdb->prefix}dzn_courses c ON c.id=e.course_id WHERE e.teacher_id=%d AND c.instrument_id=%d AND e.status='active' AND c.status='active' AND c.archived_at IS NULL LIMIT 1",$teacher,$instrument)); if(!$allowed)throw new \InvalidArgumentException('Instrument is not eligible for this Teacher'); }
     private function state(mixed $value): string { return Normalizer::one( $value, self::STATES, 'availability state' ); }
     private function utc(string $value): string { $date = \DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', $value, new \DateTimeZone( 'UTC' ) ); if ( ! $date || $date->format( 'Y-m-d H:i:s' ) !== $value ) throw new \InvalidArgumentException( 'Canonical UTC datetime required' ); return $value; }
     private function append(array &$facts, array $interval, string $state, string $source, int $id): void { $facts[] = $interval + array( 'state' => $state, 'source' => $source, 'id' => $id, 'source_rank' => $source === 'exception' ? 2 : 1, 'state_rank' => array( 'requestable' => 1, 'preferred' => 2, 'blocked' => 3 )[ $state ] ); }

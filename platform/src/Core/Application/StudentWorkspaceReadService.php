@@ -1184,7 +1184,7 @@ final class StudentWorkspaceReadService {
             'rows' => $rows,
             'portal' => $portal,
             'channels' => $channels,
-            'sms_policy' => 'SMS fallback is available only after an eligible, evidenced WhatsApp failure with the required consent and eligibility checks. It is never a manual shortcut.',
+            'sms_policy' => 'SMS is available only for notification events where it is enabled and the recipient is eligible under the required consent and eligibility checks.',
             'suppression' => $this->suppression($digest),
         );
     }

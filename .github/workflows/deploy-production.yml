@@ -41,8 +41,9 @@ jobs:
           set -Eeuo pipefail
           [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this workflow from the main branch only.' >&2; exit 1; }
           [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character commit SHA.' >&2; exit 1; }
-          git fetch --no-tags origin main
-          [[ "$(git rev-parse origin/main)" == "$COMMIT_SHA" ]] || { echo 'Requested SHA must still be current origin/main.' >&2; exit 1; }
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          origin_main="$(git rev-parse origin/main)"
+          [[ "$origin_main" == "$COMMIT_SHA" ]] || { echo "Requested SHA must still be current origin/main (origin/main=$origin_main requested=$COMMIT_SHA)." >&2; exit 1; }
 
       - name: Require successful PR runtime gate for exact SHA
         env:
@@ -76,8 +77,9 @@ jobs:
         run: |
           set -Eeuo pipefail
           [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character commit SHA.' >&2; exit 1; }
-          git fetch --no-tags origin main
-          [[ "$(git rev-parse origin/main)" == "$COMMIT_SHA" ]] || { echo 'Requested SHA must still be current origin/main.' >&2; exit 1; }
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          origin_main="$(git rev-parse origin/main)"
+          [[ "$origin_main" == "$COMMIT_SHA" ]] || { echo "Requested SHA must still be current origin/main (origin/main=$origin_main requested=$COMMIT_SHA)." >&2; exit 1; }
           test -f platform/tests/phase-student-portal-state-contract.php
           test -f platform/tests/admin-navigation-regression-contract.php
           bash -n deployment/production-deploy.sh

@@ -1,123 +1,232 @@
-# Instrument Coverage Clock
+# Seven-day Instrument Coverage Clock
 
-The 24-hour instrument coverage clock is the primary presentation of teaching
-coverage. It replaces the country/region atlas as the default view while the
-regional atlas remains available as an explicitly labelled secondary detail.
+The coverage clock is one instrument, one 24-hour canvas and seven concentric
+weekday rings. It is a **read-only projection** over the existing scheduling,
+availability, booking and remuneration authorities.
+
+## Structure
+
+- Outside → inside, starting with **today** and continuing through the next six
+  days. Ended days are not part of the initial window.
+- The single Golden Hours ring is outside the seven weekday rings.
+- **06:00 at the top**, 12:00 right, 18:00 bottom, 00:00 left.
+- Every hour is labelled; the 6-hour major marks are larger and the hours between
+  them are smaller.
+- 48 visual 30-minute segments per ring.
+- The rolling seven-day window starts on the selected date (today by default).
+  Choosing a new date starts a new window; previous/next moves by seven days.
+- The current day gets a subtle ring outline and a compact “Today” marker in the
+  ring key; it never obscures capacity.
+- Every ring carries a low-key short weekday caption so the concentric bands stay
+  identifiable without relying on the side key.
+- The ring key identifies every weekday, its date and its coverage percentage.
+- The date control is always a **Gregorian** browser date input; the chosen week is
+  then labelled in the selected Gregorian or Persian calendar.
+
+## Metric period
+
+`InstrumentCoverageMetrics` is the single period authority for the administrator
+view:
+
+- **Current week:** headline coverage, Golden gaps and uncovered durations cover
+  the same actionable remainder. Elapsed slots are excluded consistently.
+- **Future or past week:** the whole selected week is used, and the period label
+  says so explicitly.
+
+Day percentages, the weekly percentage, Golden gaps and uncovered durations all
+come from that one source. An ended day shows “Ended” instead of a stale
+percentage. A day inside a future/past week shows its full-day percentage.
+
+## Availability precision
+
+The server retains **15-minute booking precision** in
+`InstrumentCoverageClockAnalyzer::build()`. A separate
+`InstrumentCoverageClockAnalyzer::visualize()` aggregates pairs into 48 visual
+segments:
+
+- both halves bookable → covered/limited;
+- one half bookable → `partial`;
+- neither bookable → uncovered;
+- unknown half → unknown.
+
+Each visual segment keeps both half states, teacher counts and Golden flags, so
+partial availability is visible even though the ring is divided into 30 minutes.
+The complete class-plus-buffer interval is still validated against the
+authoritative availability, occupancy, offers/confirmations and holds.
+
+## Gap reasons
+
+Each 15-minute segment carries an authoritative reason from the analyzer. The
+ring compact payload keeps that reason; the detail panel never infers a cause from
+colour or teacher count.
+
+| Reason | Meaning |
+|---|---|
+| `no_availability` | No Teacher declared availability for the complete interval |
+| `fully_booked` | Declared Teachers are occupied by confirmed/offered classes |
+| `fully_held` | Declared Teachers are blocked by active pre-payment holds |
+| `one_teacher` | Exactly one eligible, free Teacher remains |
+| `partial_15_minute` | One 15-minute half is bookable and the other is not |
+| `unknown_data` | Availability facts are incomplete for an eligible Teacher |
+| `nonexistent_local_time` | A DST gap/fold cannot identify one UTC interval |
+
+A fully booked interval is shown as **Fully booked**, not as “no eligible
+Teacher”. Booked and held Teacher counts travel with the selected segment.
+
+## Gap navigation
+
+The administrator view no longer renders a separate priority-gap list. The
+seven-ring clock remains the spatial overview, and selecting a ring segment opens
+its day, time, capacity, cause, Golden status and conditional bonus detail.
+Cross-instrument focus links remain supported by the clock payload.
+
+## Unknown data
+
+Unknown intervals are **excluded from confirmed priority gaps**, because they are
+not evidence of an uncovered period. They are not silently dropped either:
+
+- `InstrumentCoverageUnknownData` builds a separate, read-only data-quality
+  projection from the same 15-minute segments.
+- The administrator view shows a compact **Data quality** indicator with the
+  number of unknown intervals, total duration, affected instruments and dates.
+  An interval is one contiguous range; the projection also keeps its exact
+  15-minute segment count.
+- Each affected range is independently inspectable. Selecting it highlights that
+  range on the clock with a distinct style and opens the normal detail panel.
+- The reason is retained where known: incomplete availability data or a
+  nonexistent local time across a DST transition.
+- Unknown capacity is never counted as available, never counted as uncovered and
+  never presented as a confirmed gap.
+
+The data-quality projection follows the same metric period as the confirmed gaps:
+elapsed unknown slots are excluded in the current week and included in a full
+past/future week.
+
+## Capacity colours
+
+The weekday rings use a muted day-colour progression; the order follows the rolling window:
+
+| Day | Colour |
+|---|---|
+| Saturday | green |
+| Sunday | teal-green |
+| Monday | teal |
+| Tuesday | blue-teal |
+| Wednesday | blue |
+| Thursday | blue-violet |
+| Friday | violet |
+
+Capacity is communicated by the ring colour; one-teacher segments use a hatch,
+partial segments show one coloured half and one grey half, unavailable segments
+are grey, unknown segments are hatched, and selected segments get an outline.
+Colour is never the only cue.
+
+## Golden Hours ring
+
+The outer ring aggregates the effective-dated Golden Hour policy resolved by
+`GoldenHourPolicyService::resolveAt(GoldenHourRule::GLOBAL_IRAN_KEY)` across the
+seven displayed dates. It does not create a second policy authority: the same
+configured rules drive the Teacher planner, the Coverage clock and the pay
+eligibility projection.
+
+Selecting a Golden ring segment shows:
+
+- selected time;
+- contributing service regions;
+- each region’s local window;
+- the weekday/date context;
+- the current global bonus percentage, clearly labelled as conditional on the
+  global bonus window.
+
+The outer ring is an **aggregate**; exact weekday eligibility is shown by a thin
+gold inner edge on the relevant weekday-ring segment and in the day-specific
+detail. The Golden Hour designation is a policy window; actual bonus eligibility still follows the enabled global pay policy.
+
+On a weekday ring the detail panel states whether that day is a Golden Hour and
+lists the contributing regions. Bonus eligibility is shown only when the existing
+global pay policy applies, with conditional wording; the aggregate ring never
+promises pay.
+
+### Eligible Teachers
+
+The headline **Eligible teachers** count is instrument-wide. It is not the number
+free at the selected time. The selected interval’s remaining count is shown
+separately in the detail panel, alongside the instrument-wide count.
 
 ## Authority boundaries
-
-The clock is a **read-only projection**. It introduces no second scheduling,
-availability, booking or remuneration system.
 
 | Concern | Authority reused by the clock |
 |---|---|
 | Dated availability, exceptions, holidays | `TeacherAvailabilityService::effective()` |
-| Structural weekly availability | `TeacherAvailabilityService::recurring()` |
 | Canonical and legacy class occupancy | `CanonicalTeacherOccupancyReadService::inRange()` |
 | Booking offers and confirmations | `TeacherBookingOccupancyQuery::conflictsRange()` |
 | Active pre-payment holds | `CanonicalContinuationCapacityAuthority::activeHoldsInRange()` |
-| Lesson duration and buffer | `BookingAvailabilityPolicy`, `AvailabilityLocalTime`, active Course shape |
-| Teacher eligibility and operational status | `teacher_course_eligibilities`, onboarding/readiness, accepting state |
-| Golden Hour designation | `GoldenHourPolicyService` + `GoldenHourClockProjection` |
+| Lesson duration and buffer | active introductory Course shape |
+| Teacher eligibility and status | eligibility, onboarding/readiness and accepting state |
+| Golden Hour windows | `GoldenHourPolicyService::resolveAt(GoldenHourRule::GLOBAL_IRAN_KEY)` |
+| Global pay/bonus | `GoldenHourPolicyService` (`GLOBAL_IRAN`) |
 | Bookable catalogue shape | `PublicBookingOptionsReadService` |
-
-The booking-time services remain the final decision maker. The clock only says
-whether an eligible Teacher can accept **the complete required interval**.
-
-## Calculation methodology
-
-For every instrument and every 15-minute clock segment:
-
-1. Resolve the segment's wall time in the clock's display timezone. A nonexistent
-   (spring-forward) or ambiguous (fall-back) wall time is marked `unknown`; the
-   clock never guesses a DST occurrence.
-2. Build the full candidate interval: `lesson minutes + buffer minutes` starting
-   at the segment.
-3. Count eligible Teachers whose resolved availability covers the complete
-   candidate interval and whose canonical occupancy, booking offer/confirmation,
-   or active hold does not overlap it.
-4. Classify the segment:
-   - `covered`: two or more Teachers retain capacity;
-   - `limited`: one Teacher retains capacity;
-   - `uncovered`: no Teacher retains capacity (`fully_booked` when declared
-     availability exists, `no_availability` otherwise);
-   - `unknown`: data could not be read or the wall time is not schedulable.
-
-A free 15-minute hole is never advertised as a bookable class. The analyzer
-validates the complete interval before counting a Teacher. The standard
-introductory shape is a 30-minute class plus a 15-minute buffer (45-minute
-occupied interval), read from the active introductory Course rather than
-hardcoded in the clock. An instrument configured with a different Course shape
-shows that authoritative shape.
-
-### Weekly mode
-
-Weekly mode uses recurring availability rules only. It deliberately ignores
-existing bookings, offers, holds and dated exceptions so one date's operations do
-not become a permanent structural loss. Seven weekday clocks are available.
-
-### Actual-date mode
-
-Actual-date mode applies dated exceptions, holidays, confirmed classes, legacy
-occupancy, pending offers, confirmations and active holds. Capacity is recalculated
-on every request; there is no cross-request cache to invalidate.
-
-## Golden Hours
-
-Golden Hour designation comes from the existing finance-owned global policy
-(`GLOBAL_IRAN`) and is projected into the clock's display timezone. The outer ring
-is always visible, independently of capacity:
-
-- Golden Hour with capacity: gold inner segment and gold outer indicator;
-- Golden Hour without capacity: grey inner segment and gold outer indicator.
-
-The designation intentionally ignores whether the pay bonus is currently enabled,
-matching the existing coverage semantics. No country or region label is shown on
-the clock.
+| Week arithmetic | `InstrumentCoverageWeek` |
 
 ## Timezone and calendar
 
-- All internal comparisons use canonical UTC timestamps.
-- The display timezone is the academy timezone for administrators and the
-  Teacher's availability-profile timezone for the Teacher portal.
-- DST gaps and folds are not guessed; affected segments are `unknown`.
-- Availability crossing midnight maps through the same UTC intervals as booking.
-- Gregorian dates are canonical. Persian/Jalali labels use the existing
-  `PersianCalendar` arithmetic; the administrator may switch the date label.
+- Internal comparisons use canonical UTC timestamps.
+- Admin display timezone is the academy timezone; Teacher display timezone is the
+  Teacher availability-profile timezone.
+- DST gaps/folds are never guessed; affected segments are `unknown`.
+- Persian/Jalali labels use `PersianCalendar`; Gregorian labels respect the
+  Teacher portal calendar preference. The Teacher ring key uses Persian month
+  names when Gregorian is selected.
 
 ## Integration
 
-- **Teacher portal:** the clock sits above the existing availability editor. It
-  is limited to instruments where the Teacher is eligible for the introductory
-  course. Clicking a segment only prefills the existing form; saving still uses the
-  existing `TeacherAvailabilityService` mutations. The form preview updates
-  immediately without saving.
-- **Admin:** the Academy Overview coverage panel renders a compact instrument
-  overview and one expanded clock. Default mode is actual-date coverage.
-- **Legacy atlas:** the regional demand-window atlas is retained behind an
-  explicit link for finance window review; existing configuration, historical
-  records and remuneration logic are untouched.
+- **Admin:** the Academy Overview panel renders the compact seven-ring clock, a
+  compact instrument icon row, a labelled Gregorian week date, calendar toggle and
+  week navigation. The list, ring selection and detail panel
+  stay in sync; on narrow screens the list rows and day buttons are the primary
+  large tap targets.
+- **Teacher:** the same shared view sits above the existing availability editor.
+  Clicking a segment only prefills the existing form; it never saves. The
+  proposed availability is drawn on the matching ring. The form remains the
+  canonical write path.
+- **Legacy atlas:** the regional demand-window atlas has been retired from the
+  admin UI. Its read-only classes remain for historical/finance inspection but
+  are no longer rendered.
+
+## Teacher terminology
+
+The Teacher Golden-gap metric is exactly:
+
+**ساعت‌های طلایی بدون پوشش**
+
+The redundant separate Golden Hours section, eligible-period list and capacity
+grid were removed; Golden visibility and conditional bonus information remain in
+the unified clock detail panel.
+
+## Preview evidence
+
+Representative administrator previews live in `platform/docs/evidence/`:
+
+- `coverage-clock-priority-gaps-desktop.png`
+- `coverage-clock-priority-gaps-mobile.png` (390px narrow phone, selected fully booked gap)
+- `coverage-clock-priority-gaps-unknown.png` (390px, selected unknown interval)
+- the matching `coverage-clock-priority-gaps-preview*.html` files
+
+The synthetic week includes an uncovered Golden interval, a fully booked interval,
+a held interval, a single-teacher interval, a 15-minute partial and an unknown
+interval.
 
 ## Performance
 
-- One instrument query and one eligibility query per request.
-- One availability read and one occupancy/hold read per Teacher for the whole
-  range, not per 15-minute segment.
+- One instrument and eligibility query per request.
+- One availability, occupancy and hold read per Teacher for the whole week.
 - Request-local caches only; no persistent coverage snapshot.
-- Golden policy resolution is cached per display date for the request.
-
-## Quiet Hours
-
-Quiet Hours are a soft advisory only. They never remove a coverage-clock segment,
-change capacity colours, alter Teacher eligibility or block a booking. The clock
-does not display a Quiet Hours layer; Golden Hour and capacity colours remain
-authoritative and separate. See [QUIET-HOURS-ADVISORY.md](QUIET-HOURS-ADVISORY.md).
+- Regional Golden occurrence and pay-window projections are cached per date.
 
 ## Known limitations
 
-- A Teacher who is eligible only for a standard (non-introductory) course is not
-  counted in introductory capacity. This matches the public booking authority.
-- DST fold hours are presented as `unknown` rather than choosing one of two
-  possible instants.
-- The clock is a coverage aid, not a guarantee that a booking will succeed; the
-  booking-time services remain authoritative.
+- The outer Golden ring is a week/region aggregate, not a promise of remuneration.
+- Unknown intervals stay visible on the ring and in the Data quality indicator,
+  but are not ranked as confirmed priority gaps.
+- DST fold boundaries are shown as `unknown` rather than guessed.
+- The clock is a coverage aid; the booking-time services remain authoritative.

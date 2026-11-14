@@ -3,6 +3,7 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 require_once __DIR__ . '/nonce.php';
+require_once __DIR__ . '/brand.php';
 
 function dzn_theme_teacher_portal_templates() {
 	return array( 'page-templates/teacher-portal-home.php', 'page-templates/teacher-portal-account.php', 'page-templates/teacher-portal-onboarding.php', 'page-templates/teacher-portal-preview.php' );
@@ -20,10 +21,10 @@ function dzn_theme_enqueue_teacher_portal_assets() {
 	$js  = get_theme_file_path( 'assets/js/teacher-portal.js' );
 	wp_enqueue_style( 'delnavazan-teacher-portal', get_theme_file_uri( 'assets/css/teacher-portal.css' ), array( 'delnavazan-theme' ), file_exists( $css ) ? (string) filemtime( $css ) : wp_get_theme()->get( 'Version' ) );
 	wp_enqueue_script( 'delnavazan-teacher-portal', get_theme_file_uri( 'assets/js/teacher-portal.js' ), array(), file_exists( $js ) ? (string) filemtime( $js ) : wp_get_theme()->get( 'Version' ), array( 'strategy' => 'defer', 'in_footer' => true ) );
-	$clock_css = get_theme_file_path( 'assets/css/coverage-clock.css' );
-	$clock_js  = get_theme_file_path( 'assets/js/coverage-clock.js' );
-	wp_enqueue_style( 'delnavazan-coverage-clock', get_theme_file_uri( 'assets/css/coverage-clock.css' ), array( 'delnavazan-teacher-portal' ), file_exists( $clock_css ) ? (string) filemtime( $clock_css ) : wp_get_theme()->get( 'Version' ) );
-	wp_enqueue_script( 'delnavazan-coverage-clock', get_theme_file_uri( 'assets/js/coverage-clock.js' ), array(), file_exists( $clock_js ) ? (string) filemtime( $clock_js ) : wp_get_theme()->get( 'Version' ), array( 'strategy' => 'defer', 'in_footer' => true ) );
+	$planner_css = get_theme_file_path( 'assets/css/availability-planner.css' );
+	$planner_js  = get_theme_file_path( 'assets/js/availability-planner.js' );
+	wp_enqueue_style( 'delnavazan-availability-planner', get_theme_file_uri( 'assets/css/availability-planner.css' ), array( 'delnavazan-teacher-portal' ), file_exists( $planner_css ) ? (string) filemtime( $planner_css ) : wp_get_theme()->get( 'Version' ) );
+	wp_enqueue_script( 'delnavazan-availability-planner', get_theme_file_uri( 'assets/js/availability-planner.js' ), array(), file_exists( $planner_js ) ? (string) filemtime( $planner_js ) : wp_get_theme()->get( 'Version' ), array( 'strategy' => 'defer', 'in_footer' => true ) );
 }
 add_action( 'wp_enqueue_scripts', 'dzn_theme_enqueue_teacher_portal_assets', 20 );
 

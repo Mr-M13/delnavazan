@@ -3,6 +3,7 @@ namespace Delnavazan\Platform\Integrations;
 
 use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
 use Delnavazan\Platform\Core\Application\NotificationSupport;
+use Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy;
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationSuppressionRepository;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
 use Delnavazan\Platform\Integrations\Notifications\NotificationChannelPolicy;
@@ -10,6 +11,8 @@ use Delnavazan\Platform\Integrations\Notifications\NotificationCopyResolver;
 use Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer;
 use Delnavazan\Platform\Integrations\Notifications\StudentNotificationContactLookup;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxConfiguration;
+use Delnavazan\Platform\Integrations\SmsIrAdapter;
+use Delnavazan\Platform\Integrations\TelnyxSmsAdapter;
 
 /**
  * WhatsApp-first mobile delivery for the event-owned booking notification queue.
@@ -19,9 +22,8 @@ use Delnavazan\Platform\Integrations\Notifications\TelnyxConfiguration;
  * narrow: it only handles a booking notification that already exists, it resolves contact and copy
  * from that frozen business event, and it never invents a recipient or a provider template.
  *
- * SMS is never a primary channel.  It is attempted only after a synchronous, permanent WhatsApp
- * refusal and only when the category policy explicitly enables SMS fallback.  A transient or
- * ambiguous WhatsApp response is returned to the queue retry policy, never fanned out to SMS.
+ * WhatsApp and SMS are independent event-owned methods. Each one is evaluated against its own
+ * event switch, configuration, recipient address and copy; neither outcome changes the other.
  */
 final class BookingNotificationMobileDispatcher {
     public function __construct(
@@ -39,7 +41,7 @@ final class BookingNotificationMobileDispatcher {
     /** @return array<string,mixed> */
     public function dispatch(object $row, string $eventKey, array $variables): array {
         $event = NotificationCatalogue::get($eventKey);
-        if ($event === null || !in_array('whatsapp', (array) $event['channels'], true)) {
+        if ($event === null || (!in_array('whatsapp', (array) $event['channels'], true) && !in_array('sms', (array) $event['channels'], true))) {
             return self::skipped('channel_not_offered');
         }
         $audience = (string) $event['audience'];
@@ -47,60 +49,36 @@ final class BookingNotificationMobileDispatcher {
         if ($contact === null) {
             return self::skipped('contact_unusable');
         }
-        if (!$this->allowed($eventKey, 'whatsapp', false)) {
-            return self::skipped('whatsapp_policy_blocked');
-        }
-        if (!$this->configuration->whatsappReady()) {
-            return self::skipped('whatsapp_not_configured');
-        }
         if ($this->suppressed($audience, (int) $contact['id'], $eventKey)) {
             return self::skipped('suppressed');
         }
-        $parameters = $this->parameters($eventKey, $variables);
-        if ($parameters === null) {
-            return self::skipped('variable_contract_mismatch');
+        $results = array();
+        $whatsappEligible = $this->allowed($eventKey, 'whatsapp')
+            && $this->configuration->whatsappReady()
+            && (string) $contact['whatsapp'] !== '';
+        $studentWhatsAppPreferred = $audience === 'student' && $whatsappEligible;
+        $whatsappAttempted = false;
+        if ($whatsappEligible) {
+            $whatsappAttempted = true;
+            $parameters = $this->parameters($eventKey, $variables);
+            if ($parameters === null) $results['whatsapp'] = array('acknowledged' => false, 'permanent_failure' => 'variable_contract_mismatch');
+            else try {$results['whatsapp'] = $this->sendWhatsApp((string) $contact['whatsapp'], (int) $row->id, $eventKey, $parameters);}
+            catch (\Throwable $error) {$this->report('whatsapp_exception', (int) $row->id, $error->getMessage());$results['whatsapp'] = array('acknowledged' => false, 'permanent_failure' => 'whatsapp_exception');}
         }
-
-        try {
-            $result = $this->sendWhatsApp((string) $contact['whatsapp'], (int) $row->id, $eventKey, $parameters);
-        } catch (\Throwable $error) {
-            $this->report('whatsapp_exception', (int) $row->id, $error->getMessage());
-            return self::failed('whatsapp_exception');
+        // Student SMS is a pre-send choice only when WhatsApp is absent or ineligible. A failed
+        // WhatsApp attempt is never a reason to send a second copy by SMS.
+        $smsProvider = SmsProviderRoutingPolicy::select((string) $contact['sms']);
+        $smsReady = $smsProvider === 'sms_ir' ? $this->providerReady('sms_ir') : $this->configuration->smsReady();
+        if (!$whatsappAttempted && !$studentWhatsAppPreferred && $this->allowed($eventKey, 'sms') && $smsProvider !== 'off' && $smsReady && (string) $contact['sms'] !== '') {
+            $body = $this->smsBody($eventKey, $variables);
+            if ($body === null) $results['sms'] = array('acknowledged' => false, 'permanent_failure' => 'sms_copy_unavailable');
+            else try {$results['sms'] = $this->sendSms((string) $contact['sms'], (int) $row->id, $body, $smsProvider);}
+            catch (\Throwable $error) {$this->report('sms_exception', (int) $row->id, $error->getMessage());$results['sms'] = array('acknowledged' => false, 'permanent_failure' => 'sms_exception');}
         }
-        if (!empty($result['acknowledged'])) {
-            return array('state' => 'accepted', 'channel' => 'whatsapp', 'result' => $result);
-        }
-        if (($result['permanent_failure'] ?? null) === null) {
-            return array('state' => 'retryable', 'channel' => 'whatsapp', 'result' => $result);
-        }
-
-        // A verified terminal refusal may use the explicit SMS fallback policy.  Nothing else can.
-        if (!$this->allowed($eventKey, 'sms', true)) {
-            return array('state' => 'failed', 'channel' => 'whatsapp', 'reason' => 'sms_fallback_blocked', 'result' => $result);
-        }
-        if (!$this->configuration->smsReady()) {
-            return array('state' => 'failed', 'channel' => 'whatsapp', 'reason' => 'sms_not_configured', 'result' => $result);
-        }
-        if ((string) $contact['sms'] === '') {
-            return array('state' => 'failed', 'channel' => 'whatsapp', 'reason' => 'sms_recipient_ineligible', 'result' => $result);
-        }
-        if ($this->suppressed($audience, (int) $contact['id'], $eventKey)) {
-            return array('state' => 'failed', 'channel' => 'whatsapp', 'reason' => 'suppressed', 'result' => $result);
-        }
-        $body = $this->smsBody($eventKey, $variables);
-        if ($body === null) {
-            return array('state' => 'failed', 'channel' => 'whatsapp', 'reason' => 'sms_copy_unavailable', 'result' => $result);
-        }
-        try {
-            $fallback = $this->sendSms((string) $contact['sms'], (int) $row->id, $body);
-        } catch (\Throwable $error) {
-            $this->report('sms_exception', (int) $row->id, $error->getMessage());
-            return array('state' => 'failed', 'channel' => 'sms', 'reason' => 'sms_exception', 'result' => $result);
-        }
-        if (!empty($fallback['acknowledged'])) {
-            return array('state' => 'accepted', 'channel' => 'sms', 'result' => $result, 'fallback' => $fallback);
-        }
-        return array('state' => 'failed', 'channel' => 'sms', 'result' => $result, 'fallback' => $fallback);
+        if ($results === array()) return self::skipped('no_enabled_mobile_channel');
+        foreach ($results as $result) if (!empty($result['acknowledged'])) return array('state' => 'accepted', 'channels' => $results);
+        foreach ($results as $result) if (($result['permanent_failure'] ?? null) === null) return array('state' => 'retryable', 'channels' => $results);
+        return array('state' => 'failed', 'channels' => $results);
     }
 
     /** @return array{id:int,whatsapp:string,sms:string}|null */
@@ -144,11 +122,9 @@ final class BookingNotificationMobileDispatcher {
         return $body === '' ? null : $body;
     }
 
-    private function allowed(string $eventKey, string $channel, bool $fallback): bool {
-        if (is_callable($this->channelPolicy)) return (bool) ($this->channelPolicy)($eventKey, $channel, $fallback);
-        return $fallback
-            ? NotificationChannelPolicy::allowsSmsFallback($eventKey)
-            : NotificationChannelPolicy::allows($eventKey, $channel);
+    private function allowed(string $eventKey, string $channel): bool {
+        if (is_callable($this->channelPolicy)) return (bool) ($this->channelPolicy)($eventKey, $channel);
+        return NotificationChannelPolicy::allows($eventKey, $channel);
     }
 
     private function suppressed(string $audience, int $recipientId, string $eventKey): bool {
@@ -163,9 +139,16 @@ final class BookingNotificationMobileDispatcher {
         return (new TelnyxWhatsAppAdapter($this->settings))->sendBookingNotification($to, $notificationId, $eventKey, $parameters);
     }
 
-    private function sendSms(string $to, int $notificationId, string $body): array {
+    private function sendSms(string $to, int $notificationId, string $body, string $provider): array {
         if (is_callable($this->smsSender)) return (array) ($this->smsSender)($to, $notificationId, $body);
+        if ($provider === 'sms_ir') return (new SmsIrAdapter($this->settings))->sendBookingNotification($to, $notificationId, $body);
         return (new TelnyxSmsAdapter($this->settings))->sendBookingNotification($to, $notificationId, $body);
+    }
+
+    private function providerReady(string $provider): bool {
+        if($provider==='sms_ir'&&is_object($this->settings)&&method_exists($this->settings,'verified'))return (bool)$this->settings->verified($provider);
+        if (is_object($this->settings) && method_exists($this->settings, 'ready')) return (bool)$this->settings->ready($provider);
+        return (string)$this->settings->value($provider, 'api_key') !== '' && (string)$this->settings->value($provider, 'sender_id') !== '';
     }
 
     private function report(string $code, int $notificationId, string $detail): void {

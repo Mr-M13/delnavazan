@@ -171,7 +171,7 @@ final class BookingAllocationService {
             $end=(string)(is_array($time)?$time['occupied_ends_at_utc']:$time->occupied_ends_at_utc);
             if($start<=$minStart)continue;
             $teacherId=(int)$teacher->teacher_id;
-            $coverage=$this->coverage($teacherId,$start,$end);
+            $coverage=$this->coverage($teacherId,$start,$end,$this->availability->instrumentIdForCourse($courseId));
             $outside=$coverage===null;
             // Hard scheduling constraints (Teacher occupancy and continuation holds) are never
             // overridden. Only the Teacher's declared availability may be bypassed explicitly.
@@ -190,9 +190,9 @@ final class BookingAllocationService {
         foreach(array_keys($candidates) as $id)if(!in_array($id,$offered,true))return $candidates[$id];
         return null;
     }
-    private function coverage(int $teacherId,string $start,string $end):?string{
+    private function coverage(int $teacherId,string $start,string $end,?int $instrumentId=null):?string{
         $cursor=$start;$state='preferred';
-        foreach($this->availability->effective($teacherId,$start,$end) as $segment){
+        foreach($this->availability->effective($teacherId,$start,$end,$instrumentId) as $segment){
             if($segment['starts_at_utc']>$cursor||!in_array($segment['state'],array('preferred','requestable'),true))return null;
             if($segment['state']==='requestable')$state='requestable';
             if($segment['ends_at_utc']>$cursor)$cursor=min($end,$segment['ends_at_utc']);

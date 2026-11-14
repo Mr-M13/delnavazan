@@ -413,7 +413,7 @@ final class CoordinationWorkspaceReadService {
                 $currentAssent = $assent;
                 break;
             }
-            $availability = $this->availabilityForTeacher($teacherId, $times);
+            $availability = $this->availabilityForTeacher($teacherId, $times, $courseId);
             $conflicts = $this->conflictsFor($teacherId, $studentId, $times);
             $option = $optionByCandidate[(int) $row->id] ?? null;
             $busy = $this->futureWorkload($teacherId);
@@ -465,13 +465,13 @@ final class CoordinationWorkspaceReadService {
     }
 
     /** @return array{state:string,label:string,covered:int,total:int,segments:array<int,array<string,string>>,note:string} */
-    private function availabilityForTeacher(int $teacherId, array $times): array {
+    private function availabilityForTeacher(int $teacherId, array $times, ?int $courseId = null): array {
         if (!$times) return array('state' => 'unknown', 'label' => 'No requested times', 'covered' => 0, 'total' => 0, 'segments' => array(), 'note' => 'Add or confirm a preferred time first.');
         $starts = array_map(static fn(array $time): string => (string) $time['starts_at_utc'], $times);
         $ends = array_map(static fn(array $time): string => (string) ($time['occupied_ends_at_utc'] ?: $time['ends_at_utc']), $times);
         $from = min($starts); $until = max($ends);
         try {
-            $segments = (new TeacherAvailabilityService())->effective($teacherId, $from, $until);
+            $availability = new TeacherAvailabilityService(); $segments = $availability->effective($teacherId, $from, $until, $courseId ? $availability->instrumentIdForCourse($courseId) : null);
         } catch (\Throwable) {
             return array('state' => 'unavailable', 'label' => 'Availability cannot be evaluated', 'covered' => 0, 'total' => count($times), 'segments' => array(), 'note' => 'The Teacher availability profile is missing or invalid. It must be corrected through its own authority.');
         }

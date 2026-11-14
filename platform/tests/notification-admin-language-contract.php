@@ -1,3 +1,5 @@
+
+
 <?php
 /**
  * Notification admin language separation contract.
@@ -19,20 +21,16 @@ $persian = static fn(string $text): bool => preg_match('/[\x{0600}-\x{06FF}]/u',
 
 /* 1. Navigation and page chrome are English. */
 $fail('menu label is English', str_contains($menu, "'Notifications', self::NOTIFICATION_MANAGEMENT_CAP"));
-$fail('settings tab is English', str_contains($shell, "'Notifications', 'dzn-notifications'"));
+$fail('primary notifications tab is English', str_contains($shell, "'notifications' => ['Notifications'") && !str_contains($shell, "'notifications' => ['Notifications', ['dzn-notifications'"));
 $fail('page heading is English', str_contains($controller, '<h1>Notifications</h1>'));
-foreach (array(
-    'events' => 'Events', 'templates' => 'Templates',
-) as $slug => $label) {
-    $fail('tab ' . $slug . ' is English', str_contains($controller, "'" . $slug . "'=>'" . $label . "'"));
-}
-$fail('legacy tabs are not separate navigation entries', str_contains($controller, "\$tabs=array('events'=>'Events','templates'=>'Templates')") && str_contains($controller, 'LEGACY_TABS'));
+$fail('the notification catalogue is the only workspace', str_contains($controller, "if(\$tab!=='events')\$tab='events';") && str_contains($controller, 'private static function renderEvents'));
+$fail('legacy tabs are aliases, not navigation entries', str_contains($controller, 'LEGACY_TABS') && str_contains($controller, "'templates'=>'events'"));
 
 /* 2. The admin surface is LTR and contains no Persian UI labels. */
 $fail('admin wrapper is LTR', str_contains($controller, 'dir="ltr"') && str_contains($controller, '.dzn-notif-admin{direction:ltr}'));
 $fail('no Persian remains in the admin controller', !$persian($controller));
 $fail('no Persian remains in the admin menu', !$persian($menu));
-foreach (array('Save Draft', 'Publish New Version', 'Discard Draft', 'Restore Default', 'Version History', 'Preview', 'Record Mapping', 'Delivery Authority', 'Consent Basis', 'Handed off to provider', 'Delivery confirmed', 'Channel settings', 'Delivery choices', 'Inspect notification details') as $label) {
+foreach (array('Save Draft', 'Publish New Version', 'Discard Draft', 'Restore Default', 'Version History', 'Preview', 'Record Mapping', 'Category', 'Notification and purpose', 'Recipient', 'Portal', 'Email', 'WhatsApp', 'SMS') as $label) {
     $fail('English control or status: ' . $label, str_contains($controller, $label));
 }
 
@@ -98,10 +96,10 @@ foreach (array('check_admin_referer(', 'current_user_can(', 'wp_safe_redirect(',
 }
 $fail('template editing still uses the canonical capability', str_contains($controller, "CAP_EDIT='dzn_manage_notification_templates'"));
 
-/* 8. SMS is presented only as a verified WhatsApp fallback, never as a primary channel. */
-$fail('delivery rules use the SMS fallback label', str_contains($controller, '<th>SMS fallback</th>') && !str_contains($controller, 'SMS instead of WhatsApp'));
-$fail('delivery rules carry the fallback-only explanation', str_contains($controller, 'SMS is a fallback only') && str_contains($controller, 'verified terminal WhatsApp delivery failure'));
-$fail('delivery rules expose one SMS fallback flag', str_contains($controller, "foreach(array('email','website','whatsapp','sms_fallback') as \$flag)"));
+/* 8. SMS is an independent event-specific delivery method. */
+$fail('catalogue displays all four delivery methods', str_contains($controller, "array('website','email','whatsapp','sms')"));
+$fail('catalogue describes effective methods', str_contains($controller, 'Effective eligibility') && str_contains($controller, 'Missing template'));
+$fail('SMS fallback presentation is removed', !str_contains($controller, 'SMS fallback') && !str_contains($controller, 'WhatsApp → SMS'));
 $fail('customer content remains Persian after the label change', $persian(NotificationCatalogue::defaultCopy('booking.confirmed.student', 'sms', 'fa-IR')['body']));
 
 echo "Notification admin language contract passed\n";

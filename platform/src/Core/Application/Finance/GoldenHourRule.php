@@ -44,6 +44,9 @@ final class GoldenHourRule {
             'end' => '21:00',
             'periods' => array(array('start'=>'16:00','end'=>'21:00')),
             'bonus_basis_points' => 0,
+            // A fresh/cleared policy deliberately has no payable windows. Older saved policies
+            // without this marker still use their legacy period fields when decoded.
+            'rules_configured' => true,
             'effective_from' => self::DEFAULT_EFFECTIVE_FROM,
             'effective_until' => null,
             'configured' => false,
@@ -121,7 +124,43 @@ final class GoldenHourRule {
         if ($timezone === '' || strlen($timezone) > 64 || !in_array($timezone, timezone_identifiers_list(), true)) {
             throw new \InvalidArgumentException('golden_hour_timezone_invalid');
         }
+        // `rules` is authoritative only when it was deliberately submitted by the
+        // current editor. Older policy versions stored an empty `rules` array while
+        // still relying on their legacy weekday/period fields, so the marker keeps
+        // those records readable without making an intentional empty policy grow a
+        // default 16:00–21:00 window again.
+        $rulesConfigured = array_key_exists('rules', $input) && is_array($input['rules']);
         $rules = self::normalizeRules($input['rules'] ?? null, $defaults);
+        if ($rulesConfigured && $rules === array()) {
+            $effectiveFrom = trim((string) ($input['effective_from'] ?? $defaults['effective_from']));
+            if (!self::utc($effectiveFrom)) throw new \InvalidArgumentException('golden_hour_effective_from_invalid');
+            $effectiveUntilRaw = trim((string) ($input['effective_until'] ?? ''));
+            $effectiveUntil = null;
+            if ($effectiveUntilRaw !== '') {
+                if (!self::utc($effectiveUntilRaw) || $effectiveUntilRaw <= $effectiveFrom) throw new \InvalidArgumentException('golden_hour_effective_until_invalid');
+                $effectiveUntil = $effectiveUntilRaw;
+            }
+            return array(
+                'area' => $area,
+                'label' => (string) ($defaults['label'] ?? $area),
+                // An empty rule set is an explicit disabled policy, never an
+                // accidentally enabled policy with invisible default windows.
+                'enabled' => false,
+                'timezone' => $timezone,
+                'weekdays' => array(),
+                'start' => '',
+                'end' => '',
+                'periods' => array(),
+                'bonus_basis_points' => 0,
+                'rules' => array(),
+                'rules_configured' => true,
+                'effective_from' => $effectiveFrom,
+                'effective_until' => $effectiveUntil,
+                'configured' => true,
+                'setting_id' => null,
+                'setting_version' => 0,
+            );
+        }
         $weekdays = $rules !== array() ? (array) $rules[0]['weekdays'] : ($input['weekdays'] ?? $defaults['weekdays']);
         if (is_string($weekdays)) $weekdays = preg_split('/[^0-9]+/', $weekdays, -1, PREG_SPLIT_NO_EMPTY) ?: array();
         if (!is_array($weekdays)) throw new \InvalidArgumentException('golden_hour_weekdays_invalid');
@@ -168,6 +207,7 @@ final class GoldenHourRule {
             'periods' => $periods,
             'bonus_basis_points' => $rules !== array() ? (int) $rules[0]['bonus_basis_points'] : self::percentageToBasisPoints($input['bonus_percentage'] ?? 0),
             'rules' => $rules,
+            'rules_configured' => $rulesConfigured,
             'effective_from' => $effectiveFrom,
             'effective_until' => $effectiveUntil,
             'configured' => true,

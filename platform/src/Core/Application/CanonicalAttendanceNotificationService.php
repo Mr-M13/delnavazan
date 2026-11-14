@@ -55,7 +55,7 @@ final class CanonicalAttendanceNotificationService {
             if($teacherId>0&&class_exists(PortalNotificationRecorder::class))PortalNotificationRecorder::teacher($teacherId,$eventKey,'attendance_notification',$lessonId,$variables,$portal);
         }
         try{
-            if(class_exists(DelnavazanEmailRenderer::class))return DelnavazanEmailRenderer::send($email,$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'cta'=>array('url'=>(string)($copy['cta_url']??$portal),'label'=>'رفتن به پرتال مدرس')));
+            if(class_exists(DelnavazanEmailRenderer::class))return DelnavazanEmailRenderer::send($email,$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'audience'=>'teacher','cta'=>array('url'=>(string)($copy['cta_url']??$portal),'label'=>'رفتن به پرتال مدرس')));
             return (bool)wp_mail($email,$copy['subject'],$copy['body']);
         }catch(\Throwable){return false;}
     }

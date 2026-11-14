@@ -6,7 +6,6 @@
  * network and no production environment.
  */
 if(getenv('DZN_PHASE_2A2U_RUNTIME_TEST')!=='authority'||!defined('WP_CLI')||!WP_CLI||!in_array(wp_get_environment_type(),array('local','development'),true)){fwrite(STDERR,"Phase 2A.2-U runtime refused.\n");exit(1);}
-require_once __DIR__.'/phase-2a2r1-fixture.php';
 require __DIR__.'/phase-2a2u-fixture.php';
 use Delnavazan\Platform\Core\Application\CanonicalLessonAuthorityService;
 use Delnavazan\Platform\Core\Application\Finance\{FinancePolicyService,FinanceRule,LessonFinanceSnapshotService,LessonPayabilityService,TeacherRateService};
@@ -37,21 +36,20 @@ dzn_u_fix_assert(dzn_u_fix_count('finance_teacher_rates','teacher_id=%d AND scop
 $rateCommand=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}finance_teacher_rate_commands WHERE result_rate_id=%d AND operation='record' ORDER BY id DESC LIMIT 1",(int)$successor['rate_id']));
 dzn_u_fix_assert($rateCommand!==null&&(string)$rateCommand->result_state===FinanceRule::commandSuccessState('record'),'a recorded rate command row carries its declared success state');
 dzn_u_fix_assert((int)$rateCommand->rate_id===(int)$base['rate_id'],'the successor\'s command row names the predecessor it superseded');
-dzn_u_fix_assert((int)$rates->resolveFor($teacherId,$courseId,gmdate('Y-m-d H:i:s',$now+1200))['rate']->id===(int)$successor['rate_id'],'an instant at or after the successor resolves to it');
+dzn_u_fix_assert((int)$rates->resolveFor($teacherId,$courseId,$now+1200)['rate']->id===(int)$successor['rate_id'],'an instant at or after the successor resolves to it');
 // (a) a delayed capture resolves the interval that covers its own locked instant, even though the
 // predecessor is superseded and the successor is the scope's live row.
 $historical=dzn_u_fix_occurrence($chain,$fixture,'historical',2,30);
 dzn_u_fix_assert((string)$historical['starts_at_utc']<$successorFrom,'the captured instant must lie inside the predecessor interval');
 dzn_u_fix_assert((string)$historical['starts_at_utc']>gmdate('Y-m-d H:i:s',$now-172800),'the captured instant must be covered by the predecessor');
-dzn_u_fix_outcome($historical,'delivered','historical','authorised');
 dzn_u_fix_complete($historical,'historical');
 $captured=dzn_u_fix_accepted(fn()=>$snapshots->capture((int)$historical['lesson_id'],dzn_u_fix_key('capture-historical')),'a delayed capture');
 dzn_u_fix_assert((int)$captured['rate_id']===(int)$base['rate_id']&&(int)$captured['rate_version']===(int)$base['rate_version'],'the capture must resolve the interval that covers its own instant');
 dzn_u_fix_assert((int)$captured['derived_amount_minor']===12000,'the per-session derived amount is the exact recorded rate amount');
 // (b) a future-effective successor is safe: an instant before it still resolves to its predecessor.
 $future=dzn_u_fix_rate($teacherId,array('scope_kind'=>'teacher','course_scope_id'=>0,'amount_minor'=>18000,'currency'=>'AUD','effective_from'=>gmdate('Y-m-d H:i:s',$now+172800),'compensation_basis'=>'per_session'),'future');
-dzn_u_fix_assert((int)$rates->resolveFor($teacherId,$courseId,gmdate('Y-m-d H:i:s',$now+3600))['rate']->id===(int)$successor['rate_id'],'an instant before a future successor resolves to its predecessor');
-dzn_u_fix_assert((int)$rates->resolveFor($teacherId,$courseId,gmdate('Y-m-d H:i:s',$now+259200))['rate']->id===(int)$future['rate_id'],'an instant at or after a future successor resolves to it');
+dzn_u_fix_assert((int)$rates->resolveFor($teacherId,$courseId,$now+3600)['rate']->id===(int)$successor['rate_id'],'an instant before a future successor resolves to its predecessor');
+dzn_u_fix_assert((int)$rates->resolveFor($teacherId,$courseId,$now+259200)['rate']->id===(int)$future['rate_id'],'an instant at or after a future successor resolves to it');
 // A rate referenced by a snapshot can never be withdrawn; a superseded, unreferenced row can.
 dzn_u_fix_refused(fn()=>$rates->withdraw((int)$base['rate_id'],array('reason_code'=>'operator_recorded_error','evidence_channel'=>'staff_record','evidence_reference'=>'u-withdraw-1','evidence_at'=>gmdate('Y-m-d H:i:s')),dzn_u_fix_key('withdraw-1')),'rate_referenced_by_snapshot','a rate a snapshot references');
 $retired=$rates->withdraw((int)$successor['rate_id'],array('reason_code'=>'operator_decision','evidence_channel'=>'staff_record','evidence_reference'=>'u-withdraw-2','evidence_at'=>gmdate('Y-m-d H:i:s')),dzn_u_fix_key('withdraw-2'));
@@ -60,20 +58,20 @@ dzn_u_fix_assert((string)$retiredRow->status==='withdrawn'&&$retiredRow->active_
 $withdrawnScope=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}finance_teacher_rate_events WHERE rate_id=%d ORDER BY event_sequence",(int)$retired['rate_id']));
 dzn_u_fix_assert($withdrawnScope!==null,'a status move always writes its own event row');
 // (c) an instant covered only by a withdrawn row has no rate at all, and the blocker is a recorded gap.
-$coverage=$rates->resolveFor($teacherId,$courseId,gmdate('Y-m-d H:i:s',$now+3600));
+$coverage=$rates->resolveFor($teacherId,$courseId,$now+3600);
 dzn_u_fix_assert(!$coverage['resolved']&&$coverage['reason']==='rate_missing_for_lesson'&&$coverage['gap'],'a withdrawn interval must resolve to no rate and a recorded gap');
 // (c2) a withdrawn course-scoped row blocks its instant and never falls back to a broader active row.
 $second=dzn_u_fix_chain($fixture);
 $courseScopeRate=dzn_u_fix_rate((int)$second['teacher_id'],array('scope_kind'=>'teacher_course','course_scope_id'=>(int)$second['course_id'],'amount_minor'=>20000,'currency'=>'AUD','effective_from'=>gmdate('Y-m-d H:i:s',$now-7200),'compensation_basis'=>'per_session'),'course-scope');
 $broadRate=dzn_u_fix_rate((int)$second['teacher_id'],array('scope_kind'=>'teacher','course_scope_id'=>0,'amount_minor'=>9000,'currency'=>'AUD','effective_from'=>gmdate('Y-m-d H:i:s',$now-7200),'compensation_basis'=>'per_session'),'broad');
 $rates->withdraw((int)$courseScopeRate['rate_id'],array('reason_code'=>'operator_decision','evidence_channel'=>'staff_record','evidence_reference'=>'u-withdraw-3','evidence_at'=>gmdate('Y-m-d H:i:s')),dzn_u_fix_key('withdraw-3'));
-$blocked=$rates->resolveFor((int)$second['teacher_id'],(int)$second['course_id'],gmdate('Y-m-d H:i:s',$now-3600));
+$blocked=$rates->resolveFor((int)$second['teacher_id'],(int)$second['course_id'],$now-3600);
 dzn_u_fix_assert(!$blocked['resolved']&&$blocked['gap'],'a withdrawn course-scoped row must block its instant and never fall back to the broader teacher-scoped row');
 dzn_u_fix_assert((int)$broadRate['rate_id']>0,'the broader active rate must exist for the fallback test to be meaningful');
 // The rate registry's own consumption guard: no rate may be recorded into a consumed snapshot instant.
 $otherCourse=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}courses WHERE id<>%d ORDER BY id LIMIT 1",$courseId));
 dzn_u_fix_assert($otherCourse>0,'a second Course is required for the free-scope guard probe');
-dzn_u_fix_refused(fn()=>dzn_u_fix_rate($teacherId,array('scope_kind'=>'teacher_course','course_scope_id'=>$otherCourse,'amount_minor'=>1,'currency'=>'AUD','effective_from'=>gmdate('Y-m-d H:i:s',$now-3600),'compensation_basis'=>'per_session'),'pre-snapshot'),'rate_effective_from_precedes_snapshot','a rate recorded into an instant a committed snapshot already consumed');
+dzn_u_fix_refused(fn()=>dzn_u_fix_rate($teacherId,array('scope_kind'=>'teacher_course','course_scope_id'=>$otherCourse,'amount_minor'=>1,'currency'=>'AUD','effective_from'=>gmdate('Y-m-d H:i:s',$now+1),'compensation_basis'=>'per_session'),'pre-snapshot'),'rate_effective_from_precedes_snapshot','a rate recorded into an instant a committed snapshot already consumed');
 
 // §6 policy model: the seeded defaults, the unseeded timezone key, resolution by covered instant, and
 // the §6.3 temporal admissibility guard against a recorded dependent fact.

@@ -73,7 +73,7 @@ final class AdminShellController {
         'dzn-integration-whatsapp' => 'dzn_access_provider_integration_settings',
         'dzn-integration-sms' => 'dzn_access_provider_integration_settings',
         'dzn-integration-google' => 'dzn_access_provider_integration_settings',
-        'dzn-stripe-settings' => PaymentExecutionController::CAPABILITY,
+        'dzn-stripe-settings' => 'dzn_view_payment_execution_authority',
         'dzn-system-health' => 'dzn_access_system_health',
         'dzn-portal-capabilities' => 'dzn_view_portal_capabilities',
         'dzn-core-dataset-readiness' => Menu::CORE_WORKFLOW_CAP,

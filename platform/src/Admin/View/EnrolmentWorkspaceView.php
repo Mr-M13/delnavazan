@@ -3,7 +3,6 @@ namespace Delnavazan\Platform\Admin\View;
 
 use Delnavazan\Platform\Admin\Controller\EnrolmentWorkspaceController;
 use Delnavazan\Platform\Admin\Controller\Menu;
-use Delnavazan\Platform\Admin\View\CoordinationWorkspaceView;
 use Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService;
 use Delnavazan\Platform\Core\Application\HistoricalEnrolmentImportService;
 use Delnavazan\Platform\Core\Application\BookingAllocationService;

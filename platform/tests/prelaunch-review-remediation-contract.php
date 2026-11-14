@@ -37,12 +37,18 @@ $assert(strpos($meet, 'AND (c.teacher_id=%d OR r.student_id=%d)') !== false, 'Cl
 $assert(strpos($meet, 'if ( ! $owned ) {') !== false, 'Classroom details are not gated on ownership');
 
 $validation = $read('src/Core/Application/BookingRequestValidationService.php');
-$assert(strpos($validation, 'overlapsStudentQuietHours') !== false, 'Student quiet hours are not enforced at intake');
+$assert(strpos($validation, 'overlapsStudentQuietHours') === false && strpos($validation, 'overlapsAcademyQuietHours') === false, 'Quiet Hours must remain advisory on the latest main');
 $assert(strpos($validation, "\$utcKey = (string) \$item['starts_at_utc']") !== false, 'Requested times are not deduplicated by UTC instant');
 $assert(strpos($validation, 'Overlapping requested times') !== false, 'Overlapping requested times are not refused');
 $assert(strpos($validation, 'function isWithinHorizon') !== false, 'Shared booking horizon helper is missing');
+$assessment = $read('src/Core/Application/BookingAvailabilityAssessmentService.php');
+$assert(strpos($assessment, 'QuietHoursAdvisoryService') !== false, 'The advisory Quiet Hours service is not wired into assessment');
 $alloc = $read('src/Core/Infrastructure/Repository/BookingAllocationRepository.php');
 $assert(strpos($alloc, 'local_date,local_start_time,timezone') !== false, 'Teacher acceptance occupancy read omits the local quiet-hours facts');
+$briefing = $read('src/Core/Application/TeacherClassroomBriefingReadService.php');
+$assert(strpos($briefing, 'l.lesson_type AS lesson_kind') !== false && strpos($briefing, 'l.lesson_kind') === false, 'Classroom briefing must use the current lesson_type column');
+$matchAudit = $read('src/Core/Application/AdministratorBookingMatchService.php');
+$assert(strpos($matchAudit, 'Two identical commands may race the audit pre-check') !== false, 'Manual-match audit must converge on a duplicate idempotency key');
 
 $portal = $read('src/Portals/PortalAuthenticatedReadService.php');
 $assert(strpos($portal, 'legacyEnrolmentFor') !== false, 'Legacy enrolment portal projection is missing');

@@ -184,7 +184,13 @@ final class AdministratorBookingMatchService {
                 'idempotency_key' => $auditKey,
                 'occurred_at' => $now,
             ));
-            if ($inserted === false) throw new \RuntimeException('Manual match audit evidence could not be recorded');
+            if ($inserted === false) {
+                // Two identical commands may race the audit pre-check. The unique
+                // idempotency key is the authority: a duplicate means the same
+                // evidence was already recorded, not that the command failed.
+                $existingAudit = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}dzn_platform_audit_events WHERE idempotency_key=%s", $auditKey));
+                if ($existingAudit === null) throw new \RuntimeException('Manual match audit evidence could not be recorded');
+            }
         }
         // The administrator path must use the same provider projection as a Teacher-owned
         // acceptance. Without it the confirmation never becomes portal-visible and no

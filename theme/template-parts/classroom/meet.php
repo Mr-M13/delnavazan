@@ -46,6 +46,8 @@ if ( ! $is_booking && preg_match( '/^[0-9A-Z]{26}$/D', $lesson_uid ) && preg_mat
 			$schedule_uid,
 			(int) $lesson->id
 		) );
+		if ( $teacher_id > 0 && (int) $lesson->teacher_id === $teacher_id ) { $role = 'teacher'; }
+		elseif ( $student_id > 0 && (int) $lesson->student_id === $student_id ) { $role = 'student'; }
 	}
 }
 $booking = null;

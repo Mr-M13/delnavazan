@@ -35,3 +35,11 @@ Status: **BLOCKED** until the remaining independent checks are evidenced. This r
 5. Rebase or reconcile against current `main`, rerun exact-head tests, and only then decide merge and deployment.
 
 **Release decision: BLOCKED. Do not merge or deploy on the strength of this report.**
+
+### 2026-11-14 additional production recovery evidence
+
+- Latest-head CI for `0dc6241b18c4abed67afc0026eaeb591fbb365d6`: **PASS** (GitHub run `43551945933`). Any subsequent documentation commit requires its own exact-head gate.
+- The previously inspected `dzn-production` archive is **not the latest backup location**. Read-only discovery found newer backup sets under `~/backups/delnavazan-production-cutover/`, most recently `20261114T075039Z-2825902-14091b2205a8b77ebbe1a36e6e65c283b6518b5f` (database and application archive both present; archive listing integrity PASS). This corrects the earlier apparent backup-freshness gap; ongoing scheduled backup coverage/retention is not yet established.
+- The newest database export was restored to an isolated, network-disabled disposable MariaDB 11.4 container: **298 tables restored**, `mariadb-check` **PASS**, cleanup **PASS**. This does not attest application startup, plugins/themes, or HTTP smoke after restoration.
+- Direct read-only production WordPress option `dzn_platform_completed_migrations`: **75 entries**, with the latest entries including `074_god_mode_super_tester`, `075_teacher_booking_declines` and `076_instrument_aware_availability`. Active schema option previously read as `61`; migration count and schema number are different measures and should not be equated.
+- **Remaining release gate:** restore application files into a disposable WordPress instance and execute HTTP/application smoke without outbound notifications or production callbacks; confirm full runtime SHA and backup scheduling/retention. Do not merge/deploy until these are resolved and the final head CI passes.

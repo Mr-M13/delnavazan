@@ -47,6 +47,10 @@ $contains($bootstrap, array('EnrolmentWorkspaceController::register()', 'MeetAdm
 
 $contains($view, array(
     'public static function dashboard(',
+    "'intro_paged'",
+    "'class_paged'",
+    'sectionPagination($filters,$introQueue',
+    'sectionPagination($filters,$classQueue',
     'Overview snapshot',
     'Scheduled',
     'Converted',

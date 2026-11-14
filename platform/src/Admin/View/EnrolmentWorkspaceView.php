@@ -30,7 +30,15 @@ final class EnrolmentWorkspaceView {
         $canCreateStandard = (current_user_can('dzn_manage_canonical_lessons') && current_user_can('dzn_manage_canonical_lesson_schedules')) || current_user_can('dzn_manage_lessons');
         $snapshot = $read->enrolmentSnapshot();
         $filters = self::queueFilters($query);
-        $queue = $read->enrolmentQueue($filters, false);
+        $showIntros = in_array($filters['type'], array('', 'intro'), true);
+        $showClasses = $filters['type'] !== 'intro';
+        $emptyQueue = array('rows'=>array(),'total'=>0,'page'=>1,'pages'=>1,'counts'=>array('attention'=>0,'today'=>0,'intro'=>0,'class'=>0,'meet_retry'=>0,'teacher'=>0,'attendance'=>0));
+        $introFilters = array_merge($filters, array('type'=>'intro','page'=>max(1,absint($query['intro_paged']??1))));
+        $classFilters = array_merge($filters, array('type'=>$filters['type'] ?: 'class','page'=>max(1,absint($query['class_paged']??1))));
+        $introQueue = $showIntros ? $read->enrolmentQueue($introFilters, false) : $emptyQueue;
+        $classQueue = $showClasses ? $read->enrolmentQueue($classFilters, false) : $emptyQueue;
+        $queue = array('total'=>$introQueue['total']+$classQueue['total'],'counts'=>array());
+        foreach ($emptyQueue['counts'] as $key=>$unused) $queue['counts'][$key]=($introQueue['counts'][$key]??0)+($classQueue['counts'][$key]??0);
         $historyFilters = $filters;
         $historyFilters['q'] = isset($query['history_q']) && is_scalar($query['history_q']) ? sanitize_text_field((string) $query['history_q']) : '';
         $historyFilters['page'] = isset($query['history_page']) && is_scalar($query['history_page']) ? max(1, absint($query['history_page'])) : 1;
@@ -60,14 +68,17 @@ final class EnrolmentWorkspaceView {
         echo '</div>';
         self::queueFiltersForm($filters);
         if ($canIntros) echo '<p><a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=insights')) . '">Conversion, survey and follow-up evidence</a></p>';
-        if (!$queue['rows']) echo '<div class="dzn-empty-state"><h3>No intros or classes match</h3><p>Reset the filters or create a new intro or standard class.</p></div>';
+        if (!$queue['total']) echo '<div class="dzn-empty-state"><h3>No intros or classes match</h3><p>Reset the filters or create a new intro or standard class.</p></div>';
         else {
-            $intros = array_values(array_filter($queue['rows'], static fn(array $row): bool => $row['kind'] === 'intro'));
-            $classes = array_values(array_filter($queue['rows'], static fn(array $row): bool => $row['kind'] !== 'intro'));
-            echo '<h3>Intro requests</h3>';
-            if ($intros) self::queueTable($intros, false); else echo '<p>No intro requests on this page.</p>';
-            echo '<h3>Scheduled terms</h3>'; self::termTable($classes);
-            self::queuePagination($filters, $queue, false);
+            if ($showIntros) {
+                echo '<h3>Intro requests</h3>';
+                if ($introQueue['rows']) self::queueTable($introQueue['rows'], false); else echo '<p>No intro requests match.</p>';
+                self::sectionPagination($filters,$introQueue,'intro_paged',$query);
+            }
+            if ($showClasses) {
+                echo '<h3>Scheduled terms</h3>'; self::termTable($classQueue['rows']);
+                self::sectionPagination($filters,$classQueue,'class_paged',$query);
+            }
         }
         echo '</section>';
 
@@ -362,6 +373,19 @@ final class EnrolmentWorkspaceView {
         echo '<nav class="tablenav dzn-pagination" aria-label="Pagination"><span>Page ' . esc_html((string) $result['page']) . ' of ' . esc_html((string) $result['pages']) . ' · ' . esc_html(number_format_i18n((int) $result['total'])) . ' records</span> ';
         if ($result['page'] > 1) echo '<a class="button" href="' . esc_url(add_query_arg(array_merge($args, array($pageKey => $result['page'] - 1)), admin_url('admin.php'))) . '">Previous</a> ';
         if ($result['page'] < $result['pages']) echo '<a class="button" href="' . esc_url(add_query_arg(array_merge($args, array($pageKey => $result['page'] + 1)), admin_url('admin.php'))) . '">Next</a>';
+        echo '</nav>';
+    }
+
+    private static function sectionPagination(array $filters,array $result,string $pageKey,array $query):void{
+        if ((int)$result['pages']<=1)return;
+        $args=array('page'=>EnrolmentWorkspaceController::PAGE);
+        foreach($filters as $key=>$value)if($key!=='page'&&$value!==''&&$value!==0)$args[$key]=$value;
+        $other=$pageKey==='intro_paged'?'class_paged':'intro_paged';
+        if(isset($query[$other]))$args[$other]=max(1,absint($query[$other]));
+        $args[$pageKey]=$result['page'];
+        echo '<nav class="tablenav dzn-pagination" aria-label="' . esc_attr($pageKey==='intro_paged'?'Intro requests pages':'Scheduled terms pages') . '"><span>Page ' . esc_html((string)$result['page']) . ' of ' . esc_html((string)$result['pages']) . ' · ' . esc_html(number_format_i18n((int)$result['total'])) . ' records</span> ';
+        if($result['page']>1)echo '<a class="button" href="' . esc_url(add_query_arg(array_merge($args,array($pageKey=>$result['page']-1)),admin_url('admin.php'))) . '">Previous</a> ';
+        if($result['page']<$result['pages'])echo '<a class="button" href="' . esc_url(add_query_arg(array_merge($args,array($pageKey=>$result['page']+1)),admin_url('admin.php'))) . '">Next</a>';
         echo '</nav>';
     }
 

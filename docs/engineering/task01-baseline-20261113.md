@@ -6,7 +6,8 @@ Status: **BLOCKED** until the remaining independent checks are evidenced. This r
 
 - Baseline source at initial inspection: `main` `091fd927d1359b7ddfa97ae3894675240a00ee4f`.
 - Latest successful production deployment workflow observed at initial inspection: run `43228258004`, targeting that SHA. The actual live runtime SHA and migration ledger have **not** been independently read.
-- `main` advanced during Task 01; all merge and deployment decisions must re-evaluate current `main` and PR head.
+- `main` advanced during Task 01; branch reconciled with `main` `1481dce77fbe0657b168aa0721040b09b2b3a851`. One booking fixture conflict was resolved in favour of `main` because it already included equivalent isolated-student logic. PR #606 is mergeable. Re-evaluate if `main` advances again.
+- Direct read-only production SSH check on 2026-11-14: installed plugin build ID `main-1481dce77fbe`; WordPress option `dzn_platform_schema_version=61`. The full deployed SHA was not independently attested from the runtime build ID (12-character prefix only).
 - Production deployment uses a manual exact-SHA workflow, read-only HTTPS smoke checks, private backups and forward-only migrations. Do not interpret workflow success as proof of recoverability.
 
 ## Reproduced tests
@@ -17,7 +18,7 @@ Status: **BLOCKED** until the remaining independent checks are evidenced. This r
 - Booking concurrency, timezone overlap, buffer/half-open boundary, failed-confirmation exclusion, canonical and legacy lesson occupancy: PASS at `47176896c3ceb3760994a9423c80da9bcd1bd2f5`.
 - Runtime path guards, shell syntax and whitespace: PASS.
 - Booking boundary test originally reused the concurrency fixture's student and collided with its future-dated slot. Test fixture now has an isolated synthetic student; no production booking logic changed.
-- GitHub exact-head PR runtime gate for final report commit: **PENDING**. A manual run for `47176896` was dispatched as run `43364866568`.
+- GitHub exact-head PR runtime gate: **PASS** on merged-main reconciliation head `2ebc50032993c757f475b3e3d12bfbfcd891ed3c` (run `43548737666`, 18/18 jobs).
 
 ## Isolation and controls
 
@@ -27,10 +28,10 @@ Status: **BLOCKED** until the remaining independent checks are evidenced. This r
 
 ## Remaining blockers / acceptance
 
-1. Verify exact-head GitHub CI on the final report commit, not an older SHA.
-2. Independently confirm production deployed application SHA, active schema version and migration ledger from an authorised read-only source.
-3. Execute a **documented, isolated backup-and-restore rehearsal**, including integrity checks of restored DB and application files. A pre-deploy backup mechanism alone does not meet this criterion.
-4. Confirm staging/runtime isolation and protected deployment environment controls from actual settings.
+1. Re-run exact-head GitHub CI on any subsequent report/reconciliation commit; latest reconciled head passed 18/18.
+2. Production build prefix and active schema are read directly. Independently attest full deployed SHA and inspect the migration ledger, not just the schema option.
+3. Database recovery rehearsal **PASS** on 2026-11-14: production backup `20261103T213614Z-876876-edfdfa19467ff1aa461c20d5b9dca3904ee57d2e` streamed via SSH to a network-disabled disposable MariaDB 11.4 container on the authorised Mac. SQL imported successfully; 269 tables restored; `mariadb-check --check --silent` returned success. Disposable DB/container deleted on exit. Application archive `application-files.tar.gz` passed `tar -tzf` integrity listing; full restored WordPress application boot/smoke remains **PENDING**. This backup is from 2026-11-03, so it does not establish freshness of the current recovery point.
+4. GitHub production environment verified with `main`-only branch policy and administrator bypass disabled; manual deployment and exact-SHA gate are enforced in the workflow. Confirm staging/runtime isolation and any remaining controls.
 5. Rebase or reconcile against current `main`, rerun exact-head tests, and only then decide merge and deployment.
 
 **Release decision: BLOCKED. Do not merge or deploy on the strength of this report.**

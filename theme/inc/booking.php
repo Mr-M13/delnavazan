@@ -12,6 +12,20 @@ function dzn_theme_booking_options(): array {
     try { return $options = ( new $class() )->introductoryInstruments(); } catch ( Throwable $e ) { return $options = array(); }
 }
 
+/** Keep the public belt and booking select in the same editorial order. */
+function dzn_theme_ordered_booking_options(): array {
+    $options = dzn_theme_booking_options();
+    $order = array( 'تار', 'تمبک', 'سه‌تار', 'پیانو', 'سنتور', 'کمانچه', 'دف', 'آواز', 'تنبور', 'نی', 'ویولن', 'گیتار' );
+    $rank = array();
+    foreach ( $order as $index => $name ) { $rank[ dzn_theme_booking_normalize_instrument_name( $name ) ] = $index; }
+    usort( $options, static function ( $a, $b ) use ( $rank ) {
+        $a_name = dzn_theme_booking_normalize_instrument_name( (string) ( $a['name_fa'] ?? '' ) );
+        $b_name = dzn_theme_booking_normalize_instrument_name( (string) ( $b['name_fa'] ?? '' ) );
+        return ( $rank[ $a_name ] ?? PHP_INT_MAX ) <=> ( $rank[ $b_name ] ?? PHP_INT_MAX ) ?: strcmp( $a_name, $b_name );
+    } );
+    return $options;
+}
+
 /** Normalise Persian instrument labels for matching across the static belt and the canonical catalogue. */
 function dzn_theme_booking_normalize_instrument_name( string $name ): string {
     $name = str_replace( array( "\xE2\x80\x8C", 'ي', 'ك' ), array( ' ', 'ی', 'ک' ), $name );
@@ -61,17 +75,7 @@ function dzn_theme_render_booking_route(): void {
     // matching signed value injected below.
     nocache_headers();
     $booking_csrf = dzn_theme_booking_csrf_token();
-    $options = dzn_theme_booking_options();
-    $belt_order = array( 'تار', 'تمبک', 'سه‌تار', 'پیانو', 'سنتور', 'کمانچه', 'دف', 'آواز', 'تنبور', 'نی', 'ویولن', 'گیتار' );
-    $belt_rank = array();
-    foreach ( $belt_order as $rank => $label ) {
-        $belt_rank[ dzn_theme_booking_normalize_instrument_name( $label ) ] = $rank;
-    }
-    usort( $options, static function ( $a, $b ) use ( $belt_rank ) {
-        $a_rank = $belt_rank[ dzn_theme_booking_normalize_instrument_name( (string) ( $a['name_fa'] ?? '' ) ) ] ?? PHP_INT_MAX;
-        $b_rank = $belt_rank[ dzn_theme_booking_normalize_instrument_name( (string) ( $b['name_fa'] ?? '' ) ) ] ?? PHP_INT_MAX;
-        return $a_rank <=> $b_rank;
-    } );
+    $options = dzn_theme_ordered_booking_options();
     $default_timezone = wp_timezone_string();
     if ( ! $default_timezone || ! in_array( $default_timezone, timezone_identifiers_list(), true ) ) { $default_timezone = 'UTC'; }
     $requested = isset( $_GET['instrument'] ) && is_string( $_GET['instrument'] ) ? sanitize_text_field( wp_unslash( $_GET['instrument'] ) ) : '';

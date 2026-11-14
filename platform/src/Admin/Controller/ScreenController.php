@@ -71,6 +71,9 @@ final class ScreenController {
             elseif ($screen === 'enrolment') echo '<p>Enrolments are read-only. Generic creation is disabled; canonical conversion authority is not part of this phase.</p>';
             elseif ($screen === 'term') self::termCreateSection();
             elseif ($screen === 'lesson') self::classCreateSection();
+            elseif (in_array($screen, array('instrument', 'course'), true)) {
+                echo '<p>New instruments and their courses are created together in <a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE)) . '">Enrolment</a>.</p>';
+            }
             elseif ($screen !== 'teacher') self::entityCreateForm($screen);
             self::entityList($screen);
         }

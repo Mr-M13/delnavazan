@@ -1,5 +1,13 @@
 # Enrolment administration workspace
 
+## 2026-11-14 update (draft PR #620)
+
+The current Enrolment area uses one intro/class queue. Its Class admin record opens in a modal from Enrolment or Overview and returns to the same list when closed. The older protected routes remain available for saved links and specialist actions.
+
+The introductory record now includes booking intake evidence, duplicate review and privacy erasure in a collapsed **Booking intake and allocation** section. Those controls remain restricted by their original capabilities and use the same authority services. This revises the 2026-11-02 placement decision below: the operations are available in context without making them routine next-step actions. Allocation candidate search runs only after an administrator asks to check current options.
+
+The sections below record the original 2026-11-02 design and verification, not a new browser verification of PR #620.
+
 Date: 2026-11-02
 
 Branch: `feat/enrolment-administration-workspace-20261102`
@@ -12,6 +20,8 @@ Deployment status: **not merged to `main` and not deployed**. The feature branch
 and the combined integration branch are local commits awaiting review.
 
 ## Shape
+
+**2026-11-14 update:** The visible Enrolment workspace now has one page with top actions for creating an intro, standard class and instrument, plus Class admin. The creation forms are dialogs. Active intro requests and scheduled terms are separate tables; class history and offered instruments remain below. Creating an instrument produces bilingual introductory and standard Courses, a product, intro default and active public offer. Conversion, survey and post-intro review evidence remains accessible through the protected “Conversion, survey and follow-up evidence” link beside intro requests. The old Catalogue subtab is no longer visible. Existing protected deep links continue to resolve. The detailed Class admin consolidation is separate ongoing work. The original description below records the 2026-11-02 implementation and is historical.
 
 The visible Enrolment area now has three sub-tabs:
 
@@ -27,7 +37,7 @@ Course and instrument configuration moved to **Settings → Catalogue → Course
 | --- | --- | --- |
 | Booking request list and detail (`dzn-booking-requests`) | Intro case table and expandable case | Carried into the workspace read surface |
 | Match assessment (`dzn_prepare_booking_request_matches`) | Case next-action and manual match hard-constraint check | Carried |
-| Duplicate review and privacy erasure (`dzn-booking-requests`) | Protected booking-request route | Remains protected because it is a privacy/duplicate-evidence operation, not an everyday Enrolment decision. |
+| Duplicate review and privacy erasure (`dzn-booking-requests`) | Collapsed Booking intake and allocation section on the intro record; protected original route retained | Capability-gated, deliberate evidence operations; not presented as routine next steps. |
 | Coordination open/add candidate (`dzn-booking-request-coordination`) | Case actions | Carried |
 | Teacher Availability Assent | Case actions | Carried |
 | Proposal issue | Case actions | Carried |

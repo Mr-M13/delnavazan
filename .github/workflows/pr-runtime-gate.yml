@@ -210,6 +210,8 @@ jobs:
           php platform/tests/unified-login-contract.php
           php platform/tests/booking-instrument-selection-unit.php
           php platform/tests/homepage-instrument-belt-contract.php
+          php platform/tests/enrolment-workspace-contract.php
+          php platform/tests/finance-clarity-redesign-contract.php
           php platform/tests/notification-transport-routing-contract.php
           php platform/tests/sms-ir-adapter-unit.php
           php platform/tests/sms-routing-policy-unit.php
@@ -279,6 +281,9 @@ jobs:
           php platform/tests/post-intro-system-actor-unit.php
           php platform/tests/catalogue-auto-naming-reconciliation-contract.php
           php platform/tests/booking-admin-class-visibility-contract.php
+          php platform/tests/class-admin-return-context-unit.php
+          php platform/tests/class-admin-coordination-redirect-unit.php
+          php platform/tests/class-admin-modal-contract.php
           php platform/tests/booking-admin-class-visibility-unit.php
           php platform/tests/booking-admin-class-ordering-unit.php
           if [[ -f platform/tests/phase-student-portal-state-contract.php ]]; then

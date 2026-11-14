@@ -39,7 +39,6 @@ $expect(6 === preg_match_all("/\\n        '([a-z]+)' => \\['(?:Overview|Teachers
 $contains($shell, array(
     "['Overview', 'dzn-academy-dashboard', 'dzn_view_booking_requests']",
     "['Enrolment', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
-    "['Courses & instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
     "'dzn-catalogue-workspace' => 'enrolment'",
     "get_theme_file_uri('assets/images/delnavazan-logo.png')",
 ), 'Enrolment must be one operational surface and Overview must use the approved logo.');
@@ -47,42 +46,21 @@ $expect(!str_contains($shell, '<svg viewBox="0 0 24 24"'), 'The improvised dashb
 $contains($menu, array("['Overview', 'dzn_view_booking_requests', 'dzn-academy-dashboard'"), 'The registered Overview route must keep its page slug and capability.');
 $contains($dashboard, array('<h1>Overview</h1>'), 'The visible page title must be Overview.');
 
-// Direct everyday actions, without the old duplicate shortcuts.
-$contains($dashboard, array(
-    "'Add student'",
-    "'Teacher onboarding'",
-    "'Issue class'",
-    "'Issue statement'",
-    "'Class resolutions'",
-    "'Enrolment resolutions'",
-    "'view' => 'onboarding'",
-    "'tab' => 'statements'",
-    "'class_queue' => 'resolutions'",
-    "'view' => 'resolutions'",
-), 'Quick actions must open the existing onboarding, statement, class-resolution and enrolment-resolution workflows.');
-$notContains($dashboard, array("'Add teacher'", "'Bookings inbox'", "array('Finance', 'dzn-finance&tab=payments')"), 'Old duplicate or misleading quick actions must be removed.');
-
-// One pending-work area, no separate Attention or Class time panel.
-$contains($dashboard, array(
-    'id="dzn-pending-work"',
-    'Classes ready to schedule',
-    'Classes needing schedule or integrity review',
-    'Class time changes needing a decision',
-    'Intro class outcomes due',
-    'Post-intro enrolments needing attention',
-    'Payment webhooks refused',
-    'self::rescheduleQueue()',
-    'id="dzn-pending-reschedules"',
-    '>Class time decisions<',
-), 'Pending work must combine class issues, intro outcomes, post-intro recovery, refused payment webhooks and class-time decisions.');
-$notContains($dashboard, array('id="dzn-academy-attention"', '>Attention needed<', 'id="dzn-academy-reschedules"'), 'The separate Attention and Class time panels must be removed.');
-$contains($screenOptions, array(
-    "'actions' => 'Pending work'",
-    "'schedule' => 'Today’s classes'",
-    "'activity' => '30-day activity'",
-    "'queue' => 'Learner journeys'",
-), 'Screen Options must reflect the combined pending work, today-only classes, 30-day activity and journeys.');
-$notContains($screenOptions, array("'attention'", "'reschedules'", '14-day activity', 'Today and upcoming classes'), 'Removed panels and 14-day wording must not remain in Screen Options.');
+// The simplified Overview keeps operational panels, without its former shortcuts.
+$renderStart = strpos($dashboard, 'public static function screen()');
+$renderEnd = strpos($dashboard, 'private static function hero()', $renderStart);
+$render = substr($dashboard, $renderStart, $renderEnd - $renderStart);
+$contains($render, array(
+    "AcademyDashboardScreen::shows('actions')",
+    'self::pendingActions()',
+    'self::todayClasses()',
+    'self::scheduledIntroClasses()',
+    'self::financePanel($summary)',
+    'self::coveragePanel()',
+), 'Overview must render the retained panels and introductory classes.');
+$notContains($render, array('self::hero()', 'self::quickActions()', 'self::kpiCards(', 'self::pipelinePanel(', 'self::activityPanel(', 'self::journeyQueue('), 'Removed Overview sections must not render.');
+$contains($dashboard, array('Needs Attention', 'Scheduled Introductory Classes', 'id="dzn-pending-work"', 'Intro class outcomes due', 'Post-intro enrolments needing attention', 'Payment webhooks refused'), 'Attention and intro sections must be retained.');
+$contains($screenOptions, array("'actions' => 'Needs Attention'", "'finance' => 'Finance snapshot'", "'coverage' => 'Coverage Clock'"), 'Screen Options must describe retained sections.');
 
 // Today’s classes only, with authoritative details and canonical actions.
 $contains($dashboard, array(
@@ -119,12 +97,6 @@ $contains($classController, array('dzn_academy_mark_attended', 'dzn_academy_resc
 $contains($enrolmentWorkspace, array('EnrolmentWorkspaceView', 'AdministratorBookingMatchService', 'HistoricalEnrolmentImportService', 'CanonicalLessonScheduleService'), 'Enrolment must deliver the unified surface, guided match/import actions and manual standard class creation.');
 $contains((string) file_get_contents($root . '/src/Admin/View/EnrolmentWorkspaceView.php'), array('attention', 'Needs attention', 'conversion', 'Shared class action component', 'Create standard class'), 'The Enrolment workspace must expose urgent actions, trustworthy conversion reporting, standard class creation and shared class actions.');
 $expect(str_contains($bootstrap, 'AcademyClassOperationsController::register()'), 'Class action controllers must be registered by the plugin bootstrap.');
-
-// Real 30-day activity dataset.
-$contains($readService, array('public function summary(int $days = 30)'), 'The default activity window must be 30 calendar days.');
-$contains($dashboard, array('30-day activity', 'for the last 30 calendar days', '30 calendar days', '$rangeLabel'), 'The chart labels, empty state and accessible description must describe the real 30-day range.');
-$contains($css, array('repeat(30, minmax(18px, 1fr))', '.dzn-chart__range'), 'The chart must render 30 bars and an explicit range.');
-$notContains($dashboard, array('14-day activity', 'last 14 days'), 'No 14-day activity wording may remain.');
 
 // Finance work from PR #490 remains separate and is not duplicated inside the panel.
 $contains($dashboard, array(

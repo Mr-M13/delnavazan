@@ -428,9 +428,9 @@ final class DiagnosticRegistry {
         $last = (array) get_option('dzn_stripe_test_connection_result', array());
         $state = (string) ($last['state'] ?? '');
         $environment = (string) get_option('dzn_stripe_test_activation', '') === '1' ? 'test' : 'live-or-unset';
-        if ($state === 'success') return array('state' => 'healthy', 'detail' => 'Stripe test connectivity was confirmed; configured environment: ' . $environment . '. No payment was initiated.', 'technical_code' => 'stripe_test_confirmed', 'related' => array('page=dzn-finance&tab=settings#stripe'));
-        if ($state === 'failed') return array('state' => 'degraded', 'detail' => 'The last Stripe connectivity test failed.', 'technical_code' => 'stripe_test_failed', 'related' => array('page=dzn-finance&tab=settings#stripe'));
-        return array('state' => 'unknown', 'detail' => 'No Stripe connectivity evidence has been recorded. No test was run automatically.', 'technical_code' => 'stripe_not_tested', 'related' => array('page=dzn-finance&tab=settings#stripe'));
+        if ($state === 'success') return array('state' => 'healthy', 'detail' => 'Stripe test connectivity was confirmed; configured environment: ' . $environment . '. No payment was initiated.', 'technical_code' => 'stripe_test_confirmed', 'related' => array('page=dzn-stripe-settings'));
+        if ($state === 'failed') return array('state' => 'degraded', 'detail' => 'The last Stripe connectivity test failed.', 'technical_code' => 'stripe_test_failed', 'related' => array('page=dzn-stripe-settings'));
+        return array('state' => 'unknown', 'detail' => 'No Stripe connectivity evidence has been recorded. No test was run automatically.', 'technical_code' => 'stripe_not_tested', 'related' => array('page=dzn-stripe-settings'));
     }
 
     private function checkWebhookReceipts(): array {

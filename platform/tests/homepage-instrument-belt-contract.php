@@ -27,8 +27,8 @@ foreach (array(
     $source = str_contains($description, 'booking instrument order') || str_contains($description, 'canonical instrument lookup') ? $booking : (str_contains($description, 'currency options') ? $pricing : $script);
     if (!str_contains($source, $needle)) throw new RuntimeException('Homepage instrument belt contract failed: ' . $description);
 }
-if (12 !== substr_count($home, 'data-enrol-url=')) {
-    throw new RuntimeException('All twelve homepage instrument tiles must carry a canonical enrol URL.');
+if (!str_contains($home, '$instruments = dzn_theme_ordered_booking_options();') || !str_contains($home, 'foreach ( $instruments as $instrument )') || !str_contains($booking, '$options = dzn_theme_ordered_booking_options();') || 1 !== substr_count($home, 'data-enrol-url=')) {
+    throw new RuntimeException('Homepage belt and booking must share the active canonical order.');
 }
 if (!str_contains($helpers, "function dzn_theme_instrument_image") || !str_contains($helpers, "'سهتار'") || !str_contains($helpers, "'تمبک'") || !str_contains($helpers, "'تنبک'")) {
     throw new RuntimeException('Instrument artwork lookup must normalise Persian catalogue spellings.');
@@ -51,14 +51,7 @@ $style = (string) file_get_contents($theme . '/assets/css/theme.css');
 if (!preg_match('/\.dzn-instrument-folio\.is-auto-scrolling\s*\{[^}]*scroll-snap-type:\s*none !important/s', $style)) {
     throw new RuntimeException('Automatic belt motion must disable CSS snapping while it advances.');
 }
-$slugs = array('tar','tombak','setar','piano','santur','kamancheh','daf','avaz','tanboor','ney','violin','guitar');
-$positions = array_map(static fn($slug) => strpos($home, 'dzn-instrument-tile--' . $slug), $slugs);
-$ordered = !in_array(false, $positions, true) && count(array_unique($positions)) === count($positions);
-for ($i = 1; $ordered && $i < count($positions); $i++) $ordered = $positions[$i] > $positions[$i - 1];
-if (!$ordered) {
-    throw new RuntimeException('Homepage tiles must follow the same canonical instrument order as booking.');
-}
-foreach (array('C-Setar.webp','C-Tar.webp','C-Piano.webp','C-santour.webp','C-Tombak.webp','C-Kamancheh.webp','C-Daf.webp','C-Avaz.webp','C-Tanboor.webp','C-Ney.webp','C-Violin.webp','C-Guitar.webp') as $asset) {
-    if (!str_contains($home, $asset)) throw new RuntimeException('Homepage instrument asset missing: ' . $asset);
+if (!str_contains($home, 'dzn_theme_instrument_image( $label )') || !str_contains($home, 'dzn-instrument-tile__placeholder') || !str_contains($style, '.dzn-instrument-tile__placeholder')) {
+    throw new RuntimeException('Homepage tiles must support bundled artwork and a fallback for new instruments.');
 }
 echo "homepage-instrument-belt-contract: pass\n";

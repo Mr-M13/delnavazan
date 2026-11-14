@@ -184,7 +184,7 @@ final class DiagnosticsReadService {
         $last = (array) get_option('dzn_stripe_test_connection_result', array());
         $state = (string) ($last['state'] ?? '') === 'success' ? 'healthy' : ((string) ($last['state'] ?? '') === 'failed' ? 'attention' : 'unavailable');
         $detail = $state === 'healthy' ? 'Stripe test connectivity was confirmed.' : ($state === 'attention' ? 'The last Stripe test failed.' : 'No Stripe connection test has been recorded.');
-        return $this->row('Providers', 'Stripe', $state, $detail, $now, 'Stripe Finance readiness', $state === 'healthy' ? (string) ($last['at'] ?? '') : '', $state === 'attention' ? (string) ($last['at'] ?? '') : '', admin_url('admin.php?page=dzn-finance&tab=settings#stripe'), $state === 'healthy' ? 'info' : 'warning', (string) ($last['code'] ?? 'stripe_not_tested'));
+        return $this->row('Providers', 'Stripe', $state, $detail, $now, 'Stripe integration readiness', $state === 'healthy' ? (string) ($last['at'] ?? '') : '', $state === 'attention' ? (string) ($last['at'] ?? '') : '', admin_url('admin.php?page=dzn-stripe-settings'), $state === 'healthy' ? 'info' : 'warning', (string) ($last['code'] ?? 'stripe_not_tested'));
     }
 
     private function classroomRow(string $now): array {

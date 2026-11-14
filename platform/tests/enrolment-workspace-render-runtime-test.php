@@ -20,10 +20,9 @@ $checks = array(
     'Local start time' => 'Create intro must render the local start time field',
     'Local timezone (service area)' => 'Create intro must render the service-area timezone field',
     '<button class="button button-primary">Create</button>' => 'Create intro must use the single Create button',
-    'Intro conversion overview' => 'The conversion overview must render',
-    '<th>Student</th><th>Course</th><th>Teacher</th><th>Class date</th><th>Time elapsed</th>' => 'The conversion overview must include the requested columns',
-    'Post-intro survey results' => 'The post-intro survey panel must render',
     'Class history' => 'The class history disclosure must render',
+    'Offered instruments' => 'The public offer must render',
+    'data-dzn-open-dialog="dzn-create-intro"' => 'The intro action must open a dialog',
 );
 foreach ($checks as $needle => $message) {
     if (!str_contains($intro, $needle)) throw new RuntimeException($message . ': ' . $needle);

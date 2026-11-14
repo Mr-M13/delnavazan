@@ -25,9 +25,9 @@ $bootstrap = $read('delnavazan-platform.php');
 $worker = $read('src/Integrations/BookingStudentNotificationWorker.php');
 
 $expect(1 === preg_match_all("/\\['Enrolment', 'dzn-enrolment-workspace'/", $shell), 'Enrolment must expose one primary destination.');
+$expect(!str_contains($shell, "['Courses & instruments', 'dzn-catalogue-workspace'"), 'The visible catalogue subtab must be removed.');
 $contains($shell, array(
     "['Enrolment', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
-    "['Courses & instruments', 'dzn-catalogue-workspace', Menu::CATALOGUE_WORKSPACE_CAP]",
     "'dzn-catalogue-workspace' => 'enrolment'",
 ), 'Catalogue management must remain under Enrolment, not Settings → General.');
 $general = $read('src/Admin/Controller/GeneralSettingsController.php');
@@ -47,6 +47,10 @@ $contains($bootstrap, array('EnrolmentWorkspaceController::register()', 'MeetAdm
 
 $contains($view, array(
     'public static function dashboard(',
+    "'intro_paged'",
+    "'class_paged'",
+    'sectionPagination($filters,$introQueue',
+    'sectionPagination($filters,$classQueue',
     'Overview snapshot',
     'Scheduled',
     'Converted',
@@ -58,7 +62,6 @@ $contains($view, array(
     'Create standard class',
     'Open Class admin',
     'Retry Google Meet',
-    'Intro conversion and onboarding signals',
     'Post-intro survey results',
     'Class history',
     'History',
@@ -90,6 +93,8 @@ $notContains($view, array('A clicked link proves attendance', 'outbox proves del
 $notContains($view, array('nav-tab-wrapper', 'dzn-enrolment__tabs', "\$tabs['new']", "\$tabs['review']", "\$tabs['enrolled']"), 'Enrolment must not render or keep sub-tabs.');
 $contains($view, array(
     'dzn-unified-table',
+    'dzn-term-table',
+    'dzn-create-instrument',
     "'dzn-unified-row', 'dzn-unified-row--'",
     'is-attention',
     'Needs attention only',

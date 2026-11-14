@@ -23,6 +23,7 @@ use Delnavazan\Platform\Core\Application\Finance\Statements\{StatementTemplateRu
 use Delnavazan\Platform\Core\Application\Finance\TeacherStatementService;
 use Delnavazan\Platform\Core\Application\RefundReviewService;
 use Delnavazan\Platform\Core\Support\PersianCalendar;
+use Delnavazan\Platform\Core\Infrastructure\Repository\{CommercialAuthorityRepository,CourseRepository};
 
 /**
  * One Finance administration page with exactly four top-level tabs.
@@ -844,7 +845,7 @@ final class FinanceAdminController {
         self::renderRefundWorkspace($read);
         self::renderIntroPayments($read);
         if (current_user_can('dzn_manage_payment_providers') || current_user_can(PaymentExecutionController::CAPABILITY)) {
-            echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=' . self::MENU_SLUG . '&tab=' . self::TAB_SETTINGS . '#stripe')) . '">Open Stripe configuration and readiness</a></p>';
+            echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=dzn-stripe-settings')) . '">Open Stripe integration</a></p>';
         }
         echo '<p class="description">Failed or unmatched Stripe events are reconciled only through the existing guarded action in the payment execution service. No provider payload or secret is shown here.</p>';
         self::exportButton('payments', 'Export payments CSV');
@@ -1919,17 +1920,11 @@ final class FinanceAdminController {
         foreach ($pricing->activeAll() as $row) $regions[$row['region_code']] = $row;
         $conflicts = array();
         try { $conflicts = $pricing->conflicts(); } catch (\Throwable) { $conflicts = array(); }
-        $summary = array();
-        try { $summary = (new FinanceAdminRedesignReadService())->financeSummary(); } catch (\Throwable) { $summary = array(); }
-        if ($summary !== array()) {
-            self::renderFinanceSummaryStrip($summary, 'Finance summary');
-            echo '<p class="description">Receipts are accepted settlement evidence. Outstanding and expected due amounts come from existing canonical obligations, not a sales forecast. Each currency is shown separately.</p>';
-        }
-        self::renderReviewQueues();
+        echo '<nav class="dzn-finance-settings-nav" aria-label="Finance settings"><a href="#regional-pricing">Regional student prices</a><a href="#teacher-rates">Teacher compensation</a><a href="#finance-policies">Finance policies</a></nav>';
         $sharedMode = RegionalPricingRule::INTRO_FREE;
         foreach ($regions as $region) { if ((string)$region['introductory_mode'] === RegionalPricingRule::INTRO_PAID) { $sharedMode = RegionalPricingRule::INTRO_PAID; break; } }
         $effectiveFrom = gmdate('Y-m-d H:i:s');
-        echo '<section class="dzn-finance-settings-section" id="regional-pricing"><h2>Regional pricing</h2><p><strong>One standard lesson price applies to every standard Course in a currency region.</strong> One shared introductory mode and one effective date apply to the whole form. Prices are entered in normal currency units and stored as exact minor units. Changing a price preserves every historical offer, payment and statement.</p>';
+        echo '<section class="dzn-finance-settings-section" id="regional-pricing"><h2>Regional student prices</h2><p>Set one standard lesson price for each currency region and choose whether introductory lessons are free or paid. Changes apply from the effective date; existing offers and payments keep their recorded amounts.</p>';
         if ($conflicts) {
             echo '<div class="notice notice-warning"><p><strong>Existing course prices need explicit resolution.</strong> Choose one amount in the affected row; existing offers keep their original price snapshot.</p><ul>';
             foreach ($conflicts as $conflict) echo '<li><strong>' . esc_html((string) $conflict['region_code']) . '</strong> · ' . esc_html((string) $conflict['kind']) . ' · ' . esc_html(implode(', ', array_map(static fn($amount) => PricingMoney::format((int) $amount, (string) $conflict['currency']), $conflict['amounts']))) . '</li>';
@@ -1956,16 +1951,33 @@ final class FinanceAdminController {
         echo '<p><button class="button button-primary">Save regional pricing</button></p></form>';
         echo '<script>(function(){var form=document.getElementById("regional-pricing-form");if(!form)return;var table=form.querySelector(".dzn-finance-pricing-table"),preview=document.getElementById("dzn-finance-pricing-preview");if(!table||!preview)return;function render(){var paid=form.querySelector("[name=introductory_mode]:checked")&&form.querySelector("[name=introductory_mode]:checked").value==="paid";table.classList.toggle("dzn-finance-pricing-paid",paid);form.classList.toggle("dzn-finance-pricing-paid",paid);var rows=[];table.querySelectorAll("tbody tr").forEach(function(tr){var cells=tr.querySelectorAll("td"),std=cells[2]?cells[2].querySelector("input"):null,intro=cells[3]?cells[3].querySelector("input"):null;if(!std||std.value.trim()==="")return;rows.push((cells[0]?cells[0].innerText.trim():"Region")+" · "+(cells[1]?cells[1].innerText.trim():"")+" · standard "+std.value+(paid&&intro&&intro.value.trim()!==""?" · introductory "+intro.value:" · introductory free"));});preview.innerHTML="<strong>Preview</strong><p>"+(rows.length?rows.join("<br>"):"No region has a standard price yet.")+"</p>";}form.addEventListener("input",render);form.addEventListener("change",render);render();})();</script></section>';
 
+        self::renderSellableCourses();
         self::renderTeacherSettings($read, $settings);
         self::renderPolicySettings();
-        echo '<details class="dzn-finance-settings-section" id="stripe"><summary><strong>Stripe integration and safeguards</strong></summary><p>Existing Stripe test/live separation, encrypted credentials, account binding, webhook verification and payment-worker restrictions are preserved. Secret values are never displayed or changed by this redesign.</p>';
-        if (current_user_can(PaymentExecutionController::CAPABILITY)) {
-            try { IntegrationControlPlaneController::stripeSettingsContent(true); } catch (\Throwable $error) { echo '<div class="notice notice-error"><p>Stripe configuration is unavailable in this request.</p></div>'; }
-        } else {
-            echo '<p class="description">Stripe configuration requires payment provider authority.</p>';
+    }
+
+    /** Read-only course products previously shown on the Student pricing route. */
+    private static function renderSellableCourses(): void {
+        if (!current_user_can('dzn_manage_commercial_catalogue')) return;
+        $commercial = new CommercialAuthorityRepository();
+        $courses = new CourseRepository();
+        echo '<details class="dzn-finance-settings-section" id="student-pricing-products"><summary><strong>Courses using regional prices</strong></summary>';
+        echo '<p>One regional rule prices every standard course. Existing offers keep their recorded price.</p><div class="dzn-finance-table-scroll"><table class="widefat"><thead><tr><th>Course</th><th>Current regional prices</th></tr></thead><tbody>';
+        $products = $commercial->products();
+        foreach ($products as $product) {
+            $course = $courses->find((int)$product->course_id);
+            echo '<tr><td>' . esc_html((string)($course->name_en ?? $course->name_fa ?? $product->name_fa)) . '</td><td>';
+            $shown = false;
+            foreach ($commercial->pricesForProduct((int)$product->id) as $price) {
+                if ((int)($price->active_slot ?? 0) !== 1) continue;
+                $shown = true;
+                echo esc_html((string)$price->region_code . ' · ' . PricingMoney::format((int)$price->amount_minor, (string)$price->currency)) . '<br>';
+            }
+            if (!$shown) echo 'No active regional price';
+            echo '</td></tr>';
         }
-        echo '</details>';
-        echo '<p class="description">Booking horizon is an academy scheduling rule and now lives in <a href="' . esc_url(admin_url('admin.php?page=dzn-policies') . '#booking-horizon') . '">Settings → Policies</a>. The manual ledger remains independent from every setting on this page.</p>';
+        if (!$products) echo '<tr><td colspan="2">No standard courses have been offered yet.</td></tr>';
+        echo '</tbody></table></div></details>';
     }
 
     private static function renderTeacherSettings(FinanceAdminReadService $read, FinanceSettingsService $settings): void {
@@ -2102,12 +2114,6 @@ final class FinanceAdminController {
             }
             echo '</tbody></table></details>';
         }
-        echo '<h4>Golden-hour coverage</h4><p class="description">The existing coverage calculation, shown immediately below the active rules. Coverage is not bookable capacity and never changes a pay rate.</p>';
-        if (current_user_can('dzn_view_booking_requests')) {
-            AcademyCoverageController::renderAtlas(self::MENU_SLUG);
-        } else {
-            echo '<p class="description">Coverage requires the Overview view authority.</p>';
-        }
         echo '</section>';
     }
 
@@ -2217,7 +2223,6 @@ final class FinanceAdminController {
         $commercial = new CommercialPolicyService();
         echo '<section class="dzn-finance-settings-section" id="finance-policies"><h2>Finance policies</h2><p>Existing policy rules are consolidated here. Structural accounting invariants are not configurable. Recording a new version never changes a completed transaction or statement.</p>';
         $financeDescriptions = array(
-            'INTRO_PAYABILITY_POLICY' => 'Whether an introductory lesson is compensable to the Teacher.',
             'STUDENT_NO_SHOW_COMPENSATION_POLICY' => 'Whether a student no-show remains compensable.',
             'INTERRUPTION_COMPENSATION_POLICY' => 'Whether an interrupted lesson remains compensable.',
             'FINANCE_STATEMENT_TIMEZONE' => 'IANA timezone used to present statement periods.',
@@ -2225,6 +2230,7 @@ final class FinanceAdminController {
         echo '<h3>Compensation and statement policies</h3><table class="widefat striped"><thead><tr><th>Key</th><th>Meaning</th><th>Active value</th><th>Version</th><th>Effective from</th></tr></thead><tbody>';
         if (current_user_can('dzn_view_finance_authority')) {
             foreach (FinanceRule::POLICY_KEYS as $key) {
+                if ($key === 'INTRO_PAYABILITY_POLICY') continue; // Dedicated control in Teacher compensation above.
                 $history = $finance->history($key);
                 $active = null;
                 foreach ($history as $row) if ((string) $row['status'] === 'active' && $active === null) $active = $row;
@@ -2238,7 +2244,7 @@ final class FinanceAdminController {
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-finance-inline-form" onsubmit="return confirm(\'Record a new finance policy version? Existing transactions and statements are not rewritten.\')"><input type="hidden" name="action" value="dzn_finance_settings"><input type="hidden" name="finance_operation" value="save_finance_policy">';
             wp_nonce_field('dzn_finance_settings');
             echo '<label>Policy<select name="policy_key">';
-            foreach (FinanceRule::POLICY_KEYS as $key) echo '<option value="' . esc_attr($key) . '">' . esc_html($key) . '</option>';
+            foreach (FinanceRule::POLICY_KEYS as $key) if ($key !== 'INTRO_PAYABILITY_POLICY') echo '<option value="' . esc_attr($key) . '">' . esc_html($key) . '</option>';
             echo '</select></label><label>Value<input name="policy_value" required></label><label>Value type<select name="value_type"><option value="policy_reference">Policy reference</option><option value="timezone">IANA timezone</option></select></label><label>Effective from UTC<input name="effective_from" value="' . esc_attr(gmdate('Y-m-d H:i:s')) . '" pattern="\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"></label><button class="button">Record policy version</button></form>';
         }
         $commercialDescriptions = array(

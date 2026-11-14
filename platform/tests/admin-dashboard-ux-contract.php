@@ -27,21 +27,20 @@ $css = $read('src/Admin/Assets/admin.css');
 $contains($dashboard, array(
     'AcademyDashboardReadService',
     'AcademyDashboardScreen::shows(',
-    'dzn-dash-hero',
-    'dzn-kpi-grid',
-    'Pending work',
-    'Learner pipeline',
+    'Needs Attention',
+    'Scheduled Introductory Classes',
     'Today’s classes',
-    '30-day activity',
     'Finance snapshot',
-    'Learner journeys',
-    'Quick actions',
-    'todayClasses',
+    'Coverage Clock',
+    'scheduledIntroClasses',
     'pendingActions',
     "AcademyDashboardScreen::shows('coverage')",
     'AcademyCoverageController::renderAtlas',
-    'Golden-hour coverage',
-), 'The Overview dashboard must expose the task-first sections, including academy-wide golden-hour coverage.');
+), 'The streamlined Overview must expose its retained operational sections.');
+$overviewRender = substr($dashboard, strpos($dashboard, 'public static function screen()'), strpos($dashboard, 'private static function hero()') - strpos($dashboard, 'public static function screen()'));
+foreach (array('self::hero()', 'self::overviewCategories()', 'self::quickActions()', 'self::kpiCards(', 'self::pipelinePanel(', 'self::activityPanel(', 'self::journeyQueue(') as $removed) {
+    $expect(!str_contains($overviewRender, $removed), 'Removed Overview section is still rendered: ' . $removed);
+}
 $expect(!str_contains($dashboard, "'#'.(int)"), 'The dashboard must not show raw record identifiers as navigation labels.');
 $expect(!str_contains($dashboard, 'INSERT INTO') && !str_contains($dashboard, 'UPDATE '), 'The dashboard controller must remain read-only.');
 $contains($readService, array('public function summary(int $days = 30)'), 'The Overview activity window must be a real 30-day dataset.');
@@ -67,24 +66,17 @@ $expect(!str_contains($readService, 'INSERT ') && !str_contains($readService, 'U
 $contains($screenOptions, array(
     "public const OPTION = 'dzn_academy_sections'",
     'public static function sections(): array',
-    'Quick actions',
-    'Key numbers',
-    'Pending work',
-    'Today’s classes',
-    'Learner pipeline',
-    '30-day activity',
+    'Needs Attention',
     'Finance snapshot',
-    'Golden-hour coverage',
-    'Learner journeys',
+    'Coverage Clock',
     "add_action('current_screen'",
     "add_filter('screen_settings'",
     "add_filter('set_screen_option_' . self::OPTION",
     "add_filter('screen_options_show_submit'",
-    'isAcademyScreen((string) $screen->id)',
     'add_screen_option(self::OPTION',
     'wp_screen_options[value]',
     'get_user_meta(get_current_user_id(), self::OPTION, true)',
-), 'Native Screen Options must expose and persist dashboard sections.');
+), 'Native Screen Options must expose the four retained sections.');
 $contains($shell, array(
     'AcademyDashboardScreen::register()',
     "add_action('admin_enqueue_scripts', [__CLASS__, 'enqueueAssets'])",

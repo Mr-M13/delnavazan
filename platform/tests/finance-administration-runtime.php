@@ -404,7 +404,7 @@ FinanceAdminController::screen();
 $screenHtml = (string) ob_get_clean();
 dzn_fin_runtime_assert(substr_count($screenHtml, 'class="nav-tab') >= 4, 'The actual Finance screen must render four tabs');
 foreach (array('Student payments', 'Teacher payments', 'Manual ledger', 'Settings') as $tabLabel) dzn_fin_runtime_assert(str_contains($screenHtml, '>' . $tabLabel . '<'), 'Rendered Finance tab missing: ' . $tabLabel);
-dzn_fin_runtime_assert(str_contains($screenHtml, 'Finance summary') && str_contains($screenHtml, 'Regional pricing') && str_contains($screenHtml, 'save_regional_pricing_bundle') && str_contains($screenHtml, 'Teacher compensation'), 'Settings tab must render the sourced summary and consolidated finance fields');
+dzn_fin_runtime_assert(str_contains($screenHtml, 'Regional student prices') && str_contains($screenHtml, 'save_regional_pricing_bundle') && str_contains($screenHtml, 'Teacher compensation') && str_contains($screenHtml, 'Finance policies') && !str_contains($screenHtml, 'Stripe integration and safeguards'), 'Settings tab must render pricing and compensation without duplicating Stripe integration');
 
 /* The Teacher payments tab must expose the reviewed draft/issue/send workflow and the unset-timezone warning. */
 $_GET = array('page' => 'dzn-finance', 'tab' => 'statements', 'teacher_id' => $teacherId);

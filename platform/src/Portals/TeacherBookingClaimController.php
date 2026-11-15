@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Portals;
 
+use Delnavazan\Platform\Core\Application\BookingContentionException;
 use Delnavazan\Platform\Core\Application\BookingTeacherResponseService;
 use Delnavazan\Platform\Integrations\BookingCalendarProjectionService;
 
@@ -45,6 +46,7 @@ final class TeacherBookingClaimController {
             $state=(string)($result['state']??'retryable');
             self::redirect(self::notice($state),$state==='failed');
         }catch(\Throwable $error){
+            if($error instanceof BookingContentionException)self::redirect('این درخواست در حال هماهنگی با پاسخ دیگری است. چند لحظه بعد دوباره تلاش کنید؛ پذیرش شما ثبت نشده است.',true);
             self::redirect(self::errorNotice((string)$error->getMessage()),true);
         }
     }

@@ -50,7 +50,7 @@ final class AdminShellController {
         // Notifications is a primary workspace. These routes remain protected aliases.
         'integrations' => ['Integrations', [
             'dzn-integrations', 'dzn-integration-email', 'dzn-integration-whatsapp',
-            'dzn-integration-sms', 'dzn-integration-google', 'dzn-stripe-settings',
+            'dzn-integration-sms', 'dzn-integration-google', 'dzn-integration-chatgpt-ads', 'dzn-stripe-settings',
         ]],
         'diagnostics' => ['Diagnostics', ['dzn-system-health', 'dzn-portal-capabilities', 'dzn-core-dataset-readiness']],
     ];
@@ -73,6 +73,7 @@ final class AdminShellController {
         'dzn-integration-whatsapp' => 'dzn_access_provider_integration_settings',
         'dzn-integration-sms' => 'dzn_access_provider_integration_settings',
         'dzn-integration-google' => 'dzn_access_provider_integration_settings',
+        'dzn-integration-chatgpt-ads' => 'dzn_access_provider_integration_settings',
         'dzn-stripe-settings' => 'dzn_view_payment_execution_authority',
         'dzn-system-health' => 'dzn_access_system_health',
         'dzn-portal-capabilities' => 'dzn_view_portal_capabilities',

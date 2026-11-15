@@ -21,6 +21,7 @@
   const prefilledCountry = country.value;
   let suggestedPhonePrefix = '';
   let availableTimes = [];
+  let leadTimeNotice = '';
   let availabilityGridState = 'idle';
   let gridAvailabilityRequestId = 0;
   const slots = [];
@@ -313,8 +314,8 @@
     }
     if (!availableTimes.length) {
       const status = document.createElement('p');
-      status.className = 'dzn-booking__availability-status';
-      status.textContent = 'برای این روز زمان قابل درخواستی وجود ندارد.';
+      status.className = 'dzn-booking__availability-status' + (leadTimeNotice ? ' is-lead-time' : '');
+      status.textContent = leadTimeNotice || 'برای این روز زمان قابل درخواستی وجود ندارد.';
       timeOptions.append(status);
       return;
     }
@@ -345,6 +346,7 @@
   const refreshAvailabilityGrid = async () => {
     const requestId = ++gridAvailabilityRequestId;
     availableTimes = [];
+    leadTimeNotice = '';
     if (!activeInstrument() || !selectedDate || !timezone.value) {
       availabilityGridState = 'idle';
       renderTimeOptions();
@@ -373,6 +375,12 @@
         seen.add(row.local_start_time);
         return true;
       });
+      const leadTimeOmitted = Number(result.lead_time_omitted) || 0;
+      const leadTimeHours = Number(result.lead_time_hours) || 25;
+      const earliestStart = typeof result.minimum_start_local === 'string' ? faDigits(result.minimum_start_local.replace(' ', '، ساعت ')) : '';
+      leadTimeNotice = !availableTimes.length && leadTimeOmitted > 0
+        ? 'برای این روز زمان قابل درخواستی با حداقل ' + faDigits(leadTimeHours) + ' ساعت فاصله باقی نمانده است.' + (earliestStart ? ' نزدیک‌ترین زمان قابل درخواست بعد از ' + earliestStart + ' است.' : '') + ' روز دیگری را انتخاب کنید.'
+        : '';
       availabilityGridState = 'ready';
       const allowed = new Map(availableTimes.map((row) => [row.local_start_time, row.status]));
       for (let index = slots.length - 1; index >= 0; index -= 1) {
@@ -387,6 +395,7 @@
     } catch {
       if (requestId !== gridAvailabilityRequestId) return false;
       availableTimes = [];
+      leadTimeNotice = '';
       availabilityGridState = 'error';
       renderTimeOptions();
       return false;
@@ -494,6 +503,11 @@
           slots[index].status = row.status;
           slots[index].teacher_times = Array.isArray(row.teacher_times) ? row.teacher_times.filter((time) => time && typeof time.timezone === 'string' && typeof time.starts_at_utc === 'string') : [];
           slots[index].quiet_hours = row.quiet_hours && typeof row.quiet_hours === 'object' ? row.quiet_hours : null;
+          if (row.status === 'blocked' && row.reason_code === 'lead_time_too_short') {
+            const hours = Number(row.lead_time_hours) || 25;
+            const earliest = typeof row.minimum_start_local === 'string' ? row.minimum_start_local.replace(' ', '، ساعت ') : '';
+            showError('برای رزرو کلاس آشنایی حداقل ' + faDigits(hours) + ' ساعت فاصله لازم است؛ نزدیک‌ترین زمان قابل درخواست' + (earliest ? ' بعد از ' + faDigits(earliest) : '') + ' است.');
+          }
         }
       });
       renderSlots();
@@ -774,6 +788,9 @@
         student_slot_conflict: 'این زمان با کلاس یا درخواست دیگری از شما تداخل دارد. زمان دیگری انتخاب کنید.',
         student_instrument_already_enrolled: 'شما در این ساز ثبت‌نام فعال دارید و امکان درخواست کلاس آشنایی دوباره وجود ندارد. برای ادامهٔ کلاس فعلی، از پرتال هنرجو وارد بخش مالی شوید.',
         rate_limited: 'درخواست‌های زیادی در مدت کوتاه ارسال شده است. کمی بعد دوباره تلاش کنید.',
+        lead_time_too_short: 'برای رزرو کلاس آشنایی باید دست‌کم ۲۵ ساعت پیش از شروع درخواست ثبت شود. زمان نزدیک‌تری انتخاب کرده‌اید؛ زمان دیگری انتخاب کنید.',
+        allocation_busy: 'همین حالا درخواست دیگری در حال ثبت است. اطلاعات این فرم باقی مانده است؛ چند لحظه بعد با همین صفحه دوباره ارسال کنید.',
+        teacher_busy: 'همین حالا درخواست دیگری در حال ثبت است. اطلاعات این فرم باقی مانده است؛ چند لحظه بعد با همین صفحه دوباره ارسال کنید.',
         idempotency_conflict: 'برای جلوگیری از ثبت درخواست تکراری، دوباره تلاش نکنید. با دلنوازان تماس بگیرید تا وضعیت درخواست قبلی بررسی شود.',
         csrf_invalid: 'اعتبار فرم منقضی شده است. صفحه را تازه‌سازی کنید و دوباره تلاش کنید.',
         account_authentication_failed: 'ساخت یا ورود به حساب انجام نشد. ایمیل و رمز را بررسی کنید؛ اگر قبلاً حساب دارید می‌توانید از صفحهٔ ورود یا بازیابی رمز استفاده کنید.',

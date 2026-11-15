@@ -38,6 +38,7 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
             return (int)$delivery->id;
         }
         public function referral(int $requestId, string $reason, string $now): void { $this->referrals[]=$reason; $this->alert($requestId,'referral',$reason,'normal',$now); }
+        public function resolveAlerts(int $requestId, string $now): void { foreach($this->alerts as $index=>$kind)if($kind==='referral'||$kind==='escalation')unset($this->alerts[$index]); $this->alerts=array_values($this->alerts); }
         public function alert(int $requestId, string $kind, string $reason, string $priority, string $now): void {
             $this->alerts[]=$kind;
             self::$pendingAlerts[$kind]??=(object)array('id'=>count(self::$pendingAlerts)+1,'booking_request_id'=>$requestId,'kind'=>$kind,'reason_code'=>$reason);
@@ -47,6 +48,12 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function markAlertNotified(int $id, string $now): void { foreach(self::$pendingAlerts as $kind=>$row)if($row->id===$id)unset(self::$pendingAlerts[$kind]); }
         public function unnotifiedExpirations(int $limit=25):array{return array_values(self::$pendingExpirations);}
         public function markExpiryNotified(int $id,string $now):void{unset(self::$pendingExpirations[$id]);}
+        public array $retireCalls = array();
+        public array $retireRows = array();
+        public function retireCompetingOffers(int $teacherId,string $startsAtUtc,string $occupiedEndUtc,int $excludeBookingRequestId,string $now):array{
+            $this->retireCalls[]=array($teacherId,$startsAtUtc,$occupiedEndUtc,$excludeBookingRequestId);
+            return $this->retireRows;
+        }
     }
     final class BookingRequestMatchAssessmentRepository {
         public function eligibleTeachers(int $courseId, string $now): array {
@@ -84,6 +91,11 @@ namespace {
     function admin_url(string $path=''): string { return 'https://academy.example/wp-admin/'.$path; }
     function home_url(string $path=''): string { return 'https://academy.example'.$path; }
     function do_action(string $hook, mixed ...$args): void {}
+    require_once dirname(__DIR__).'/src/Core/Application/BookingLeadTimePolicy.php';
+    require_once dirname(__DIR__).'/src/Core/Application/BookingLeadTimeException.php';
+    require_once dirname(__DIR__).'/src/Core/Application/BookingContention.php';
+    require_once dirname(__DIR__).'/src/Core/Application/BookingContentionException.php';
+    require_once dirname(__DIR__).'/src/Core/Application/BookingOfferRetirementService.php';
     require_once dirname(__DIR__).'/src/Core/Application/BookingAllocationService.php';
     require_once dirname(__DIR__).'/src/Integrations/BookingAllocationWorker.php';
     $repo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository();
@@ -112,5 +124,51 @@ namespace {
     $blockedService=new \Delnavazan\Platform\Core\Application\BookingAllocationService($blockedRepo,new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestMatchAssessmentRepository(),new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherDeliveryRepository($blockedRepo));
     $blocked=$blockedService->startWithinTransaction(10,4,$blockedRepo->times(10),$now);
     $assert($blocked['teacher_id']===22,'A pending or confirmed Teacher occupancy must exclude that Teacher across instruments.');
+
+    // One lead-time authority: strictly later than 24h response + 1h projection.
+    $assert(!\Delnavazan\Platform\Core\Application\BookingLeadTimePolicy::isStartAllowed('2026-11-03 00:59:00',$now),'24h59m notice must be refused.');
+    $assert(!\Delnavazan\Platform\Core\Application\BookingLeadTimePolicy::isStartAllowed('2026-11-03 01:00:00',$now),'Exactly 25h notice must remain unavailable.');
+    $assert(\Delnavazan\Platform\Core\Application\BookingLeadTimePolicy::isStartAllowed('2026-11-03 01:00:01',$now),'25h1s notice must be allowed.');
+    $refusal=\Delnavazan\Platform\Core\Application\BookingLeadTimePolicy::refusal('2026-11-02 10:00:00',$now,'Asia/Tehran');
+    $assert(is_array($refusal)&&$refusal['reason_code']==='lead_time_too_short'&&$refusal['timezone']==='Asia/Tehran'&&$refusal['minimum_start_local']==='2026-11-03 04:30','A short-notice refusal must explain the boundary in the Student timezone.');
+    $assert(\Delnavazan\Platform\Core\Application\BookingLeadTimePolicy::isStartAllowed('2026-11-02 02:00:01',$now,false),'An existing offer acceptance only needs the projection buffer.');
+
+    // Transient InnoDB contention is retryable, never an authorization refusal.
+    $assert(\Delnavazan\Platform\Core\Application\BookingContention::isLockFailure('Lock wait timeout exceeded; try restarting transaction'),'A lock-wait timeout must be classified as contention.');
+    $assert(\Delnavazan\Platform\Core\Application\BookingContention::isLockFailure('Deadlock found when trying to get lock; try restarting transaction'),'A deadlock must be classified as contention.');
+    $assert(!\Delnavazan\Platform\Core\Application\BookingContention::isLockFailure('Duplicate entry for key'),'A duplicate key must not be misclassified as contention.');
+    $GLOBALS['wpdb']=(object)array('last_error'=>'Lock wait timeout exceeded');
+    $captured=\Delnavazan\Platform\Core\Application\BookingContention::capture(new \RuntimeException('Allocation offer changed concurrently'),'teacher_busy');
+    $assert($captured instanceof \Delnavazan\Platform\Core\Application\BookingContentionException&&$captured->errorCode()==='teacher_busy','A captured lock timeout must become a typed retryable error.');
+    unset($GLOBALS['wpdb']);
+
+    // A winning acceptance retires every overlapping pending offer to the same Teacher.
+    $retireRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository();
+    \Delnavazan\Platform\Core\Application\BookingTeacherOccupancyReadService::$blockedTeachers=array();
+    $retireService=new \Delnavazan\Platform\Core\Application\BookingAllocationService($retireRepo,new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestMatchAssessmentRepository(),new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherDeliveryRepository($retireRepo));
+    $retireService->startWithinTransaction(11,4,$retireRepo->times(11),$now);
+    $retireRepo->deliveryRow->starts_at_utc='2026-11-10 09:00:00';
+    $retireRepo->deliveryRow->occupied_ends_at_utc='2026-11-10 10:00:00';
+    $retireRepo->retireRows=array(array('offer_id'=>55,'booking_request_id'=>77,'delivery_id'=>88));
+    $retireService->acceptedLocked($retireRepo->deliveryRow,$now);
+    $assert($retireRepo->retireCalls===array(array(11,'2026-11-10 09:00:00','2026-11-10 10:00:00',11)),'Acceptance must retire competing offers for the exact winning Teacher and interval.');
+    $assert(in_array('capacity_lost',$retireRepo->alerts,true),'Every retired competing offer must leave one capacity_lost alert.');
+
+    // Public intake consumes the same policy: a 25h31m start is allowed, a 24h59m start is not.
+    require_once dirname(__DIR__).'/src/Core/Application/AvailabilityLocalTime.php';
+    require_once dirname(__DIR__).'/src/Core/Application/Normalizer.php';
+    require_once dirname(__DIR__).'/src/Core/Application/RequestedTimeNormalizer.php';
+    require_once dirname(__DIR__).'/src/Core/Application/BookingRequestValidationService.php';
+    $validator=new \Delnavazan\Platform\Core\Application\BookingRequestValidationService();
+    $instrument=(object)array('id'=>1,'status'=>'active','archived_at'=>null);
+    $course=(object)array('id'=>2,'status'=>'active','archived_at'=>null,'course_type'=>'introductory','instrument_id'=>1,'default_duration_minutes'=>30,'default_buffer_minutes'=>15);
+    $start=(new \DateTimeImmutable('tomorrow',new \DateTimeZone('UTC')))->setTime(12,0);
+    $intake=array('course_id'=>2,'contact'=>array('timezone'=>'UTC'),'requested_times'=>array(array('local_date'=>$start->format('Y-m-d'),'local_start_time'=>'12:00','timezone'=>'UTC')));
+    $accepted=$validator->resolveLockedCatalogue($intake,$instrument,$course,$start->modify('-26 hours')->format('Y-m-d H:i:s'));
+    $assert(count($accepted['times'])===1,'Intake must accept a start beyond the shared minimum notice.');
+    $shortNotice=false;
+    try{$validator->resolveLockedCatalogue($intake,$instrument,$course,$start->modify('-1 hour')->format('Y-m-d H:i:s'));}
+    catch(\Delnavazan\Platform\Core\Application\BookingLeadTimeException $error){$shortNotice=$error->reasonCode()==='lead_time_too_short';}
+    $assert($shortNotice,'Intake must refuse a start inside the shared minimum notice.');
     echo "Booking allocation unit passed\n";
 }

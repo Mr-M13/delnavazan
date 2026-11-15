@@ -76,9 +76,11 @@ $need(str_contains($booking,'هرگز منتشر نمی‌شوند'),'online enr
 $need(!str_contains($booking,'Draft product copy'),'the public enrolment page must not expose internal draft copy');
 
 $projectCopy=$read('../theme/template-parts/recording/project-copy.php');
-foreach(array('Your learning deserves care','Your explanation is part of the knowledge','Learning riz: the journey matters','A dataset is the first step','Share the foundations responsibly','currently disabled')as$text)$need(str_contains($projectCopy,$text),'the Project must explain '.$text);
+foreach(array('Why this project?','An example: learning riz on setar','How will we proceed?','How could this research help?','Participation and care of information','currently disabled')as$text)$need(str_contains($projectCopy,$text),'the Project must explain '.$text);
 $need(str_contains($infoBody,"'fa'")&&str_contains($infoBody,"'en'"),'the information page must support both languages');
-$need(!str_contains($infoBody,'<form'),'the explanation must not collect decisions');
+$nameForm=$read('../theme/template-parts/recording/name-suggestion.php');
+$need(str_contains($nameForm,'name="action" value="dzn_research_name"'),'the name form must use only the independent suggestion action');
+$need(!str_contains($infoBody.$nameForm,'dzn_unified_student_consent')&&!str_contains($infoBody.$nameForm,'dzn_unified_teacher_consent'),'the information page must not collect recording decisions');
 $need(!str_contains($infoBody,'link pending approval'),'the Project must replace the old placeholder');
 $need(str_contains($projectCopy,'specifies ten-year retention')&&str_contains($projectCopy,'does not extend retention or remove existing rights'),'the Project must distinguish current policy from proposed changes');
 $need(str_contains($projectCopy,'does not itself opt you into research'),'enrolment must not imply research participation');

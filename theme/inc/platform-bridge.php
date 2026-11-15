@@ -1426,8 +1426,11 @@ function dzn_theme_platform_student_model( $screen ) {
 	$booking_classes = array_values( array_filter( (array) ( $data['booking_classes'] ?? array() ), static fn( $row ) => is_array( $row ) && 'student_booking_class_v1' === ( $row['version'] ?? '' ) && 'confirmed' === ( $row['confirmation_state'] ?? '' ) ) );
 	$post_intro = array_values( array_filter( (array) ( $data['post_intro'] ?? array() ), 'is_array' ) );
 	$reschedule_proposals = array_values( array_filter( (array) ( $data['reschedule_proposals'] ?? array() ), 'is_array' ) );
+	$read_health = is_array( $data['read_health'] ?? null ) ? $data['read_health'] : array();
+	$read_unavailable = in_array( 'unavailable', array_map( static fn( $item ) => (string) ( $item['state'] ?? '' ), array_filter( $read_health, 'is_array' ) ), true );
 	$provisioning = dzn_theme_platform_provisioning_notice( $enrolments );
 	$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments, $booking_requests, $booking_classes, $post_intro );
+	if ( $read_unavailable && 'no_data' === $state ) { $state = 'error'; }
 	if ( 'ok' !== $state ) { return dzn_theme_platform_student_state_model( $screen, $state ); }
 	$now = time();
 	$payments_enabled = dzn_theme_student_payments_enabled();
@@ -1733,6 +1736,7 @@ function dzn_theme_platform_student_model( $screen ) {
 	$model['schedule'] = dzn_theme_platform_student_schedule_rows( $lessons, $booking_classes, $enrolments, $student_timezone, $now, $student_calendar, $student_locale );
 	$model['timezone_label'] = dzn_theme_platform_timezone_label( $student_timezone );
 	$model['history'] = array_map( static fn( array $lesson ) => dzn_theme_platform_history_item( $lesson, $student_calendar, $student_locale ), array_slice( $history_lessons, 0, 5 ) );
+	$model['read_health'] = $read_health;
 	$model['post_intro'] = $post_intro;
 	$model['reschedule_proposals'] = dzn_theme_platform_student_reschedule_proposals( $reschedule_proposals, $student_timezone, $student_calendar, $student_locale );
 	$model['recording_choices'] = dzn_theme_platform_recording_choices( 'account' === $screen ? 'account' : 'enrolment' );
@@ -1897,7 +1901,39 @@ function dzn_theme_platform_teacher_induction_url( string $moduleId = '' ): stri
 	return add_query_arg( 'teacher-view', 'induction', home_url( '/teacher-portal/' ) );
 }
 
-/** Teacher-scoped pending booking deliveries; requests are never projected as confirmed classes. */
+/** Safe operational failure metadata; tolerate older portal test stubs. */
+function dzn_theme_platform_portal_failed_read( string $service, Throwable $error ): array {
+	$class = '\\Delnavazan\\Platform\\Portals\\PortalAuthenticatedReadService';
+	if ( class_exists( $class ) && method_exists( $class, 'failedRead' ) ) {
+		return $class::failedRead( $service, $error );
+	}
+	$correlation = bin2hex( random_bytes( 8 ) );
+	$payload = array(
+		'correlation_id' => $correlation,
+		'service' => $service,
+		'severity' => 'error',
+		'timestamp' => gmdate( 'c' ),
+		'exception_class' => get_class( $error ),
+	);
+	error_log( '[dzn_portal_read_failed] ' . json_encode( $payload ) );
+	if ( function_exists( 'do_action' ) ) { do_action( 'dzn_portal_read_failed', $payload ); }
+	return array( 'state' => 'unavailable', 'correlation_id' => $correlation );
+}
+
+/** Execute an owned optional read; a valid empty result is different from a failure. */
+function dzn_theme_platform_teacher_optional_read( string $service, callable $reader, array &$read_health ): array {
+	try {
+		$rows = $reader();
+		if ( ! is_array( $rows ) ) { throw new UnexpectedValueException( 'portal_read_shape_invalid' ); }
+		$read_health[ $service ] = array( 'state' => 'ok' );
+		return $rows;
+	} catch ( Throwable $error ) {
+		$read_health[ $service ] = dzn_theme_platform_portal_failed_read( $service, $error );
+		return array();
+	}
+}
+
+/** Legacy teacher pending-booking read adapter retained for existing consumers. */
 function dzn_theme_platform_teacher_booking_requests() {
 	$class = '\\Delnavazan\\Platform\\Core\\Application\\BookingTeacherDeliveryService';
 	if ( ! class_exists( $class ) ) { return array(); }
@@ -2389,6 +2425,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	$read = dzn_theme_platform_teacher_read_state( $day_window['today_start'] ?? null, null );
 	if ( 'ok' !== $read['state'] ) { return dzn_theme_platform_teacher_state_model( $screen, in_array($read['state'], array('not_linked','onboarding_required'), true) ? (string)$read['state'] : 'error' ); }
 	$data = is_array( $read['data'] ?? null ) ? $read['data'] : array();
+	$teacher_read_health = array();
 	$now = time();
 	$all_lessons = (array) ( $data['lessons'] ?? array() );
 	$booking_classes = array_values( array_filter( (array) ( $data['booking_classes'] ?? array() ), static fn( $row ) => is_array( $row ) && 'teacher_booking_class_v1' === ( $row['version'] ?? '' ) && 'confirmed' === ( $row['confirmation_state'] ?? '' ) ) );
@@ -2917,7 +2954,9 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'requested_preferences'=>$preferenceModels,'offered_time_id'=>(int)($request->requested_time_id??0),
 			'decline_action_url'=>admin_url('admin-post.php?action=dzn_teacher_booking_response'),'decline_nonce'=>wp_create_nonce('dzn_teacher_booking_response'),
 		);
-	},dzn_theme_platform_teacher_booking_requests());
+	}, dzn_theme_platform_teacher_optional_read( 'teacher_booking_requests', static function (): array {
+		return ( new \Delnavazan\Platform\Core\Application\BookingTeacherDeliveryService() )->ownPending();
+	}, $teacher_read_health ) );
 	// Unmatched requests never entered the Teacher's inbox through allocation. They are offered
 	// only for the Teacher's exact eligible course and state plainly that the Student preferences
 	// are outside declared availability; occupancy still remains a hard acceptance constraint.
@@ -2956,7 +2995,9 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'decline_nonce' => wp_create_nonce( 'dzn_teacher_booking_claim' ),
 			'opportunity' => true,
 		);
-	}, dzn_theme_platform_teacher_open_booking_requests() ) ) );
+	}, dzn_theme_platform_teacher_optional_read( 'teacher_open_requests', static function (): array {
+		return ( new \Delnavazan\Platform\Core\Application\TeacherOpenBookingRequestReadService() )->own();
+	}, $teacher_read_health ) ) ) );
 	// Accepted bookings stay visible while Calendar/Meet provisioning is pending or failed. The
 	// confirmation is durable proof of acceptance, so these cards never offer Accept or a broken Join.
 	$provisioningAttention = array_values( array_filter( array_map( static function( $row ) use ( $teacher_timezone, $teacher_calendar, $teacher_locale ) {
@@ -2991,7 +3032,11 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		);
 	}, (array) ( $data['booking_provisioning'] ?? array() ) ) ) );
 	$absenceAttention = array();
+	$teacher_read_health['teacher_absence'] = array( 'state' => 'ok' );
 	$absence_read_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherAbsenceAttentionReadService';
+	if ( ! class_exists( $absence_read_class ) ) {
+		$teacher_read_health['teacher_absence'] = dzn_theme_platform_portal_failed_read( 'teacher_absence', new RuntimeException( 'portal_read_service_missing' ) );
+	}
 	if ( class_exists( $absence_read_class ) ) {
 		try {
 			foreach ( ( new $absence_read_class() )->own() as $absence_row ) {
@@ -3031,11 +3076,19 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				);
 			}
 		} catch ( Throwable $e ) {
-			$absenceAttention = array();
+			$teacher_read_health['teacher_absence'] = dzn_theme_platform_portal_failed_read( 'teacher_absence', $e );
+			// Preserve already validated, teacher-owned rows; warn that this section is incomplete.
 		}
 	}
 	$pendingAttention = array();
+	$teacher_read_health['teacher_reschedule_pending'] = array( 'state' => 'ok' );
+	$teacher_read_health['teacher_reschedule_declined'] = array( 'state' => 'ok' );
 	$reschedule_read_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherRescheduleAttentionReadService';
+	if ( ! class_exists( $reschedule_read_class ) ) {
+		$failure = dzn_theme_platform_portal_failed_read( 'teacher_reschedule', new RuntimeException( 'portal_read_service_missing' ) );
+		$teacher_read_health['teacher_reschedule_pending'] = $failure;
+		$teacher_read_health['teacher_reschedule_declined'] = $failure;
+	}
 	if ( class_exists( $reschedule_read_class ) ) {
 		try {
 			foreach ( ( new $reschedule_read_class() )->ownPending() as $pending ) {
@@ -3065,7 +3118,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				);
 			}
 		} catch ( Throwable $e ) {
-			$pendingAttention = array();
+			$teacher_read_health['teacher_reschedule_pending'] = dzn_theme_platform_portal_failed_read( 'teacher_reschedule_pending', $e );
+			// Preserve already validated, teacher-owned rows; warn that this section is incomplete.
 		}
 	}
 	$rescheduleAttention = array();
@@ -3111,7 +3165,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				);
 			}
 		} catch ( Throwable $e ) {
-			$rescheduleAttention = array();
+			$teacher_read_health['teacher_reschedule_declined'] = dzn_theme_platform_portal_failed_read( 'teacher_reschedule_declined', $e );
+			// Preserve already validated, teacher-owned rows; warn that this section is incomplete.
 		}
 	}
 	$bookingAttention = array_merge( $pendingAttention, $rescheduleAttention, $absenceAttention, $provisioningAttention, $bookingAttention );
@@ -3120,6 +3175,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		return $start && $start >= $now;
 	} ) );
 	$post_intro_outcomes = array();
+	$teacher_read_health['teacher_post_intro_outcomes'] = array( 'state' => 'ok' );
 	try {
 		$outcome_rows = ( new \Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository() )->pendingOutcomeConfirmationsForTeacher( (int) ( $onboarding['teacher_id'] ?? 0 ) );
 		foreach ( $outcome_rows as $outcome_row ) {
@@ -3134,7 +3190,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			);
 		}
 	} catch ( \Throwable $e ) {
-		$post_intro_outcomes = array();
+		$teacher_read_health['teacher_post_intro_outcomes'] = dzn_theme_platform_portal_failed_read( 'teacher_post_intro_outcomes', $e );
+		// Preserve already validated, teacher-owned confirmations for this request.
 	}
 	$teacher_inbox = dzn_theme_platform_notification_model( $teacher_timezone, $teacher_calendar, $teacher_locale, 'teacher' );
 	$induction_hub = dzn_theme_platform_teacher_induction_hub();
@@ -3157,6 +3214,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'booking_provisioning' => (array) ( $data['booking_provisioning'] ?? array() ),
 		'god_mode_test_classes' => (array) ( $data['god_mode_test_classes'] ?? array() ),
 		'post_intro_outcomes' => $post_intro_outcomes,
+		'read_health' => $teacher_read_health,
 		'statistics' => array('active_students'=>(string)count($studentNames),'upcoming'=>(string)$upcoming_count,'lessons_month'=>(string)count($monthRows),'hours_month'=>number_format_i18n($seconds/HOUR_IN_SECONDS,1)),
 		'classes' => $classes,
 		'today_classes' => $today_classes,

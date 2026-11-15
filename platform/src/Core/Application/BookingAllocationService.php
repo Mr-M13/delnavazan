@@ -11,11 +11,11 @@ use Delnavazan\Platform\Core\Support\Identifier;
  * automatic history lives in the allocation ledger.
  */
 final class BookingAllocationService {
-    public const RESPONSE_SECONDS=86400;
+    public const RESPONSE_SECONDS=BookingLeadTimePolicy::RESPONSE_WINDOW_SECONDS;
     public const ESCALATION_SECONDS=259200;
     // A response must finish before the lesson begins; leave an hour for
     // confirmation and provider projection after the complete response window.
-    public const PROJECTION_BUFFER_SECONDS=3600;
+    public const PROJECTION_BUFFER_SECONDS=BookingLeadTimePolicy::PROJECTION_BUFFER_SECONDS;
     private BookingTeacherOccupancyReadService $occupancy;
     public function __construct(
         private ?BookingAllocationRepository $repo=null,
@@ -95,13 +95,22 @@ final class BookingAllocationService {
     public function acceptedLocked(object $delivery,string $now):void{
         $offer=$this->repo->offer((int)$delivery->booking_request_id,true);
         if(!$offer||(int)$offer->teacher_id!==(int)$delivery->teacher_id)throw new \RuntimeException('Booking offer changed');
+        $this->retireCompetingOffers($delivery,$now);
         $this->repo->transitionOffer((int)$offer->id,'accepted',$now,'teacher_accepted');
         $this->repo->resolveAlerts((int)$delivery->booking_request_id,$now);
     }
     public function administratorAcceptedLocked(object $delivery,string $now):void{
         $offer=$this->repo->offer((int)$delivery->booking_request_id,true);
+        $this->retireCompetingOffers($delivery,$now);
         if($offer)$this->repo->transitionOffer((int)$offer->id,'superseded',$now,'administrator_agreement');
         $this->repo->resolveAlerts((int)$delivery->booking_request_id,$now);
+    }
+    /** A committed winner makes every overlapping pending offer to this Teacher impossible. */
+    private function retireCompetingOffers(object $delivery,string $now):void{
+        $start=(string)($delivery->starts_at_utc??'');
+        $end=(string)($delivery->occupied_ends_at_utc??'');
+        if($start===''||$end===''||$end<=$start)return;
+        (new BookingOfferRetirementService($this->repo))->retireCompeting((int)$delivery->teacher_id,$start,$end,(int)$delivery->booking_request_id,$now);
     }
     public function process(int $requestId,string $now):void{
         $this->repo->begin();
@@ -119,7 +128,11 @@ final class BookingAllocationService {
                 $this->repo->referral($requestId,'unaccepted_after_72h',$now);
             }
             $this->repo->commit();
-        }catch(\Throwable $error){$this->repo->rollback();throw $error;}
+        }catch(\Throwable $error){
+            $contention=BookingContention::capture($error);
+            $this->repo->rollback();
+            throw $contention??$error;
+        }
     }
     /** Read-only, privacy-safe preview for an operator before any historical mutation. */
     public function recoveryPreview(int $requestId,string $now):array{
@@ -155,7 +168,11 @@ final class BookingAllocationService {
                 $this->repo->referral($requestId,'unaccepted_after_72h',$now);
             }
             $this->repo->commit();return $preview+array('applied'=>true);
-        }catch(\Throwable $error){$this->repo->rollback();throw $error;}
+        }catch(\Throwable $error){
+            $contention=BookingContention::capture($error);
+            $this->repo->rollback();
+            throw $contention??$error;
+        }
     }
     public static function addSeconds(string $utc,int $seconds):string{
         return (new \DateTimeImmutable($utc,new \DateTimeZone('UTC')))->modify(($seconds>=0?'+':'').$seconds.' seconds')->format('Y-m-d H:i:s');
@@ -164,7 +181,7 @@ final class BookingAllocationService {
     private function candidates(int $courseId,array $times,string $now,bool $fullResponseWindow=true,int $excludeBookingRequestId=0,bool $includePendingOffers=true,bool $allowOutsideAvailability=false):array{
         if($courseId<1)return array();
         $teachers=$this->matches->eligibleTeachers($courseId,$now);
-        $minStart=self::addSeconds($now,($fullResponseWindow?self::RESPONSE_SECONDS:0)+self::PROJECTION_BUFFER_SECONDS);
+        $minStart=BookingLeadTimePolicy::minimumStartUtc($now,$fullResponseWindow);
         $result=array();
         foreach($teachers as $teacher)foreach($times as $time){
             $start=(string)(is_array($time)?$time['starts_at_utc']:$time->starts_at_utc);

@@ -7,7 +7,7 @@ final class IntegrationSettingsService {
     private const KEY_VERSION='dzn_integration_settings_v1';
     private const SECRET_FIELDS=array(
         'email'=>array('password'), 'whatsapp'=>array('access_token','app_secret','verify_token'),
-        'sms'=>array('api_key'), 'sms_ir'=>array('api_key'), 'google'=>array('client_secret'),
+        'sms'=>array('api_key'), 'sms_ir'=>array('api_key'), 'google'=>array('client_secret'), 'chatgpt_ads'=>array('api_key'),
     );
 
     /** Save only known fields; blank secret fields preserve the current value. */
@@ -93,6 +93,7 @@ final class IntegrationSettingsService {
         'sms'=>array('messaging_profile_id'=>'text','sender_id'=>'text','webhook_public_key'=>'text','api_key'=>'secret'),
         'sms_ir'=>array('endpoint'=>'url','sender_id'=>'text','api_key'=>'secret'),
         'google'=>array('client_id'=>'text','client_secret'=>'secret','redirect_uri'=>'url','meet_redirect_uri'=>'url'),
+        'chatgpt_ads'=>array('api_key'=>'secret','enabled'=>'text'),
     );}
     private function valueRaw(string $provider,string $field):string{$all=(array)get_option(self::OPTION,array());$row=(array)($all[$provider]??array());return (string)($row[$field]??'');}
     private function seal(string $provider,string $field,string $plain):string{

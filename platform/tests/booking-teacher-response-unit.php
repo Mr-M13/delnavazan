@@ -15,6 +15,7 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public array $slotConflicts = array();
         public array $teacherConflicts = array();
         public array $declines = array();
+        public bool $failWithLock = false;
         public bool $eligibleForCourse = true;
         private int $nextConfirmation = 70;
 
@@ -23,7 +24,7 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
             $this->delivery = (object) array('id'=>41,'uid'=>'01ARZ3NDEKTSV4RRFFQ69G5FAV','teacher_id'=>9,'booking_request_id'=>12,'requested_time_id'=>13,'match_strength'=>'possible','selected_intro_course_id'=>77,'state'=>'pending_request','lifecycle_status'=>'submitted','resolution_state'=>'unresolved','privacy_erased_at'=>null,'starts_at_utc'=>'2026-11-02 08:00:00','instructional_ends_at_utc'=>'2026-11-02 08:45:00','occupied_ends_at_utc'=>'2026-11-02 09:00:00','student_id'=>55);
             $this->connection = (object) array('id'=>5);
         }
-        public function begin(): void {}
+        public function begin(): void { if($this->failWithLock)throw new \RuntimeException('Lock wait timeout exceeded; try restarting transaction'); }
         public function commit(): void {}
         public function rollback(): void {}
         public function command(string $digest): ?object { return $this->commands[$digest] ?? null; }
@@ -87,6 +88,8 @@ namespace {
     function wp_salt(string $scheme='auth'): string { return 'booking-response-unit-test-salt-material'; }
     function do_action(string $hook, ...$args): void {}
 
+    require_once dirname(__DIR__) . '/src/Core/Application/BookingContention.php';
+    require_once dirname(__DIR__) . '/src/Core/Application/BookingContentionException.php';
     require_once dirname(__DIR__) . '/src/Core/Application/BookingTeacherResponseService.php';
     $assert = static function(bool $ok,string $message): void { if(!$ok)throw new \RuntimeException($message); };
     $repository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
@@ -143,6 +146,16 @@ namespace {
     catch (\InvalidArgumentException $error) { $teacherConflictRefused = $error->getMessage() === 'teacher_slot_conflict'; }
     $assert($teacherConflictRefused,'An overlapping Teacher booking must refuse acceptance before creating a confirmation.');
     $assert($teacherConflictRepository->confirmations===array() && $teacherConflictRepository->delivery->state==='pending_request','Teacher conflict must retain the pending offer for manual resolution.');
+
+    // A database lock timeout is retryable contention, not a lost booking or authorization refusal.
+    $lockRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    $lockRepository->failWithLock=true;
+    $GLOBALS['wpdb']=(object)array('last_error'=>'Lock wait timeout exceeded');
+    $lockError=null;
+    try{(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($lockRepository,null,$freePricing))->respond($lockRepository->delivery->uid,'accept','lock-timeout-once');}
+    catch(\Delnavazan\Platform\Core\Application\BookingContentionException $error){$lockError=$error;}
+    unset($GLOBALS['wpdb']);
+    $assert($lockError!==null&&$lockError->errorCode()==='teacher_busy','A lock timeout must surface as retryable teacher_busy.');
 
     // A Teacher may accept a different explicit Student preference. The selected preference is
     // switched onto the delivery and offer, and the availability override is audited.

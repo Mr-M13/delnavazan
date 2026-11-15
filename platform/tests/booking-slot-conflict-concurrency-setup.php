@@ -112,6 +112,29 @@ $request = static function ( string $label ) use ( $wpdb, $p, $acceptanceStudent
 $first = $request( 'A' );
 $second = $request( 'B' );
 
+// Confirmed introductory bookings for the reschedule boundary and concurrency proof.
+$rescheduleStudent = $student( 'Reschedule', 'slot-reschedule-' . $suffix . '@example.invalid' );
+$confirmedRequest = static function ( string $label, string $localTime ) use ( $wpdb, $p, $rescheduleStudent, $instrument, $course, $teacher, $connection, $at, $now, $suffix ): array {
+    $date = substr( $at, 0, 10 );
+    $start = $date . ' ' . $localTime;
+    $end = gmdate( 'Y-m-d H:i:s', strtotime( $start . ' UTC +30 minutes' ) );
+    $occupied = gmdate( 'Y-m-d H:i:s', strtotime( $start . ' UTC +45 minutes' ) );
+    $wpdb->insert( $p . 'booking_requests', array( 'uid' => Identifier::uid(), 'reference_code' => 'REQ-SLOT-' . $label . '-' . strtoupper( $suffix ), 'student_id' => $rescheduleStudent, 'requested_instrument_id' => $instrument, 'selected_intro_course_id' => $course, 'lifecycle_status' => 'submitted', 'resolution_state' => 'unresolved', 'retention_due_at' => gmdate( 'Y-m-d H:i:s', strtotime( '+24 months', strtotime( $now . ' UTC' ) ) ), 'version' => 1, 'created_at' => $now, 'updated_at' => $now ) );
+    $id = (int) $wpdb->insert_id;
+    if ( $id < 1 ) throw new RuntimeException( 'Synthetic confirmed booking request failed' );
+    $wpdb->insert( $p . 'booking_request_contact_snapshots', array( 'booking_request_id' => $id, 'snapshot_sequence' => 1, 'full_name' => 'Synthetic Reschedule', 'email' => 'slot-reschedule-' . $suffix . '@example.invalid', 'mobile' => '+61400123457', 'country' => 'AU', 'city' => 'Brisbane', 'timezone' => 'UTC', 'communication_language' => 'en', 'whatsapp_same_as_mobile' => 1, 'whatsapp_number' => '+61400123457', 'privacy_notice_version' => '2026-09-05', 'privacy_notice_accepted' => 1, 'privacy_notice_accepted_at' => $now, 'submission_source' => 'synthetic_slot_race', 'created_at' => $now ) );
+    $wpdb->insert( $p . 'booking_request_requested_times', array( 'booking_request_id' => $id, 'sequence_number' => 1, 'local_date' => $date, 'local_start_time' => $localTime, 'timezone' => 'UTC', 'starts_at_utc' => $start, 'instructional_ends_at_utc' => $end, 'occupied_ends_at_utc' => $occupied, 'instructional_duration_minutes' => 30, 'buffer_minutes' => 15, 'version' => 1, 'created_at' => $now ) );
+    $timeId = (int) $wpdb->insert_id;
+    $wpdb->insert( $p . 'booking_request_teacher_deliveries', array( 'uid' => Identifier::uid(), 'booking_request_id' => $id, 'requested_time_id' => $timeId, 'teacher_id' => $teacher, 'state' => 'accepting', 'match_strength' => 'strong', 'created_at' => $now, 'updated_at' => $now ) );
+    $deliveryId = (int) $wpdb->insert_id;
+    $wpdb->insert( $p . 'booking_request_confirmations', array( 'uid' => Identifier::uid(), 'delivery_id' => $deliveryId, 'booking_request_id' => $id, 'requested_time_id' => $timeId, 'teacher_id' => $teacher, 'connection_id' => $connection, 'state' => 'confirmed', 'version' => 1, 'starts_at_utc' => $start, 'ends_at_utc' => $end, 'schedule_timezone' => 'UTC', 'local_wall_date' => $date, 'local_wall_time' => $localTime, 'provider_code' => 'google_calendar', 'provider_event_digest' => null, 'failure_reason_code' => null, 'attempt_count' => 0, 'next_attempt_at' => null, 'confirmed_at' => $now, 'created_at' => $now, 'created_by' => 1, 'updated_at' => $now, 'updated_by' => 1 ) );
+    $confirmationId = (int) $wpdb->insert_id;
+    if ( $timeId < 1 || $deliveryId < 1 || $confirmationId < 1 ) throw new RuntimeException( 'Synthetic confirmed booking failed' );
+    return array( 'request_id' => $id, 'requested_time_id' => $timeId, 'delivery_id' => $deliveryId, 'confirmation_id' => $confirmationId );
+};
+$boundary = $confirmedRequest( 'BOUNDARY', '12:00:00' );
+$race = $confirmedRequest( 'RACE', '18:00:00' );
+
 update_option( 'dzn_booking_slot_concurrency_state', array(
     'suffix' => $suffix, 'at' => $at, 'occupied_ends_at_utc' => $occupied,
     'instrument_id' => $instrument, 'course_id' => $course,
@@ -121,5 +144,19 @@ update_option( 'dzn_booking_slot_concurrency_state', array(
     'teacher_user_id' => $teacherUser, 'teacher_id' => $teacher,
     'acceptance_requests' => array( 'w1' => $first, 'w2' => $second ),
     'acceptance_keys' => array( 'w1' => 'slot-accept-w1-' . $suffix, 'w2' => 'slot-accept-w2-' . $suffix ),
+    'reschedule' => array(
+        'boundary' => array(
+            'request_id' => $boundary['request_id'], 'confirmation_id' => $boundary['confirmation_id'],
+            'expected_version' => 1, 'before_time' => '10:44:59', 'at_time' => '10:45:00',
+        ),
+        'race' => array(
+            'request_id' => $race['request_id'], 'confirmation_id' => $race['confirmation_id'], 'expected_version' => 1,
+            'slots' => array(
+                'w1' => array( 'local_date' => substr( $at, 0, 10 ), 'local_start_time' => '16:30', 'timezone' => 'UTC' ),
+                'w2' => array( 'local_date' => substr( $at, 0, 10 ), 'local_start_time' => '17:00', 'timezone' => 'UTC' ),
+            ),
+            'keys' => array( 'w1' => 'slot-reschedule-w1-' . $suffix, 'w2' => 'slot-reschedule-w2-' . $suffix ),
+        ),
+    ),
 ), false );
 echo wp_json_encode( array( 'setup' => 'ok', 'suffix' => $suffix ) ) . "\n";

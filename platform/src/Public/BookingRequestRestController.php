@@ -3,6 +3,8 @@ namespace Delnavazan\Platform\Public;
 
 use Delnavazan\Platform\Core\Application\BookingStudentAccountService;
 use Delnavazan\Platform\Core\Application\BookingAccountAuthenticationException;
+use Delnavazan\Platform\Core\Application\BookingContentionException;
+use Delnavazan\Platform\Core\Application\BookingLeadTimeException;
 use Delnavazan\Platform\Core\Application\BookingRequestValidationService;
 use Delnavazan\Platform\Core\Application\BookingRequestSlotConflictException;
 use Delnavazan\Platform\Core\Application\BookingRequestInstrumentEnrollmentException;
@@ -74,6 +76,21 @@ final class BookingRequestRestController {
             return new \WP_REST_Response( array( 'success' => true, 'request_reference' => $result['request_reference'], 'dashboard_url' => home_url( '/student-portal/' ) ), 201 );
         } catch ( BookingAccountAuthenticationException ) {
             return new \WP_REST_Response( array( 'success' => false, 'code' => 'account_authentication_failed', 'login_url' => wp_login_url( home_url( '/enrol/' ) ) ), 401 );
+        } catch ( BookingLeadTimeException $e ) {
+            return new \WP_REST_Response( array(
+                'success' => false,
+                'code' => $e->reasonCode(),
+                'message' => $e->getMessage(),
+                'minimum_start_utc' => $e->minimumStartUtc(),
+                'timezone' => $e->timezone(),
+            ), 400 );
+        } catch ( BookingContentionException $e ) {
+            return new \WP_REST_Response( array(
+                'success' => false,
+                'code' => $e->errorCode(),
+                'retryable' => true,
+                'retry_after_seconds' => $e->retryAfterSeconds(),
+            ), 503 );
         } catch ( \InvalidArgumentException $e ) {
             if ( $e->getMessage() === 'csrf_invalid' ) return new \WP_REST_Response( array( 'success' => false, 'code' => 'csrf_invalid' ), 403 );
             $code = $e->getMessage() === BookingRequestValidationService::BLOCKED_TIME_MESSAGE ? 'blocked_time' : 'invalid_request';

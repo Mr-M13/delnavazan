@@ -37,9 +37,10 @@ final class BookingStudentAccountService {
                 $this->accounts->commit();
                 return array( 'success' => true, 'request_reference' => (string) $result['request_reference'], 'user_id' => $userId, 'replayed' => ! empty( $result['replayed'] ), 'recording_research_consent_accepted' => ! empty( $normalized['recording_research_consent_accepted'] ), 'communication_language' => (string) ( $normalized['contact']['communication_language'] ?? 'fa' ) );
             } catch ( \Throwable $e ) {
+                $contention = BookingContention::capture( $e );
                 $this->accounts->rollback();
                 if ( $createdUserId > 0 ) clean_user_cache( $createdUserId );
-                throw $e;
+                throw $contention ?? $e;
             }
         } finally {
             $this->accounts->releaseEmailLock( $emailDigest );

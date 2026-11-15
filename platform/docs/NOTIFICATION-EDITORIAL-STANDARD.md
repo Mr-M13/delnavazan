@@ -40,7 +40,7 @@ If a message does not need action, say so explicitly instead of inventing a butt
 | هنرجو | دانشجو، شاگرد، کاربر |
 | مدرس | استاد (unless it is a name), معلم |
 | کلاس | درس، سشن |
-| کلاس معارفه | کلاس آشنایی، جلسهٔ آزمایشی، کلاس تست |
+| کلاس آشنایی | کلاس معارفه، جلسهٔ آزمایشی، کلاس تست |
 | جلسهٔ جبرانی | کلاس جبرانی، معادل |
 | تغییر زمان کلاس | جابه‌جایی، ری‌شجویل |
 | تأیید زمان پیشنهادی | اوکی کردن، قبول زمان |
@@ -92,13 +92,16 @@ If a message does not need action, say so explicitly instead of inventing a butt
 
 ## 7. Category rules
 
-| Category | Tone | Opt-out |
+The "recipient opt-out" column is about marketing consent only. It never limits the administrator's
+delivery control described in §10: any notification and any offered channel can be switched off.
+
+| Category | Tone | Recipient marketing opt-out |
 |---|---|---|
-| Security | Direct, factual, no marketing | Not permitted |
-| Account | Calm and operational | Not permitted |
-| Booking | Helpful, time-specific | Not permitted while a booking is live |
-| Lesson | Operational, time-zone explicit | Not permitted for changes already made |
-| Payment | Precise, neutral, no pressure | Not permitted; requires financial/legal review before activation |
+| Security | Direct, factual, no marketing | Not offered; the message is not marketing |
+| Account | Calm and operational | Not offered; the message is not marketing |
+| Booking | Helpful, time-specific | Not offered while a booking is live |
+| Lesson | Operational, time-zone explicit | Not offered for changes already made |
+| Payment | Precise, neutral, no pressure | Not offered; requires financial/legal review before activation |
 | Optional | Warm but restrained | Requires marketing consent |
 
 Operational authority comes from the teaching relationship, not from marketing consent. Marketing consent
@@ -108,9 +111,9 @@ is never used to justify a booking, class, payment or security message.
 
 **Class confirmed (email, student)**
 
-> سلام باران،
+> درود باران،
 >
-> کلاس معارفهٔ «تار» با استاد ندا تأیید شد.
+> کلاس آشنایی «تار» با استاد ندا تأیید شد.
 >
 > زمان کلاس: شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰ به وقت تهران
 >
@@ -123,11 +126,11 @@ is never used to justify a booking, class, payment or security message.
 **Reschedule proposed (website, student)**
 
 > برای شما یک زمان تازه برای کلاس پیشنهاد شد: …
-> لطفاً در پرتال هنرجو آن را بپذیرید یا رد کنید. تا پاسخ شما، زمان فعلی کلاس تغییر نمی‌کند.
+> لطفاً در حساب کاربری آن را بپذیرید یا رد کنید. تا پاسخ شما، زمان فعلی کلاس تغییر نمی‌کند.
 
 **Absence reported (email, teacher)**
 
-> سلام استاد ندا،
+> درود استاد ندا،
 >
 > باران برای جلسهٔ «تار» در … اطلاع غیبت فرستاده است.
 > لطفاً با هنرجو هماهنگ کنید و در صورت توافق، زمان جایگزین همین جلسه را در پرتال مدرس ثبت کنید: …
@@ -147,3 +150,43 @@ is never used to justify a booking, class, payment or security message.
   translations.
 - An editor may not change the recipient, the channel eligibility, the consent rule or the business
   action. Those are owned by the producing service.
+
+## 10. Administrator delivery control
+
+An administrator may switch off any notification and any offered channel, including security, account and
+payment notices, and including the portal and email routes that used to be locked.
+
+- Disabling delivery is never a business decision. It does not cancel a class, reverse a payment, revoke an
+  account, refuse consent or alter a transaction record. Those authorities stay with the services that own
+  them.
+- The catalogue shows a warning on sensitive notifications so the consequence of switching delivery off is
+  explicit before the change is saved.
+- A notification-wide switch off keeps the saved per-channel preferences. Re-enabling the notification
+  restores exactly the channels that were on.
+- A channel that is genuinely unsupported, missing its copy, missing its provider or awaiting Meta approval
+  cannot be switched on. Disabling is always possible; enabling is fail-closed.
+- Every administrator change is written to the notification audit log.
+- Suppression is evaluated at enqueue, at claim and immediately before provider hand-off, so a queued
+  notification or a retry obeys the current switch rather than the value it was created with.
+
+## 11. Preparing and publishing copy
+
+1. **Prepare** creates a reviewable draft for every supported template that has no published version
+   and no draft. It never sends, publishes or enables anything, and it never overwrites a draft or a
+   published version.
+2. **Approve** records that an administrator has read one exact draft. The approval stores a digest of
+   the subject and body, so editing the draft, discarding it or publishing it invalidates the approval.
+3. **Publish in bulk** only publishes drafts that carry a valid approval *and* whose channel approval is
+   complete. Financial, legal, security and dedicated-authority copy always needs its owning reviewer
+   and is published individually.
+4. **Provider approval is separate.** A WhatsApp draft is only bulk-publishable when the route is
+   positively mapped. Not mapped, rejected, pending re-approval, ambiguous, contract-mismatched or
+   unrecognised provider states are refused; a locally prepared draft is never presented as an
+   approved Meta template.
+5. Publishing a template never enables its delivery channel, and it never changes a notification that
+   already froze an earlier version.
+
+Completeness is reported separately from readiness. A notification can have complete Persian and
+English copy and still be unpublished, awaiting approval, awaiting a provider template, or impossible
+to raise because no producer is registered. Those are different facts and the administration surface
+must not merge them into one badge.

@@ -1,6 +1,6 @@
 # AGENTS.md — Delnavazan agent contract
 
-Version 1.0 · effective 2026-11-15
+Version 1.1 · effective 2026-11-15
 
 This file is the single, shared contract for every AI agent working in this repository,
 including **Codex** and **OpenCode** (DeepSeek). Both agents read it from the repository
@@ -14,8 +14,8 @@ At the **start of every session**, before any edit:
 
 1. Read this file in full.
 2. State in your first reply which role you are operating as and which branch you will work on:
-   - `Acknowledged AGENTS.md v1.0 — Codex: release owner`
-   - `Acknowledged AGENTS.md v1.0 — OpenCode: feature contributor`
+   - `Acknowledged AGENTS.md v1.1 — Codex: feature contributor`
+   - `Acknowledged AGENTS.md v1.1 — OpenCode: release coordinator`
 3. Confirm the branch you are on. If the branch does not match the rules below, stop and fix
    the branch before touching files.
 
@@ -24,50 +24,22 @@ and inside Docker.
 
 ## 1. Roles
 
-### 1.1 Codex — release owner (sole)
+### 1.1 OpenCode — release coordinator
 
-Codex is the only agent with release authority.
+OpenCode is the primary coordinator for development, review handoff, CI monitoring, and approved releases. GitHub branch protections, required reviewers, protected environments and GitHub Actions remain the enforcement and execution authority.
 
-- **Sole owner of merges to `main`.** No other agent merges, enables auto-merge, or pushes to `main`.
-- **Sole owner of GitHub Actions deployments.** Only Codex dispatches `Deploy production` and the
-  provision/diagnose/dispatch workflows in `.github/workflows/`.
-- **Reviewer of every pull request**, including every OpenCode PR.
+- Work on short-lived feature branches from current origin/main; never push directly to main.
+- Open pull requests, run native validation, monitor exact-head-SHA required checks, inspect failures, and remediate on the branch.
+- Request independent review and explicit owner approval for merges and production deployment; never self-approve or bypass branch protection.
+- After approval and green required checks, OpenCode may merge through GitHub's protected merge mechanism, provided its GitHub identity has permission. If not, stop and request an authorised operator.
+- Dispatch only the canonical Deploy production workflow from main with the full current main SHA, subject to the protected production environment and its reviewers. Verify exact SHA, run result, production smoke and deployment record before reporting success.
+- Do not access or disclose deployment secrets. Do not run direct production deploy scripts or production writes outside audited GitHub workflows.
+- Do not dispatch a second production deployment while one is queued or running. On failure, diagnose and use the documented guarded retry or rollback procedure, with owner approval when required.
+- Changes to .github/workflows/**, deployment/** or release governance require a dedicated reviewed PR.
 
-Before merging any PR, Codex must confirm:
+### 1.2 Codex and other agents — feature contributors
 
-- the branch follows the naming rule in §1.2 and was cut from current `origin/main`;
-- the **PR runtime gate** (`.github/workflows/pr-runtime-gate.yml`) is green, including
-  `Deployment risk classification` and `Verified Platform source contracts`;
-- the diff contains no changes to `.github/workflows/`, `deployment/`, release records or
-  other release machinery, unless the PR is explicitly a reviewed release-machinery change;
-- no secrets, credentials, production data or generated artefacts are included;
-- the PR scope, tests and rollback notes match the diff.
-
-Codex merges only after those checks pass, then deploys exactly as described in
-`deployment/README.md`: manual dispatch from `main`, full current `origin/main` SHA, protected
-`production` environment, deployment record and production smoke reviewed before closing.
-
-### 1.2 OpenCode — upstream feature contributor
-
-OpenCode contributes features upstream and never releases.
-
-- **Feature branches only.** Refresh first, then branch from the latest `origin/main`:
-  `git fetch origin && git switch -c <branch> origin/main`. Use a short-lived branch named
-  `feat/<slug>-<YYYYMMDD>` or `fix/<slug>-<YYYYMMDD>`.
-- **Never commits or pushes to `main`.** Never force-pushes a shared branch, never merges,
-  never approves its own PR, never enables auto-merge.
-- **Opens a PR for every change**, with what/why, tests run, risk and rollback in the body,
-  then hands off to Codex with "Ready for Codex review."
-- **Does not touch merges or deployment files.** In particular OpenCode does not edit or create:
-  - `.github/workflows/**`
-  - `deployment/**`
-  - `platform/docs/RELEASE-*`, deployment records or production evidence
-  - production configuration, DNS, SSL, mail or catalogue data
-
-  If a task genuinely requires those files, OpenCode says so in the PR and leaves the edit to Codex.
-- **Does not run release actions.** No `gh workflow run`, no deploy scripts, no production
-  migrations or writes, no production credentials. Read-only diagnostics are allowed.
-- OpenCode may rebase or amend **its own** feature branch before review.
+Codex and other agents may create branches, implement changes, run checks and open PRs. They must not maintain a competing release process, merge without owner authorisation, or dispatch production deployments. OpenCode coordinates releases; GitHub Actions executes them. All agents must use the same canonical repository, tests and safeguards.
 
 ## 2. Build and test rules (both agents)
 
@@ -125,7 +97,7 @@ container is optional parity. The runtime suites (`platform/runtime/bin/run-*-ru
 only remaining Docker dependency and are **CI-only for agents**: the PR runtime gate runs them,
 and a green native run never substitutes for green CI. Removing Docker from the repository
 entirely means replacing that harness with a native MariaDB/WordPress setup, or deleting the
-suites — both need Codex review and a workflow change.
+suites — both need release-governance review and a workflow change.
 
 ## 3. Change discipline
 
@@ -139,14 +111,10 @@ suites — both need Codex review and a workflow change.
 
 ## 4. Verification and handoff
 
-- **OpenCode** finishes with: the PR URL; the list of changed files; the exact checks run and the
-  environment used (native PHP 8.3 or container image/command); an explicit statement of the
-  build status — this repository has no local production build, so never claim one passed; and the
-  handoff line "Ready for Codex review." It does not merge or deploy.
-- **Codex** finishes a release only after: PR gate green, review done, merge committed, deployment
-  run succeeded, smoke result reviewed, and the release record updated.
-- Neither agent claims a merge or deployment it did not perform. The evidence is the GitHub PR,
-  workflow run and deployment record URLs.
+- Contributors report PR URL, changed files, checks, environment, risk and rollback. No local production build exists.
+- OpenCode verifies required CI for the exact head SHA, obtains independent review and owner approval, merges through protections, dispatches the canonical workflow, then confirms the deployed SHA, smoke results and release record.
+- A pending, skipped or failed required check is not a pass. A successful workflow run alone is not evidence that production serves the expected commit.
+- Never claim a merge, deploy, permission or Mac-level Docker audit without direct evidence.
 
 ## 5. Repository map
 
@@ -160,9 +128,9 @@ suites — both need Codex review and a workflow change.
 `README.md` and `deployment/README.md` remain authoritative for product background and release
 mechanics. This file is authoritative for **who may do what**.
 
-## 6. Contract synchronization (Codex-owned)
+## 6. Contract synchronization (release coordinator-owned)
 
-Whenever Codex changes CI checks, build or test scripts, package-manager commands,
+Whenever the release coordinator changes CI checks, build or test scripts, package-manager commands,
 Node/PHP/runtime versions, Docker build requirements, or any workflow in
 `.github/workflows/**`, Codex must review and update this `AGENTS.md` in the
 **same commit** so OpenCode receives the current commands and boundaries.

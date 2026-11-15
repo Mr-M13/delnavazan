@@ -42,13 +42,27 @@ review needs the raw numbers; do not `git add` it.
 
 ## Reproduce
 
-From the repository root, with a disposable stack already installed and its
+From the repository root, with the three cached images already present
+(`mariadb:11.4`, `wordpress:php8.3-apache`, `wordpress:cli-php8.3`) and the
 runtime variables exported:
 
 ```bash
-DZN_STRESS_SKIP_SCENARIOS=0 \
-  bash platform/runtime/bin/run-booking-engine-stress.sh
+export DZN_RUNTIME_STATE_DIR=/tmp/dzn-booking-stress-runtime
+export DZN_COMPOSE_PROJECT=dzn-booking-stress-runtime
+export DZN_WP_PORT=18090
+
+# 1. Provision the disposable stack (MariaDB + WordPress + the candidate plugin)
+platform/runtime/bin/reset-disposable.sh
+
+# 2. Run every scenario and the concurrency matrix
+platform/runtime/bin/run-booking-engine-stress.sh
+
+# 3. Dispose of it
+platform/runtime/bin/destroy.sh YES
 ```
+
+`reset-disposable.sh` is required: the stress runner deliberately does not
+provision, so that a run can never silently land on a stale or shared stack.
 
 The harness refuses to run unless:
 

@@ -6,6 +6,7 @@ if ( getenv( 'DZN_BOOKING_SLOT_RUNTIME' ) !== 'concurrency' || ! defined( 'WP_CL
 }
 use Delnavazan\Platform\Core\Application\BookingRequestSubmissionService;
 use Delnavazan\Platform\Core\Application\BookingTeacherResponseService;
+use Delnavazan\Platform\Core\Application\IntroLessonLifecycleService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestRepository;
 
 global $wpdb;
@@ -76,6 +77,26 @@ try {
             $repository->rollback();
             $mark( 'result', wp_json_encode( array( 'ok' => false, 'action' => $action, 'message' => $error->getMessage() ) ) . "\n" );
         }
+    } elseif ( $action === 'reschedule' ) {
+        wp_set_current_user( 1 );
+        if ( $worker === 'w1' ) {
+            add_action( 'dzn_intro_reschedule_locked', static function ( int $confirmationId, int $version ) use ( $mark, $release ): void {
+                $mark( 'locked', 'reschedule' );
+                $release();
+            }, 10, 2 );
+        }
+        $race = $state['reschedule']['race'];
+        $slot = $race['slots'][ $worker ];
+        $result = ( new IntroLessonLifecycleService() )->reschedule(
+            (int) $race['request_id'],
+            'admin',
+            $slot,
+            'operational_change',
+            (string) $race['keys'][ $worker ],
+            (int) $race['confirmation_id'],
+            (int) $race['expected_version']
+        );
+        $mark( 'result', wp_json_encode( array( 'ok' => true, 'action' => $action, 'result' => $result ) ) . "\n" );
     } else {
         throw new RuntimeException( 'Unknown booking slot action: ' . $action );
     }

@@ -112,6 +112,7 @@ if ( preg_match( '/^\d{2}:\d{2}$/D', $expectedStart ) ) $expectedStart .= ':00';
 $assert( (string) $raceRow->starts_at_utc === substr( (string) $state['at'], 0, 10 ) . ' ' . $expectedStart, 'The winning reschedule must own the confirmation start' );
 $assert( (string) $raceRow->failure_reason_code === '', 'A successful provider update must clear the pending marker' );
 $assert( (int) $raceRow->attempt_count === 0, 'A successful provider update must reset the retry attempt count' );
+$assert( $raceRow->next_attempt_at === null, 'A successful provider update must clear the retry deadline' );
 $raceProviderAudit = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$p}platform_audit_events WHERE aggregate_type='booking_request' AND aggregate_id=%d AND event_type='booking_request.intro_reschedule_provider_sync' AND safe_detail LIKE %s AND safe_detail LIKE %s", (int) $race['request_id'], '%"provider_sync":"updated"%', '%"retryable":false%' ) );
 $assert( $raceProviderAudit === 1, 'The successful provider update must be audited once with retryable=false' );
 $raceStaleAudit = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$p}platform_audit_events WHERE aggregate_type='booking_request' AND aggregate_id=%d AND event_type='booking_request.intro_rescheduled' AND safe_detail LIKE %s", (int) $race['request_id'], '%"provider_sync"%' ) );

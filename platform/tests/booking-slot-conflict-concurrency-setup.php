@@ -136,6 +136,13 @@ $confirmedRequest = static function ( string $label, string $localTime ) use ( $
 };
 $boundary = $confirmedRequest( 'BOUNDARY', '12:00:00' );
 $race = $confirmedRequest( 'RACE', '18:00:00' );
+// Prove a successful revision removes an existing retry state, rather than
+// merely observing the empty values assigned by the fixture above.
+if ( $wpdb->update( $p . 'booking_request_confirmations', array(
+    'failure_reason_code' => 'reschedule_provider_pending:synthetic_previous',
+    'attempt_count' => 2,
+    'next_attempt_at' => gmdate( 'Y-m-d H:i:s', time() + 3600 ),
+), array( 'id' => (int) $race['confirmation_id'] ) ) !== 1 ) throw new RuntimeException( 'Synthetic provider retry state failed' );
 
 // The race confirmation has a synthetic provider reference and credential so the
 // post-commit projection can succeed when the worker's HTTP filter answers Google.

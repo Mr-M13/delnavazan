@@ -1,6 +1,6 @@
 # ChatGPT Ads Conversions API — introductory bookings
 
-This integration is **off until a key is configured**. In the production server's `wp-config.php`, before the WordPress bootstrap line, add:
+This integration is **off until explicitly enabled and a key is configured**. Administrators can configure it in **Settings → Integrations → ChatGPT Ads**. The API key is write-only and encrypted using the existing integration settings vault; leaving the field blank preserves the existing key. The enable checkbox is off by default. An optional server-managed key overrides the dashboard key. To configure it in the production server's `wp-config.php`, before the WordPress bootstrap line, add:
 
 ```php
 define('DZN_CHATGPT_ADS_API_KEY', getenv('DZN_CHATGPT_ADS_API_KEY'));
@@ -13,6 +13,8 @@ The hourly WP-Cron worker checks provider-confirmed introductory bookings, requi
 
 The source URL is the site's home URL, **not a claimed per-booking landing URL**. No `oppref` attribution or browser pixel deduplication is implemented yet. These require explicit attribution storage and verified API field support. This implementation is a backend-only first phase. It must be validated against the live provider sandbox/validate-only flow before enabling real delivery. WP-Cron must be running reliably.
 
-Operations: `wp option get dzn_chatgpt_ads_started_at`; inspect `dzn_ads_intro_<id>` for delivery state without exposing the API key. A key is never logged. To disable outbound requests, remove the key from configuration. To reset a failed event, delete its `dzn_ads_intro_<id>` option (do not delete delivered records, which would risk duplicate reporting).
+Operations: `wp option get dzn_chatgpt_ads_started_at`; inspect `dzn_ads_intro_<id>` for delivery state without exposing the API key. A key is never logged. To disable outbound requests, turn off the dashboard enable checkbox. Removing the key from server configuration alone does not disable a dashboard-stored key. To reset a failed event, delete its `dzn_ads_intro_<id>` option (do not delete delivered records, which would risk duplicate reporting).
 
 Run focused contract tests: `php platform/tests/chatgpt-ads-conversion-unit.php`. This tests payload fields, stable ID, delivered deduplication and retry backoff with mocked HTTP; it does **not** prove provider acceptance or end-to-end production booking eligibility.
+
+The dashboard **Test connection** action sends a `validate_only: true` synthetic event and stores only a redacted HTTP status and timestamp. It never schedules or reports a real conversion. A successful validation response does not prove production delivery or attribution. The dashboard reports worker schedule and eligibility watermark without exposing student data.

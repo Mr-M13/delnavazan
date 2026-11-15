@@ -160,6 +160,42 @@ final class TelnyxWhatsAppAdapter {
         return array('acknowledged'=>true,'permanent_failure'=>null,'provider_attempted'=>true,'provider_reference_present'=>$reference!=='','channel'=>'whatsapp');
     }
 
+    /**
+     * Manual operational send over the announcement template. Unlike the event-owned send, the
+     * template is supplied by the caller (the manual-send authority) rather than resolved from a
+     * catalogue event. The correlation id is stored with attempt_id 0, the same tracked shape the
+     * webhook already understands, so a delivery receipt can still update the message state.
+     *
+     * @param string[] $order
+     * @param array<string,string> $parameters
+     */
+    public function sendManual(string $to,string $templateName,string $language,array $order,array $parameters,int $correlationId):array{
+        $to=PhoneNumberNormalizer::toE164($to);
+        if(!preg_match('/^\+[1-9][0-9]{7,14}$/',$to))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
+        if($templateName===''||$order===array())return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'template_not_configured');
+        foreach($order as $code)if(!array_key_exists($code,$parameters)||trim((string)$parameters[$code])==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'variable_contract_mismatch');
+        $sender=(string)$this->settings->value('whatsapp','sender_id');
+        if($sender==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'sender_not_configured');
+        $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');
+        $payload=self::templatePayload($sender,$to,$templateName,$language,$order,$parameters,$profile);
+        $response=$this->post('https://api.telnyx.com/v2/messages/whatsapp',array(
+            'timeout'=>20,'redirection'=>0,
+            'headers'=>array('Authorization'=>'Bearer '.(string)$this->settings->value('sms','api_key'),'Content-Type'=>'application/json'),
+            'body'=>wp_json_encode($payload),
+        ));
+        if(is_wp_error($response))return array('acknowledged'=>false,'permanent_failure'=>null,'failure'=>'transport','ambiguous'=>true);
+        $status=(int)wp_remote_retrieve_response_code($response);
+        $body=json_decode((string)wp_remote_retrieve_body($response),true);
+        if($status<200||$status>=300){
+            $permanent=self::permanentFailure($status);
+            return array('acknowledged'=>false,'permanent_failure'=>$permanent,'http'=>$status,'provider_attempted'=>true,'ambiguous'=>$permanent===null);
+        }
+        $reference=is_array($body)?(string)($body['data']['id']??''):'';
+        if($reference!=='')$this->rememberManual($reference,$correlationId,$templateName,$language);
+        return array('acknowledged'=>true,'permanent_failure'=>null,'provider_attempted'=>true,'provider_reference_present'=>$reference!=='','channel'=>'whatsapp');
+    }
+
+    /** @param string[] $order @param array<string,string> $parameters */
     public static function templatePayload(string $from,string $to,string $name,string $language,array $order,array $parameters,string $profile=''):array{
         $params=array();
         foreach($order as $code)$params[]=array('type'=>'text','text'=>(string)$parameters[$code]);
@@ -248,12 +284,19 @@ final class TelnyxWhatsAppAdapter {
     }
     /** Booking queue has no canonical attempt row; attempt_id 0 is the tracked business hand-off. */
     private function rememberBooking(string $reference,int $notificationId,string $name,string $language):void{
+  $this->rememberCorrelated($reference,$notificationId,$name,$language);
+ }
+ /** Manual/announcement send: correlation id is not a canonical notification, attempt_id stays 0. */
+ private function rememberManual(string $reference,int $correlationId,string $name,string $language):void{
+  $this->rememberCorrelated($reference,$correlationId,$name,$language);
+ }
+ private function rememberCorrelated(string $reference,int $correlationId,string $name,string $language):void{
         $digest=hash_hmac('sha256','telnyx:message:'.$reference,NotificationSupport::salt());
         $now=NotificationSupport::now();
         try{
             $this->provider->insertMessage(array(
                 'uid'=>NotificationSupport::uid(),'provider'=>'telnyx','channel'=>'whatsapp',
-                'message_reference_digest'=>$digest,'notification_id'=>$notificationId,'attempt_id'=>0,
+                'message_reference_digest'=>$digest,'notification_id'=>$correlationId,'attempt_id'=>0,
                 'provider_template_name'=>$name,'provider_template_language'=>$language,'state'=>'sent',
                 'created_at'=>$now,'updated_at'=>$now,
             ));

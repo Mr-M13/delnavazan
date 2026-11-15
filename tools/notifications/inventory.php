@@ -294,7 +294,6 @@ $markdown[] = '';
 $markdown[] = '## 6. Live checks outstanding';
 $markdown[] = '';
 foreach ($document['live_checks_outstanding'] as $check) $markdown[] = '- ' . $check;
-$markdown[] = '';
 file_put_contents($docs . '/NOTIFICATION-TEMPLATE-INVENTORY.md', implode(PHP_EOL, $markdown) . PHP_EOL);
 
 printf(

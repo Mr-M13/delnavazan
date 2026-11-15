@@ -177,4 +177,3 @@ template is mapped. A locally prepared draft is never presented as a Meta-approv
 - Telnyx/Meta template approval status for every registry entry
 - Which provider templates were rejected (the account-claim template was rejected at last inspection)
 - Integrated provider configuration for email, WhatsApp and each SMS route
-

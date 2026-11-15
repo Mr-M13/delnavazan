@@ -1200,7 +1200,7 @@ final class NotificationManagementController {
     private static function sourceLabel(string $source):string{return array('authored'=>'Authored','rollback'=>'Rollback','default'=>'Default copy','published'=>'Published')[$source]??($source!==''?$source:'—');}
     private static function consentLabel(string $consent):string{return array(
         'security'=>'Security requirement; no marketing consent','operational'=>'Operational message based on the teaching relationship',
-        'financial'=>'Financial message; requires legal review','marketing'=>'Marketing consent only',
+        'financial'=>'Financial message','marketing'=>'Marketing consent only',
     )[$consent]??$consent;}
     private static function audienceLabel(string $audience):string{return array('student'=>'Student','teacher'=>'Teacher','guardian'=>'Guardian','admin'=>'Admin')[$audience]??$audience;}
 }

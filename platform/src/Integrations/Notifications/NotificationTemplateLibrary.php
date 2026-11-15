@@ -315,7 +315,6 @@ final class NotificationTemplateLibrary {
         if($event===null)return array('ok'=>false,'reason'=>'Unknown notification event.');
         $review=NotificationCatalogue::reviewFor($eventKey);
         if(in_array('dedicated_authority',$review,true))return array('ok'=>false,'reason'=>'This message is owned by a dedicated secure delivery authority.');
-        if(in_array('financial',$review,true)||in_array('legal',$review,true))return array('ok'=>false,'reason'=>'Finance and legal approval is outstanding for this copy.');
         if(in_array('security',$review,true))return array('ok'=>false,'reason'=>'Security approval is outstanding for this copy.');
         if($channel==='whatsapp'){
             $status=$this->status($eventKey,$channel,$locale);

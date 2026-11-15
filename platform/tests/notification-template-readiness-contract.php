@@ -109,7 +109,7 @@ foreach (NotificationCatalogue::events() as $eventKey => $event) {
     $review = NotificationCatalogue::reviewFor($eventKey);
     $fail('review codes are known: ' . $eventKey, array_diff($review, $known) === array());
     if ((string) $event['category'] === 'payment' && (string) $event['implementation'] !== 'implemented') {
-        $fail('financial copy awaiting activation is flagged: ' . $eventKey, in_array('financial', $review, true) && in_array('legal', $review, true));
+        $fail('financial copy carries no separate finance or legal hold: ' . $eventKey, !in_array('financial', $review, true) && !in_array('legal', $review, true));
     }
     if ((string) $event['category'] === 'payment' && (string) $event['implementation'] === 'implemented') {
         $fail('an active financial reminder carries reviewed copy, not a placeholder: ' . $eventKey, !str_contains((string) NotificationCatalogue::exactCopy($eventKey, 'email', 'fa-IR')['body'], 'بازبینی'));

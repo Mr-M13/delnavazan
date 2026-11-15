@@ -345,7 +345,7 @@ namespace {
         }
     }
     $fail('review metadata is only used for known approval codes', array_diff(array_merge(...array_values(array_map(static fn(array $event): array => (array) ($event['review'] ?? array()), $events))), array_keys(NotificationCatalogue::REVIEW)) === array());
-    $fail('financial copy is flagged for finance and legal review', NotificationCatalogue::reviewFor('payment.failed.student') === array('financial', 'legal'));
+    $fail('financial copy carries no outstanding review', NotificationCatalogue::reviewFor('payment.failed.student') === array());
     $fail('security copy is flagged for security review', NotificationCatalogue::reviewFor('account.claim_issued.student') === array('security'));
     $fail('operational copy carries no outstanding review', NotificationCatalogue::reviewFor('booking.confirmed.student') === array());
 
@@ -567,7 +567,7 @@ namespace {
     $canonicalBlocker = $blockerMethod->invoke(null, $library, 'account.claim_issued.student', 'whatsapp');
     $fail('a sensitive canonical event without a version reports the outstanding approval, not missing copy', is_array($canonicalBlocker) && $canonicalBlocker['state'] === 'awaiting_approval' && str_contains((string) $canonicalBlocker['reason'], 'Security review required'));
     $operationalCanonicalBlocker = $blockerMethod->invoke(null, $library, 'renewal.automatic_charged.student', 'email');
-    $fail('a finance canonical event names finance and legal approval', is_array($operationalCanonicalBlocker) && $operationalCanonicalBlocker['state'] === 'awaiting_approval' && str_contains((string) $operationalCanonicalBlocker['reason'], 'Finance approval required'));
+    $fail('a finance canonical event without a version needs publication, not an approval hold', is_array($operationalCanonicalBlocker) && $operationalCanonicalBlocker['state'] === 'missing_template');
     $fail('an unsupported channel is not described as a fault', (static function () use ($stateMethod, $library): bool {
         $unsupported = $stateMethod->invoke(null, $library, 'account.claim_issued.student', 'website');
         return $unsupported['state'] === 'unsupported' && $unsupported['label'] === 'Not offered';
@@ -587,7 +587,7 @@ namespace {
     $fail('bulk draft preparation is idempotent', $again['created'] === 0 && $again['existing'] > 0 && $again['missing'] === array());
     $fail('dedicated one-time-secret copy is never prepared here', $library->workingCopy('teacher.invitation_issued.teacher', 'email', 'fa-IR')['draft'] === null);
     $fail('an English draft is prepared from English copy', is_string((string) ($library->workingCopy('lesson.reminder.student', 'email', 'en')['draft']['body'] ?? '')) && str_contains((string) $library->workingCopy('lesson.reminder.student', 'email', 'en')['draft']['body'], 'Hello'));
-    $fail('financial drafts await finance and legal approval', $library->draftReviewPolicy('payment.failed.student', 'email', 'fa-IR')['allowed'] === false && str_contains($library->draftReviewPolicy('payment.failed.student', 'email', 'fa-IR')['reason'], 'Finance'));
+    $fail('financial drafts need editorial approval, not a finance hold', $library->draftReviewPolicy('payment.failed.student', 'email', 'fa-IR')['allowed'] === false && str_contains($library->draftReviewPolicy('payment.failed.student', 'email', 'fa-IR')['reason'], 'approved'));
     $fail('security drafts await security approval', $library->draftReviewPolicy('account.claim_issued.student', 'email', 'en')['allowed'] === false && str_contains($library->draftReviewPolicy('account.claim_issued.student', 'email', 'en')['reason'], 'Security'));
     $fail('an unapproved WhatsApp draft is not publishable in bulk', $library->draftReviewPolicy('lesson.reminder.student', 'whatsapp', 'fa-IR')['allowed'] === false && str_contains($library->draftReviewPolicy('lesson.reminder.student', 'whatsapp', 'fa-IR')['reason'], 'approved'));
     $library->approveDraft('lesson.reminder.student', 'whatsapp', 'fa-IR');
@@ -649,7 +649,7 @@ namespace {
     $fail('bulk publishing activates approved operational copy', in_array('booking.declined.student.email.fa-IR', $bulk['published'], true));
     $fail('bulk publishing still adds exactly one immutable version per template', count($library->history('booking.declined.student', 'email', 'fa-IR')) === $historyBefore + 1);
     $fail('publishing consumes the approval', $library->draftApproval('booking.declined.student', 'email', 'fa-IR') === null);
-    $fail('financial drafts are never bulk-published', in_array('payment.failed.student.email.fa-IR', $blockedKeys, true));
+    $fail('an unapproved draft is never bulk-published', in_array('payment.failed.student.email.fa-IR', $blockedKeys, true));
     $fail('security drafts are never bulk-published', in_array('account.claim_issued.student.email.fa-IR', $blockedKeys, true));
     $fail('provider-pending drafts are never bulk-published', in_array('lesson.reminder.student.whatsapp.fa-IR', $blockedKeys, true));
     $fail('publishing a template never enables its channel', $library->eventChannelEnabled('booking.declined.student', 'website') === true && $library->eventChannelEnabled('lesson.reminder.student', 'whatsapp') === false);
@@ -793,7 +793,7 @@ namespace {
     $noProducerEvent = $lifecycleMethod->invoke(null, $library, 'lesson.reminder.student', array('email', 'website', 'whatsapp', 'sms'));
     $fail('a producer gap is never presented as delivered functionality', $noProducerEvent['Producer']['text'] === 'None registered — cannot fire yet' && $noProducerEvent['Producer']['class'] === 'is-warn');
     $financialEvent = $lifecycleMethod->invoke(null, $library, 'payment.failed.student', array('email', 'website', 'whatsapp'));
-    $fail('financial approval is shown as outstanding', str_contains($financialEvent['Approvals']['text'], 'Finance approval required') && str_contains($financialEvent['Approvals']['text'], 'Legal review required'));
+    $fail('financial copy shows no finance/legal hold, only provider readiness', !str_contains($financialEvent['Approvals']['text'], 'Finance') && !str_contains($financialEvent['Approvals']['text'], 'Legal'));
     $fail('a canonical event without a published version says so', str_contains($financialEvent['Publication']['text'], 'Required'));
 
     /* 16. The three-step workflow actually reaches a published state. This is the regression the
@@ -805,26 +805,23 @@ namespace {
     $fail('step 2 approves operational drafts in bulk', $bulkApprove['approved'] > 0);
     $fail('step 2 lists the drafts it held back', $bulkApprove['skipped'] !== array());
     $skippedReasons = implode(' | ', array_column($bulkApprove['skipped'], 'reason'));
-    $fail('step 2 never approves finance or legal copy', str_contains($skippedReasons, 'Finance and legal approval'));
-    $fail('step 2 never approves security copy', str_contains($skippedReasons, 'Security approval'));
+        $fail('step 2 never approves security copy', str_contains($skippedReasons, 'Security approval'));
     $fail('step 2 never approves unmapped provider routes', str_contains($skippedReasons, 'Meta'));
     $workflow = $library->workflowReport();
     $fail('the workflow report counts the approved drafts', $workflow['approved'] > 0 && $workflow['publishable'] > 0);
     $fail('the workflow report classifies every draft exactly once', $workflow['approved'] + $workflow['awaiting'] + $workflow['held'] === $workflow['drafts']);
     $fail('the workflow report explains what is held back', $workflow['held'] > 0 && array_sum($workflow['held_by_reason']) >= $workflow['held']);
-    $fail('the workflow report names the finance hold', isset($workflow['held_by_reason']['Finance approval required']));
-    $bulkPublish = $library->publishReviewedDrafts();
+        $bulkPublish = $library->publishReviewedDrafts();
     $fail('step 3 publishes the approved drafts', count($bulkPublish['published']) > 0);
     $fail('step 3 changes the catalogue state it was meant to change', $library->status($targetEvent, 'email', 'fa-IR')['published'] === true);
-    $fail('step 3 still refuses the restricted drafts', $library->status('payment.failed.student', 'email', 'fa-IR')['published'] === false);
-    $fail('step 3 refuses financial copy even when its draft is approved', (static function () use ($library): bool {
+    $fail('step 3 publishes the financial copy once approved', $library->status('payment.failed.student', 'email', 'fa-IR')['published'] === true);
+    $fail('step 3 still refuses security copy even when approved', (static function () use ($library): bool {
         try {
-            $library->approveDraft('payment.failed.student', 'email', 'fa-IR');
-            $library->approveDraft('payment.failed.student', 'legal', 'fa-IR');
+            $library->approveDraft('account.claim_issued.student', 'email', 'fa-IR');
         } catch (Throwable $error) {
-            // approval of a restricted draft is allowed; publication is what must stay refused
+            // an approval can be recorded, but publication must stay refused for a one-time-code route
         }
-        return $library->draftReviewPolicy('payment.failed.student', 'email', 'fa-IR')['allowed'] === false;
+        return $library->draftReviewPolicy('account.claim_issued.student', 'email', 'fa-IR')['allowed'] === false;
     })());
     $fail('a second run publishes nothing new', count($library->publishReviewedDrafts()['published']) === 0);
     $library->saveDraft($targetEvent, 'website', 'en', 'Your class with a new student is active', "Hello {{teacher}},\n\nThe student enrolment is active.\n\nView your classes:\n{{teacher_portal_url}}\n\nDelnavazan");

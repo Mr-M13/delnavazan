@@ -14,7 +14,12 @@ tools/ci/check.sh all           # lint, then services
 
 Native runs require PHP 8.3 and the extensions `curl`, `mbstring`, `pdo_sqlite`, `sqlite3`,
 `json`, `openssl`. `.tool-versions` pins the major/minor version for asdf/mise users. If the host
-PHP does not match, `check.sh` stops instead of producing a false signal.
+PHP does not match, `check.sh` stops instead of producing a false signal; `doctor` exits nonzero
+so CI and devcontainer setup can gate on it.
+
+`all` is lint plus services. It deliberately does **not** run platform contracts, because the
+contracts are targeted by the diff and some need setup the lint path must not assume. Run the
+affected ones explicitly with `contracts`; the PR runtime gate runs the full authoritative set.
 
 ## Container (strict parity, optional)
 

@@ -89,6 +89,8 @@ is optional strict parity. Docker is required only for the runtime suites.
   - `tools/ci/check.sh contracts platform/tests/<area>-contract.php` — affected contracts
     (and the matching `-unit.php`).
   - `tools/ci/check.sh doctor` — prove PHP version and extensions before claiming parity.
+  `lint` covers worktree, index and committed whitespace; `all` is lint plus services and does
+  not run platform contracts, which are targeted explicitly with `contracts`.
   For container parity, pass the same arguments to `tools/ci/run-in-container.sh`; its image tag
   is derived from `.devcontainer/Dockerfile`, so changes rebuild instead of reusing a stale image.
   `.tool-versions` pins PHP 8.3.

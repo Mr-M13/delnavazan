@@ -23,6 +23,25 @@ $notification_url = home_url( '/teacher-portal/' ) . '#dzn-tp-notifications';
  <div class="dzn-container dzn-tp-content">
  <?php if ( ! empty( $model['is_demo'] ) ) : ?><p class="dzn-tp-demo" role="status">پیش‌نمایش نمایشی — همهٔ اطلاعات ساختگی‌اند و هیچ اقدامی ذخیره نمی‌شود.</p><?php endif; ?>
  <?php if ( ! empty( $model['available'] ) ) : foreach ( dzn_theme_teacher_portal_notices( $screen ) as $notice ) : ?><p class="dzn-tp-notice is-<?php echo esc_attr( $notice[0] ); ?>" role="<?php echo 'error' === $notice[0] ? 'alert' : 'status'; ?>"><?php echo esc_html( $notice[1] ); ?></p><?php endforeach; endif; ?>
+ <?php
+ $unavailable_sections = array();
+ foreach ( array(
+  'teacher_booking_requests' => 'درخواست‌های آشنایی',
+  'teacher_open_requests' => 'فرصت‌های آزاد کلاس آشنایی',
+  'teacher_absence' => 'درخواست‌های غیبت هنرجو',
+  'teacher_reschedule_pending' => 'تغییر زمان‌های در انتظار پاسخ',
+  'teacher_reschedule_declined' => 'تغییر زمان‌های ردشده',
+  'teacher_post_intro_outcomes' => 'تأیید نتیجهٔ کلاس آشنایی',
+ ) as $service => $label ) {
+  if ( 'unavailable' === ( $model['read_health'][ $service ]['state'] ?? '' ) ) { $unavailable_sections[] = $label; }
+ }
+ ?>
+ <?php if ( ! empty( $model['available'] ) && $unavailable_sections ) : ?>
+ <section class="dzn-tp-section dzn-tp-unavailable" role="alert" dir="rtl">
+  <p><?php echo esc_html( implode( ' و ', $unavailable_sections ) . ' موقتاً در دسترس نیست. این وضعیت به معنی نبود درخواست یا کلاس نیست.' ); ?></p>
+  <a class="dzn-button" href="<?php echo esc_url( home_url( '/teacher-portal/' ) ); ?>">تلاش دوباره</a>
+ </section>
+ <?php endif; ?>
  <?php if ( empty( $model['available'] ) ) :
   $state = (string) ( $model['state'] ?? 'error' );
   $messages = array(

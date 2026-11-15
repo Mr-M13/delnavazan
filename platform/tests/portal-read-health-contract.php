@@ -9,7 +9,7 @@ $assert = static function (bool $condition, string $message): void {
 };
 foreach (array('post_intro', 'reschedule_proposals') as $service) {
     $assert(strpos($read, "'" . $service . "' => array('state' => 'ok')") !== false, "Missing successful/empty read state: $service");
-    $assert(strpos($read, "['" . $service . "'] = \$this->failedRead(") !== false, "Missing failed read state: $service");
+    $assert(strpos($read, "['" . $service . "'] = self::failedRead(") !== false, "Missing failed read state: $service");
     $assert(strpos($shell, "'" . $service . "' =>") !== false, "Missing Persian unavailable display: $service");
 }
 foreach (array('correlation_id', 'timestamp', 'severity', 'service', 'exception_class') as $field) {

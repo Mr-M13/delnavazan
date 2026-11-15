@@ -11,24 +11,47 @@ namespace Delnavazan\Platform\Portals;
 final class PortalAuthenticatedReadService {
     private const LIMIT = 80;
 
+    /** Public metadata never includes exception messages, SQL or user identifiers. */
+    public static function failedRead(string $service, \Throwable $error): array {
+        $correlation = bin2hex(random_bytes(8));
+        $timestamp = gmdate('c');
+        error_log('[dzn_portal_read_failed] ' . json_encode(array('correlation_id' => $correlation, 'service' => $service, 'severity' => 'error', 'timestamp' => $timestamp, 'exception_class' => get_class($error))));
+        // One event per failed upstream call; the presentation layer must not emit a second alert.
+        do_action('dzn_portal_read_failed', array(
+            'correlation_id' => $correlation,
+            'service' => $service,
+            'severity' => 'error',
+            'timestamp' => $timestamp,
+            'exception_class' => get_class($error),
+        ));
+        return array('state' => 'unavailable', 'correlation_id' => $correlation);
+    }
+
+    /** A failed SELECT must not be normalised into a genuinely empty result. */
+    private static function assertDbRead(): void {
+        global $wpdb;
+        if ($wpdb->last_error !== '') throw new \RuntimeException('portal_upstream_aggregate_invalid');
+    }
+
     public function student(): array {
         $principal = (new PortalPrincipalResolver())->resolve('student');
         $lessons = $this->lessonsFor('student', (int) $principal['id'], $principal);
         $enrolments = $this->studentEnrolments((int) $principal['id'], $principal);
         $bookingRequests = $this->studentBookingRequests((int) $principal['id']);
         $bookingClasses = (new StudentUpcomingBookingReadService())->forStudent((int) $principal['id']);
+        $readHealth = array('post_intro' => array('state' => 'ok'), 'reschedule_proposals' => array('state' => 'ok'));
         try {
             $postIntro = (new PostIntroStudentReadService())->forStudent((int) $principal['id']);
         } catch (\Throwable $error) {
             // A new workflow surface must never take the whole Student Portal down.
-            do_action('dzn_post_intro_student_read_failed', get_class($error));
+            $readHealth['post_intro'] = self::failedRead('post_intro', $error);
             $postIntro = array();
         }
         try {
             $rescheduleProposals = $this->studentRescheduleProposals((int) $principal['id']);
         } catch (\Throwable $error) {
             // An additive workflow surface must never take down the whole Student Portal.
-            do_action('dzn_lesson_reschedule_student_read_failed', get_class($error));
+            $readHealth['reschedule_proposals'] = self::failedRead('reschedule_proposals', $error);
             $rescheduleProposals = array();
         }
         return array(
@@ -42,6 +65,7 @@ final class PortalAuthenticatedReadService {
             'booking_classes' => $bookingClasses,
             'post_intro' => $postIntro,
             'reschedule_proposals' => $rescheduleProposals,
+            'read_health' => $readHealth,
         );
     }
 
@@ -177,12 +201,14 @@ final class PortalAuthenticatedReadService {
             $studentId,
             self::LIMIT
         ) );
+        self::assertDbRead();
         $result = array();
         foreach ( $requests as $request ) {
             $times = (array) $wpdb->get_results( $wpdb->prepare(
                 "SELECT local_date,local_start_time,timezone FROM {$p}booking_request_requested_times WHERE booking_request_id=%d ORDER BY sequence_number ASC LIMIT 3",
                 (int) $request->id
             ), ARRAY_A );
+            self::assertDbRead();
             $introPayment = null;
             if ( (string) ( $request->intro_uid ?? '' ) !== '' ) {
                 $introPayment = array(
@@ -263,6 +289,7 @@ final class PortalAuthenticatedReadService {
                 ...$canonicalArgs
             )
         );
+        self::assertDbRead();
         $rows = array();
         foreach ((array) $ids as $id) {
             $rows[] = PortalAccessPolicy::assertObject(
@@ -284,6 +311,7 @@ final class PortalAuthenticatedReadService {
                 ...$legacyArgs
             )
         );
+        self::assertDbRead();
         foreach ((array) $legacyIds as $id) $rows[] = $this->legacyLessonFor($kind, (int) $id, $principalId);
         usort($rows, static fn(array $a, array $b): int => strcmp((string) $a['starts_at_utc'], (string) $b['starts_at_utc']));
         return $rows;
@@ -338,9 +366,11 @@ final class PortalAuthenticatedReadService {
                 self::LIMIT
             )
         );
+        self::assertDbRead();
         $rows = array();
         foreach ((array) $ids as $id) {
             $model = (string) $wpdb->get_var($wpdb->prepare("SELECT record_model FROM {$table} WHERE id=%d", (int) $id));
+            self::assertDbRead();
             if ($model === 'legacy_phase1') {
                 $rows[] = $this->legacyEnrolmentFor($studentId, (int) $id);
                 continue;
@@ -419,6 +449,7 @@ final class PortalAuthenticatedReadService {
                 self::LIMIT
             )
         );
+        self::assertDbRead();
         $rows = array();
         foreach ((array) $ids as $enrolmentId) {
             $rows[] = PortalAccessPolicy::assertObject('teacher_portal', 'assignment', (int) $enrolmentId, $principal);

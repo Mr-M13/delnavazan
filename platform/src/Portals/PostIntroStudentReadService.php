@@ -17,11 +17,18 @@ final class PostIntroStudentReadService {
     /** @return list<array<string,mixed>> */
     public function forStudent(int $studentId): array {
         $rows = array();
+        global $wpdb;
         $capacity = $this->repository->studentCapacity($studentId);
+        if ($wpdb->last_error !== '') throw new \RuntimeException('post_intro_read_unavailable');
         $classification = $capacity ? (string) $capacity->classification : 'unknown';
         $feedbackRepository = new PostIntroFeedbackRepository();
-        foreach ($this->repository->preparationsForStudent($studentId) as $preparation) {
+        $preparations = $this->repository->preparationsForStudent($studentId);
+        // Repository returns [] for both an empty result and a failed SELECT.
+        // Check the database status before either can be presented to the Student.
+        if ($wpdb->last_error !== '') throw new \RuntimeException('post_intro_read_unavailable');
+        foreach ($preparations as $preparation) {
             $confirmation = $this->repository->confirmationByBooking((int) $preparation->booking_request_id);
+            if ($wpdb->last_error !== '') throw new \RuntimeException('post_intro_read_unavailable');
             if (!$confirmation) continue;
             $state = $this->displayState((string) $preparation->state, $preparation);
             $continuationCase = (int) ($preparation->intro_lesson_id ?? 0) > 0

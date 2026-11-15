@@ -14,7 +14,7 @@ use Delnavazan\Platform\Integrations\Notifications\TelnyxWebhookController;
 
 /** Workflow-first integration settings. Secret inputs are write-only and safe checks make no provider calls. */
 final class IntegrationControlPlaneController {
-    public static function register():void{add_action('admin_post_dzn_integration_settings_save',array(__CLASS__,'save'));add_action('admin_post_dzn_integration_settings_test',array(__CLASS__,'test'));add_action('admin_post_dzn_telnyx_template_sync',array(__CLASS__,'syncTelnyxTemplates'));add_action('admin_post_dzn_telnyx_public_key_sync',array(__CLASS__,'syncTelnyxPublicKey'));add_action('admin_post_dzn_telnyx_webhook_sync',array(__CLASS__,'syncTelnyxWebhook'));add_action('admin_post_dzn_stripe_test_settings_save',array(__CLASS__,'saveStripeTestSettings'));add_action('admin_post_dzn_stripe_test_connection',array(__CLASS__,'testStripeConnection'));add_action('admin_post_dzn_stripe_test_activation',array(__CLASS__,'setStripeTestActivation'));add_action('admin_post_dzn_stripe_live_settings_save',array(__CLASS__,'saveStripeLiveSettings'));add_action('admin_post_dzn_stripe_live_connection',array(__CLASS__,'testStripeLiveConnection'));add_action('admin_post_dzn_stripe_live_webhook_verify',array(__CLASS__,'verifyStripeLiveWebhook'));add_action('admin_post_dzn_stripe_live_activation',array(__CLASS__,'setStripeLiveActivation'));}
+    public static function register():void{add_action('admin_post_dzn_integration_settings_save',array(__CLASS__,'save'));add_action('admin_post_dzn_chatgpt_ads_save',array(__CLASS__,'saveChatGptAds'));add_action('admin_post_dzn_chatgpt_ads_test',array(__CLASS__,'testChatGptAds'));add_action('admin_post_dzn_integration_settings_test',array(__CLASS__,'test'));add_action('admin_post_dzn_telnyx_template_sync',array(__CLASS__,'syncTelnyxTemplates'));add_action('admin_post_dzn_telnyx_public_key_sync',array(__CLASS__,'syncTelnyxPublicKey'));add_action('admin_post_dzn_telnyx_webhook_sync',array(__CLASS__,'syncTelnyxWebhook'));add_action('admin_post_dzn_stripe_test_settings_save',array(__CLASS__,'saveStripeTestSettings'));add_action('admin_post_dzn_stripe_test_connection',array(__CLASS__,'testStripeConnection'));add_action('admin_post_dzn_stripe_test_activation',array(__CLASS__,'setStripeTestActivation'));add_action('admin_post_dzn_stripe_live_settings_save',array(__CLASS__,'saveStripeLiveSettings'));add_action('admin_post_dzn_stripe_live_connection',array(__CLASS__,'testStripeLiveConnection'));add_action('admin_post_dzn_stripe_live_webhook_verify',array(__CLASS__,'verifyStripeLiveWebhook'));add_action('admin_post_dzn_stripe_live_activation',array(__CLASS__,'setStripeLiveActivation'));}
     /** Explicit provider-template discovery. It reads templates and writes local mappings; it never sends. */
     public static function syncTelnyxTemplates():void{
         self::authorizeSettings();check_admin_referer('dzn_telnyx_template_sync');
@@ -67,6 +67,52 @@ final class IntegrationControlPlaneController {
         wp_safe_redirect(add_query_arg(array('page'=>$page,'integration_result'=>$result),admin_url('admin.php')));exit;
     }
     private static function authorizeSettings():void{if(!current_user_can('manage_options')&&!current_user_can('dzn_manage_provider_integrations'))wp_die('Forbidden',403);}
+    public static function saveChatGptAds():void {
+        self::authorizeSettings();check_admin_referer('dzn_chatgpt_ads_save');
+        $enabled=isset($_POST['enabled'])&&$_POST['enabled']==='1'?'1':'0';
+        $key=isset($_POST['api_key'])&&is_string($_POST['api_key'])?trim(wp_unslash($_POST['api_key'])):'';
+        try {
+            (new IntegrationSettingsService())->save('chatgpt_ads',array('enabled'=>$enabled,'api_key'=>$key));
+            delete_option('dzn_chatgpt_ads_connection_result');$result='saved';
+        } catch (\Throwable $e) { $result='failed'; }
+        wp_safe_redirect(add_query_arg(array('page'=>'dzn-integration-chatgpt-ads','result'=>$result),admin_url('admin.php')));exit;
+    }
+    public static function testChatGptAds():void {
+        self::authorizeSettings();check_admin_referer('dzn_chatgpt_ads_test');
+        if(!isset($_POST['run_test']))wp_die('Explicit test action required',400);
+        try{$result=\Delnavazan\Platform\Integrations\ChatGptAdsConversionWorker::validateConnection();}
+        catch(\Throwable $e){$result=array('state'=>'failed','code'=>'local_error');}
+        update_option('dzn_chatgpt_ads_connection_result',array('state'=>$result['state'],'code'=>$result['code'],'at'=>current_time('mysql',true)),false);
+        wp_safe_redirect(add_query_arg(array('page'=>'dzn-integration-chatgpt-ads','result'=>'tested'),admin_url('admin.php')));exit;
+    }
+    public static function chatGptAdsSettings():void {
+        if(!current_user_can('manage_options')&&!current_user_can('dzn_manage_provider_integrations'))wp_die('Forbidden',403);
+        $worker=\Delnavazan\Platform\Integrations\ChatGptAdsConversionWorker::class;
+        $settings=new IntegrationSettingsService();$enabled=$settings->value('chatgpt_ads','enabled')==='1';
+        $keyStored=!empty($settings->redacted('chatgpt_ads')['api_key']);
+        $configured=$worker::keyPresentForAdmin();$last=(array)get_option('dzn_chatgpt_ads_connection_result',array());
+        echo '<div class="wrap dzn-settings-page"><h1>ChatGPT Ads conversions</h1><p>Server-side confirmed introductory booking conversions. No browser pixel, personal data or historical backfill. API credentials are write-only and encrypted at rest.</p>';
+        if(isset($_GET['result']))echo '<div class="notice notice-info"><p>'.esc_html(sanitize_key((string)$_GET['result'])==='failed'?'Settings could not be saved.':'Operation completed.').'</p></div>';
+        echo '<p><strong>Pixel ID:</strong> <code>'.esc_html($worker::pixelIdForAdmin()).'</code> (server-controlled)</p>';
+        echo '<p><strong>API key:</strong> '.esc_html($configured?'Configured':'Missing').' · <strong>Dashboard key stored:</strong> '.esc_html($keyStored?'Yes':'No (server environment may supply it)').'</p>';
+        echo '<p><strong>Outbound conversions:</strong> '.esc_html($worker::configured()?'Enabled and configured':($enabled?'Enabled but missing credentials':'Disabled')).'</p>';
+        echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_chatgpt_ads_save">';wp_nonce_field('dzn_chatgpt_ads_save');
+        echo '<p><label>API key (leave blank to preserve existing key)<br><input type="password" name="api_key" class="regular-text" value="" autocomplete="new-password"></label></p>';
+        echo '<p><label><input type="checkbox" name="enabled" value="1" '.checked($enabled,true,false).'> Enable sending confirmed intro booking conversions</label></p>';
+        echo '<p><button class="button button-primary">Save configuration</button></p></form>';
+        echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_chatgpt_ads_test">';wp_nonce_field('dzn_chatgpt_ads_test');
+        echo '<p><button class="button" name="run_test" value="1">Test connection (validate only)</button></p></form>';
+        echo '<p><strong>Last connection test:</strong> '.esc_html(($last['state']??'not run').' · '.($last['code']??'').' · '.($last['at']??'')).'</p>';
+        echo '<p><strong>Worker schedule:</strong> '.esc_html(wp_next_scheduled($worker::HOOK)?'Scheduled':'Not scheduled').' · <strong>Eligibility watermark:</strong> '.esc_html((string)get_option('dzn_chatgpt_ads_started_at','not set')).'</p>';
+        global $wpdb;
+        $summary=array('delivered'=>0,'retry'=>0,'other'=>0);
+        $rows=$wpdb->get_results($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name LIKE %s LIMIT 1000",$wpdb->esc_like('dzn_ads_intro_').'%'));
+        if(is_array($rows))foreach($rows as $row){$state=maybe_unserialize($row->option_value);if(!is_array($state)||!isset($state['status']))continue;$status=(string)$state['status'];$summary[isset($summary[$status])?$status:'other']++;}
+        echo '<h2>Delivery diagnostics</h2><p>Accepted: '.(int)$summary['delivered'].' · Pending retry: '.(int)$summary['retry'].' · Other: '.(int)$summary['other'].'</p>';
+        echo '<p>Counts are limited to the first 1,000 local delivery records and do not expose booking identities. A successful API response indicates acceptance, not attribution.</p>';
+        echo '<p>Delivery and retry evidence is stored per confirmed booking in non-autoloaded options. See the integration runbook for reconciliation and retry procedures.</p>';
+        echo '<p><a href="'.esc_url(admin_url('admin.php?page=dzn-integrations')).'">Back to Integrations</a></p></div>';
+    }
     public static function googleSettings():void{self::settingsForm('google');}
     public static function whatsAppSettings():void{self::settingsForm('whatsapp');}
     public static function smsSettings():void{self::settingsForm('sms');self::settingsForm('sms_ir');}
@@ -554,6 +600,8 @@ final class IntegrationControlPlaneController {
         self::renderProviderCard($settings,'sms','SMS','Independent SMS delivery for notification events where SMS is enabled.','dzn-integration-sms',array('Telnyx SMS sender/profile','Consent and suppression remain mandatory','Enable SMS per notification in Notifications'));
         self::renderGoogleCard($settings);
         self::renderStripeCard();
+        $ads=\Delnavazan\Platform\Integrations\ChatGptAdsConversionWorker::class;
+        echo '<section class="dzn-settings-card dzn-integration-card"><h2>ChatGPT Ads</h2><p>Server-side introductory booking conversion tracking.</p><p><strong>Status:</strong> '.esc_html($ads::configured()?'Enabled and configured':'Disabled or missing configuration').'</p><p><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page=dzn-integration-chatgpt-ads')).'">Configure</a></p></section>';
         echo '</div>';
         echo '<section class="dzn-settings-card"><h2>Routing and provider boundaries</h2><ul class="dzn-settings-list">';
         echo '<li><strong>Twilio WhatsApp is not implemented.</strong> No Twilio credential is read or stored, and no Twilio send can be enabled here.</li>';

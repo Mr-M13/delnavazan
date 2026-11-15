@@ -274,6 +274,49 @@ dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}boo
 $card = (new \Delnavazan\Platform\Portals\PostIntroStudentReadService())->forStudent((int) $main['student']);
 dzn_pia_assert(count($card) === 1 && $card[0]['state'] === 'ready' && $card[0]['actionable'] === true, 'Student Portal must expose one ready payment action');
 
+// A real, read-only SELECT failure on disposable MariaDB must not become "no invitation".
+// The WordPress query filter changes only this synthetic test's SELECT target.
+wp_set_current_user((int) $main['principal']);
+$baselineRead = (new PortalAuthenticatedReadService())->student();
+dzn_pia_assert(count($baselineRead['post_intro'] ?? array()) === 1 && ($baselineRead['read_health']['post_intro']['state'] ?? '') === 'ok', 'normal post-intro read must remain available');
+$injectMissingTable = static function (string $sql) use ($p): string {
+    $target = "FROM {$p}post_intro_preparations p";
+    return str_contains($sql, $target)
+        ? str_replace($target, "FROM {$p}task02_missing_preparations p", $sql)
+        : $sql;
+};
+add_filter('query', $injectMissingTable);
+$oldSuppression = $wpdb->suppress_errors(true);
+try {
+    $failedRead = (new PortalAuthenticatedReadService())->student();
+} finally {
+    remove_filter('query', $injectMissingTable);
+    $wpdb->suppress_errors($oldSuppression);
+}
+dzn_pia_assert(($failedRead['read_health']['post_intro']['state'] ?? '') === 'unavailable' && $failedRead['post_intro'] === array(), 'database SELECT failure must be explicitly unavailable');
+dzn_pia_assert(($failedRead['read_health']['reschedule_proposals']['state'] ?? '') === 'ok', 'independent reschedule read must survive post-intro outage');
+$restoredRead = (new PortalAuthenticatedReadService())->student();
+dzn_pia_assert(count($restoredRead['post_intro'] ?? array()) === 1 && ($restoredRead['read_health']['post_intro']['state'] ?? '') === 'ok', 'transient post-intro database outage must recover without mutation');
+
+$injectMissingReschedule = static function (string $sql) use ($p): string {
+    $target = "FROM {$p}lesson_reschedule_proposals r";
+    return str_contains($sql, $target)
+        ? str_replace($target, "FROM {$p}task02_missing_reschedule_proposals r", $sql)
+        : $sql;
+};
+add_filter('query', $injectMissingReschedule);
+$oldSuppression = $wpdb->suppress_errors(true);
+try {
+    $failedReschedule = (new PortalAuthenticatedReadService())->student();
+} finally {
+    remove_filter('query', $injectMissingReschedule);
+    $wpdb->suppress_errors($oldSuppression);
+}
+dzn_pia_assert(($failedReschedule['read_health']['reschedule_proposals']['state'] ?? '') === 'unavailable', 'reschedule SELECT failure must be explicitly unavailable');
+dzn_pia_assert(count($failedReschedule['post_intro'] ?? array()) === 1, 'post-intro invitation must survive independent reschedule outage');
+dzn_pia_assert(($restoredRead['post_intro'][0]['reference'] ?? '') === ((new PortalAuthenticatedReadService())->student()['post_intro'][0]['reference'] ?? ''), 'failure and retry must not change invitation identity');
+
+
 // Cross-student authorization is rejected before any commercial mutation (cross_student).
 $otherStudentId = (int) $fixture['sources'][1]['student_id'];
 $otherUser = (int) $wpdb->get_var($wpdb->prepare("SELECT wordpress_user_id FROM {$p}student_principal_links WHERE student_id=%d AND status='active' AND active_slot=1 LIMIT 1", $otherStudentId));

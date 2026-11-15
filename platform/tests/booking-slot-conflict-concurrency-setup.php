@@ -5,6 +5,8 @@ if ( getenv( 'DZN_BOOKING_SLOT_RUNTIME' ) !== 'concurrency' || ! defined( 'WP_CL
     exit( 1 );
 }
 use Delnavazan\Platform\Core\Support\Identifier;
+use Delnavazan\Platform\Core\Application\IntegrationSecretService;
+use Delnavazan\Platform\Core\Application\ProviderReferenceVault;
 
 global $wpdb;
 $p = $wpdb->prefix . 'dzn_';
@@ -134,6 +136,11 @@ $confirmedRequest = static function ( string $label, string $localTime ) use ( $
 };
 $boundary = $confirmedRequest( 'BOUNDARY', '12:00:00' );
 $race = $confirmedRequest( 'RACE', '18:00:00' );
+$sequence = $confirmedRequest( 'SEQUENCE', '19:00:00' );
+$sealedCredential = ( new IntegrationSecretService() )->seal( $connection, 'google_calendar', (string) wp_json_encode( array( 'access_token' => 'synthetic-google-access-token' ) ) );
+if ( $wpdb->update( $p . 'integration_credentials', array_merge( $sealedCredential, array( 'state' => 'active', 'valid_until_utc' => gmdate( 'Y-m-d H:i:s', time() + 86400 ) ) ), array( 'connection_id' => $connection, 'credential_sequence' => 1 ) ) !== 1 ) throw new RuntimeException( 'Synthetic provider credential failed' );
+$sequenceSecret = ( new ProviderReferenceVault() )->seal( 'booking_calendar', (int) $sequence['confirmation_id'], array( 'provider_object_reference' => 'abcdef12345', 'join_uri_reference' => 'https://meet.google.com/abc-defg-hij' ) );
+if ( $wpdb->insert( $p . 'provider_projection_secrets', array_merge( array( 'uid' => Identifier::uid(), 'mapping_kind' => 'booking_calendar', 'mapping_id' => (int) $sequence['confirmation_id'], 'state' => 'active', 'active_slot' => 1, 'created_at' => $now, 'created_by' => 1, 'retired_at' => null, 'retired_by' => null ), $sequenceSecret ) ) === false ) throw new RuntimeException( 'Synthetic provider reference failed' );
 
 update_option( 'dzn_booking_slot_concurrency_state', array(
     'suffix' => $suffix, 'at' => $at, 'occupied_ends_at_utc' => $occupied,
@@ -156,6 +163,13 @@ update_option( 'dzn_booking_slot_concurrency_state', array(
                 'w2' => array( 'local_date' => substr( $at, 0, 10 ), 'local_start_time' => '17:00', 'timezone' => 'UTC' ),
             ),
             'keys' => array( 'w1' => 'slot-reschedule-w1-' . $suffix, 'w2' => 'slot-reschedule-w2-' . $suffix ),
+        ),
+    ),
+    'provider_sequence' => array(
+        'request_id' => $sequence['request_id'], 'confirmation_id' => $sequence['confirmation_id'],
+        'slots' => array(
+            'w1' => array( 'local_date' => substr( $at, 0, 10 ), 'local_start_time' => '20:00', 'timezone' => 'UTC' ),
+            'w2' => array( 'local_date' => substr( $at, 0, 10 ), 'local_start_time' => '21:00', 'timezone' => 'UTC' ),
         ),
     ),
 ), false );

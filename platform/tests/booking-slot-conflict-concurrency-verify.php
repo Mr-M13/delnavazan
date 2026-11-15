@@ -94,6 +94,25 @@ $retryRow = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$p}booking_request_c
 $assert( $retryRow !== null && (int) $retryRow->attempt_count > $attemptBefore, 'A provider retry must record another durable attempt' );
 $assert( str_starts_with( (string) $retryRow->failure_reason_code, 'reschedule_provider_pending:' ), 'A failed provider retry must remain pending' );
 
+// Published availability must cover the lesson and its 15-minute buffer, even
+// when no other booking occupies the proposed time.
+$ruleId = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$p}teacher_availability_rules WHERE teacher_id=%d AND weekday=%d AND status='active' ORDER BY id LIMIT 1", (int) $state['teacher_id'], (int) ( new DateTimeImmutable( $boundaryDate, new DateTimeZone( 'UTC' ) ) )->format( 'N' ) ) );
+$assert( $ruleId > 0, 'Synthetic Teacher availability rule missing' );
+$wpdb->update( $p . 'teacher_availability_rules', array( 'local_start_time' => '12:00:00', 'local_end_time' => '12:30:00' ), array( 'id' => $ruleId ) );
+$availabilityRefused = false;
+try {
+    $lifecycle->reschedule( (int) $boundary['request_id'], 'admin', array( 'local_date' => $boundaryDate, 'local_start_time' => '12:00', 'timezone' => 'UTC' ), 'operational_change', 'slot-reschedule-short-buffer-' . $state['suffix'], (int) $boundary['confirmation_id'], 2 );
+} catch ( InvalidArgumentException $error ) {
+    $availabilityRefused = str_contains( $error->getMessage(), 'The Teacher must explicitly choose a time outside published availability.' );
+}
+$assert( $availabilityRefused, 'Admin reschedule must refuse availability covering only the instructional half hour' );
+$wpdb->update( $p . 'teacher_availability_rules', array( 'local_end_time' => '12:45:00' ), array( 'id' => $ruleId ) );
+$fullBuffer = $lifecycle->reschedule( (int) $boundary['request_id'], 'admin', array( 'local_date' => $boundaryDate, 'local_start_time' => '12:00', 'timezone' => 'UTC' ), 'operational_change', 'slot-reschedule-full-buffer-' . $state['suffix'], (int) $boundary['confirmation_id'], 2 );
+$assert( ( $fullBuffer['state'] ?? '' ) === 'confirmed', 'Admin reschedule must accept availability through the full buffer' );
+$fullBufferRow = $wpdb->get_row( $wpdb->prepare( "SELECT version,starts_at_utc FROM {$p}booking_request_confirmations WHERE id=%d", (int) $boundary['confirmation_id'] ) );
+$assert( $fullBufferRow !== null && (int) $fullBufferRow->version === 3 && (string) $fullBufferRow->starts_at_utc === $boundaryDate . ' 12:00:00', 'Full-buffer reschedule did not commit' );
+$wpdb->update( $p . 'teacher_availability_rules', array( 'local_start_time' => '00:00:00', 'local_end_time' => '24:00:00' ), array( 'id' => $ruleId ) );
+
 // Concurrent reschedules: one exact version wins; the loser is stale and writes nothing.
 $race = $state['reschedule']['race'];
 $raceOne = $result( 'reschedule', 'w1' );
@@ -115,6 +134,21 @@ $raceProviderAudit = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM
 $assert( $raceProviderAudit === 1, 'The winning reschedule provider failure must be audited once' );
 $raceStaleAudit = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$p}platform_audit_events WHERE aggregate_type='booking_request' AND aggregate_id=%d AND event_type='booking_request.intro_rescheduled' AND safe_detail LIKE %s", (int) $race['request_id'], '%"provider_sync"%' ) );
 $assert( $raceStaleAudit === 0, 'The winning reschedule pre-projection audit must not claim a provider outcome' );
+
+// A second, valid version can commit while the first provider call is held.
+// Provider delivery must remain ordered and the older result cannot clear v3.
+$sequence = $state['provider_sequence'];
+$firstRevision = $result( 'provider-order', 'w1' );
+$secondRevision = $result( 'provider-order', 'w2' );
+$assert( (bool) ( $firstRevision['ok'] ?? false ) && (bool) ( $secondRevision['ok'] ?? false ), 'Both valid versioned reschedules must commit' );
+$assert( (string) ( $firstRevision['result']['provider_sync'] ?? '' ) === 'superseded', 'The older provider result must report supersession' );
+$assert( (string) ( $secondRevision['result']['provider_sync'] ?? '' ) === 'updated', 'The latest provider revision must be applied' );
+$sequenceRow = $wpdb->get_row( $wpdb->prepare( "SELECT version,starts_at_utc,failure_reason_code,attempt_count,next_attempt_at FROM {$p}booking_request_confirmations WHERE id=%d", (int) $sequence['confirmation_id'] ) );
+$assert( $sequenceRow !== null && (int) $sequenceRow->version === 3 && (string) $sequenceRow->starts_at_utc === $boundaryDate . ' 21:00:00', 'The second valid version must own the canonical time' );
+$assert( (string) $sequenceRow->failure_reason_code === '' && (int) $sequenceRow->attempt_count === 0 && $sequenceRow->next_attempt_at === null, 'The latest successful provider revision must clear its obligation' );
+$requests = array_map( static fn( string $line ): ?array => json_decode( $line, true ), file( $gate . '/provider-order/provider-requests.ndjson', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES ) ?: array() );
+$assert( count( $requests ) === 2 && ( $requests[0]['worker'] ?? '' ) === 'w1' && ( $requests[1]['worker'] ?? '' ) === 'w2', 'Provider calls must finish in version order' );
+$assert( ( $requests[0]['start'] ?? '' ) === str_replace( ' ', 'T', $boundaryDate . ' 20:00:00' ) . 'Z' && ( $requests[1]['start'] ?? '' ) === str_replace( ' ', 'T', $boundaryDate . ' 21:00:00' ) . 'Z', 'Provider calls must contain the two committed times in order' );
 
 foreach ( array( 'submission/w1.out', 'submission/w2.out', 'acceptance/w1.out', 'acceptance/w2.out', 'acceptance/w1.result', 'acceptance/w2.result' ) as $name ) {
     $path = $gate . '/' . $name;

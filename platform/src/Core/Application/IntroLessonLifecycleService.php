@@ -1,7 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
 
-use Delnavazan\Platform\Core\Infrastructure\Repository\{CanonicalLessonScheduleRepository,ConfirmedIntroBookingCancellationRepository,LessonRescheduleRepository,BookingTeacherResponseRepository};
+use Delnavazan\Platform\Core\Infrastructure\Repository\{CanonicalLessonScheduleRepository,ConfirmedIntroBookingCancellationRepository,LessonRescheduleRepository};
 use Delnavazan\Platform\Core\Support\PersianCalendar;
 use Delnavazan\Platform\Integrations\BookingCalendarProjectionService;
 use Delnavazan\Platform\Portals\PortalPrincipalResolver;
@@ -202,8 +202,7 @@ final class IntroLessonLifecycleService {
         $now = gmdate('Y-m-d H:i:s');
         $confirmationState = (string) $confirmation->state;
         $providerSync = 'not_required';
-        $wpdb->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
-        $wpdb->query('START TRANSACTION');
+        if ($wpdb->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED') === false || $wpdb->query('START TRANSACTION') === false) throw new \RuntimeException('Intro reschedule transaction start failed');
         try {
             // Same global order as intake and acceptance: Student root, then Teacher root.
             $schedules = new CanonicalLessonScheduleRepository();
@@ -217,7 +216,7 @@ final class IntroLessonLifecycleService {
             do_action('dzn_intro_reschedule_locked', (int) $locked->id, (int) $locked->version);
             $confirmationState = (string) $locked->state;
             $courseId = (int) ($locked->course_id ?? $request->selected_intro_course_id ?? 0);
-            $coveredByPublishedAvailability = $this->coveredByPublishedAvailability($teacherId, $startsAtUtc, $endsAtUtc, $courseId > 0 ? $courseId : null);
+            $coveredByPublishedAvailability = $this->coveredByPublishedAvailability($teacherId, $startsAtUtc, $occupiedEndsAtUtc, $courseId > 0 ? $courseId : null);
             if (! $coveredByPublishedAvailability && $actorType !== 'teacher') {
                 throw new \InvalidArgumentException('The Teacher must explicitly choose a time outside published availability.');
             }
@@ -238,21 +237,18 @@ final class IntroLessonLifecycleService {
                 throw new \InvalidArgumentException('The Student already has a class at that time. Choose another slot.');
             }
             (new BookingOfferRetirementService())->retireCompeting($teacherId, $startsAtUtc, $occupiedEndsAtUtc, $requestId, $now);
+            $providerColumns = $confirmationState === 'confirmed' ? ",failure_reason_code='reschedule_provider_pending:revision_required',attempt_count=0,next_attempt_at=%s" : '';
+            $updateArgs = array($startsAtUtc, $endsAtUtc, $timezone, $date, $time, $now, $actorId);
+            if ($confirmationState === 'confirmed') $updateArgs[] = $now;
+            $updateArgs[] = (int) $locked->id;
+            $updateArgs[] = (int) $locked->version;
             $updated = $wpdb->query($wpdb->prepare(
-                "UPDATE {$this->p}booking_request_confirmations SET starts_at_utc=%s,ends_at_utc=%s,schedule_timezone=%s,local_wall_date=%s,local_wall_time=%s,version=version+1,updated_at=%s,updated_by=%d WHERE id=%d AND version=%d",
-                $startsAtUtc,
-                $endsAtUtc,
-                $timezone,
-                $date,
-                $time,
-                $now,
-                $actorId,
-                (int) $locked->id,
-                (int) $locked->version
+                "UPDATE {$this->p}booking_request_confirmations SET starts_at_utc=%s,ends_at_utc=%s,schedule_timezone=%s,local_wall_date=%s,local_wall_time=%s,version=version+1,updated_at=%s,updated_by=%d{$providerColumns} WHERE id=%d AND version=%d",
+                ...$updateArgs
             ));
             if ($updated !== 1) throw new \RuntimeException('Booking confirmation changed concurrently');
             if ($requestedTime) {
-                $wpdb->query($wpdb->prepare(
+                $requestedTimeUpdated = $wpdb->query($wpdb->prepare(
                     "UPDATE {$this->p}booking_request_requested_times SET local_date=%s,local_start_time=%s,timezone=%s,starts_at_utc=%s,instructional_ends_at_utc=%s,occupied_ends_at_utc=%s,version=version+1 WHERE id=%d",
                     $date,
                     $time,
@@ -262,6 +258,7 @@ final class IntroLessonLifecycleService {
                     $occupiedEndsAtUtc,
                     (int) $requestedTime->id
                 ));
+                if ($requestedTimeUpdated !== 1) throw new \RuntimeException('Booking requested time changed concurrently');
             }
             if (IntroRecurringSlotOverridePolicy::requiresRecord($actorType, $coveredByPublishedAvailability)) {
                 $this->recordRecurringSlotOverride((int) $locked->id, (int) $locked->booking_request_id, (int) $locked->teacher_id, $actorId, $startsAtUtc, $endsAtUtc, $timezone, $date, $time, $now);
@@ -276,34 +273,26 @@ final class IntroLessonLifecycleService {
                 'ends_at_utc' => $endsAtUtc,
                 'timezone' => $timezone,
             ), 'intro-reschedule:' . $idempotencyKey, $now);
-            $wpdb->query('COMMIT');
+            if ($wpdb->query('COMMIT') === false) throw new \RuntimeException('Intro reschedule transaction commit failed');
         } catch (\Throwable $exception) {
             $contention = BookingContention::capture($exception, BookingContentionException::TEACHER_BUSY);
             $wpdb->query('ROLLBACK');
             throw $contention ?? $exception;
         }
-        // The canonical commit is already durable. A provider refusal is retryable projection
-        // state, never a reason to roll back the Student's committed reschedule.
+        do_action('dzn_intro_reschedule_committed', (int) $confirmation->id, (int) $locked->version + 1);
+        // The provider obligation was committed with the canonical change. A failed
+        // immediate attempt leaves that obligation for the projection worker.
         if ($confirmationState === 'confirmed') {
             $providerCode = null;
             try {
-                $this->projector()->reschedule((int) $confirmation->id, $startsAtUtc, $endsAtUtc, $timezone);
-                $providerSync = 'updated';
+                $outcome = $this->projector()->retryReschedule((int) $confirmation->id, (int) $locked->version + 1);
+                $providerSync = (string) ($outcome['state'] ?? 'updated');
             } catch (\Throwable $exception) {
                 $providerCode = $this->safeProviderCode($exception);
                 $providerSync = 'pending:' . $providerCode;
             }
             $postNow = gmdate('Y-m-d H:i:s');
             $this->recordProviderSyncOutcome($requestId, $actorType, $actorId, $reason, $idempotencyKey, (int) $confirmation->id, (int) $locked->version + 1, $startsAtUtc, $endsAtUtc, $timezone, $providerSync, $providerCode !== null, $postNow);
-            try {
-                $responseRepository = new BookingTeacherResponseRepository();
-                if ($providerCode === null) $responseRepository->clearRescheduleProviderPending((int) $confirmation->id, $postNow);
-                else $responseRepository->markRescheduleProviderPending((int) $confirmation->id, $providerCode, 1, gmdate('Y-m-d H:i:s', time() + 300), $postNow);
-            } catch (\Throwable $storeError) {
-                // The local reschedule and its audit are already committed. Surface the
-                // storage failure for operators without converting it into a lost booking.
-                do_action('dzn_intro_reschedule_provider_store_failed', (int) $confirmation->id, get_class($storeError));
-            }
         }
         return array(
             'confirmation_id' => (int) $confirmation->id,

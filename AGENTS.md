@@ -100,6 +100,8 @@ is optional strict parity. Docker is required only for the runtime suites.
   list in `.github/workflows/pr-runtime-gate.yml` is the authoritative set.
 - **Runtime suites:** `platform/runtime/bin/run-<suite>-runtime.sh`. These already drive Docker
   with the CI images `mariadb:11.4`, `wordpress:php8.3-apache` and `wordpress:cli-php8.3`.
+  The booking slot conflict suite also proves that two valid reschedules send Calendar revisions
+  in version order and that Teacher availability covers the introductory buffer.
 - **Service tests:** `tools/ci/check.sh services` (runs `services/tests/run-all.sh` on PHP 8.3
   with `pdo_sqlite`, `sqlite3`, `curl`, `mbstring`).
 

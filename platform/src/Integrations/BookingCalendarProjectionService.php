@@ -215,23 +215,32 @@ final class BookingCalendarProjectionService {
         );
     }
 
-    /** Retry one committed reschedule whose provider revision previously failed. */
-    public function retryReschedule(int $confirmationId):array{
-        $confirmation=$this->repository->confirmation($confirmationId);
-        if(!$confirmation)throw new \InvalidArgumentException('Booking confirmation not found');
-        if((string)$confirmation->state!=='confirmed')throw new \InvalidArgumentException('Booking confirmation is not provider-confirmed');
-        $now=gmdate('Y-m-d H:i:s');
+    /** Serialize provider revisions and fence their results by confirmation version. */
+    public function retryReschedule(int $confirmationId,?int $expectedVersion=null):array{
+        $lock=$this->acquireLock($confirmationId);
+        if($lock===false)throw new \RuntimeException('reschedule_provider_busy');
         try{
-            $result=$this->reschedule($confirmationId,(string)$confirmation->starts_at_utc,(string)$confirmation->ends_at_utc,(string)$confirmation->schedule_timezone);
-            $this->repository->clearRescheduleProviderPending($confirmationId,$now);
-            return $result;
-        }catch(\Throwable $error){
-            $code=$this->safeRescheduleCode($error);
-            $attempt=max(1,(int)$confirmation->attempt_count+1);
-            $terminal=$attempt>=self::MAX_ATTEMPTS;
-            $next=$terminal?null:gmdate('Y-m-d H:i:s',time()+min(3600,300*$attempt));
-            try{$this->repository->markRescheduleProviderPending($confirmationId,$code,$attempt,$next,$now,$terminal);}catch(\Throwable){}
-            throw $error;
+            $confirmation=$this->repository->confirmation($confirmationId);
+            if(!$confirmation)throw new \InvalidArgumentException('Booking confirmation not found');
+            if((string)$confirmation->state!=='confirmed')throw new \InvalidArgumentException('Booking confirmation is not provider-confirmed');
+            $version=(int)$confirmation->version;
+            if($expectedVersion!==null&&$version!==$expectedVersion)return array('confirmation_id'=>$confirmationId,'state'=>'superseded');
+            if(!str_starts_with((string)$confirmation->failure_reason_code,'reschedule_provider_pending:'))return array('confirmation_id'=>$confirmationId,'state'=>'updated','idempotent'=>true);
+            $now=gmdate('Y-m-d H:i:s');
+            try{
+                $this->reschedule($confirmationId,(string)$confirmation->starts_at_utc,(string)$confirmation->ends_at_utc,(string)$confirmation->schedule_timezone);
+                if(!$this->repository->clearRescheduleProviderPending($confirmationId,$version,$now))return array('confirmation_id'=>$confirmationId,'state'=>'superseded');
+                return array('confirmation_id'=>$confirmationId,'state'=>'updated');
+            }catch(\Throwable $error){
+                $code=$this->safeRescheduleCode($error);
+                $attempt=max(1,(int)$confirmation->attempt_count+1);
+                $terminal=$attempt>=self::MAX_ATTEMPTS;
+                $next=$terminal?null:gmdate('Y-m-d H:i:s',time()+min(3600,300*$attempt));
+                $this->repository->markRescheduleProviderPending($confirmationId,$version,$code,$attempt,$next,$now,$terminal);
+                throw $error;
+            }
+        }finally{
+            $this->releaseLock(is_string($lock)?$lock:null);
         }
     }
     private function safeRescheduleCode(\Throwable $error):string{ $message=trim($error->getMessage()); return preg_match('/^[a-z0-9_:\-]{1,64}$/D',$message)===1?$message:'provider_sync_failed'; }

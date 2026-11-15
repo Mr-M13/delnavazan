@@ -5,6 +5,8 @@ if ( getenv( 'DZN_BOOKING_SLOT_RUNTIME' ) !== 'concurrency' || ! defined( 'WP_CL
     exit( 1 );
 }
 use Delnavazan\Platform\Core\Support\Identifier;
+use Delnavazan\Platform\Core\Application\IntegrationSecretService;
+use Delnavazan\Platform\Core\Application\ProviderReferenceVault;
 
 global $wpdb;
 $p = $wpdb->prefix . 'dzn_';
@@ -134,6 +136,23 @@ $confirmedRequest = static function ( string $label, string $localTime ) use ( $
 };
 $boundary = $confirmedRequest( 'BOUNDARY', '12:00:00' );
 $race = $confirmedRequest( 'RACE', '18:00:00' );
+$sequence = $confirmedRequest( 'SEQUENCE', '19:00:00' );
+// Prove a successful revision removes an existing retry state, rather than
+// merely observing the empty values assigned by the fixture above.
+if ( $wpdb->update( $p . 'booking_request_confirmations', array(
+    'failure_reason_code' => 'reschedule_provider_pending:synthetic_previous',
+    'attempt_count' => 2,
+    'next_attempt_at' => gmdate( 'Y-m-d H:i:s', time() + 3600 ),
+), array( 'id' => (int) $race['confirmation_id'] ) ) !== 1 ) throw new RuntimeException( 'Synthetic provider retry state failed' );
+
+// The race confirmation has a synthetic provider reference and credential so the
+// post-commit projection can succeed when the worker's HTTP filter answers Google.
+$sealedCredential = ( new IntegrationSecretService() )->seal( $connection, 'google_calendar', (string) wp_json_encode( array( 'access_token' => 'synthetic-google-access-token' ) ) );
+if ( $wpdb->update( $p . 'integration_credentials', array_merge( $sealedCredential, array( 'state' => 'active', 'valid_until_utc' => gmdate( 'Y-m-d H:i:s', time() + 86400 ) ) ), array( 'connection_id' => $connection, 'credential_sequence' => 1 ) ) !== 1 ) throw new RuntimeException( 'Synthetic provider credential failed' );
+$raceSecret = ( new ProviderReferenceVault() )->seal( 'booking_calendar', (int) $race['confirmation_id'], array( 'provider_object_reference' => 'abcde67890', 'join_uri_reference' => 'https://meet.google.com/abc-defg-hij' ) );
+if ( $wpdb->insert( $p . 'provider_projection_secrets', array_merge( array( 'uid' => Identifier::uid(), 'mapping_kind' => 'booking_calendar', 'mapping_id' => (int) $race['confirmation_id'], 'state' => 'active', 'active_slot' => 1, 'created_at' => $now, 'created_by' => 1, 'retired_at' => null, 'retired_by' => null ), $raceSecret ) ) === false ) throw new RuntimeException( 'Synthetic race provider reference failed' );
+$sequenceSecret = ( new ProviderReferenceVault() )->seal( 'booking_calendar', (int) $sequence['confirmation_id'], array( 'provider_object_reference' => 'abcdef12345', 'join_uri_reference' => 'https://meet.google.com/abc-defg-hij' ) );
+if ( $wpdb->insert( $p . 'provider_projection_secrets', array_merge( array( 'uid' => Identifier::uid(), 'mapping_kind' => 'booking_calendar', 'mapping_id' => (int) $sequence['confirmation_id'], 'state' => 'active', 'active_slot' => 1, 'created_at' => $now, 'created_by' => 1, 'retired_at' => null, 'retired_by' => null ), $sequenceSecret ) ) === false ) throw new RuntimeException( 'Synthetic provider reference failed' );
 
 update_option( 'dzn_booking_slot_concurrency_state', array(
     'suffix' => $suffix, 'at' => $at, 'occupied_ends_at_utc' => $occupied,
@@ -156,6 +175,13 @@ update_option( 'dzn_booking_slot_concurrency_state', array(
                 'w2' => array( 'local_date' => substr( $at, 0, 10 ), 'local_start_time' => '17:00', 'timezone' => 'UTC' ),
             ),
             'keys' => array( 'w1' => 'slot-reschedule-w1-' . $suffix, 'w2' => 'slot-reschedule-w2-' . $suffix ),
+        ),
+    ),
+    'provider_sequence' => array(
+        'request_id' => $sequence['request_id'], 'confirmation_id' => $sequence['confirmation_id'],
+        'slots' => array(
+            'w1' => array( 'local_date' => substr( $at, 0, 10 ), 'local_start_time' => '20:00', 'timezone' => 'UTC' ),
+            'w2' => array( 'local_date' => substr( $at, 0, 10 ), 'local_start_time' => '21:00', 'timezone' => 'UTC' ),
         ),
     ),
 ), false );

@@ -137,7 +137,7 @@ final class RecordingDecisionController {
             $locale=function_exists('get_user_locale')?(string)get_user_locale():'en';
             $language=str_starts_with(strtolower($locale),'fa')?'fa':'en';
             $key=sanitize_text_field((string)wp_unslash($_POST['idempotency_key']??''));
-            (new UnifiedConsentService())->acceptTeacherUnified($key,$language,'portal_unified','teacher_unified');
+            (new UnifiedConsentService())->acceptTeacherUnified($key,$language,'portal_unified','teacher_unified',(string)($_POST['research_opt_in']??'')==='1');
             self::rememberStatus('teacher','unified_saved');
             self::redirectTeacher($returnTo);
         }catch(\Throwable){

@@ -99,6 +99,9 @@ $need(str_contains($readService, "\$privacy!==null"),'Teacher unified form needs
 $need(str_contains($teacher, "if ( \$unified_accepted )"),'Teacher must not report unified completion based on terms alone');
 $need(str_contains($unifiedService, "!empty(\$state['privacy']['positive'])"),'Student unified state must include privacy acceptance');
 $need(str_contains($unifiedService,'function recordBundle(') && str_contains($unifiedService,'UnifiedConsentPartialFailure'), 'Bundled writes must report purpose-specific failures and preserve retry keys');
+$need(str_contains($authority,"approval_state='approved'"),'Only approved published notices may support consent');
+$need(str_contains($unifiedService,'bool $researchOptIn=false') && str_contains($teacher,'name="research_opt_in"'), 'Teacher research must require a separate unchecked opt-in');
+
 $partial=$read('src/Core/Application/UnifiedConsentPartialFailure.php');
 $need(str_contains($partial,'purposeOutcomes') && str_contains($partial,'failedPurpose'), 'Partial failure must expose per-purpose outcomes');
 $recovery=$read('src/Core/Application/StudentAdultAttestationRecoveryService.php');

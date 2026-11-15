@@ -52,7 +52,7 @@ final class RecordingDecisionUiReadService {
             'context'=>$context,
             'authority'=>$state['authority']??null,
             'guardian_grant_id'=>$state['guardian_grant_id']??null,
-            'capacity_recovery_available'=>($state['reason']??'')==='recording_student_capacity_unavailable',
+            'capacity_recovery_available'=>($state['reason']??'')==='recording_student_capacity_unavailable' && (new \Delnavazan\Platform\Core\Application\StudentAdultAttestationRecoveryService())->eligible(),
             'recording'=>$state['recording']??$this->emptyChoice(),
             'research'=>$state['research']??$this->emptyChoice(),
             'privacy'=>$state['privacy']??$this->emptyChoice(),
@@ -85,7 +85,7 @@ final class RecordingDecisionUiReadService {
         foreach($researchNotices as$notice)$forms['research'][]=$this->form(ConsentPurposeRegistry::TEACHER_RESEARCH,$notice,'dzn_recording_teacher_choice',$context);
         foreach($privacyNotices as$notice)$forms['privacy'][]=$this->form(ConsentPurposeRegistry::PRIVACY_TERMS,$notice,'dzn_recording_teacher_choice',$context);
         $mandatoryAccepted=!empty($state['terms']['positive'])&&!empty($state['recording']['positive']);
-        $unifiedAccepted=$mandatoryAccepted&&!empty($state['research']['positive'])&&!empty($state['privacy']['positive']);
+        $unifiedAccepted=$mandatoryAccepted&&!empty($state['privacy']['positive']);
         $unified=$this->teacherUnified($state['available']??false,$context,$termsNotices,$recordingNotices,$researchNotices,$privacyNotices,$mandatoryAccepted,$unifiedAccepted);
         return array(
             'available'=>!empty($state['available'])&&$termsNotices!==array(),
@@ -94,6 +94,7 @@ final class RecordingDecisionUiReadService {
             'accepted'=>!empty($state['terms']['positive']),
             'mandatory_accepted'=>$mandatoryAccepted,
             'unified_accepted'=>$unifiedAccepted,
+            'research_opted_in'=>!empty($state['research']['positive']),
             'accepted_at'=>$state['terms']['decided_at']??null,
             'notice_uid'=>$state['terms']['notice_uid']??null,
             'notice_version'=>$state['terms']['notice_version']??null,
@@ -127,7 +128,7 @@ final class RecordingDecisionUiReadService {
             return null;
         };
         $terms=$pick($termsNotices);$recording=$pick($recordingNotices);$research=$pick($researchNotices);$privacy=$pick($privacyNotices);
-        $available=$linked&&$terms!==null&&$recording!==null&&$research!==null&&$privacy!==null;
+        $available=$linked&&$terms!==null&&$recording!==null&&$privacy!==null;
         $unified=array('available'=>$available,'mandatory_accepted'=>$mandatoryAccepted,'consent_active'=>$unifiedAccepted,'action_url'=>'','nonce_action'=>'dzn_unified_teacher_consent','idempotency_key'=>'','language'=>$preferred,'return_to'=>$context,'notices'=>array());
         if($available){
             $unified['action_url']=admin_url('admin-post.php?action=dzn_unified_teacher_consent');

@@ -79,7 +79,8 @@ final class BookingStudentAccountRepository {
         return (int) $wpdb->insert_id;
     }
     /** Capture an explicit adult self-attestation within the account/booking transaction. */
-    public function recordAdultSelfAttestation(int $studentId, int $userId, string $now): void {
+    public function recordAdultSelfAttestation(int $studentId, int $userId, string $now, string $origin = 'booking'): void {
+        if ( ! in_array( $origin, array( 'booking', 'account_recovery' ), true ) ) throw new \InvalidArgumentException( 'Invalid attestation origin' );
         global $wpdb;
         $id = $wpdb->insert( $this->prefix . 'student_acceptance_capacity_classifications', array(
             'uid' => \Delnavazan\Platform\Core\Support\Identifier::uid(),
@@ -87,7 +88,7 @@ final class BookingStudentAccountRepository {
             'classification' => 'adult',
             'verification_basis' => 'self_attestation',
             'evidence_channel' => 'authenticated_platform',
-            'evidence_reference' => 'booking-adult-attestation-' . \Delnavazan\Platform\Core\Support\Identifier::uid(),
+            'evidence_reference' => 'adult-attestation-' . $origin . '-' . \Delnavazan\Platform\Core\Support\Identifier::uid(),
             'evidence_at' => $now,
             'classified_at' => $now,
             'classified_by' => $userId,

@@ -164,7 +164,7 @@ final class RecordingDecisionAuthorityService {
         if(!in_array($audience,$audiences,true))throw new \InvalidArgumentException('recording_notice_audience_invalid');
         if(!in_array($language,array('en','fa'),true))throw new \InvalidArgumentException('recording_decision_language_invalid');
         global $wpdb;$p=$wpdb->prefix.'dzn_';$now=gmdate('Y-m-d H:i:s');
-        $row=$wpdb->get_row($wpdb->prepare("SELECT uid,audience_code,language_code,version_number,body_text,published_at,expires_at FROM {$p}recording_notice_versions WHERE audience_code=%s AND language_code=%s AND publication_state='published' AND published_at IS NOT NULL AND published_at<=%s AND (expires_at IS NULL OR expires_at>%s) AND withdrawn_at IS NULL ORDER BY version_number DESC LIMIT 1",$audience,$language,$now,$now));
+        $row=$wpdb->get_row($wpdb->prepare("SELECT uid,audience_code,language_code,version_number,body_text,published_at,expires_at FROM {$p}recording_notice_versions WHERE audience_code=%s AND language_code=%s AND publication_state='published' AND approval_state='approved' AND published_at IS NOT NULL AND published_at<=%s AND (expires_at IS NULL OR expires_at>%s) AND withdrawn_at IS NULL ORDER BY version_number DESC LIMIT 1",$audience,$language,$now,$now));
         return $row?array('uid'=>(string)$row->uid,'audience'=>(string)$row->audience_code,'language'=>(string)$row->language_code,'version'=>(int)$row->version_number,'body'=>(string)$row->body_text,'published_at'=>(string)$row->published_at,'expires_at'=>$row->expires_at):null;
     }
 
@@ -237,7 +237,7 @@ final class RecordingDecisionAuthorityService {
     private function noticeForDecision(string $noticeUid,string $language,string $subjectType,string $purpose):object {
         global $wpdb;$p=$wpdb->prefix.'dzn_';$now=gmdate('Y-m-d H:i:s');
         $audience=ConsentPurposeRegistry::audience($purpose);
-        $notice=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}recording_notice_versions WHERE uid=%s AND language_code=%s AND audience_code=%s AND publication_state='published' AND published_at IS NOT NULL AND published_at<=%s AND (expires_at IS NULL OR expires_at>%s) AND withdrawn_at IS NULL FOR UPDATE",$noticeUid,$language,$audience,$now,$now));
+        $notice=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}recording_notice_versions WHERE uid=%s AND language_code=%s AND audience_code=%s AND publication_state='published' AND approval_state='approved' AND published_at IS NOT NULL AND published_at<=%s AND (expires_at IS NULL OR expires_at>%s) AND withdrawn_at IS NULL FOR UPDATE",$noticeUid,$language,$audience,$now,$now));
         if(!$notice||(string)$notice->audience_code!==$audience)throw new \RuntimeException('recording_notice_unavailable');
         if(!$this->noticeVersionIsCurrent($audience,$language,(int)$notice->version_number))throw new \RuntimeException('recording_notice_unavailable');
         return $notice;
@@ -245,7 +245,7 @@ final class RecordingDecisionAuthorityService {
 
     private function noticeVersionIsCurrent(string $audience,string $language,int $version):bool{
         global $wpdb;$p=$wpdb->prefix.'dzn_';$now=gmdate('Y-m-d H:i:s');
-        return(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}recording_notice_versions WHERE audience_code=%s AND language_code=%s AND version_number>%d AND publication_state='published' AND published_at IS NOT NULL AND published_at<=%s AND (expires_at IS NULL OR expires_at>%s) AND withdrawn_at IS NULL",$audience,$language,$version,$now,$now))===0;
+        return(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}recording_notice_versions WHERE audience_code=%s AND language_code=%s AND version_number>%d AND publication_state='published' AND approval_state='approved' AND published_at IS NOT NULL AND published_at<=%s AND (expires_at IS NULL OR expires_at>%s) AND withdrawn_at IS NULL",$audience,$language,$version,$now,$now))===0;
     }
 
     private function actor():int{$id=(int)get_current_user_id();if($id<1||!is_user_logged_in())throw new \RuntimeException('recording_authenticated_principal_required');return $id;}
@@ -343,7 +343,7 @@ final class RecordingDecisionAuthorityService {
 
     private function noticeIsCurrent(int $noticeId):bool{
         global $wpdb;$p=$wpdb->prefix.'dzn_';$now=gmdate('Y-m-d H:i:s');
-        $row=$wpdb->get_row($wpdb->prepare("SELECT audience_code,language_code,version_number FROM {$p}recording_notice_versions WHERE id=%d AND publication_state='published' AND published_at IS NOT NULL AND published_at<=%s AND (expires_at IS NULL OR expires_at>%s) AND withdrawn_at IS NULL",$noticeId,$now,$now));
+        $row=$wpdb->get_row($wpdb->prepare("SELECT audience_code,language_code,version_number FROM {$p}recording_notice_versions WHERE id=%d AND publication_state='published' AND approval_state='approved' AND published_at IS NOT NULL AND published_at<=%s AND (expires_at IS NULL OR expires_at>%s) AND withdrawn_at IS NULL",$noticeId,$now,$now));
         if(!$row)return false;
         return$this->noticeVersionIsCurrent((string)$row->audience_code,(string)$row->language_code,(int)$row->version_number);
     }

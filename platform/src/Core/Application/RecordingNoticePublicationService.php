@@ -26,7 +26,7 @@ final class RecordingNoticePublicationService {
         $this->assertAudience($audience);
         $this->assertLanguage($language);
         global $wpdb; $p=$wpdb->prefix.'dzn_'; $now=gmdate('Y-m-d H:i:s');
-        $row=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}recording_notice_versions WHERE audience_code=%s AND language_code=%s AND publication_state='published' AND published_at IS NOT NULL AND published_at<=%s AND (expires_at IS NULL OR expires_at>%s) AND withdrawn_at IS NULL ORDER BY version_number DESC LIMIT 1",$audience,$language,$now,$now));
+        $row=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}recording_notice_versions WHERE audience_code=%s AND language_code=%s AND publication_state='published' AND approval_state='approved' AND published_at IS NOT NULL AND published_at<=%s AND (expires_at IS NULL OR expires_at>%s) AND withdrawn_at IS NULL ORDER BY version_number DESC LIMIT 1",$audience,$language,$now,$now));
         return $row?get_object_vars($row):null;
     }
 

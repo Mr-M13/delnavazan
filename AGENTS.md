@@ -83,21 +83,19 @@ action owned by Codex, not a local build.
 Before pushing, every agent runs the checks that apply to its diff, **inside PHP 8.3 containers
 that match CI** whenever Docker is available:
 
-- **PHP lint (all tracked PHP, as CI does):**
-
-  ```bash
-  git ls-files -z '*.php' | docker run --rm -i -v "$PWD":/repo -w /repo php:8.3-cli \
-    bash -c 'set -euo pipefail; while IFS= read -r -d "" f; do php -l "$f" >/dev/null || exit 1; done'
-  ```
-
-  A single changed file may be checked with `php -l <file>` instead, but the full lint is the CI
-  equivalent and is preferred before opening a PR.
+- **Toolchain:** `.devcontainer/` builds the PHP 8.3 image, and `tools/ci/check.sh` wraps the
+  checks. Use it through the container so PHP matches CI:
+  - `tools/ci/run-in-container.sh lint` — `php -l` every tracked PHP file, then `git diff --check`.
+  - `tools/ci/run-in-container.sh contracts platform/tests/<area>-contract.php` — affected
+    contracts (and the matching `-unit.php`).
+  - `tools/ci/run-in-container.sh doctor` — prove PHP version and extensions before claiming
+    container parity.
+  The wrapper derives its image tag from `.devcontainer/Dockerfile`, so changes rebuild instead of
+  reusing a stale image. The devcontainer runs the same image for a fully containerized session.
 - **Whitespace:** `git diff --check`.
-- **Source contracts:** run the affected tests directly, e.g.
-  `docker run --rm -v "$PWD":/repo -w /repo php:8.3-cli php platform/tests/<area>-contract.php`
-  (and the matching `-unit.php`). Add the extensions CI installs when the test needs them
-  (`pdo_sqlite`, `sqlite3`, `curl`, `mbstring`). The contract list in
-  `.github/workflows/pr-runtime-gate.yml` is the authoritative set.
+- **Source contracts:** `platform/tests/<area>-contract.php` and `-unit.php`. Add the extensions
+  CI installs when a test needs them (`pdo_sqlite`, `sqlite3`, `curl`, `mbstring`). The contract
+  list in `.github/workflows/pr-runtime-gate.yml` is the authoritative set.
 - **Runtime suites:** `platform/runtime/bin/run-<suite>-runtime.sh`. These already drive Docker
   with the CI images `mariadb:11.4`, `wordpress:php8.3-apache` and `wordpress:cli-php8.3`.
 - **Service tests:** `bash services/tests/run-all.sh` (CI uses PHP 8.3 with `pdo_sqlite`,
@@ -141,6 +139,8 @@ Rules:
 - `platform/` — canonical Delnavazan Platform plugin and backend/application services.
 - `theme/` — Delnavazan WordPress theme and user-facing frontend.
 - `deployment/` — guarded production release and read-only QA tooling (Codex-only).
+- `.devcontainer/` — PHP 8.3 CI-parity image for containerized agent sessions.
+- `tools/ci/` — `check.sh` plus the `run-in-container.sh` wrapper for lint and contracts.
 - `legacy-review/` — migration notes; not active code.
 
 `README.md` and `deployment/README.md` remain authoritative for product background and release

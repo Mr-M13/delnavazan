@@ -32,12 +32,16 @@ $confirmations = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$p
 $assert( $confirmations === 1, 'Simultaneous acceptances committed more than one confirmation' );
 $deliveryStates = $wpdb->get_col( $wpdb->prepare( "SELECT state FROM {$p}booking_request_teacher_deliveries WHERE booking_request_id IN ($placeholders) ORDER BY id", $requestIds ) );
 sort( $deliveryStates );
-$assert( $deliveryStates === array( 'accepting', 'pending_request' ), 'Exactly one delivery must be accepted and one must remain pending' );
+$assert( $deliveryStates === array( 'accepting', 'expired' ), 'The winning delivery must be accepted and the losing delivery retired' );
+$offerStates = $wpdb->get_col( $wpdb->prepare( "SELECT state FROM {$p}booking_allocation_offers WHERE booking_request_id IN ($placeholders) ORDER BY id", $requestIds ) );
+sort( $offerStates );
+$assert( $offerStates === array( 'accepted', 'capacity_lost' ), 'The winning offer must be accepted and the losing offer retired with capacity_lost' );
+$assert( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$p}booking_allocation_offers WHERE teacher_id=%d AND state='pending' AND active_slot=1", (int) $state['teacher_id'] ) ) === 0, 'No stale pending offer may remain after a winning acceptance' );
 $acceptanceOne = $result( 'acceptance', 'w1' );
 $acceptanceTwo = $result( 'acceptance', 'w2' );
 $assert( ( $acceptanceOne['ok'] === true ) !== ( $acceptanceTwo['ok'] === true ), 'Exactly one simultaneous acceptance must succeed' );
 $refused = $acceptanceOne['ok'] === false ? $acceptanceOne : $acceptanceTwo;
-$assert( in_array( ( $refused['message'] ?? '' ), array( 'student_slot_conflict', 'teacher_slot_conflict', 'Booking time is no longer available' ), true ), 'The losing acceptance was not refused by Student or Teacher capacity' );
+$assert( in_array( ( $refused['message'] ?? '' ), array( 'student_slot_conflict', 'teacher_slot_conflict', 'Booking time is no longer available', 'Booking offer expired or reassigned' ), true ), 'The losing acceptance was not refused by Student or Teacher capacity' );
 foreach ( array( 'submission/w1.out', 'submission/w2.out', 'acceptance/w1.out', 'acceptance/w2.out', 'acceptance/w1.result', 'acceptance/w2.result' ) as $name ) {
     $path = $gate . '/' . $name;
     if ( is_file( $path ) && preg_match( '/deadlock|lock wait timeout|WordPress database error/i', (string) file_get_contents( $path ) ) ) throw new RuntimeException( 'Database contention error in ' . $name );

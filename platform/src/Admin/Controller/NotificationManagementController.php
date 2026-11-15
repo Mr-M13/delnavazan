@@ -39,6 +39,10 @@ final class NotificationManagementController {
     public static function register():void{
         add_action('admin_init',static function():void{NotificationTemplateLibrary::retireLegacyCategoryPolicy();});
         add_action('admin_post_dzn_notification_copy_save_draft',array(__CLASS__,'saveDraft'));
+        add_action('admin_post_dzn_notification_prepare_drafts',array(__CLASS__,'prepareCatalogueDrafts'));
+        add_action('admin_post_dzn_notification_publish_drafts',array(__CLASS__,'publishReviewedDrafts'));
+        add_action('admin_post_dzn_notification_approve_draft',array(__CLASS__,'approveDraft'));
+        add_action('admin_post_dzn_notification_revoke_approval',array(__CLASS__,'revokeDraftApproval'));
         add_action('admin_post_dzn_notification_copy_publish',array(__CLASS__,'publish'));
         add_action('admin_post_dzn_notification_copy_discard',array(__CLASS__,'discardDraft'));
         add_action('admin_post_dzn_notification_copy_restore',array(__CLASS__,'restoreVersion'));
@@ -61,7 +65,7 @@ final class NotificationManagementController {
         $tab=self::LEGACY_TABS[$requested]??$requested;
         if($tab!=='events')$tab='events';
         $templateKey=isset($_GET['template'])?self::eventKey(wp_unslash((string)$_GET['template'])):'';
-        echo '<div class="wrap dzn-notif-admin" dir="ltr"><style>.dzn-notif-admin{direction:ltr}.dzn-notif-admin .nav-tab-wrapper{margin-block-end:16px}.dzn-notif-lede{max-width:78ch;color:#50575e}.dzn-notif-panel{background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:18px 20px}.dzn-notif-panel h2{margin-block-start:6px}.dzn-notif-meta{color:#646970;font-size:12px;line-height:1.9}.dzn-notif-note{color:#50575e;font-size:12px;line-height:1.9;background:#f6f7f7;border-inline-start:3px solid #0E8C8C;padding:8px 12px;border-radius:3px}.dzn-notif-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-block:14px}.dzn-notif-card{border:1px solid #dcdcde;border-radius:6px;padding:14px}.dzn-notif-card h3{margin-block-start:0}.dzn-notif-list{margin:0;padding-inline-start:18px;line-height:2}.dzn-notif-table td,.dzn-notif-table th{vertical-align:top}.dzn-notif-table details{margin-block:4px}.dzn-notif-table details pre{white-space:pre-wrap;font-family:Tahoma,Arial,sans-serif;line-height:1.9;margin:6px 0;max-height:180px;overflow:auto}.dzn-notif-preview{background:#FBF7EE;border:1px solid #e6dfd2;border-radius:8px;padding:10px}.dzn-notif-preview pre{white-space:pre-wrap;font-family:Tahoma,Arial,sans-serif;direction:rtl;margin:0;line-height:2}.dzn-notif-preview--text{background:#fff}.dzn-notif-editor textarea{font-family:Tahoma,Arial,sans-serif;line-height:2;direction:rtl}.dzn-notif-actions{display:flex;gap:8px;flex-wrap:wrap}.dzn-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#f0f0f1;color:#3c434a}.dzn-badge.is-ok{background:#edfaef;color:#1e6b2f}.dzn-badge.is-warn{background:#fcf3e6;color:#8a4b00}.dzn-badge.is-locked{background:#fbeaea;color:#8a1f1f}.dzn-notif-inline-form{display:flex;gap:4px;align-items:center;flex-wrap:wrap}.dzn-notif-admin code{direction:ltr;unicode-bidi:embed}.dzn-notif-admin details pre{max-height:220px;overflow:auto;white-space:pre-wrap}.dzn-notif-record-status{border:1px solid #dcdcde;border-radius:6px;padding:12px 14px;margin-block:18px}.dzn-notif-record-status h2{margin-block-start:0}.dzn-channel-strip{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.dzn-channel-strip a{text-decoration:none}.dzn-notif-dialog{width:min(1080px,94vw);max-width:1080px;max-height:90vh;padding:0;border:0;border-radius:10px;box-shadow:0 24px 60px rgba(15,23,42,.35);direction:ltr;background:#fff}.dzn-notif-dialog::backdrop{background:rgba(15,23,42,.55)}.dzn-notif-dialog-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;background:#fff;border-block-end:1px solid #dcdcde}.dzn-notif-dialog-bar h2{margin:0;font-size:16px}.dzn-notif-dialog-body{max-height:calc(90vh - 56px);overflow:auto;padding:4px 20px 20px}</style><h1>Notifications</h1>';
+        echo '<div class="wrap dzn-notif-admin" dir="ltr"><style>.dzn-notif-admin{direction:ltr}.dzn-notif-admin .nav-tab-wrapper{margin-block-end:16px}.dzn-notif-lede{max-width:78ch;color:#50575e}.dzn-notif-panel{background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:18px 20px}.dzn-notif-panel h2{margin-block-start:6px}.dzn-notif-meta{color:#646970;font-size:12px;line-height:1.9}.dzn-notif-note{color:#50575e;font-size:12px;line-height:1.9;background:#f6f7f7;border-inline-start:3px solid #0E8C8C;padding:8px 12px;border-radius:3px}.dzn-notif-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-block:14px}.dzn-notif-card{border:1px solid #dcdcde;border-radius:6px;padding:14px}.dzn-notif-card h3{margin-block-start:0}.dzn-notif-list{margin:0;padding-inline-start:18px;line-height:2}.dzn-notif-table td,.dzn-notif-table th{vertical-align:top}.dzn-notif-table details{margin-block:4px}.dzn-notif-table details pre{white-space:pre-wrap;font-family:Tahoma,Arial,sans-serif;line-height:1.9;margin:6px 0;max-height:180px;overflow:auto}.dzn-notif-preview{background:#FBF7EE;border:1px solid #e6dfd2;border-radius:8px;padding:10px}.dzn-notif-preview pre{white-space:pre-wrap;font-family:Tahoma,Arial,sans-serif;direction:rtl;margin:0;line-height:2}.dzn-notif-preview--text{background:#fff}.dzn-notif-editor textarea{font-family:Tahoma,Arial,sans-serif;line-height:2;direction:rtl}.dzn-notif-actions{display:flex;gap:8px;flex-wrap:wrap}.dzn-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#f0f0f1;color:#3c434a}.dzn-badge.is-ok{background:#edfaef;color:#1e6b2f}.dzn-badge.is-warn{background:#fcf3e6;color:#8a4b00}.dzn-badge.is-locked{background:#fbeaea;color:#8a1f1f}.dzn-notif-inline-form{display:flex;gap:4px;align-items:center;flex-wrap:wrap}.dzn-notif-admin code{direction:ltr;unicode-bidi:embed}.dzn-notif-admin details pre{max-height:220px;overflow:auto;white-space:pre-wrap}.dzn-notif-record-status{border:1px solid #dcdcde;border-radius:6px;padding:12px 14px;margin-block:18px}.dzn-notif-record-status h2{margin-block-start:0}.dzn-channel-strip{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.dzn-channel-strip a{text-decoration:none}.dzn-notif-dialog{width:min(1080px,94vw);max-width:1080px;max-height:90vh;padding:0;border:0;border-radius:10px;box-shadow:0 24px 60px rgba(15,23,42,.35);direction:ltr;background:#fff}.dzn-notif-dialog::backdrop{background:rgba(15,23,42,.55)}.dzn-notif-dialog-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;background:#fff;border-block-end:1px solid #dcdcde}.dzn-notif-dialog-bar h2{margin:0;font-size:16px}.dzn-notif-dialog-body{max-height:calc(90vh - 56px);overflow:auto;padding:4px 20px 20px}.dzn-notif-lifecycle{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;margin:8px 0 0;font-size:11px;line-height:1.7}.dzn-notif-lifecycle dt{color:#646970;white-space:nowrap}.dzn-notif-lifecycle dd{margin:0}</style><h1>Notifications</h1>';
         echo '<p class="dzn-notif-lede">Choose which notifications are sent and edit their copy. Provider configuration is under Integrations; detailed delivery evidence is under Diagnostics. This workspace never changes a recipient, authorises a payment, alters a lesson or bypasses the business authority that produced the notification.</p>';
         self::renderFlash();
         if($requested!==$tab){
@@ -95,8 +99,9 @@ final class NotificationManagementController {
         $filters=self::tableContext();
         $search=(string)($filters['search']??'');$categoryFilter=(string)($filters['category']??'');$recipientFilter=(string)($filters['recipient']??'');$channelFilter=(string)($filters['channel']??'');$statusFilter=(string)($filters['status']??'');
         echo '<h2>Notification catalogue</h2>';
-        echo '<p>Every business notification is managed here. Each row shows the four delivery methods, their real delivery state and the copy that belongs to that exact event. A channel is never described as ready unless its local copy and provider requirements are satisfied.</p>';
+        echo '<p>Every business notification is managed here. Each row shows the four delivery methods, their real delivery state and the copy that belongs to that exact event. A channel is never described as ready unless its local copy and provider requirements are satisfied. Any notification and any offered channel can be switched off by an administrator; that only stops delivery and never changes accounts, payments, lessons or consent records.</p>';
         self::renderChannelHealth();
+        self::renderCatalogueActions($library);
         echo '<form method="get" action="'.esc_url(admin_url('admin.php')).'" class="dzn-notif-filters"><input type="hidden" name="page" value="'.esc_attr(self::PAGE).'"><input type="hidden" name="tab" value="events">';
         echo '<label>Search <input name="search" value="'.esc_attr($search).'" placeholder="label, purpose, event key, subject or body" aria-label="Search notifications"></label>';
         echo '<label>Category <select name="category"><option value="">All</option>';
@@ -105,7 +110,7 @@ final class NotificationManagementController {
         foreach(array('student'=>'Student','teacher'=>'Teacher','guardian'=>'Guardian','admin'=>'Admin') as $value=>$label)echo '<option value="'.esc_attr($value).'"'.($recipientFilter===$value?' selected':'').'>'.esc_html($label).'</option>';
         echo '</select></label><label>Channel <select name="channel"><option value="">All</option>';
         foreach(array('email'=>'Email','whatsapp'=>'WhatsApp','sms'=>'SMS','website'=>'Portal') as $value=>$label)echo '<option value="'.esc_attr($value).'"'.($channelFilter===$value?' selected':'').'>'.esc_html($label).'</option>';
-        echo '</select></label><label>Status <select name="status"><option value="">All</option><option value="enabled"'.($statusFilter==='enabled'?' selected':'').'>Enabled</option><option value="partial"'.($statusFilter==='partial'?' selected':'').'>Partially available</option><option value="disabled"'.($statusFilter==='disabled'?' selected':'').'>Disabled</option><option value="policy_disabled"'.($statusFilter==='policy_disabled'?' selected':'').'>Disabled by SMS policy</option><option value="missing_template"'.($statusFilter==='missing_template'?' selected':'').'>Missing template</option><option value="missing_provider"'.($statusFilter==='missing_provider'?' selected':'').'>Missing provider</option><option value="unsupported"'.($statusFilter==='unsupported'?' selected':'').'>Unsupported</option><option value="mandatory_locked"'.($statusFilter==='mandatory_locked'?' selected':'').'>Mandatory and locked</option></select></label><button class="button">Filter</button> <a class="button-link" href="'.esc_url(self::url(array('tab'=>'events'))).'">Reset</a></form>';
+        echo '</select></label><label>Status <select name="status"><option value="">All</option><option value="enabled"'.($statusFilter==='enabled'?' selected':'').'>Enabled</option><option value="partial"'.($statusFilter==='partial'?' selected':'').'>Partially available</option><option value="disabled"'.($statusFilter==='disabled'?' selected':'').'>Disabled</option><option value="policy_disabled"'.($statusFilter==='policy_disabled'?' selected':'').'>Disabled by SMS policy</option><option value="missing_template"'.($statusFilter==='missing_template'?' selected':'').'>Missing template</option><option value="missing_provider"'.($statusFilter==='missing_provider'?' selected':'').'>Missing provider</option><option value="unsupported"'.($statusFilter==='unsupported'?' selected':'').'>Unsupported</option><option value="draft"'.($statusFilter==='draft'?' selected':'').'>Draft awaiting review</option><option value="ready"'.($statusFilter==='ready'?' selected':'').'>Ready</option><option value="no_producer"'.($statusFilter==='no_producer'?' selected':'').'>No producer yet</option></select></label><button class="button">Filter</button> <a class="button-link" href="'.esc_url(self::url(array('tab'=>'events'))).'">Reset</a></form>';
 
         $rows=array();
         foreach(NotificationCatalogue::events() as $eventKey=>$event){
@@ -113,14 +118,14 @@ final class NotificationManagementController {
             foreach((array)($event['channels']??array()) as $searchChannel){$copy=$library->activeCopy($eventKey,(string)$searchChannel,NotificationCatalogue::PRIMARY_LOCALE);$searchText.=' '.(string)($copy['subject']??'').' '.(string)($copy['body']??'');}
             $offered=(array)($event['channels']??array());
             $states=array();foreach(array('website','email','whatsapp','sms') as $channel)$states[$channel]=self::effectiveChannelState($library,$eventKey,$channel);
-            $candidate=array('key'=>$eventKey,'event'=>$event,'offered'=>$offered,'states'=>$states,'search_text'=>$searchText);
+            $candidate=array('key'=>$eventKey,'event'=>$event,'offered'=>$offered,'states'=>$states,'readiness'=>self::readiness($library,$eventKey,$offered),'search_text'=>$searchText);
             if(!self::tableFilterMatches($candidate,$filters))continue;
             $family=self::eventFamily($eventKey);
-            $rows[]=array('key'=>$eventKey,'event'=>$event,'offered'=>$offered,'states'=>$states,'family'=>$family);
+            $rows[]=array('key'=>$eventKey,'event'=>$event,'offered'=>$offered,'states'=>$states,'readiness'=>$candidate['readiness'],'family'=>$family);
         }
         usort($rows,static fn(array $left,array $right):int=>strcmp($left['key'],$right['key']));
         if($rows===array()){echo '<p>No notification event matches these filters.</p>';return;}
-        echo '<p class="dzn-notif-meta">'.esc_html((string)count($rows)).' event(s) match. Delivery controls apply to each event; consent and legally required delivery safeguards remain enforced.</p>';
+        echo '<p class="dzn-notif-meta">'.esc_html((string)count($rows)).' event(s) match. Delivery controls apply to each event. Disabling sensitive messages may prevent important account, security and payment notices; business rules remain enforced.</p>';
         echo '<table class="widefat striped dzn-notif-table"><thead><tr><th>Category</th><th>Notification and purpose</th><th>Recipient</th><th>All channels</th><th>Portal</th><th>Email</th><th>WhatsApp</th><th>SMS</th></tr></thead><tbody>';
         $groups=array();
         foreach($rows as $row)$groups[$row['family']!==''?'family:'.$row['family']:'event:'.$row['key']][]=$row;
@@ -148,7 +153,7 @@ final class NotificationManagementController {
         if(($filters['category']??'')!==''&&(string)($event['category']??'')!==(string)$filters['category'])return false;
         if(($filters['recipient']??'')!==''&&(string)($event['audience']??'')!==(string)$filters['recipient'])return false;
         if(($filters['channel']??'')!==''&&!in_array((string)$filters['channel'],(array)($row['offered']??array()),true))return false;
-        if(($filters['status']??'')!==''&&!in_array((string)$filters['status'],array_column((array)($row['states']??array()),'state'),true))return false;
+        if(($filters['status']??'')!==''&&!in_array((string)$filters['status'],array_column((array)($row['states']??array()),'state'),true)&&(string)($row['readiness']??'')!==(string)$filters['status'])return false;
         return true;
     }
 
@@ -159,17 +164,20 @@ final class NotificationManagementController {
         $eventEnabled=$library->eventEnabled($eventKey);
         $mandatory=NotificationCatalogue::isMandatory($eventKey);
         echo '<td>';
-        if($mandatory){
-            echo '<span class="dzn-badge is-ok">Required</span><div class="dzn-notif-meta">Mandatory safeguard; cannot disable all channels.</div>';
-        }else{
-            echo '<span class="dzn-badge '.($eventEnabled?'is-ok':'is-warn').'">'.($eventEnabled?'Enabled':'All channels disabled').'</span>';
+        {
+            echo '<span class="dzn-badge '.($eventEnabled?'is-ok':'is-warn').'">'.($eventEnabled?'Enabled':'Disabled').'</span>';
             if(self::canEdit()){
                 echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="enabled" value="'.($eventEnabled?'0':'1').'">';
                 foreach(self::tableContext() as $contextKey=>$contextValue)echo '<input type="hidden" name="filter_'.esc_attr($contextKey).'" value="'.esc_attr((string)$contextValue).'">';
                 wp_nonce_field('dzn_notification_event_toggle');
-                echo '<button class="button button-small" type="submit">'.($eventEnabled?'Disable all channels':'Enable notification').'</button></form>';
+                echo '<button class="button button-small" type="submit">'.($eventEnabled?'Disable notification':'Enable notification').'</button></form>';
             }
-            if(!$eventEnabled)echo '<div class="dzn-notif-meta">Saved channel preferences are retained.</div>';
+            if($mandatory)echo '<div class="dzn-notif-meta">Sensitive notification: disabling delivery may prevent important account, security or payment messages. Core transaction and access rules are unchanged.</div>';
+            if(!$eventEnabled)echo '<div class="dzn-notif-meta">Saved channel preferences are retained and restored when this notification is enabled again.</div>';
+            $lifecycle=self::lifecycleSummary($library,$eventKey,(array)$row['offered']);
+            echo '<dl class="dzn-notif-lifecycle">';
+            foreach($lifecycle as $label=>$entry)echo '<dt>'.esc_html($label).'</dt><dd class="dzn-badge '.esc_attr($entry['class']).'">'.esc_html($entry['text']).'</dd>';
+            echo '</dl>';
         }
         echo '</td>';
         foreach(array('website','email','whatsapp','sms') as $channel){
@@ -177,10 +185,33 @@ final class NotificationManagementController {
             echo '<td><div><span class="dzn-badge '.esc_attr($state['state']==='enabled'?'is-ok':($state['state']==='unsupported'?'':'is-warn')).'">'.esc_html($state['label']).'</span></div>';
             if($state['reason']!=='')echo '<div class="dzn-notif-meta">'.esc_html($state['reason']).'</div>';
             if($channel==='sms')foreach(self::smsRouteStatus() as $route){$routeLabel=$route['disabled']?'Disabled':(($route['ready']??false)?'Available':'Unavailable');$routeClass=$route['disabled']?'is-warn':(($route['ready']??false)?'is-ok':'is-warn');echo '<div class="dzn-notif-meta"><span class="dzn-badge '.esc_attr($routeClass).'">'.esc_html((string)$route['label']).': '.esc_html($routeLabel).'</span></div>';}
-            if(in_array($channel,$row['offered'],true)){ $active=$library->eventChannelEnabled($eventKey,$channel);$locked=in_array($state['state'],array('mandatory_locked','unsupported','missing_template','missing_provider','policy_disabled'),true);$blocked=!empty($state['enable_blocked']); echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_channel_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="enabled" value="'.($active?'0':'1').'">';foreach(self::tableContext() as $contextKey=>$contextValue)echo '<input type="hidden" name="filter_'.esc_attr($contextKey).'" value="'.esc_attr((string)$contextValue).'">';wp_nonce_field('dzn_notification_event_channel_toggle');if(self::canEdit()){if($active)echo '<button class="button button-small">Off</button>';elseif(!$locked&&!$blocked)echo '<button class="button button-small">On</button>';else echo '<button class="button button-small" disabled title="'.esc_attr((string)$state['reason']).'">On</button>';}echo ' <a href="'.esc_url(self::editorUrl($eventKey,$channel,NotificationCatalogue::PRIMARY_LOCALE)).'">Edit</a></form>'; }
+            if(in_array($channel,$row['offered'],true)){ $active=$library->eventChannelEnabled($eventKey,$channel);$locked=in_array($state['state'],array('unsupported','missing_template','missing_provider','policy_disabled'),true);$blocked=!empty($state['enable_blocked']); echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_channel_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="enabled" value="'.($active?'0':'1').'">';foreach(self::tableContext() as $contextKey=>$contextValue)echo '<input type="hidden" name="filter_'.esc_attr($contextKey).'" value="'.esc_attr((string)$contextValue).'">';wp_nonce_field('dzn_notification_event_channel_toggle');if(self::canEdit()){if($active)echo '<button class="button button-small">Off</button>';elseif(!$locked&&!$blocked)echo '<button class="button button-small">On</button>';else echo '<button class="button button-small" disabled title="'.esc_attr((string)$state['reason']).'">On</button>';}echo ' <a href="'.esc_url(self::editorUrl($eventKey,$channel,NotificationCatalogue::PRIMARY_LOCALE)).'">Edit</a></form>'; }
             echo '</td>';
         }
         echo '</tr>';
+    }
+
+    /**
+     * Copy preparation and publication controls. They sit on the catalogue page because that is the
+     * only notification workspace; nothing here sends a message or switches a channel on.
+     */
+    private static function renderCatalogueActions(NotificationTemplateLibrary $library):void{
+        $coverage=NotificationCatalogue::coverage();
+        echo '<div class="dzn-notif-card" style="margin-block:12px"><h3>Template copy readiness</h3>';
+        echo '<p class="dzn-notif-meta">'.esc_html((string)$coverage['present']).' of '.esc_html((string)$coverage['required']).' required event, channel and language templates carry their own reviewed copy across '.esc_html((string)$coverage['events']).' notifications. '.esc_html((string)$coverage['channel_pairs']).' event and channel combinations are declared.</p>';
+        if($coverage['present']!==$coverage['required']){
+            echo '<div class="notice notice-warning inline"><p>'.esc_html((string)count($coverage['missing'])).' template(s) have no copy in their own language. Prepare drafts to review them.</p></div>';
+        }
+        if(!self::canEdit())return;
+        echo '<div class="dzn-notif-actions">';
+        echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_prepare_drafts">';
+        wp_nonce_field('dzn_notification_prepare_drafts');
+        echo '<button class="button button-secondary" type="submit">Prepare missing catalogue drafts for review</button></form>';
+        echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_publish_drafts">';
+        wp_nonce_field('dzn_notification_publish_drafts');
+        echo '<button class="button button-primary" type="submit" onclick="return confirm(\'Publish every draft whose approvals are complete? Restricted drafts stay unpublished.\')">Publish drafts with complete approvals</button></form>';
+        echo '</div><p class="dzn-notif-meta">Preparing drafts never sends, publishes or enables anything. Bulk publishing skips financial, legal, security, dedicated-authority and provider-pending copy; those are published one at a time from the editor after review.</p>';
+        echo '</div>';
     }
 
     /** A small channel-readiness strip with links to the owning configuration/evidence page. */
@@ -219,7 +250,13 @@ final class NotificationManagementController {
         $channel=isset($_GET['channel'])&&is_scalar($_GET['channel'])?sanitize_key(wp_unslash((string)$_GET['channel'])):'';
         $locale=isset($_GET['locale'])&&is_scalar($_GET['locale'])?NotificationCatalogue::normaliseLocale(sanitize_text_field(wp_unslash((string)$_GET['locale']))):NotificationCatalogue::PRIMARY_LOCALE;
         $taskFilter=isset($_GET['task'])&&is_scalar($_GET['task'])?sanitize_key(wp_unslash((string)$_GET['task'])):'';
-        echo '<h2>Templates</h2><p>Each event is shown once under its business task, with recipient-specific copy and only the delivery choices that its policy, event and provider state permit. Email and Portal are the defaults for events that support both.</p>';
+        echo '<h2>Templates</h2><p>Review Persian and English drafts before publishing. Preparing drafts never sends a message, enables a channel or approves a WhatsApp provider template.</p>';
+        if(self::canEdit()){
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'">';
+            echo '<input type="hidden" name="action" value="dzn_notification_prepare_drafts">';
+            wp_nonce_field('dzn_notification_prepare_drafts');
+            echo '<button class="button button-secondary" type="submit">Prepare missing catalogue drafts for review</button></form>';
+        }
         echo '<form method="get" action="'.esc_url(admin_url('admin.php')).'" class="dzn-notif-filters"><input type="hidden" name="page" value="'.esc_attr(self::PAGE).'"><input type="hidden" name="tab" value="templates">';
         echo '<label>Task <select name="task"><option value="">All tasks</option>';
         foreach(NotificationCatalogue::TASKS as $value=>$task)echo '<option value="'.esc_attr($value).'"'.($taskFilter===$value?' selected':'').'>'.esc_html((string)$task['label']).'</option>';
@@ -356,7 +393,39 @@ final class NotificationManagementController {
             echo '</p>';
         }
         echo '</form>';
+        self::renderDraftApproval($library,$eventKey,$channel,$locale,$status);
         self::renderHistory($library,$eventKey,$channel,$locale,$status);
+    }
+
+    /**
+     * Editorial approval for the prepared draft. Bulk publication only accepts a draft whose exact
+     * copy was approved here; editing, discarding or publishing the draft revokes the approval.
+     */
+    private static function renderDraftApproval(NotificationTemplateLibrary $library,string $eventKey,string $channel,string $locale,array $status):void{
+        echo '<h3>Draft approval</h3>';
+        if($status['draft']===null){
+            echo '<p class="dzn-notif-meta">There is no prepared draft. Save a draft first; preparing catalogue drafts creates one for every supported template.</p>';
+            return;
+        }
+        $approval=$library->draftApproval($eventKey,$channel,$locale);
+        $policy=$library->draftReviewPolicy($eventKey,$channel,$locale);
+        echo '<p>Bulk publication: <span class="dzn-badge '.($policy['allowed']?'is-ok':'is-warn').'">'.esc_html($policy['allowed']?'Approved and publishable':'Not publishable in bulk').'</span></p>';
+        if($policy['reason']!=='')echo '<p class="dzn-notif-meta">'.esc_html((string)$policy['reason']).'</p>';
+        if($approval!==null){
+            echo '<p class="dzn-notif-meta">Approved for this exact copy on <code dir="ltr">'.esc_html((string)$approval['approved_at']).' UTC</code> by user <code dir="ltr">'.esc_html((string)$approval['approved_by']).'</code>.</p>';
+            if(self::canEdit()){
+                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_revoke_approval"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="locale" value="'.esc_attr($locale).'">';
+                wp_nonce_field('dzn_notification_revoke_approval');
+                echo '<button class="button button-small">Withdraw approval</button></form>';
+            }
+            return;
+        }
+        echo '<p class="dzn-notif-meta">This draft has not been approved. Approving it allows the bulk action to publish it; it does not publish anything now, does not enable the channel and does not replace Meta approval for WhatsApp.</p>';
+        if(self::canEdit()){
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_approve_draft"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="locale" value="'.esc_attr($locale).'">';
+            wp_nonce_field('dzn_notification_approve_draft');
+            echo '<button class="button button-small">Approve draft for publication</button></form>';
+        }
     }
 
     /** Provider mapping belongs with the WhatsApp copy it describes, not in a separate channels tab. */
@@ -445,6 +514,60 @@ final class NotificationManagementController {
 
     // ------------------------------------------------------------------ handlers
 
+    public static function prepareCatalogueDrafts():never{
+        self::authorizeEdit();
+        check_admin_referer('dzn_notification_prepare_drafts');
+        try{
+            $result=(new NotificationTemplateLibrary())->prepareMissingCatalogueDrafts();
+            self::flash('success',sprintf('Prepared %d drafts; %d already existed. %d lack exact-language copy; %d failed validation. No messages were published or sent.',(int)$result['created'],(int)$result['existing'],count($result['missing']),count($result['invalid'])));
+            if($result['missing']!==array()||$result['invalid']!==array()){
+                update_option('dzn_notification_draft_gap_report',array('missing'=>$result['missing'],'invalid'=>$result['invalid'],'created_at'=>gmdate('c')),false);
+            }
+        }catch(\Throwable $error){self::flash('error','Could not prepare catalogue drafts: '.$error->getMessage());}
+        self::redirectBack('templates',array());
+    }
+
+    public static function approveDraft():never{
+        self::authorizeEdit();
+        check_admin_referer('dzn_notification_approve_draft');
+        try{
+            $library=new NotificationTemplateLibrary();
+            $library->approveDraft(
+                isset($_POST['event_key'])?self::eventKey(wp_unslash((string)$_POST['event_key'])):'',
+                isset($_POST['channel'])?sanitize_key(wp_unslash((string)$_POST['channel'])):'',
+                isset($_POST['locale'])?NotificationCatalogue::normaliseLocale(sanitize_text_field(wp_unslash((string)$_POST['locale']))):NotificationCatalogue::PRIMARY_LOCALE
+            );
+            self::flash('success','Draft approved for bulk publication. Editing the copy, discarding the draft or publishing it revokes this approval.');
+        }catch(\Throwable $error){self::flash('error','The draft could not be approved: '.$error->getMessage());}
+        self::redirectBack('events',self::postTableContext() + self::postEditorContext());
+    }
+
+    public static function revokeDraftApproval():never{
+        self::authorizeEdit();
+        check_admin_referer('dzn_notification_revoke_approval');
+        try{
+            (new NotificationTemplateLibrary())->revokeDraftApproval(
+                isset($_POST['event_key'])?self::eventKey(wp_unslash((string)$_POST['event_key'])):'',
+                isset($_POST['channel'])?sanitize_key(wp_unslash((string)$_POST['channel'])):'',
+                isset($_POST['locale'])?NotificationCatalogue::normaliseLocale(sanitize_text_field(wp_unslash((string)$_POST['locale']))):NotificationCatalogue::PRIMARY_LOCALE
+            );
+            self::flash('success','Draft approval withdrawn. The draft itself is unchanged.');
+        }catch(\Throwable $error){self::flash('error','The approval could not be withdrawn: '.$error->getMessage());}
+        self::redirectBack('events',self::postTableContext() + self::postEditorContext());
+    }
+
+    public static function publishReviewedDrafts():never{
+        self::authorizeEdit();
+        check_admin_referer('dzn_notification_publish_drafts');
+        try{
+            $result=(new NotificationTemplateLibrary())->publishReviewedDrafts();
+            $blocked=count($result['blocked']);
+            self::flash($blocked>0?'warning':'success',sprintf('Published %d draft(s) as new immutable versions. %d draft(s) stayed review-only. No delivery channel was enabled and no message was sent.',count($result['published']),$blocked));
+            if($result['blocked']!==array())update_option('dzn_notification_draft_review_report',array('blocked'=>$result['blocked'],'created_at'=>gmdate('c')),false);
+        }catch(\Throwable $error){self::flash('error','Could not publish the reviewed drafts: '.$error->getMessage());}
+        self::redirectBack('events',array());
+    }
+
     public static function saveDraft():never{self::handle(function(NotificationTemplateLibrary $library,array $input):array{
         $library->saveDraft($input['event_key'],$input['channel'],$input['locale'],(string)($input['subject']??''),(string)($input['body']??''));
         return array('type'=>'success','message'=>'Draft saved. The delivered message does not change until you publish.');
@@ -503,7 +626,7 @@ final class NotificationManagementController {
             }
             $library->saveEventChannel($eventKey,$channel,$enabled);
             self::flash('success',self::channelLabel($channel).' delivery '.($enabled?'enabled.':'disabled.'));
-        }catch(\Throwable $error){self::flash('error',$error->getMessage()==='notification_channel_unavailable'?'This channel cannot be enabled until its template, provider approval and selected route are ready.':'This delivery channel is required for the notification safeguard or is not available for this event.');}
+        }catch(\Throwable $error){self::flash('error',$error->getMessage()==='notification_channel_unavailable'?'This channel cannot be enabled until its template, provider approval and selected route are ready.':'This delivery channel is not available for this event.');}
         self::redirectBack('events',self::postTableContext());
     }
 
@@ -630,7 +753,7 @@ final class NotificationManagementController {
     private static function effectiveChannelState(NotificationTemplateLibrary $library,string $eventKey,string $channel):array{
         if(!$library->channelOffered($eventKey,$channel))return array('state'=>'unsupported','label'=>'Unsupported','reason'=>'Not offered for this event.');
         if(!$library->eventEnabled($eventKey))return array('state'=>'disabled','label'=>'Notification disabled','reason'=>'All channels are switched off for this notification.');
-        $locked=(NotificationCatalogue::isMandatory($eventKey)&&in_array($channel,array('email','website'),true))||($eventKey==='account.claim_issued.student'&&in_array($channel,array('whatsapp','sms'),true));
+        $locked=($eventKey==='account.claim_issued.student'&&in_array($channel,array('whatsapp','sms'),true));
         $blocker=self::channelBlocker($library,$eventKey,$channel);
         if(!$locked&&!$library->eventChannelEnabled($eventKey,$channel)){
             return array('state'=>'disabled','label'=>'Disabled by administrator','reason'=>'Off.'.($blocker===null?'':' '.$blocker['reason']),'enable_blocked'=>$blocker!==null);
@@ -643,12 +766,88 @@ final class NotificationManagementController {
             if($readyCount===0&&$offCount===2)return array('state'=>'policy_disabled','label'=>'Disabled by SMS policy','reason'=>$reason);
             if($readyCount===0)return array('state'=>'missing_provider','label'=>'Missing provider','reason'=>$reason);
         }elseif(in_array($channel,array('email','whatsapp'),true)&&self::providerReady($channel)===false)return array('state'=>'missing_provider','label'=>'Missing provider','reason'=>'Configure and test the provider in Integrations.');
-        if($locked)return array('state'=>'mandatory_locked','label'=>'Mandatory and locked','reason'=>'This required route cannot be disabled.');
+        if($locked)return array('state'=>'policy_disabled','label'=>'Secure route unavailable','reason'=>'This route cannot safely be enabled without approved account-claim delivery.');
         return array('state'=>'enabled','label'=>'Enabled','reason'=>'');
+    }
+
+    /**
+     * Six separate facts, deliberately never merged into one badge: catalogue completeness, prepared
+     * drafts, published versions, outstanding approvals, delivery readiness and whether a producer
+     * even exists. "Complete copy" is not "ready to send", and an event with no producer can never
+     * fire however complete its copy is.
+     *
+     * @param string[] $channels
+     * @return array<string,array{text:string,class:string}>
+     */
+    private static function lifecycleSummary(NotificationTemplateLibrary $library,string $eventKey,array $channels):array{
+        $out=array();
+        $event=NotificationCatalogue::get($eventKey)??array();
+
+        // 1. Catalogue completeness: is there copy in both languages for every offered channel?
+        $copyMissing=0;
+        foreach($channels as $channel)foreach(NotificationCatalogue::SUPPORTED_LOCALES as $locale){
+            $copy=NotificationCatalogue::exactCopy($eventKey,(string)$channel,$locale);
+            if(!is_array($copy)||trim((string)($copy['body']??''))==='')$copyMissing++;
+        }
+        $out['Catalogue copy']=$copyMissing===0
+            ?array('text'=>'Complete in both languages','class'=>'is-ok')
+            :array('text'=>'Missing '.$copyMissing.' template(s)','class'=>'is-warn');
+
+        // 2. Drafts prepared, and how many of them carry a valid editorial approval.
+        $drafted=0;$approved=0;$draftBlocked=array();
+        foreach($channels as $channel)foreach(NotificationCatalogue::SUPPORTED_LOCALES as $locale){
+            $status=$library->status($eventKey,(string)$channel,$locale);
+            if($status['draft']!==null){
+                $drafted++;
+                if($library->draftApproval($eventKey,(string)$channel,$locale)!==null)$approved++;
+            }
+        }
+        $out['Drafts']=$drafted===0
+            ?array('text'=>'None prepared','class'=>'')
+            :array('text'=>$drafted.' prepared, '.$approved.' approved for publication','class'=>$approved===$drafted?'is-ok':'is-warn');
+
+        // 3. Publication: how many offered channels have an active immutable version.
+        $published=0;
+        foreach($channels as $channel)$published+=$library->status($eventKey,(string)$channel,NotificationCatalogue::PRIMARY_LOCALE)['published']?1:0;
+        $canonical=(string)($event['authority']??'')==='canonical';
+        $out['Publication']=$published>0
+            ?array('text'=>$published.' of '.count($channels).' channel(s) published','class'=>$published===count($channels)?'is-ok':'is-warn')
+            :array('text'=>$canonical?'Required before this canonical event can dispatch':'No version published','class'=>$canonical?'is-warn':'');
+
+        // 4. Approvals: editorial review flags and provider approval for the offered routes.
+        $review=NotificationCatalogue::reviewReasons($eventKey);
+        $providerPending=array();
+        if(in_array('whatsapp',$channels,true))$providerPending[]='WhatsApp';
+        if(in_array('sms',$channels,true)&&self::smsRouteReason(self::smsRouteStatus())!=='')$providerPending[]='SMS';
+        if(in_array('email',$channels,true)&&self::providerReady('email')===false)$providerPending[]='Email';
+        $approvalParts=array();
+        if($review!==array())$approvalParts[]=implode(', ',$review);
+        if($providerPending!==array())$approvalParts[]='provider approval for '.implode(' and ',$providerPending);
+        $out['Approvals']=$approvalParts===array()
+            ?array('text'=>'None outstanding','class'=>'is-ok')
+            :array('text'=>'Awaiting '.implode('; ',$approvalParts),'class'=>'is-warn');
+
+        // 5. Delivery: what an administrator has switched on, and what is actually ready to send.
+        $enabled=0;$ready=0;
+        foreach($channels as $channel){
+            if($library->eventChannelEnabled($eventKey,(string)$channel)){$enabled++;$ready++;}
+        }
+        $out['Delivery']=array('text'=>$enabled.' of '.count($channels).' channel(s) enabled','class'=>$enabled>0?'is-ok':'');
+
+        // 6. Producer: without one the notification can never be raised.
+        $registered=!empty($event['producer_registered']);
+        $out['Producer']=$registered
+            ?array('text'=>'Registered','class'=>'is-ok')
+            :array('text'=>'None registered — cannot fire yet','class'=>'is-warn');
+        return $out;
     }
 
     /** A single, filterable readiness state for the catalogue row. */
     private static function readiness(NotificationTemplateLibrary $library,string $eventKey,array $channels):string{
+        $event=NotificationCatalogue::get($eventKey)??array();
+        // An event with no registered producer can never be raised, whatever its copy and provider
+        // state. It is a distinct state so it stays visible as outstanding implementation work.
+        if(empty($event['producer_registered']))return 'no_producer';
         $hasDraft=false;$hasDisabled=false;$hasMissing=false;$hasProvider=false;
         foreach($channels as $channel){
             $status=$library->status($eventKey,(string)$channel,NotificationCatalogue::PRIMARY_LOCALE);
@@ -676,8 +875,7 @@ final class NotificationManagementController {
     private static function eventToggleError(string $code):string{
         return match($code){
             'notification_event_unknown'=>'That notification event is not in the catalogue.',
-            'notification_event_mandatory'=>'Security, account and financial notices are mandatory and cannot be disabled.',
-            default=>'The optional notification event was not changed.',
+            default=>'The notification event was not changed.',
         };
     }
     private static function manualRetryError(string $code):string{
@@ -715,6 +913,15 @@ final class NotificationManagementController {
     private static function postTableContext():array{
         $out=array();
         foreach(array('search','category','recipient','channel','status') as $key)if(isset($_POST['filter_'.$key])&&is_scalar($_POST['filter_'.$key]))$out[$key]=sanitize_text_field(wp_unslash((string)$_POST['filter_'.$key]));
+        return $out;
+    }
+    /** Reopen the same editor after an approval action. */
+    private static function postEditorContext():array{
+        $out=array();
+        if(isset($_POST['event_key'])&&is_scalar($_POST['event_key'])){$eventKey=self::eventKey(wp_unslash((string)$_POST['event_key']));if($eventKey!=='')$out['template']=$eventKey;}
+        if(isset($_POST['channel'])&&is_scalar($_POST['channel']))$out['template_channel']=sanitize_key(wp_unslash((string)$_POST['channel']));
+        $locale=isset($_POST['locale'])?NotificationCatalogue::normaliseLocale(sanitize_text_field(wp_unslash((string)$_POST['locale']))):NotificationCatalogue::PRIMARY_LOCALE;
+        if($out!==array())$out['locale']=$locale;
         return $out;
     }
     private static function editorUrl(string $eventKey,string $channel,string $locale):string{

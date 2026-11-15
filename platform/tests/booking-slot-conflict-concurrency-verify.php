@@ -107,7 +107,9 @@ $raceRow = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$p}booking_request_co
 $assert( $raceRow !== null, 'The race confirmation must exist' );
 $assert( (int) $raceRow->version === 2, 'Exactly one concurrent reschedule may advance the version' );
 $expectedSlot = $race['slots'][ (bool) ( $raceOne['ok'] ?? false ) ? 'w1' : 'w2' ];
-$assert( (string) $raceRow->starts_at_utc === substr( (string) $state['at'], 0, 10 ) . ' ' . (string) $expectedSlot['local_start_time'], 'The winning reschedule must own the confirmation start' );
+$expectedStart = (string) $expectedSlot['local_start_time'];
+if ( preg_match( '/^\d{2}:\d{2}$/D', $expectedStart ) ) $expectedStart .= ':00';
+$assert( (string) $raceRow->starts_at_utc === substr( (string) $state['at'], 0, 10 ) . ' ' . $expectedStart, 'The winning reschedule must own the confirmation start' );
 $assert( str_starts_with( (string) $raceRow->failure_reason_code, 'reschedule_provider_pending:' ), 'The winning reschedule provider failure must be durable' );
 $raceProviderAudit = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$p}platform_audit_events WHERE aggregate_type='booking_request' AND aggregate_id=%d AND event_type='booking_request.intro_reschedule_provider_sync' AND safe_detail LIKE %s", (int) $race['request_id'], '%"retryable":true%' ) );
 $assert( $raceProviderAudit === 1, 'The winning reschedule provider failure must be audited once' );

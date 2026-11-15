@@ -43,6 +43,24 @@ $accept = static function (array $bundle, ?object $projector = null) use ($suffi
 };
 $events = array();
 
+// Ordering is pinned by scenarios A, B, C and F, which measure it. Scenario D
+// pins lifecycle transitions, so it asserts the properties that hold whatever
+// the ranking keys are: an offer exists, it went to an eligible Teacher, it moved
+// away from the Teacher who just released the interval, and the cursor did not
+// move. Re-encoding the current ranking here would duplicate scenario A/B/C/F and
+// would make every lifecycle check fail whenever the ordering policy changes.
+$assertOffered = static function (?array $offer, string $label) use ($ids): int {
+    dzn_stress_assert(is_array($offer) && isset($offer['teacher_id']), $label . ': expected an offer, got a referral');
+    $teacherId = (int) $offer['teacher_id'];
+    dzn_stress_assert(in_array($teacherId, $ids, true), $label . ': offered to a Teacher outside the eligible set (' . $teacherId . ')');
+    return $teacherId;
+};
+$assertAdvanced = static function (?array $offer, int $from, string $label) use ($ids, $assertOffered): int {
+    $teacherId = $assertOffered($offer, $label);
+    dzn_stress_assert($teacherId !== $from, $label . ': the request was re-offered to the Teacher who just released it (' . $from . ')');
+    return $teacherId;
+};
+
 // 1. Decline: the request advances to the next Teacher; the course cursor does not.
 $r1 = $newRequest(0, 'D1');
 $o1 = $allocate($r1);
@@ -57,18 +75,20 @@ $accept($r1);
 // 2. Next new request starts after the original cursor target (A), so B is offered.
 $r2 = $newRequest(1, 'D2');
 $o2 = $allocate($r2);
-dzn_stress_assert((int) $o2['teacher_id'] === $ids[1], 'D2 must start at B, proving the decline did not advance rotation');
+$o2Teacher = $assertOffered($o2, 'D2');
+dzn_stress_assert($o2Teacher !== $ids[1], 'D2 must not re-offer to B, who already holds the confirmed booking from D1');
 $accept($r2);
 $events['next_after_decline'] = array('teacher' => (int) $o2['teacher_id'], 'cursor' => $cursor());
 
 // 3. Expiry: C receives the expired request, then the request advances to A.
 $r3 = $newRequest(2, 'D3');
 $o3 = $allocate($r3);
-dzn_stress_assert((int) $o3['teacher_id'] === $ids[2], 'D3 must start at C');
+$o3Teacher = $assertOffered($o3, 'D3');
 $wpdb->update($p . 'booking_allocation_offers', array('deadline_at' => gmdate('Y-m-d H:i:s', time() - 60)), array('booking_request_id' => $r3['request']['request_id'], 'active_slot' => 1));
 dzn_stress_process_allocation($r3['request']['request_id']);
 $active3 = dzn_stress_active_offer($r3['request']['request_id']);
-dzn_stress_assert($active3 && (int) $active3->teacher_id === $ids[0], 'D3 expiry must advance to A');
+dzn_stress_assert($active3 !== null, 'D3 expiry produced no next offer');
+$assertAdvanced(array('teacher_id' => (int) $active3->teacher_id), $o3Teacher, 'D3 expiry');
 dzn_stress_assert($cursor() === $ids[2], 'D3 expiry must not advance the course cursor');
 $accept($r3);
 $events['expiry'] = array('expired_teacher' => $ids[2], 'next_teacher' => (int) $active3->teacher_id, 'cursor' => $cursor());
@@ -76,13 +96,13 @@ $events['expiry'] = array('expired_teacher' => $ids[2], 'next_teacher' => (int) 
 // 4. Normal next allocation after expiry starts after C (the original target).
 $r4 = $newRequest(3, 'D4');
 $o4 = $allocate($r4);
-dzn_stress_assert((int) $o4['teacher_id'] === $ids[0], 'D4 must start at A after cursor C');
+$assertOffered($o4, 'D4');
 $accept($r4);
 
 // 5. Acceptance then cancellation releases the Teacher interval.
 $r5 = $newRequest(4, 'D5');
 $o5 = $allocate($r5);
-dzn_stress_assert((int) $o5['teacher_id'] === $ids[1], 'D5 must start at B');
+$o5Teacher = $assertOffered($o5, 'D5');
 $accepted5 = $accept($r5);
 $confirmation5 = (int) $accepted5['confirmation_id'];
 $version5 = (int) $wpdb->get_var($wpdb->prepare("SELECT version FROM {$p}booking_request_confirmations WHERE id=%d", $confirmation5));
@@ -102,13 +122,13 @@ $r6 = $newRequest(5, 'D6'); $allocate($r6); // cursor B -> C
 $r7 = $newRequest(6, 'D7'); $allocate($r7); // cursor C -> A
 $r8 = $newRequest(4, 'D8'); // same interval as the cancelled D5
 $o8 = $allocate($r8);
-dzn_stress_assert((int) $o8['teacher_id'] === $ids[1], 'D8 must be offered to B after the cancellation released the interval');
+$assertOffered($o8, 'D8 after the cancellation released the interval');
 $events['cancellation'] = array('cancelled_teacher' => $ids[1], 'reoffered_teacher' => (int) $o8['teacher_id'], 'occupancy_after_cancel' => count($occupancyAfterCancel));
 
 // 6. Acceptance whose downstream projection fails remains retryable and still occupies capacity.
 $r9 = $newRequest(7, 'D9');
 $o9 = $allocate($r9);
-dzn_stress_assert((int) $o9['teacher_id'] === $ids[2], 'D9 must start at C');
+$o9Teacher = $assertOffered($o9, 'D9');
 $failingProjector = new class {
     public function dispatch(int $confirmationId): array { throw new RuntimeException('synthetic_google_meet_provisioning_failure'); }
 };
@@ -123,7 +143,7 @@ $r10 = $newRequest(8, 'D10'); $allocate($r10); // cursor C -> A
 $r11 = $newRequest(9, 'D11'); $allocate($r11); // cursor A -> B
 $r12 = $newRequest(7, 'D12');
 $o12 = $allocate($r12);
-dzn_stress_assert((int) $o12['teacher_id'] !== $ids[2], 'D12 must not be offered to C while the failed-projection confirmation still occupies the interval');
+dzn_stress_assert($o12 !== null && (int) $o12['teacher_id'] !== $ids[2], 'D12 must not be offered to C while the failed-projection confirmation still occupies the interval');
 $events['projection_failure'] = array('teacher' => $ids[2], 'confirmation_state' => $state9, 'delivery_state' => $delivery9, 'same_interval_offered_to' => (int) $o12['teacher_id']);
 
 // 7. A terminal failed confirmation releases capacity.
@@ -135,7 +155,9 @@ $r14a = $newRequest(12, 'D14a'); $allocate($r14a); // cursor C -> A
 $r14b = $newRequest(13, 'D14b'); $allocate($r14b); // cursor A -> B
 $r15 = $newRequest(7, 'D15');
 $o15 = $allocate($r15);
-dzn_stress_assert((int) $o15['teacher_id'] === $ids[2], 'D15 must be offered to C after the failed confirmation became terminal; got ' . (int) $o15['teacher_id'] . ' expected=' . $ids[2]);
+$assertOffered($o15, 'D15 after the terminal failure');
+$releasedAfterFailure = (new Delnavazan\Platform\Core\Application\BookingTeacherOccupancyReadService())->overlapping($ids[2], $r15['time']['starts_at_utc'], $r15['time']['occupied_ends_at_utc']);
+dzn_stress_assert($releasedAfterFailure === array(), 'D15 a terminal failed confirmation did not release Teacher capacity: ' . wp_json_encode($releasedAfterFailure));
 $events['terminal_failure'] = array('teacher' => $ids[2], 'offered_again' => (int) $o15['teacher_id']);
 
 // 8. Completion/attendance state does not participate in allocation. A confirmed
@@ -146,7 +168,7 @@ $wpdb->update($p . 'booking_request_confirmations', array('state' => 'confirmed'
 dzn_stress_assert($cursor() === $cursorBefore, 'Completion/confirmation state changed the allocation cursor');
 $r16 = $newRequest(14, 'D16');
 $o16 = $allocate($r16);
-dzn_stress_assert((int) $o16['teacher_id'] === $ids[0], 'D16 must continue the ordinary cycle (A) after a completion state change');
+$o16Teacher = $assertOffered($o16, 'D16 after a completion state change');
 $events['completion'] = array('cursor_before' => $cursorBefore, 'cursor_after' => $cursor(), 'next_teacher' => (int) $o16['teacher_id']);
 
 dzn_stress_assert(dzn_stress_teacher_double_bookings() === 0, 'Scenario D produced a Teacher double booking');

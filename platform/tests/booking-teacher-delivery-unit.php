@@ -12,10 +12,11 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function referral(int $requestId,string $reason,string $now):void{$this->referrals[]=$requestId;}
     }
     final class BookingRequestMatchAssessmentRepository {
+        public static bool $promoteSecond = false;
         public array $teachers;
         public function __construct() {
             $this->teachers = array(
-                (object) array('teacher_id' => 22, 'accepting_state' => 'limited'),
+                (object) array('teacher_id' => 22, 'accepting_state' => self::$promoteSecond ? 'accepting' : 'limited'),
                 (object) array('teacher_id' => 11, 'accepting_state' => 'accepting'),
             );
         }
@@ -31,7 +32,7 @@ namespace Delnavazan\Platform\Core\Application {
         public function instrumentIdForCourse(int $courseId): ?int { return 1; }
         public function effective(int $teacherId, string $start, string $end): array {
             if ($teacherId === 11 && $start === '2026-11-01 09:00:00') return array();
-            $state = $teacherId === 11 ? 'preferred' : 'requestable';
+            $state = ($teacherId === 11 || \Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestMatchAssessmentRepository::$promoteSecond) ? 'preferred' : 'requestable';
             return array(array('starts_at_utc' => $start, 'ends_at_utc' => $end, 'state' => $state));
         }
     }
@@ -40,6 +41,15 @@ namespace Delnavazan\Platform\Core\Application {
     }
     final class CanonicalContinuationCapacityAuthority {
         public static function assertNoActiveHold(int $teacherId, string $start, string $end): void {}
+    }
+    /** Every Teacher is equally loaded here; ordering is decided by strength and the cursor. */
+    final class BookingTeacherWorkloadService {
+        public function __construct(mixed $repository = null) {}
+        public function scores(array $teacherIds, string $now): array {
+            $out = array();
+            foreach ($teacherIds as $id) $out[(int) $id] = array('weighted' => 0.0, 'pending' => 0, 'accepted' => 0, 'confirmed' => 0, 'completed' => 0);
+            return $out;
+        }
     }
 }
 namespace Delnavazan\Platform\Core\Support {
@@ -64,10 +74,21 @@ namespace {
     $row = $deliveries->created[0] ?? array();
     if (($row['teacher_id'] ?? null) !== 11 || ($row['requested_time_id'] ?? null) !== 202) throw new RuntimeException('The strongest eligible Teacher/time pair was not selected.');
     if (($row['state'] ?? null) !== 'pending_request' || ($row['match_strength'] ?? null) !== 'strong') throw new RuntimeException('Delivery must remain a pending request.');
+    // Approved policy: a stronger match outranks rotation, so the strong Teacher
+    // keeps winning while the other Teacher is only a possible match.
     $second=$service->deliver(11,4,$times,'2026-10-14 00:00:00');
-    if(($second['teacher_id']??null)!==22)throw new RuntimeException('The next request must rotate to the next eligible Teacher.');
+    if(($second['teacher_id']??null)!==11)throw new RuntimeException('A strong match must outrank rotation to an idle possible match.');
+    // Once both Teachers are equally strong and equally loaded, the per-course
+    // cursor breaks the tie and the offer rotates.
+    \Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestMatchAssessmentRepository::$promoteSecond = true;
+    $matches->teachers = array(
+        (object) array('teacher_id' => 22, 'accepting_state' => 'accepting'),
+        (object) array('teacher_id' => 11, 'accepting_state' => 'accepting'),
+    );
+    $third=$service->deliver(12,4,$times,'2026-10-14 00:00:00');
+    if(($third['teacher_id']??null)!==22)throw new RuntimeException('Equally strong and equally loaded Teachers must rotate to the next eligible Teacher.');
     $matches->teachers = array();
     if ($service->deliver(10, 4, $times, '2026-10-14 00:00:00') !== null) throw new RuntimeException('No eligible Teacher must produce no delivery.');
-    if (count($deliveries->created) !== 2) throw new RuntimeException('No-candidate intake must not persist a delivery.');
+    if (count($deliveries->created) !== 3) throw new RuntimeException('No-candidate intake must not persist a delivery.');
     echo "Booking teacher delivery unit passed\n";
 }

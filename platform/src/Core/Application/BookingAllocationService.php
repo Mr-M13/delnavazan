@@ -17,17 +17,20 @@ final class BookingAllocationService {
     // confirmation and provider projection after the complete response window.
     public const PROJECTION_BUFFER_SECONDS=BookingLeadTimePolicy::PROJECTION_BUFFER_SECONDS;
     private BookingTeacherOccupancyReadService $occupancy;
+    private BookingTeacherWorkloadService $workload;
     public function __construct(
         private ?BookingAllocationRepository $repo=null,
         private ?BookingRequestMatchAssessmentRepository $matches=null,
         private ?BookingTeacherDeliveryRepository $deliveries=null,
-        private ?TeacherAvailabilityService $availability=null
+        private ?TeacherAvailabilityService $availability=null,
+        ?BookingTeacherWorkloadService $workload=null
     ){
         $this->repo??=new BookingAllocationRepository();
         $this->matches??=new BookingRequestMatchAssessmentRepository();
         $this->deliveries??=new BookingTeacherDeliveryRepository();
         $this->availability??=new TeacherAvailabilityService();
         $this->occupancy=new BookingTeacherOccupancyReadService();
+        $this->workload=$workload??new BookingTeacherWorkloadService();
     }
 
     /** Called inside the submission transaction, which already owns the new request. */
@@ -37,7 +40,7 @@ final class BookingAllocationService {
         $candidates=$this->candidates($courseId,$times,$now);
         if(!$candidates){$this->repo->referral($requestId,'no_viable_teacher',$now);return null;}
         $last=$this->repo->cursor($courseId,$now);
-        $chosen=$this->next($candidates,$last,array());
+        $chosen=$this->next($candidates,$last,array(),$now);
         $this->repo->advanceCursor($courseId,$chosen['teacher_id'],$now);
         $deliveryId=$this->deliveries->create(array('uid'=>Identifier::uid(),'booking_request_id'=>$requestId,'requested_time_id'=>$chosen['requested_time_id'],'teacher_id'=>$chosen['teacher_id'],'state'=>'pending_request','match_strength'=>$chosen['match_strength'],'created_at'=>$now,'updated_at'=>$now));
         $deadline=self::addSeconds($now,self::RESPONSE_SECONDS);
@@ -59,7 +62,7 @@ final class BookingAllocationService {
         $offered=array_map(static fn(object $row):int=>(int)$row->teacher_id,$history);
         $this->lockEligibleTeacherRoots((int)$request->selected_intro_course_id,$now);
         $candidates=$this->candidates((int)$request->selected_intro_course_id,$this->repo->times($requestId),$now);
-        $next=$this->next($candidates,(int)$offer->teacher_id,$offered);
+        $next=$this->next($candidates,(int)$offer->teacher_id,$offered,$now);
         if(!$next){
             $this->deliveries->transitionForAllocation((int)$delivery->id,'pending_request',$outcome,$now);
             $this->repo->referral($requestId,'candidates_exhausted',$now);
@@ -202,10 +205,37 @@ final class BookingAllocationService {
         ksort($result,SORT_NUMERIC);
         return $result;
     }
-    private function next(array $candidates,int $last,array $offered):?array{
-        foreach(array_keys($candidates) as $id)if($id>$last&&!in_array($id,$offered,true))return $candidates[$id];
-        foreach(array_keys($candidates) as $id)if(!in_array($id,$offered,true))return $candidates[$id];
-        return null;
+    /**
+     * Approved allocation order:
+     *
+     *  1. eligibility — already enforced by candidates(), never re-litigated here;
+     *  2. stronger match — `strong` before `possible`;
+     *  3. lowest weighted cross-instrument workload;
+     *  4. deterministic round-robin — the next Teacher id after the Course cursor,
+     *     wrapping once, with the Teacher id as the final total order.
+     *
+     * Teachers already offered this request are excluded first, so a decline or
+     * expiry always moves to a different Teacher. The sort is total and stable, so
+     * the same inputs always select the same Teacher.
+     */
+    private function next(array $candidates,int $last,array $offered,string $now):?array{
+        $pool=array();
+        foreach($candidates as $id=>$candidate)if(!in_array($id,$offered,true))$pool[$id]=$candidate;
+        if(!$pool)return null;
+        $workload=$this->workload->scores(array_keys($pool),$now);
+        uasort($pool,function(array $a,array $b)use($workload,$last):int{
+            $strengthA=$a['match_strength']==='strong'?0:1;
+            $strengthB=$b['match_strength']==='strong'?0:1;
+            if($strengthA!==$strengthB)return $strengthA<=>$strengthB;
+            $loadA=(float)($workload[$a['teacher_id']]['weighted']??0.0);
+            $loadB=(float)($workload[$b['teacher_id']]['weighted']??0.0);
+            if($loadA!=$loadB)return $loadA<=>$loadB;
+            $turnA=$a['teacher_id']>$last?0:1;
+            $turnB=$b['teacher_id']>$last?0:1;
+            if($turnA!==$turnB)return $turnA<=>$turnB;
+            return $a['teacher_id']<=>$b['teacher_id'];
+        });
+        return reset($pool);
     }
     private function coverage(int $teacherId,string $start,string $end,?int $instrumentId=null):?string{
         $cursor=$start;$state='preferred';

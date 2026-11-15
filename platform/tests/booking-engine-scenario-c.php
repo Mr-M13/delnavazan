@@ -85,7 +85,12 @@ foreach ($rows as $row) $confirmed[(int) $row['teacher_id']] = (int) $row['total
 dzn_stress_assert($errors === 0, 'Scenario C allocation errors: ' . $errors);
 dzn_stress_assert($referred === 0, 'Scenario C unexpected referrals: ' . $referred);
 dzn_stress_assert($acceptErrors === 0, 'Scenario C acceptance errors: ' . $acceptErrors);
-dzn_stress_assert($globalFairness['spread'] > 1, 'The per-instrument policy is expected to produce unequal total workload across portfolios');
+// The audited per-instrument policy produced a total workload range of 27–143
+// (spread 116, Gini 0.297) for this same 500-request mixed corpus. Under the
+// approved cross-instrument policy the fence below rejects any return to that
+// behaviour; the exact distribution and Gini are measured and recorded by the
+// stress run rather than pinned here.
+dzn_stress_assert($globalFairness['spread'] <= 20, 'Cross-instrument workload spread regressed towards the audited per-instrument behaviour: ' . wp_json_encode($globalFairness));
 dzn_stress_assert(dzn_stress_teacher_double_bookings() === 0, 'Scenario C produced a Teacher double booking');
 dzn_stress_assert(dzn_stress_capacity_violations() === 0, 'Scenario C produced a capacity violation (confirmed or live-offer overlap)');
 
@@ -103,6 +108,11 @@ foreach ($teachers as $id => $teacher) {
 dzn_stress_emit('C_mixed_instrument_pressure', array(
     'pass' => true,
     'requests' => array('tar' => 260, 'setar' => 160, 'santur' => 80, 'total' => 500),
+    'policy' => array(
+        'weights' => Delnavazan\Platform\Core\Application\BookingTeacherWorkloadService::WEIGHTS,
+        'completed_window_days' => Delnavazan\Platform\Core\Application\BookingTeacherWorkloadService::COMPLETED_WINDOW_DAYS,
+        'order' => 'match strength, then weighted cross-instrument workload, then per-course cursor round-robin',
+    ),
     'accepted' => $accepted, 'referred' => $referred, 'errors' => $errors,
     'accept_errors' => $acceptErrors,
     'per_teacher' => $rowsOut,

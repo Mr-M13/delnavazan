@@ -1,10 +1,12 @@
 <?php
 /**
- * Scenario B — multi-instrument Teachers and the instrument scope of fairness.
+ * Scenario B — multi-instrument Teachers and the scope of workload fairness.
  *
- * The implementation keeps one cursor per introductory Course. A Teacher who is
- * eligible for two instruments therefore has one independent turn per instrument.
- * This scenario proves the actual scope rather than assuming a policy.
+ * Allocation now equalises weighted workload across every introductory
+ * instrument, so a Teacher who teaches Tar and Setar does not receive one
+ * independent turn per instrument. This scenario proves the new scope: an idle
+ * specialist is preferred over a multi-instrument Teacher who has just been
+ * offered (or confirmed) work, while the total spread stays within one booking.
  */
 require_once __DIR__ . '/booking-engine-stress-fixture.php';
 dzn_stress_guard();
@@ -51,16 +53,23 @@ $run = static function (string $label, bool $multiFirst) use ($suffix, $tar, $se
 
 $multiFirst = $run('multi-first', true);
 $multiLast = $run('multi-last', false);
-dzn_stress_assert($multiFirst['sequence']['tar'][0] === $multiFirst['roles']['A_multi'], 'Tar should first go to the lowest-id eligible Teacher (A): '.wp_json_encode($multiFirst));
-dzn_stress_assert($multiFirst['sequence']['setar'][0] === $multiFirst['roles']['A_multi'], 'Setar cursor is independent of Tar and also starts at A: '.wp_json_encode($multiFirst));
-dzn_stress_assert($multiFirst['totals']['A_multi'] === 2 && $multiFirst['totals']['B_setar'] === 1 && $multiFirst['totals']['C_tar'] === 1, 'Two cycles of Tar and Setar should give A two and the specialists one each: '.wp_json_encode($multiFirst));
-dzn_stress_assert($multiLast['sequence']['tar'][0] === $multiLast['roles']['C_tar'], 'When A has the highest id, Tar starts at C');
-dzn_stress_assert($multiLast['sequence']['setar'][0] === $multiLast['roles']['B_setar'], 'When A has the highest id, Setar starts at B');
-dzn_stress_assert($multiLast['sequence']['tar'][1] === $multiLast['roles']['A_multi'] && $multiLast['sequence']['setar'][1] === $multiLast['roles']['A_multi'], 'A then receives the second lesson in each independent instrument cycle');
+// Cross-instrument policy: the first Setar offer goes to the idle Setar
+// specialist, not to the multi-instrument Teacher who already holds the Tar offer.
+dzn_stress_assert($multiFirst['sequence']['tar'][0] === $multiFirst['roles']['A_multi'], 'The first Tar offer goes to the lowest-id strong Teacher while every workload is equal: '.wp_json_encode($multiFirst));
+dzn_stress_assert($multiFirst['sequence']['setar'][0] === $multiFirst['roles']['B_setar'], 'The first Setar offer must go to the idle specialist, not to the multi-instrument Teacher who already holds work: '.wp_json_encode($multiFirst));
+dzn_stress_assert($multiFirst['sequence']['tar'][1] === $multiFirst['roles']['C_tar'], 'The second Tar offer must go to the idle Tar specialist rather than the multi-instrument Teacher: '.wp_json_encode($multiFirst));
+dzn_stress_assert($multiFirst['totals']['A_multi'] === 2 && $multiFirst['totals']['B_setar'] === 1 && $multiFirst['totals']['C_tar'] === 1, 'Two cycles of Tar and Setar leave every Teacher within one booking of the others: '.wp_json_encode($multiFirst));
+dzn_stress_assert($multiLast['sequence']['tar'][0] === $multiLast['roles']['C_tar'], 'When A has the highest id, the first Tar offer still goes to the lowest-id strong Teacher');
+dzn_stress_assert($multiLast['sequence']['setar'][0] === $multiLast['roles']['B_setar'], 'When A has the highest id, the first Setar offer goes to the Setar specialist');
+dzn_stress_assert($multiLast['sequence']['tar'][1] === $multiLast['roles']['A_multi'] && $multiLast['sequence']['setar'][1] === $multiLast['roles']['A_multi'], 'A then receives the second lesson at each slot only once it is the least-loaded eligible Teacher');
+foreach (array('multi_first_created' => $multiFirst, 'multi_last_created' => $multiLast) as $label => $result) {
+    $totals = array_values($result['totals']);
+    dzn_stress_assert(max($totals) - min($totals) <= 1, 'Cross-instrument workload spread exceeds one booking for ' . $label . ': ' . wp_json_encode($totals));
+}
 dzn_stress_emit('B_multi_instrument_scope', array(
     'pass' => true,
-    'policy_observed' => 'per-course cursor; fairness is measured separately within each introductory instrument',
+    'policy_observed' => 'weighted workload is equalised across every introductory instrument, then the per-course cursor breaks the tie',
     'multi_first_created' => $multiFirst,
     'multi_last_created' => $multiLast,
-    'implication' => 'Total introductory workload is not equalised across Teachers with different instrument portfolios',
+    'implication' => 'Total introductory workload is equalised across Teachers with different instrument portfolios; a multi-instrument Teacher is not given one independent turn per instrument',
 ));

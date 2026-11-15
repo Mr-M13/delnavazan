@@ -55,8 +55,8 @@ $idRequest = dzn_stress_request($student, $idCourse['instrument_id'], $idCourse[
 $idOffer = dzn_stress_allocate($idRequest['request_id'], $idCourse['course_id'], dzn_stress_times_for_allocation($idRequest['request_id']));
 $out['teacher_id_vs_preference'] = array('low' => $low['teacher_id'], 'high' => $high['teacher_id'], 'offered_teacher' => $idOffer['teacher_id'] ?? null, 'offered_time_id' => $idOffer['requested_time_id'] ?? null);
 
-// Match strength is stored but does not rank Teachers: the lower-id "possible"
-// Teacher is selected over the higher-id "strong" Teacher.
+// Match strength is the first ordering key: the higher-id strong match is
+// selected over the lower-id possible match even though both are eligible.
 $strengthCourse = dzn_stress_course($suffix, 'f-strength', 'F Match Strength');
 $possible = dzn_stress_teacher($suffix, 'F Possible Teacher', array($strengthCourse['course_id']), array('timezone' => 'UTC', 'ranges' => array(array('10:00:00', '10:45:00')), 'state' => 'requestable'));
 $strong = dzn_stress_teacher($suffix, 'F Strong Teacher', array($strengthCourse['course_id']), array('timezone' => 'UTC', 'ranges' => array(array('09:00:00', '09:45:00')), 'state' => 'preferred'));
@@ -67,9 +67,10 @@ $out['match_strength'] = array('possible_teacher' => $possible['teacher_id'], 's
 dzn_stress_assert($out['first_preference']['offered_time_id'] === $out['first_preference']['requested_time_ids'][0], 'The earliest covered preference must be offered');
 dzn_stress_assert($out['third_preference']['offered_time_id'] === $out['third_preference']['requested_time_ids'][2], 'A later covered preference must be used when earlier preferences are uncovered');
 dzn_stress_assert($out['ordered_windows']['offered_time_id'] === $out['ordered_windows']['requested_time_ids'][0], 'Preference order must break ties within one Teacher');
-dzn_stress_assert($out['teacher_id_vs_preference']['offered_teacher'] === $low['teacher_id'], 'Teacher id ordering, not preference index, selected the Teacher');
-dzn_stress_assert($out['match_strength']['offered_teacher'] === $possible['teacher_id'], 'The lower-id possible match is selected before the higher-id strong match');
-dzn_stress_assert($out['match_strength']['offered_match_strength'] === 'possible', 'The offer records the weaker match strength');
+dzn_stress_assert($out['teacher_id_vs_preference']['offered_teacher'] === $low['teacher_id'], 'Among equally strong candidates the deterministic round-robin tie-break selected the expected Teacher');
+dzn_stress_assert($out['match_strength']['offered_teacher'] === $strong['teacher_id'], 'The stronger match must be offered before the lower-id possible match');
+dzn_stress_assert($out['match_strength']['offered_match_strength'] === 'strong', 'The offer records the strong match strength');
+dzn_stress_assert($out['match_strength']['offered_time_id'] === $out['match_strength']['requested_time_ids'][0], 'The strong match offers the preference its stronger coverage covers');
 
 // Explicit claim of an unmatched request outside declared availability.
 $claimCourse = dzn_stress_course($suffix, 'f-claim', 'F Claim');

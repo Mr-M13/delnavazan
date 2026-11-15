@@ -533,33 +533,54 @@ function dzn_stress_teacher_double_bookings(): int {
  * fallback for a row that has no requested time at all (which the toolkit then
  * reports as malformed instead of ignoring).
  */
-function dzn_stress_confirmed_occupancy(): array {
+function dzn_stress_confirmed_occupancy(array $teacherIds = array()): array {
     global $wpdb;
     $p = $wpdb->prefix . 'dzn_';
-    return (array) $wpdb->get_results(
+    $rows = (array) $wpdb->get_results(
         "SELECT c.id,c.teacher_id,c.booking_request_id,c.starts_at_utc,
                 COALESCE(rt.occupied_ends_at_utc,c.ends_at_utc) occupied_ends_at_utc
          FROM {$p}booking_request_confirmations c
          LEFT JOIN {$p}booking_request_requested_times rt ON rt.id=c.requested_time_id AND rt.booking_request_id=c.booking_request_id
          WHERE c.state NOT IN ('failed','cancelled')"
     );
+    return dzn_stress_scope_teachers($rows, $teacherIds);
 }
 
 /** Live pending offers, which hold Teacher capacity before a confirmation exists. */
-function dzn_stress_pending_occupancy(): array {
+function dzn_stress_pending_occupancy(array $teacherIds = array()): array {
     global $wpdb;
     $p = $wpdb->prefix . 'dzn_';
-    return (array) $wpdb->get_results(
+    $rows = (array) $wpdb->get_results(
         "SELECT o.id,o.teacher_id,o.booking_request_id,rt.starts_at_utc,rt.occupied_ends_at_utc
          FROM {$p}booking_allocation_offers o
          LEFT JOIN {$p}booking_request_requested_times rt ON rt.id=o.requested_time_id AND rt.booking_request_id=o.booking_request_id
          WHERE o.state='pending' AND o.active_slot=1"
     );
+    return dzn_stress_scope_teachers($rows, $teacherIds);
+}
+
+/**
+ * Restrict occupancy rows to a Teacher population.
+ *
+ * A capacity violation can only exist inside one Teacher, so scoping by Teacher
+ * is exact: it cannot hide a real overlap, because both halves of an overlap
+ * always share that Teacher. It matters because some fixtures deliberately
+ * inject overlapping offers to test a race; a global count would report those
+ * intended faults as violations of an unrelated level.
+ */
+function dzn_stress_scope_teachers(array $rows, array $teacherIds): array {
+    $want = array();
+    foreach ($teacherIds as $id) { $id = (int) $id; if ($id > 0) $want[$id] = true; }
+    if (!$want) return $rows;
+    return array_values(array_filter($rows, static function ($row) use ($want): bool {
+        $row = (array) $row;
+        return isset($want[(int) ($row['teacher_id'] ?? 0)]);
+    }));
 }
 
 /** Full classification: hard violations plus the informational offer counts. */
-function dzn_stress_capacity_report(): array {
-    return dzn_capacity_violations(dzn_stress_confirmed_occupancy(), dzn_stress_pending_occupancy());
+function dzn_stress_capacity_report(array $teacherIds = array()): array {
+    return dzn_capacity_violations(dzn_stress_confirmed_occupancy($teacherIds), dzn_stress_pending_occupancy($teacherIds));
 }
 
 /**
@@ -568,18 +589,18 @@ function dzn_stress_capacity_report(): array {
  * offers over-committing one Teacher. Competing offers across Teachers are not
  * a violation and are reported separately by dzn_stress_competing_pending_offers().
  */
-function dzn_stress_capacity_violations(): int {
-    return (int) dzn_stress_capacity_report()['hard_count'];
+function dzn_stress_capacity_violations(array $teacherIds = array()): int {
+    return (int) dzn_stress_capacity_report($teacherIds)['hard_count'];
 }
 
 /** Live offers holding the same student slot open at more than one Teacher. */
-function dzn_stress_competing_pending_offers(): int {
-    return count(dzn_stress_capacity_report()['competing_pending']);
+function dzn_stress_competing_pending_offers(array $teacherIds = array()): int {
+    return count(dzn_stress_capacity_report($teacherIds)['competing_pending']);
 }
 
 /** Privacy-safe description of every hard violation, for the audit record. */
-function dzn_stress_capacity_violation_detail(): array {
-    $report = dzn_stress_capacity_report();
+function dzn_stress_capacity_violation_detail(array $teacherIds = array()): array {
+    $report = dzn_stress_capacity_report($teacherIds);
     return array(
         'confirmed_overlaps' => array_map('dzn_capacity_describe', $report['confirmed_overlaps']),
         'pending_over_confirmed' => array_map('dzn_capacity_describe', $report['pending_over_confirmed']),

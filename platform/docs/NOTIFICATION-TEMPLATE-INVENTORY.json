@@ -1,0 +1,3919 @@
+{
+    "generated_at": "2026-11-15T11:31:12+00:00",
+    "catalogue_version": "2026-11-15.1",
+    "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
+    "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
+    "totals": {
+        "events": 74,
+        "supported_event_channel_combinations": 173,
+        "required_templates": 346,
+        "existing_valid_templates": 346,
+        "missing_templates": 0,
+        "invalid_templates": 0,
+        "missing_translations": 0,
+        "unpublished_canonical_templates": "live_check_required",
+        "missing_provider_mappings": 24,
+        "unsupported_routes": 123,
+        "events_without_registered_producer": 13
+    },
+    "by_category": {
+        "security": 2,
+        "lesson": 35,
+        "booking": 13,
+        "account": 13,
+        "payment": 11
+    },
+    "by_recipient": {
+        "student": 37,
+        "teacher": 22,
+        "admin": 14,
+        "guardian": 1
+    },
+    "events_per_channel": {
+        "email": 67,
+        "whatsapp": 38,
+        "sms": 6,
+        "website": 62
+    },
+    "implementation": {
+        "implemented": 51,
+        "partial": 20,
+        "declared": 3
+    },
+    "events_without_registered_producer": [
+        "lesson.access.student",
+        "lesson.cancelled.student",
+        "lesson.reminder.student",
+        "payment.failed.student",
+        "payment.recovered.student",
+        "refund.resolved.student",
+        "refund.review_required.student",
+        "renewal.automatic_charged.student",
+        "renewal.automatic_failed.student",
+        "renewal.automatic_upcoming.student",
+        "renewal.guarantee_deadline_approaching.student",
+        "renewal.manual_payment_required.student",
+        "renewal.term_lapsed.student"
+    ],
+    "events_with_outstanding_review": {
+        "account.claim_issued.student": [
+            "security"
+        ],
+        "payment.failed.student": [
+            "financial",
+            "legal"
+        ],
+        "payment.recovered.student": [
+            "financial",
+            "legal"
+        ],
+        "refund.resolved.student": [
+            "financial",
+            "legal"
+        ],
+        "refund.review_required.student": [
+            "financial",
+            "legal"
+        ],
+        "renewal.automatic_charged.student": [
+            "financial",
+            "legal"
+        ],
+        "renewal.automatic_failed.student": [
+            "financial",
+            "legal"
+        ],
+        "renewal.automatic_upcoming.student": [
+            "financial",
+            "legal"
+        ],
+        "renewal.guarantee_deadline_approaching.student": [
+            "financial",
+            "legal"
+        ],
+        "renewal.manual_payment_required.student": [
+            "financial",
+            "legal"
+        ],
+        "renewal.term_lapsed.student": [
+            "financial",
+            "legal"
+        ],
+        "teacher.invitation_issued.teacher": [
+            "security",
+            "dedicated_authority"
+        ]
+    },
+    "whatsapp_routes_without_registry_mapping": [
+        "account.claim_issued.student",
+        "payment.failed.student",
+        "refund.resolved.student",
+        "refund.review_required.student",
+        "renewal.automatic_charged.student",
+        "renewal.automatic_failed.student",
+        "renewal.guarantee_deadline_approaching.student",
+        "renewal.term_lapsed.student",
+        "reschedule.change.cancelled.student",
+        "reschedule.change.cancelled.teacher",
+        "reschedule.change.failed.student",
+        "reschedule.change.failed.teacher",
+        "reschedule.change.proposed.teacher",
+        "reschedule.change.rejected.teacher",
+        "reschedule.replacement.accepted.student",
+        "reschedule.replacement.accepted.teacher",
+        "reschedule.replacement.cancelled.student",
+        "reschedule.replacement.cancelled.teacher",
+        "reschedule.replacement.failed.student",
+        "reschedule.replacement.failed.teacher",
+        "reschedule.replacement.proposed.student",
+        "reschedule.replacement.proposed.teacher",
+        "reschedule.replacement.rejected.student",
+        "reschedule.replacement.rejected.teacher"
+    ],
+    "whatsapp_registry": [
+        {
+            "provider_template": "delnavazan_booking_confirmation_fa",
+            "event_key": "booking.requested.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "when"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_intro_confirmed_fa",
+            "event_key": "booking.confirmed.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "teacher",
+                "when"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_class_rescheduled_fa",
+            "event_key": "reschedule.change.accepted.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "teacher",
+                "previous_when",
+                "new_when"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_class_reminder_fa",
+            "event_key": "lesson.reminder.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "teacher",
+                "when"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_request_fa",
+            "event_key": "reschedule.change.proposed.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "teacher",
+                "course",
+                "current_when",
+                "new_when"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_enrolment_confirmation_fa",
+            "event_key": "post_intro.activated.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "teacher"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_payment_due_fa",
+            "event_key": "renewal.manual_payment_required.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "amount",
+                "course",
+                "due_date"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_payment_received_fa",
+            "event_key": "payment.recovered.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "amount",
+                "course",
+                "paid_date"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_renewal_reminder_fa",
+            "event_key": "renewal.automatic_upcoming.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "due_date",
+                "amount"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_class_cancelled_fa",
+            "event_key": "lesson.cancelled.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "teacher",
+                "when"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_teacher_new_booking_fa",
+            "event_key": "booking.new.teacher",
+            "audience": "teacher",
+            "variable_order": [
+                "teacher",
+                "course",
+                "student",
+                "when"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_teacher_schedule_change_fa",
+            "event_key": "reschedule.change.accepted.teacher",
+            "audience": "teacher",
+            "variable_order": [
+                "teacher",
+                "course",
+                "student",
+                "previous_when",
+                "new_when"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_rejected_fa",
+            "event_key": "reschedule.change.rejected.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "teacher",
+                "when"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_class_access_fa",
+            "event_key": "lesson.access.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "teacher",
+                "when"
+            ]
+        }
+    ],
+    "unsupported_routes": [
+        "account.claim_issued.student.website",
+        "attendance.absence_reported.teacher.whatsapp",
+        "attendance.absence_reported.teacher.sms",
+        "attendance.missed_class_claim.teacher.whatsapp",
+        "attendance.missed_class_claim.teacher.sms",
+        "booking.cancelled.student.whatsapp",
+        "booking.cancelled.student.sms",
+        "booking.cancelled.teacher.whatsapp",
+        "booking.cancelled.teacher.sms",
+        "booking.confirmed.student.sms",
+        "booking.declined.student.whatsapp",
+        "booking.declined.student.sms",
+        "booking.escalation.admin.email",
+        "booking.escalation.admin.whatsapp",
+        "booking.escalation.admin.sms",
+        "booking.expired.teacher.email",
+        "booking.expired.teacher.whatsapp",
+        "booking.expired.teacher.sms",
+        "booking.referral.admin.email",
+        "booking.referral.admin.whatsapp",
+        "booking.referral.admin.sms",
+        "booking.rescheduled.student.whatsapp",
+        "booking.rescheduled.student.sms",
+        "booking.rescheduled.teacher.whatsapp",
+        "booking.rescheduled.teacher.sms",
+        "consent.admin_attention.admin.email",
+        "consent.admin_attention.admin.whatsapp",
+        "consent.admin_attention.admin.sms",
+        "consent.guardian_required.guardian.whatsapp",
+        "consent.guardian_required.guardian.sms",
+        "consent.policy_updated.student.whatsapp",
+        "consent.policy_updated.student.sms",
+        "consent.policy_updated.teacher.whatsapp",
+        "consent.policy_updated.teacher.sms",
+        "consent.recorded.student.email",
+        "consent.recorded.student.whatsapp",
+        "consent.recorded.student.sms",
+        "consent.recorded.teacher.email",
+        "consent.recorded.teacher.whatsapp",
+        "consent.recorded.teacher.sms",
+        "consent.student_required.student.whatsapp",
+        "consent.student_required.student.sms",
+        "consent.teacher_required.teacher.whatsapp",
+        "consent.teacher_required.teacher.sms",
+        "consent.withdrawal_confirmed.student.whatsapp",
+        "consent.withdrawal_confirmed.student.sms",
+        "consent.withdrawal_confirmed.teacher.whatsapp",
+        "consent.withdrawal_confirmed.teacher.sms",
+        "payment.failed.student.sms",
+        "payment.recovered.student.sms",
+        "post_intro.activated.student.sms",
+        "post_intro.activated.teacher.whatsapp",
+        "post_intro.activated.teacher.sms",
+        "post_intro.invitation.student.whatsapp",
+        "post_intro.invitation.student.sms",
+        "post_intro.survey.student.whatsapp",
+        "post_intro.survey.student.sms",
+        "refund.resolved.student.sms",
+        "refund.review_required.student.sms",
+        "renewal.automatic_charged.student.sms",
+        "renewal.automatic_failed.student.sms",
+        "renewal.automatic_upcoming.student.sms",
+        "renewal.guarantee_deadline_approaching.student.sms",
+        "renewal.manual_payment_required.student.sms",
+        "renewal.reminder.student.whatsapp",
+        "renewal.reminder.student.sms",
+        "renewal.term_lapsed.student.sms",
+        "reschedule.change.accepted.admin.website",
+        "reschedule.change.accepted.admin.whatsapp",
+        "reschedule.change.accepted.admin.sms",
+        "reschedule.change.accepted.student.sms",
+        "reschedule.change.accepted.teacher.sms",
+        "reschedule.change.cancelled.admin.website",
+        "reschedule.change.cancelled.admin.whatsapp",
+        "reschedule.change.cancelled.admin.sms",
+        "reschedule.change.cancelled.student.sms",
+        "reschedule.change.cancelled.teacher.sms",
+        "reschedule.change.failed.admin.website",
+        "reschedule.change.failed.admin.whatsapp",
+        "reschedule.change.failed.admin.sms",
+        "reschedule.change.failed.student.sms",
+        "reschedule.change.failed.teacher.sms",
+        "reschedule.change.proposed.admin.website",
+        "reschedule.change.proposed.admin.whatsapp",
+        "reschedule.change.proposed.admin.sms",
+        "reschedule.change.proposed.student.sms",
+        "reschedule.change.proposed.teacher.sms",
+        "reschedule.change.rejected.admin.website",
+        "reschedule.change.rejected.admin.whatsapp",
+        "reschedule.change.rejected.admin.sms",
+        "reschedule.change.rejected.student.sms",
+        "reschedule.change.rejected.teacher.sms",
+        "reschedule.replacement.accepted.admin.website",
+        "reschedule.replacement.accepted.admin.whatsapp",
+        "reschedule.replacement.accepted.admin.sms",
+        "reschedule.replacement.accepted.student.sms",
+        "reschedule.replacement.accepted.teacher.sms",
+        "reschedule.replacement.cancelled.admin.website",
+        "reschedule.replacement.cancelled.admin.whatsapp",
+        "reschedule.replacement.cancelled.admin.sms",
+        "reschedule.replacement.cancelled.student.sms",
+        "reschedule.replacement.cancelled.teacher.sms",
+        "reschedule.replacement.failed.admin.website",
+        "reschedule.replacement.failed.admin.whatsapp",
+        "reschedule.replacement.failed.admin.sms",
+        "reschedule.replacement.failed.student.sms",
+        "reschedule.replacement.failed.teacher.sms",
+        "reschedule.replacement.proposed.admin.website",
+        "reschedule.replacement.proposed.admin.whatsapp",
+        "reschedule.replacement.proposed.admin.sms",
+        "reschedule.replacement.proposed.student.sms",
+        "reschedule.replacement.proposed.teacher.sms",
+        "reschedule.replacement.rejected.admin.website",
+        "reschedule.replacement.rejected.admin.whatsapp",
+        "reschedule.replacement.rejected.admin.sms",
+        "reschedule.replacement.rejected.student.sms",
+        "reschedule.replacement.rejected.teacher.sms",
+        "system.inbox_check.admin.email",
+        "system.inbox_check.admin.whatsapp",
+        "system.inbox_check.admin.sms",
+        "teacher.invitation_issued.teacher.website",
+        "teacher.invitation_issued.teacher.whatsapp",
+        "teacher.invitation_issued.teacher.sms"
+    ],
+    "invalid_templates": [],
+    "events": [
+        {
+            "event_key": "account.claim_issued.student",
+            "notification": "Student Account Invitation",
+            "category": "security",
+            "task": "accounts_onboarding",
+            "recipient": "student",
+            "producer": "StudentAccountClaimNotificationService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "canonical",
+            "channels": [
+                "email",
+                "whatsapp",
+                "sms"
+            ],
+            "review_outstanding": [
+                "security"
+            ],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "account.claim_issued.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "account.claim_issued.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "account.claim_issued.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "account.claim_issued.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "account.claim_issued.student.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "account.claim_issued.student.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "event_owned_route"
+            }
+        },
+        {
+            "event_key": "attendance.absence_reported.teacher",
+            "notification": "Student Absence Notice",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "teacher",
+            "producer": "CanonicalAttendanceNotificationService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "attendance.absence_reported.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "attendance.absence_reported.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "attendance.absence_reported.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "attendance.absence_reported.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "attendance.missed_class_claim.teacher",
+            "notification": "Missed Class Claim",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "teacher",
+            "producer": "CanonicalAttendanceNotificationService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "attendance.missed_class_claim.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "attendance.missed_class_claim.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "attendance.missed_class_claim.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "attendance.missed_class_claim.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "booking.cancelled.student",
+            "notification": "Intro Lesson Cancelled",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "student",
+            "producer": "IntroLessonLifecycleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "booking.cancelled.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.cancelled.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "booking.cancelled.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.cancelled.student.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "booking.cancelled.teacher",
+            "notification": "Intro Lesson Cancelled",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "teacher",
+            "producer": "IntroLessonLifecycleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "booking.cancelled.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.cancelled.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "booking.cancelled.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.cancelled.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "booking.confirmed.student",
+            "notification": "Intro Lesson Confirmed",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "student",
+            "producer": "BookingCalendarProjectionService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "booking.confirmed.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.confirmed.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "booking.confirmed.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.confirmed.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "booking.confirmed.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "booking.confirmed.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": "delnavazan_intro_confirmed_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "booking.declined.student",
+            "notification": "Intro Lesson Declined",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "student",
+            "producer": "BookingTeacherResponseService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "booking.declined.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.declined.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "booking.declined.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.declined.student.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "booking.escalation.admin",
+            "notification": "Intro Booking Escalated",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "admin",
+            "producer": "BookingAllocationWorker",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "booking.escalation.admin.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.escalation.admin.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "booking.expired.teacher",
+            "notification": "Intro Offer Expired",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "teacher",
+            "producer": "BookingAllocationWorker",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "booking.expired.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.expired.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "booking.new.teacher",
+            "notification": "New Booking for Teacher",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "teacher",
+            "producer": "BookingTeacherDeliveryService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp",
+                "sms"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "booking.new.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.new.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "booking.new.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.new.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "booking.new.teacher.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "booking.new.teacher.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "booking.new.teacher.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "booking.new.teacher.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": "delnavazan_teacher_new_booking_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
+                "sms_state": "event_owned_route"
+            }
+        },
+        {
+            "event_key": "booking.referral.admin",
+            "notification": "Intro Booking Needs Coordination",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "admin",
+            "producer": "BookingAllocationWorker",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "booking.referral.admin.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.referral.admin.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "booking.requested.student",
+            "notification": "Intro Lesson Request Received",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "student",
+            "producer": "BookingRequestSubmissionService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp",
+                "sms"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "booking.requested.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.requested.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "booking.requested.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.requested.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "booking.requested.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "booking.requested.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "booking.requested.student.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "booking.requested.student.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": "delnavazan_booking_confirmation_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
+                "sms_state": "event_owned_route"
+            }
+        },
+        {
+            "event_key": "booking.rescheduled.student",
+            "notification": "Intro Lesson Rescheduled",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "student",
+            "producer": "IntroLessonLifecycleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "booking.rescheduled.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.rescheduled.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "booking.rescheduled.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.rescheduled.student.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "booking.rescheduled.teacher",
+            "notification": "Intro Lesson Rescheduled",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "teacher",
+            "producer": "IntroLessonLifecycleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "booking.rescheduled.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.rescheduled.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "booking.rescheduled.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.rescheduled.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "consent.admin_attention.admin",
+            "notification": "Consent Action Required",
+            "category": "account",
+            "task": "accounts_onboarding",
+            "recipient": "admin",
+            "producer": "ConsentNotificationService",
+            "producer_registered": true,
+            "implementation": "partial",
+            "delivery_authority": "queue",
+            "channels": [
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "consent.admin_attention.admin.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "consent.admin_attention.admin.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "consent.guardian_required.guardian",
+            "notification": "Guardian Consent Required",
+            "category": "account",
+            "task": "accounts_onboarding",
+            "recipient": "guardian",
+            "producer": "ConsentNotificationService",
+            "producer_registered": true,
+            "implementation": "partial",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "consent.guardian_required.guardian.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "consent.guardian_required.guardian.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "consent.guardian_required.guardian.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "consent.guardian_required.guardian.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "consent.policy_updated.student",
+            "notification": "Student Consent Policy Updated",
+            "category": "account",
+            "task": "accounts_onboarding",
+            "recipient": "student",
+            "producer": "ConsentNotificationService",
+            "producer_registered": true,
+            "implementation": "partial",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "consent.policy_updated.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "consent.policy_updated.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "consent.policy_updated.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "consent.policy_updated.student.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "consent.policy_updated.teacher",
+            "notification": "Teacher Consent Policy Updated",
+            "category": "account",
+            "task": "accounts_onboarding",
+            "recipient": "teacher",
+            "producer": "ConsentNotificationService",
+            "producer_registered": true,
+            "implementation": "partial",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "consent.policy_updated.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "consent.policy_updated.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "consent.policy_updated.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "consent.policy_updated.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "consent.recorded.student",
+            "notification": "Student Consent Recorded",
+            "category": "account",
+            "task": "accounts_onboarding",
+            "recipient": "student",
+            "producer": "ConsentNotificationService",
+            "producer_registered": true,
+            "implementation": "partial",
+            "delivery_authority": "queue",
+            "channels": [
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "consent.recorded.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "consent.recorded.student.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "consent.recorded.teacher",
+            "notification": "Teacher Consent Recorded",
+            "category": "account",
+            "task": "accounts_onboarding",
+            "recipient": "teacher",
+            "producer": "ConsentNotificationService",
+            "producer_registered": true,
+            "implementation": "partial",
+            "delivery_authority": "queue",
+            "channels": [
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "consent.recorded.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "consent.recorded.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "consent.student_required.student",
+            "notification": "Student Consent Required",
+            "category": "account",
+            "task": "accounts_onboarding",
+            "recipient": "student",
+            "producer": "ConsentNotificationService",
+            "producer_registered": true,
+            "implementation": "partial",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "consent.student_required.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "consent.student_required.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "consent.student_required.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "consent.student_required.student.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "consent.teacher_required.teacher",
+            "notification": "Teacher Consent Required",
+            "category": "account",
+            "task": "accounts_onboarding",
+            "recipient": "teacher",
+            "producer": "ConsentNotificationService",
+            "producer_registered": true,
+            "implementation": "partial",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "consent.teacher_required.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "consent.teacher_required.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "consent.teacher_required.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "consent.teacher_required.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "consent.withdrawal_confirmed.student",
+            "notification": "Student Consent Withdrawal Confirmed",
+            "category": "account",
+            "task": "accounts_onboarding",
+            "recipient": "student",
+            "producer": "ConsentNotificationService",
+            "producer_registered": true,
+            "implementation": "partial",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "consent.withdrawal_confirmed.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "consent.withdrawal_confirmed.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "consent.withdrawal_confirmed.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "consent.withdrawal_confirmed.student.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "consent.withdrawal_confirmed.teacher",
+            "notification": "Teacher Consent Withdrawal Confirmed",
+            "category": "account",
+            "task": "accounts_onboarding",
+            "recipient": "teacher",
+            "producer": "ConsentNotificationService",
+            "producer_registered": true,
+            "implementation": "partial",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "consent.withdrawal_confirmed.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "consent.withdrawal_confirmed.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "consent.withdrawal_confirmed.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "consent.withdrawal_confirmed.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "lesson.access.student",
+            "notification": "Class Access Ready",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "student",
+            "producer": "ClassAccessService",
+            "producer_registered": false,
+            "implementation": "declared",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp",
+                "sms"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "lesson.access.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "lesson.access.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "lesson.access.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "lesson.access.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "lesson.access.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "lesson.access.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "lesson.access.student.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "lesson.access.student.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": "delnavazan_class_access_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
+                "sms_state": "event_owned_route"
+            }
+        },
+        {
+            "event_key": "lesson.cancelled.student",
+            "notification": "Class Cancelled",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "student",
+            "producer": "LessonCancellationService",
+            "producer_registered": false,
+            "implementation": "declared",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp",
+                "sms"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "lesson.cancelled.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "lesson.cancelled.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "lesson.cancelled.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "lesson.cancelled.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "lesson.cancelled.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "lesson.cancelled.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "lesson.cancelled.student.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "lesson.cancelled.student.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": "delnavazan_class_cancelled_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
+                "sms_state": "event_owned_route"
+            }
+        },
+        {
+            "event_key": "lesson.reminder.student",
+            "notification": "Class Reminder",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "student",
+            "producer": "LessonReminderService",
+            "producer_registered": false,
+            "implementation": "declared",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp",
+                "sms"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "lesson.reminder.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "lesson.reminder.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "lesson.reminder.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "lesson.reminder.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "lesson.reminder.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "lesson.reminder.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "lesson.reminder.student.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "lesson.reminder.student.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": "delnavazan_class_reminder_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
+                "sms_state": "event_owned_route"
+            }
+        },
+        {
+            "event_key": "payment.failed.student",
+            "notification": "Payment Failed",
+            "category": "payment",
+            "task": "finance_payments",
+            "recipient": "student",
+            "producer": "canonical:PAYMENT_FAILED",
+            "producer_registered": false,
+            "implementation": "partial",
+            "delivery_authority": "canonical",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [
+                "financial",
+                "legal"
+            ],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "payment.failed.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "payment.failed.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "payment.failed.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "payment.failed.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "payment.failed.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "payment.failed.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "payment.recovered.student",
+            "notification": "Payment Recovered",
+            "category": "payment",
+            "task": "finance_payments",
+            "recipient": "student",
+            "producer": "canonical:PAYMENT_RECOVERED",
+            "producer_registered": false,
+            "implementation": "partial",
+            "delivery_authority": "canonical",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [
+                "financial",
+                "legal"
+            ],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "payment.recovered.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "payment.recovered.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "payment.recovered.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "payment.recovered.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "payment.recovered.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "payment.recovered.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": "delnavazan_payment_received_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "post_intro.activated.student",
+            "notification": "Enrolment Activated",
+            "category": "account",
+            "task": "enrolment_booking",
+            "recipient": "student",
+            "producer": "PostIntroActivationService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "post_intro.activated.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "post_intro.activated.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "post_intro.activated.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "post_intro.activated.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "post_intro.activated.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "post_intro.activated.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": "delnavazan_enrolment_confirmation_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "post_intro.activated.teacher",
+            "notification": "New Student Class Activated",
+            "category": "account",
+            "task": "enrolment_booking",
+            "recipient": "teacher",
+            "producer": "PostIntroActivationService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "post_intro.activated.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "post_intro.activated.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "post_intro.activated.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "post_intro.activated.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "post_intro.invitation.student",
+            "notification": "Enrolment Ready",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "student",
+            "producer": "PostIntroPreparationService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "post_intro.invitation.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "post_intro.invitation.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "post_intro.invitation.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "post_intro.invitation.student.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "post_intro.survey.student",
+            "notification": "Enrolment Follow-up",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "student",
+            "producer": "PostIntroSurveyWorker",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "post_intro.survey.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "post_intro.survey.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "post_intro.survey.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "post_intro.survey.student.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "refund.resolved.student",
+            "notification": "Refund Resolved",
+            "category": "payment",
+            "task": "support",
+            "recipient": "student",
+            "producer": "canonical:REFUND_RESOLVED",
+            "producer_registered": false,
+            "implementation": "partial",
+            "delivery_authority": "canonical",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [
+                "financial",
+                "legal"
+            ],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "refund.resolved.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "refund.resolved.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "refund.resolved.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "refund.resolved.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "refund.resolved.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "refund.resolved.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "refund.review_required.student",
+            "notification": "Refund Under Review",
+            "category": "payment",
+            "task": "support",
+            "recipient": "student",
+            "producer": "canonical:REFUND_REVIEW_REQUIRED",
+            "producer_registered": false,
+            "implementation": "partial",
+            "delivery_authority": "canonical",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [
+                "financial",
+                "legal"
+            ],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "refund.review_required.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "refund.review_required.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "refund.review_required.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "refund.review_required.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "refund.review_required.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "refund.review_required.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "renewal.automatic_charged.student",
+            "notification": "Automatic Renewal Charged",
+            "category": "payment",
+            "task": "renewals",
+            "recipient": "student",
+            "producer": "canonical:AUTOMATIC_RENEWAL_CHARGED",
+            "producer_registered": false,
+            "implementation": "partial",
+            "delivery_authority": "canonical",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [
+                "financial",
+                "legal"
+            ],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "renewal.automatic_charged.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "renewal.automatic_charged.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "renewal.automatic_charged.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "renewal.automatic_charged.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "renewal.automatic_charged.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "renewal.automatic_charged.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "renewal.automatic_failed.student",
+            "notification": "Automatic Renewal Failed",
+            "category": "payment",
+            "task": "renewals",
+            "recipient": "student",
+            "producer": "canonical:AUTOMATIC_RENEWAL_FAILED",
+            "producer_registered": false,
+            "implementation": "partial",
+            "delivery_authority": "canonical",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [
+                "financial",
+                "legal"
+            ],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "renewal.automatic_failed.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "renewal.automatic_failed.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "renewal.automatic_failed.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "renewal.automatic_failed.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "renewal.automatic_failed.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "renewal.automatic_failed.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "renewal.automatic_upcoming.student",
+            "notification": "Automatic Renewal Upcoming",
+            "category": "payment",
+            "task": "renewals",
+            "recipient": "student",
+            "producer": "canonical:AUTOMATIC_RENEWAL_UPCOMING",
+            "producer_registered": false,
+            "implementation": "partial",
+            "delivery_authority": "canonical",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [
+                "financial",
+                "legal"
+            ],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "renewal.automatic_upcoming.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "renewal.automatic_upcoming.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "renewal.automatic_upcoming.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "renewal.automatic_upcoming.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "renewal.automatic_upcoming.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "renewal.automatic_upcoming.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": "delnavazan_renewal_reminder_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "renewal.guarantee_deadline_approaching.student",
+            "notification": "Renewal Deadline Approaching",
+            "category": "payment",
+            "task": "renewals",
+            "recipient": "student",
+            "producer": "canonical:GUARANTEE_DEADLINE_APPROACHING",
+            "producer_registered": false,
+            "implementation": "partial",
+            "delivery_authority": "canonical",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [
+                "financial",
+                "legal"
+            ],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "renewal.guarantee_deadline_approaching.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "renewal.guarantee_deadline_approaching.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "renewal.guarantee_deadline_approaching.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "renewal.guarantee_deadline_approaching.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "renewal.guarantee_deadline_approaching.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "renewal.guarantee_deadline_approaching.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "renewal.manual_payment_required.student",
+            "notification": "Renewal Payment Required",
+            "category": "payment",
+            "task": "renewals",
+            "recipient": "student",
+            "producer": "canonical:MANUAL_RENEWAL_PAYMENT_REQUIRED",
+            "producer_registered": false,
+            "implementation": "partial",
+            "delivery_authority": "canonical",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [
+                "financial",
+                "legal"
+            ],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "renewal.manual_payment_required.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "renewal.manual_payment_required.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "renewal.manual_payment_required.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "renewal.manual_payment_required.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "renewal.manual_payment_required.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "renewal.manual_payment_required.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": "delnavazan_payment_due_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "renewal.reminder.student",
+            "notification": "Term Renewal Reminder",
+            "category": "payment",
+            "task": "renewals",
+            "recipient": "student",
+            "producer": "RenewalReminderWorker",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "renewal.reminder.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "renewal.reminder.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "renewal.reminder.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "renewal.reminder.student.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "renewal.term_lapsed.student",
+            "notification": "Term Lapsed",
+            "category": "payment",
+            "task": "renewals",
+            "recipient": "student",
+            "producer": "canonical:TERM_LAPSED",
+            "producer_registered": false,
+            "implementation": "partial",
+            "delivery_authority": "canonical",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [
+                "financial",
+                "legal"
+            ],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "renewal.term_lapsed.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "renewal.term_lapsed.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "renewal.term_lapsed.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "renewal.term_lapsed.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "renewal.term_lapsed.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "renewal.term_lapsed.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.change.accepted.admin",
+            "notification": "Admin · Lesson Change · Proposal Accepted",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "admin",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.change.accepted.admin.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.change.accepted.admin.email.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.change.accepted.student",
+            "notification": "Lesson Change · Accepted · Student",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "student",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.change.accepted.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.change.accepted.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.change.accepted.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.change.accepted.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.change.accepted.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.change.accepted.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": "delnavazan_class_rescheduled_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.change.accepted.teacher",
+            "notification": "Lesson Change · Accepted · Teacher",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "teacher",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.change.accepted.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.change.accepted.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.change.accepted.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.change.accepted.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.change.accepted.teacher.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.change.accepted.teacher.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": "delnavazan_teacher_schedule_change_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.change.cancelled.admin",
+            "notification": "Admin · Lesson Change · Proposal Cancelled",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "admin",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.change.cancelled.admin.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.change.cancelled.admin.email.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.change.cancelled.student",
+            "notification": "Lesson Change · Cancelled · Student",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "student",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.change.cancelled.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.change.cancelled.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.change.cancelled.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.change.cancelled.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.change.cancelled.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.change.cancelled.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.change.cancelled.teacher",
+            "notification": "Lesson Change · Cancelled · Teacher",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "teacher",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.change.cancelled.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.change.cancelled.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.change.cancelled.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.change.cancelled.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.change.cancelled.teacher.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.change.cancelled.teacher.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.change.failed.admin",
+            "notification": "Admin · Lesson Change · Proposal Closed",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "admin",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.change.failed.admin.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.change.failed.admin.email.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.change.failed.student",
+            "notification": "Lesson Change · Failed · Student",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "student",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.change.failed.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.change.failed.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.change.failed.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.change.failed.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.change.failed.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.change.failed.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.change.failed.teacher",
+            "notification": "Lesson Change · Failed · Teacher",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "teacher",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.change.failed.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.change.failed.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.change.failed.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.change.failed.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.change.failed.teacher.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.change.failed.teacher.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.change.proposed.admin",
+            "notification": "Admin · Lesson Change · Proposal Created",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "admin",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.change.proposed.admin.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.change.proposed.admin.email.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.change.proposed.student",
+            "notification": "Lesson Change · Proposed · Student",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "student",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.change.proposed.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.change.proposed.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.change.proposed.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.change.proposed.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.change.proposed.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.change.proposed.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": "delnavazan_reschedule_request_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.change.proposed.teacher",
+            "notification": "Lesson Change · Proposed · Teacher",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "teacher",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.change.proposed.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.change.proposed.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.change.proposed.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.change.proposed.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.change.proposed.teacher.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.change.proposed.teacher.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.change.rejected.admin",
+            "notification": "Admin · Lesson Change · Proposal Rejected",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "admin",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.change.rejected.admin.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.change.rejected.admin.email.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.change.rejected.student",
+            "notification": "Lesson Change · Rejected · Student",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "student",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.change.rejected.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.change.rejected.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.change.rejected.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.change.rejected.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.change.rejected.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.change.rejected.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": "delnavazan_reschedule_rejected_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.change.rejected.teacher",
+            "notification": "Lesson Change · Rejected · Teacher",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "teacher",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.change.rejected.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.change.rejected.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.change.rejected.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.change.rejected.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.change.rejected.teacher.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.change.rejected.teacher.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.replacement.accepted.admin",
+            "notification": "Admin · Replacement Session · Proposal Accepted",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "admin",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.replacement.accepted.admin.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.replacement.accepted.admin.email.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.replacement.accepted.student",
+            "notification": "Replacement Session · Accepted · Student",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "student",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.replacement.accepted.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.replacement.accepted.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.replacement.accepted.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.replacement.accepted.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.replacement.accepted.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.replacement.accepted.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.replacement.accepted.teacher",
+            "notification": "Replacement Session · Accepted · Teacher",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "teacher",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.replacement.accepted.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.replacement.accepted.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.replacement.accepted.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.replacement.accepted.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.replacement.accepted.teacher.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.replacement.accepted.teacher.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.replacement.cancelled.admin",
+            "notification": "Admin · Replacement Session · Proposal Cancelled",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "admin",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.replacement.cancelled.admin.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.replacement.cancelled.admin.email.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.replacement.cancelled.student",
+            "notification": "Replacement Session · Cancelled · Student",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "student",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.replacement.cancelled.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.replacement.cancelled.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.replacement.cancelled.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.replacement.cancelled.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.replacement.cancelled.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.replacement.cancelled.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.replacement.cancelled.teacher",
+            "notification": "Replacement Session · Cancelled · Teacher",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "teacher",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.replacement.cancelled.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.replacement.cancelled.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.replacement.cancelled.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.replacement.cancelled.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.replacement.cancelled.teacher.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.replacement.cancelled.teacher.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.replacement.failed.admin",
+            "notification": "Admin · Replacement Session · Proposal Closed",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "admin",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.replacement.failed.admin.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.replacement.failed.admin.email.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.replacement.failed.student",
+            "notification": "Replacement Session · Failed · Student",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "student",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.replacement.failed.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.replacement.failed.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.replacement.failed.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.replacement.failed.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.replacement.failed.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.replacement.failed.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.replacement.failed.teacher",
+            "notification": "Replacement Session · Failed · Teacher",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "teacher",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.replacement.failed.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.replacement.failed.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.replacement.failed.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.replacement.failed.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.replacement.failed.teacher.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.replacement.failed.teacher.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.replacement.proposed.admin",
+            "notification": "Admin · Replacement Session · Proposal Created",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "admin",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.replacement.proposed.admin.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.replacement.proposed.admin.email.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.replacement.proposed.student",
+            "notification": "Replacement Session · Proposed · Student",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "student",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.replacement.proposed.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.replacement.proposed.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.replacement.proposed.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.replacement.proposed.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.replacement.proposed.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.replacement.proposed.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.replacement.proposed.teacher",
+            "notification": "Replacement Session · Proposed · Teacher",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "teacher",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.replacement.proposed.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.replacement.proposed.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.replacement.proposed.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.replacement.proposed.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.replacement.proposed.teacher.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.replacement.proposed.teacher.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.replacement.rejected.admin",
+            "notification": "Admin · Replacement Session · Proposal Rejected",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "admin",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.replacement.rejected.admin.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.replacement.rejected.admin.email.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.replacement.rejected.student",
+            "notification": "Replacement Session · Rejected · Student",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "student",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.replacement.rejected.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.replacement.rejected.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.replacement.rejected.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.replacement.rejected.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.replacement.rejected.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.replacement.rejected.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "reschedule.replacement.rejected.teacher",
+            "notification": "Replacement Session · Rejected · Teacher",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "teacher",
+            "producer": "LessonRescheduleService",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "email",
+                "website",
+                "whatsapp"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "reschedule.replacement.rejected.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "reschedule.replacement.rejected.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "reschedule.replacement.rejected.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "reschedule.replacement.rejected.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "reschedule.replacement.rejected.teacher.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "reschedule.replacement.rejected.teacher.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "system.inbox_check.admin",
+            "notification": "Portal Notification Check",
+            "category": "account",
+            "task": "system",
+            "recipient": "admin",
+            "producer": "notification_management",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "system.inbox_check.admin.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "system.inbox_check.admin.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "teacher.invitation_issued.teacher",
+            "notification": "Teacher Invitation",
+            "category": "security",
+            "task": "accounts_onboarding",
+            "recipient": "teacher",
+            "producer": "TeacherInvitationDeliveryWorker",
+            "producer_registered": true,
+            "implementation": "implemented",
+            "delivery_authority": "dedicated",
+            "channels": [
+                "email"
+            ],
+            "review_outstanding": [
+                "security",
+                "dedicated_authority"
+            ],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "teacher.invitation_issued.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "teacher.invitation_issued.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        }
+    ],
+    "live_checks_outstanding": [
+        "wpvr_dzn_notification_templates row count and active versions",
+        "dzn_notification_catalogue_seeded option presence",
+        "dzn_notification_copy_drafts and dzn_notification_copy_versions option presence",
+        "dzn_notification_event_enabled and dzn_notification_event_channels option values",
+        "Telnyx/Meta template approval status for every registry entry",
+        "Which provider templates were rejected (the account-claim template was rejected at last inspection)",
+        "Integrated provider configuration for email, WhatsApp and each SMS route"
+    ]
+}

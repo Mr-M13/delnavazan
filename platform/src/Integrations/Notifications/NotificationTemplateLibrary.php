@@ -235,7 +235,8 @@ final class NotificationTemplateLibrary {
      * Prepare reviewable copy without sending, publishing or changing channel enablement.
      * Only exact-locale catalogue defaults are used; an absent English translation is
      * reported rather than silently copying Persian into the English template.
-     * Existing drafts and active versions are never overwritten.
+     * Existing drafts and active versions are never overwritten. Repeating the action is a no-op
+     * because every produced row is counted as existing on the second pass.
      *
      * @return array{created:int,existing:int,missing:array<int,string>,invalid:array<int,string>}
      */
@@ -247,11 +248,15 @@ final class NotificationTemplateLibrary {
             foreach((array)$event['channels'] as $channel){
                 foreach(NotificationCatalogue::SUPPORTED_LOCALES as $locale){
                     $key=NotificationCatalogue::templateKey($eventKey,$channel,$locale);
-                    $working=$this->workingCopy($eventKey,$channel,$locale);
-                    if($working['draft']!==null||($working['active']['source']??'')==='published'){
+                    // Only the exact language counts. A Persian fallback must never satisfy an English
+                    // template, otherwise an English recipient would receive Persian copy.
+                    $draftRow=$this->draft($eventKey,$channel,$locale);
+                    $identity=$this->identity($eventKey,$channel,$locale);
+                    $active=$identity?$this->repository->activeVersion((int)$identity->id):null;
+                    if($draftRow!==null||$active!==null){
                         $existing++;continue;
                     }
-                    $copy=$event['defaults'][$locale][$channel]??null;
+                    $copy=NotificationCatalogue::exactCopy($eventKey,$channel,$locale);
                     if(!is_array($copy)||trim((string)($copy['body']??''))===''){
                         $missing[]=$key;continue;
                     }
@@ -265,6 +270,105 @@ final class NotificationTemplateLibrary {
             }
         }
         return array('created'=>$created,'existing'=>$existing,'missing'=>$missing,'invalid'=>$invalid);
+    }
+
+    /**
+     * Whether the bulk workflow may publish a prepared draft.
+     *
+     * Bulk publishing is limited to copy whose approvals are already in place. Financial, legal,
+     * security, dedicated-authority and unapproved-provider copy stays review-only and must be
+     * published individually by an administrator who has read it. This gate only governs the bulk
+     * action: it never blocks the individual editor and it never enables a delivery channel.
+     *
+     * @return array{allowed:bool,reason:string}
+     */
+    public function draftReviewPolicy(string $eventKey,string $channel,string $locale):array{
+        $event=NotificationCatalogue::get($eventKey);
+        if($event===null)return array('allowed'=>false,'reason'=>'Unknown notification event.');
+        $review=NotificationCatalogue::reviewFor($eventKey);
+        if(in_array('dedicated_authority',$review,true))return array('allowed'=>false,'reason'=>'This message is owned by a dedicated secure delivery authority.');
+        if(in_array('financial',$review,true)||in_array('legal',$review,true))return array('allowed'=>false,'reason'=>'Finance and legal approval is outstanding for this copy.');
+        if(in_array('security',$review,true))return array('allowed'=>false,'reason'=>'Security approval is outstanding for this copy.');
+        if($channel==='whatsapp'){
+            $mapping=$this->providerMapping(NotificationCatalogue::templateKey($eventKey,$channel,$locale));
+            if((string)$mapping['name']==='')return array('allowed'=>false,'reason'=>'No approved Meta/Telnyx template is mapped for this route yet.');
+            if(in_array((string)$mapping['authority_state'],array(TelnyxTemplateAuthority::NOT_APPROVED,TelnyxTemplateAuthority::AMBIGUOUS,TelnyxTemplateAuthority::CONTRACT_MISMATCH),true))return array('allowed'=>false,'reason'=>'The provider template is not approved for this route.');
+        }
+        return array('allowed'=>true,'reason'=>'');
+    }
+
+    /**
+     * Publish the drafts that are ready for review-complete activation. Restricted copy is reported
+     * back to the administrator instead of being published silently.
+     *
+     * @return array{published:array<int,string>,blocked:array<int,array{template_key:string,reason:string}>}
+     */
+    public function publishReviewedDrafts():array{
+        $published=array();$blocked=array();
+        foreach($this->drafts() as $key=>$row){
+            if(!is_array($row))continue;
+            $eventKey=(string)($row['event_key']??'');
+            $channel=(string)($row['channel']??'');
+            $locale=NotificationCatalogue::normaliseLocale((string)($row['locale']??''));
+            $policy=$this->draftReviewPolicy($eventKey,$channel,$locale);
+            if(!$policy['allowed']){$blocked[]=array('template_key'=>(string)$key,'reason'=>(string)$policy['reason']);continue;}
+            try{
+                $this->publish($eventKey,$channel,$locale,(string)($row['subject']??''),(string)($row['body']??''),'authored');
+                $published[]=(string)$key;
+            }catch(\Throwable $error){
+                $blocked[]=array('template_key'=>(string)$key,'reason'=>$error->getMessage());
+            }
+        }
+        return array('published'=>$published,'blocked'=>$blocked);
+    }
+
+    /**
+     * The administration-facing readiness inventory. Copy presence is catalogue maths; published
+     * state and provider approval come from the same reads the editor and senders already use.
+     *
+     * @return array{events:int,channel_pairs:int,required:int,copy_present:int,copy_missing:int,drafts:int,blocked_drafts:array<int,array>,unpublished_canonical:array<int,string>,unmapped_whatsapp:array<int,string>,unsupported:array<int,string>,declared_only:array<int,string>}
+     */
+    public function coverageReport():array{
+        $coverage=NotificationCatalogue::coverage();
+        $drafts=0;$blockedDrafts=array();$unpublishedCanonical=array();$unmappedWhatsapp=array();$unsupported=array();$declaredOnly=array();
+        foreach(NotificationCatalogue::events() as $eventKey=>$event){
+            if((string)($event['implementation']??'')==='declared')$declaredOnly[]=$eventKey;
+            foreach(array('website','email','whatsapp','sms') as $channel){
+                if(!in_array($channel,(array)$event['channels'],true)){$unsupported[]=$eventKey.'.'.$channel;continue;}
+                if($channel==='whatsapp'&&(string)($event['authority']??'')!=='dedicated'){
+                    $mapping=$this->providerMapping(NotificationCatalogue::templateKey($eventKey,'whatsapp',NotificationCatalogue::PRIMARY_LOCALE));
+                    if((string)$mapping['name']==='')$unmappedWhatsapp[]=$eventKey;
+                }
+            }
+            if((string)($event['authority']??'')==='canonical'){
+                $identity=$this->identity($eventKey,'email',NotificationCatalogue::PRIMARY_LOCALE);
+                $active=$identity?$this->repository->activeVersion((int)$identity->id):null;
+                if($active===null)$unpublishedCanonical[]=$eventKey;
+            }
+        }
+        foreach($this->drafts() as $key=>$row){
+            if(!is_array($row))continue;
+            $drafts++;
+            $policy=$this->draftReviewPolicy((string)($row['event_key']??''),(string)($row['channel']??''),(string)($row['locale']??''));
+            if(!$policy['allowed'])$blockedDrafts[]=array('template_key'=>(string)$key,'reason'=>(string)$policy['reason']);
+        }
+        sort($unpublishedCanonical);sort($unmappedWhatsapp);sort($unsupported);sort($declaredOnly);
+        return array(
+            'events'=>$coverage['events'],'channel_pairs'=>$coverage['channel_pairs'],'required'=>$coverage['required'],
+            'copy_present'=>$coverage['present'],'copy_missing'=>count($coverage['missing']),
+            'drafts'=>$drafts,'blocked_drafts'=>$blockedDrafts,
+            'unpublished_canonical'=>array_values(array_unique($unpublishedCanonical)),
+            'unmapped_whatsapp'=>array_values(array_unique($unmappedWhatsapp)),
+            'unsupported'=>array_values(array_unique($unsupported)),
+            'declared_only'=>array_values(array_unique($declaredOnly)),
+        );
+    }
+
+    /** @return array<string,array> Saved drafts keyed by template key. */
+    private function drafts():array{
+        $drafts=$this->option(self::OPTION_DRAFTS);
+        foreach($drafts as $key=>$row)if(!is_array($row))unset($drafts[$key]);
+        return $drafts;
     }
 
     public function saveDraft(string $eventKey,string $channel,string $locale,string $subject,string $body):array{

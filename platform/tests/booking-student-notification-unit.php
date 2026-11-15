@@ -110,7 +110,7 @@ namespace {
     $confirmed->row->student_calendar='persian';
     $confirmedResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(82,$confirmed);
     $assert($confirmedResult['state']==='handed_off'&&count($mailCalls)===3,'A confirmed booking must hand off without a Meet secret.');
-    $assert(str_contains($mailCalls[2]['subject'],'کلاس معارفه')&&str_contains($mailCalls[2]['body'],class_exists('IntlCalendar')?'آبان':'زمان کلاس')&&str_contains($mailCalls[2]['body'],'حساب کاربری'),'The confirmation must use the Persian calendar when Intl is available and retain account wording.');
+    $assert(str_contains($mailCalls[2]['subject'],'کلاس آشنایی')&&str_contains($mailCalls[2]['body'],class_exists('IntlCalendar')?'آبان':'زمان کلاس')&&str_contains($mailCalls[2]['body'],'حساب کاربری'),'The confirmation must use the Persian calendar when Intl is available and retain account wording.');
     $assert(!str_contains($mailCalls[2]['body'],'meet.google.com')&&!str_contains($mailCalls[2]['body'],'Google Meet'),'The confirmation email must not expose the Google Meet backup link.');
 
     $teacher=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();

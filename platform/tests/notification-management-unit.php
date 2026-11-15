@@ -285,30 +285,69 @@ namespace {
     $GLOBALS['wpdb'] = new \Delnavazan\Platform\Tests\FakeWpdb();
     $fail = static function (string $name, bool $ok): void { if (!$ok) throw new RuntimeException('Notification management unit failed: ' . $name); };
 
-    /* 1. The catalogue is closed, unique and editorially complete. */
+    /* 1. The catalogue is closed, unique and editorially complete in both supported languages. */
     $events = NotificationCatalogue::events();
     $fail('catalogue is not empty', count($events) >= 25);
+    $persianText = static fn(string $text): bool => preg_match('/[\x{0600}-\x{06FF}]/u', $text) === 1;
+    $placeholders = static function (string $text): array {
+        $found = array();
+        if (preg_match_all('/\{\{([a-z][a-z0-9_]{0,63})\}\}/', $text, $matches)) $found = array_values(array_unique($matches[1]));
+        sort($found);
+        return $found;
+    };
     $templateKeys = array();
+    $languagePairs = 0;
     foreach ($events as $key => $event) {
         $fail('event key shape ' . $key, preg_match('/^[a-z0-9._-]{1,64}$/', $key) === 1);
         $fail('event category ' . $key, isset(NotificationCatalogue::CATEGORIES[$event['category']]));
         $fail('event authority ' . $key, isset(NotificationCatalogue::AUTHORITIES[$event['authority']]));
         $fail('event variables ' . $key, is_array($event['variables']));
         foreach ($event['channels'] as $channel) {
-            $templateKey = NotificationCatalogue::templateKey($key, $channel, 'fa-IR');
-            $fail('template key length ' . $key, strlen($templateKey) <= 64);
-            $fail('template key uniqueness ' . $templateKey, !isset($templateKeys[$templateKey]));
-            $templateKeys[$templateKey] = true;
-            $copy = NotificationCatalogue::defaultCopy($key, $channel, 'fa-IR');
-            $fail('default copy ' . $key . '/' . $channel, is_array($copy) && trim((string) ($copy['body'] ?? '')) !== '');
-            $validated = NotificationTemplateSanitizer::validate($key, $channel, (string) ($copy['subject'] ?? ''), (string) $copy['body']);
-            $fail('default copy validates ' . $key . '/' . $channel . ': ' . implode(' ', $validated['errors']), $validated['ok']);
+            foreach (NotificationCatalogue::SUPPORTED_LOCALES as $locale) {
+                $templateKey = NotificationCatalogue::templateKey($key, $channel, $locale);
+                $fail('template key length ' . $key, strlen($templateKey) <= 64);
+                $fail('template key uniqueness ' . $templateKey, !isset($templateKeys[$templateKey]));
+                $templateKeys[$templateKey] = true;
+                // The exact language must exist: a Persian fallback is never an English template.
+                $copy = NotificationCatalogue::exactCopy($key, $channel, $locale);
+                $fail('exact default copy ' . $templateKey, is_array($copy) && trim((string) ($copy['body'] ?? '')) !== '');
+                $validated = NotificationTemplateSanitizer::validate($key, $channel, (string) ($copy['subject'] ?? ''), (string) $copy['body']);
+                $fail('default copy validates ' . $templateKey . ': ' . implode(' ', $validated['errors']), $validated['ok']);
+                if ($locale === 'en') {
+                    $fail('English copy is not a Persian fallback: ' . $templateKey, !$persianText((string) $copy['body']) && !$persianText((string) ($copy['subject'] ?? '')));
+                } else {
+                    $fail('Persian copy never uses the retired greeting: ' . $templateKey, !str_contains((string) $copy['body'], 'سلام'));
+                    if ($channel === 'email') $fail('Persian email uses the approved greeting: ' . $templateKey, str_contains((string) $copy['body'], 'درود'));
+                }
+                // Both languages must drive the same message contract.
+                $fa = NotificationCatalogue::exactCopy($key, $channel, 'fa-IR');
+                $en = NotificationCatalogue::exactCopy($key, $channel, 'en');
+                if (is_array($fa) && is_array($en)) {
+                    $languagePairs++;
+                    $fail('translation keeps the same placeholders: ' . $templateKey, $placeholders((string) $fa['body']) === $placeholders((string) $en['body']));
+                }
+                // Customer copy never exposes an internal identifier.
+                $fail('copy does not leak the event key: ' . $templateKey, !str_contains((string) $copy['body'], $key) && !str_contains((string) ($copy['subject'] ?? ''), $key));
+            }
         }
         if ($event['category'] === 'security') {
-            $fail('security is mandatory ' . $key, NotificationCatalogue::isMandatory($key));
+            $fail('security is classified sensitive ' . $key, NotificationCatalogue::isMandatory($key));
             $fail('security never enables marketing ' . $key, $event['consent'] === 'security');
         }
     }
+    $coverage = NotificationCatalogue::coverage();
+    $fail('catalogue coverage counts every supported pair', $coverage['required'] === $languagePairs && $coverage['required'] > 0);
+    $fail('no supported template lacks its own copy', $coverage['missing'] === array() && $coverage['present'] === $coverage['required']);
+    foreach ($events as $key => $event) {
+        foreach ($event['channels'] as $channel) {
+            $default = NotificationCatalogue::defaultCopy($key, $channel, 'fa-IR');
+            $fail('Persian default resolves for the sender paths ' . $key . '/' . $channel, is_array($default) && trim((string) $default['body']) !== '');
+        }
+    }
+    $fail('review metadata is only used for known approval codes', array_diff(array_merge(...array_values(array_map(static fn(array $event): array => (array) ($event['review'] ?? array()), $events))), array_keys(NotificationCatalogue::REVIEW)) === array());
+    $fail('financial copy is flagged for finance and legal review', NotificationCatalogue::reviewFor('payment.failed.student') === array('financial', 'legal'));
+    $fail('security copy is flagged for security review', NotificationCatalogue::reviewFor('account.claim_issued.student') === array('security'));
+    $fail('operational copy carries no outstanding review', NotificationCatalogue::reviewFor('booking.confirmed.student') === array());
 
     /* 2. Editorial safety and SMS segmentation. */
     $bad = NotificationTemplateSanitizer::validate('booking.confirmed.student', 'email', 'عنوان', "سلام {{name}}\n<script>alert(1)</script> {{when}} https://x.invalid {{portal_url}}");
@@ -367,16 +406,16 @@ namespace {
     $history = $library->history($event, 'email', 'fa-IR');
     $fail('history keeps both immutable versions', count($history) === 2 && $history[0]['version_number'] === 2 && $history[1]['version_number'] === 1);
     $byNumber = static fn(array $rows, int $number): array => (array) current(array_values(array_filter($rows, static fn(array $row): bool => (int) $row['version_number'] === $number)));
-    $fail('version 1 body is preserved', $byNumber($history, 1)['body_present'] && str_contains((string) $byNumber($history, 1)['body'], 'کلاس معارفه'));
+    $fail('version 1 body is preserved', $byNumber($history, 1)['body_present'] && str_contains((string) $byNumber($history, 1)['body'], 'کلاس آشنایی'));
 
     $rollback = $library->restoreVersion($event, 'email', 'fa-IR', $first['template_version_id']);
     $fail('rollback publishes a new version', $rollback['version_number'] === 3);
-    $fail('rollback content equals version 1', str_contains($library->activeCopy($event, 'email', 'fa-IR')['body'], 'کلاس معارفه'));
+    $fail('rollback content equals version 1', str_contains($library->activeCopy($event, 'email', 'fa-IR')['body'], 'کلاس آشنایی'));
     $fail('version 2 body is unchanged by rollback', str_contains((string) $byNumber($library->history($event, 'email', 'fa-IR'), 2)['body'], 'زمان تازه'));
 
     $restored = $library->restoreDefault($event, 'email', 'fa-IR');
     $fail('restore default creates version 4', $restored['version_number'] === 4);
-    $fail('restore default equals catalogue copy', str_contains($library->activeCopy($event, 'email', 'fa-IR')['body'], 'کلاس معارفه'));
+    $fail('restore default equals catalogue copy', str_contains($library->activeCopy($event, 'email', 'fa-IR')['body'], 'کلاس آشنایی'));
 
     $invalid = false;
     try { $library->publish($event, 'email', 'fa-IR', 'x', 'بدون جای‌نگهدار'); } catch (NotificationTemplateValidationException $error) { $invalid = true; }
@@ -416,10 +455,23 @@ namespace {
     $library->publish($event, 'whatsapp', 'fa-IR', 'عنوان واتس‌اپ', "سلام {{name}} {{when}} {{portal_url}}\nمتن تازهٔ واتس‌اپ");
     $fail('whatsapp copy requires provider approval after publication', $library->status($event, 'whatsapp', 'fa-IR')['provider_state'] === 'approval_required');
 
-    /* 5. Per-event channel controls cannot disable mandatory channels. */
+    /* 5. Every notification and every offered channel is administrator-controlled, including the
+     *    sensitive security, account and payment notices that used to be locked. */
     $claimEmail = false;
     try { $library->saveEventChannel('account.claim_issued.student', 'email', false); } catch (InvalidArgumentException $error) { $claimEmail = true; }
-    $fail('mandatory email stays locked', $claimEmail && $library->eventChannelEnabled('account.claim_issued.student', 'email') === true);
+    $fail('a sensitive notification email can be disabled', !$claimEmail && $library->eventChannelEnabled('account.claim_issued.student', 'email') === false);
+    $fail('a disabled sensitive channel stops dispatch', NotificationChannelPolicy::allows('account.claim_issued.student', 'email') === false);
+    $fail('the sensitive classification is kept as a warning only', NotificationCatalogue::isMandatory('account.claim_issued.student') === true);
+    $library->saveEventChannel('account.claim_issued.student', 'email', true);
+    $fail('re-enabling the sensitive channel restores it', $library->eventChannelEnabled('account.claim_issued.student', 'email') === true);
+    $library->saveEventEnabled('account.claim_issued.student', false);
+    $fail('a sensitive notification can be disabled across all channels', $library->eventEnabled('account.claim_issued.student') === false);
+    $fail('a disabled notification blocks every offered channel', NotificationChannelPolicy::allows('account.claim_issued.student', 'email') === false);
+    $fail('saved channel preferences survive a notification-wide disable', $library->eventChannelEnabled('account.claim_issued.student', 'email') === true);
+    $library->saveEventEnabled('account.claim_issued.student', true);
+    $fail('re-enabling a notification restores its saved channel preferences', NotificationChannelPolicy::allows('account.claim_issued.student', 'email') === true);
+    $auditActions = array_column($library->auditLog(40), 'action');
+    $fail('administrator changes are audited', in_array('disable_event', $auditActions, true) && in_array('disable_channel', $auditActions, true) && in_array('enable_event', $auditActions, true));
     $fail('claim event declares WhatsApp and SMS for explicit future activation', $library->channelOffered('account.claim_issued.student', 'whatsapp') && $library->channelOffered('account.claim_issued.student', 'sms'));
     $claimWhatsApp = $library->status('account.claim_issued.student', 'whatsapp', 'fa-IR');
     $fail('a disabled channel is not advertised as active', !in_array('whatsapp', $library->permittedChannels('account.claim_issued.student'), true));
@@ -507,6 +559,76 @@ namespace {
     $readyOff = $stateMethod->invoke(null, $library, $event, 'website');
     $fail('a ready off channel remains enableable', $readyOff['state'] === 'disabled' && empty($readyOff['enable_blocked']) && $blockerMethod->invoke(null, $library, $event, 'website') === null);
     $library->saveEventChannel($event, 'website', true);
+
+    /* 11. The publishable workflow: preparation is idempotent, restricted copy stays review-only,
+     *     immutable history is preserved and publishing never enables a delivery channel. */
+    $prepared = $library->prepareMissingCatalogueDrafts();
+    $fail('every supported template can be prepared as a reviewable draft', $prepared['missing'] === array() && $prepared['invalid'] === array());
+    $fail('preparation created the missing drafts', $prepared['created'] > 0);
+    $again = $library->prepareMissingCatalogueDrafts();
+    $fail('bulk draft preparation is idempotent', $again['created'] === 0 && $again['existing'] > 0 && $again['missing'] === array());
+    $fail('dedicated one-time-secret copy is never prepared here', $library->workingCopy('teacher.invitation_issued.teacher', 'email', 'fa-IR')['draft'] === null);
+    $fail('an English draft is prepared from English copy', is_string((string) ($library->workingCopy('lesson.reminder.student', 'email', 'en')['draft']['body'] ?? '')) && str_contains((string) $library->workingCopy('lesson.reminder.student', 'email', 'en')['draft']['body'], 'Hello'));
+    $fail('financial drafts await finance and legal approval', $library->draftReviewPolicy('payment.failed.student', 'email', 'fa-IR')['allowed'] === false && str_contains($library->draftReviewPolicy('payment.failed.student', 'email', 'fa-IR')['reason'], 'Finance'));
+    $fail('security drafts await security approval', $library->draftReviewPolicy('account.claim_issued.student', 'email', 'en')['allowed'] === false);
+    $fail('unmapped WhatsApp drafts await provider approval', $library->draftReviewPolicy('lesson.reminder.student', 'whatsapp', 'fa-IR')['allowed'] === false && str_contains($library->draftReviewPolicy('lesson.reminder.student', 'whatsapp', 'fa-IR')['reason'], 'Meta'));
+    $fail('operational drafts are publishable', $library->draftReviewPolicy('booking.declined.student', 'email', 'fa-IR')['allowed'] === true);
+    $historyBefore = count($library->history('booking.declined.student', 'email', 'fa-IR'));
+    $bulk = $library->publishReviewedDrafts();
+    $blockedKeys = array_column($bulk['blocked'], 'template_key');
+    $fail('bulk publishing activates approved operational copy', in_array('booking.declined.student.email.fa-IR', $bulk['published'], true));
+    $fail('bulk publishing still adds exactly one immutable version per template', count($library->history('booking.declined.student', 'email', 'fa-IR')) === $historyBefore + 1);
+    $fail('financial drafts are never bulk-published', in_array('payment.failed.student.email.fa-IR', $blockedKeys, true));
+    $fail('security drafts are never bulk-published', in_array('account.claim_issued.student.email.fa-IR', $blockedKeys, true));
+    $fail('provider-pending drafts are never bulk-published', in_array('lesson.reminder.student.whatsapp.fa-IR', $blockedKeys, true));
+    $fail('publishing a template never enables its channel', $library->eventChannelEnabled('booking.declined.student', 'website') === true && $library->eventChannelEnabled('lesson.reminder.student', 'whatsapp') === false);
+    $publishedAgain = $library->publishReviewedDrafts();
+    $fail('a second bulk publish does not duplicate versions', in_array('booking.declined.student.email.fa-IR', $publishedAgain['published'], true) === false && count($library->history('booking.declined.student', 'email', 'fa-IR')) === $historyBefore + 1);
+    $coverage = $library->coverageReport();
+    $fail('the coverage report accounts for every supported template', $coverage['required'] === $coverage['copy_present'] && $coverage['copy_missing'] === 0);
+    $fail('the coverage report keeps canonical gaps visible', in_array('payment.failed.student', $coverage['unpublished_canonical'], true));
+    $fail('the coverage report classifies unsupported routes separately', in_array('booking.confirmed.student.sms', $coverage['unsupported'], true));
+
+    /* 12. Exhaustive administration matrix: every catalogue event and every offered channel can be
+     *     switched off, and suppression is consulted during hand-off rather than only at enqueue. */
+    $seenEvents = 0;
+    foreach (NotificationCatalogue::events() as $matrixEvent => $matrixDefinition) {
+        $seenEvents++;
+        $library->saveEventEnabled($matrixEvent, false);
+        $fail('every notification can be disabled: ' . $matrixEvent, $library->eventEnabled($matrixEvent) === false);
+        foreach ((array) $matrixDefinition['channels'] as $matrixChannel) {
+            $fail('a disabled notification never dispatches: ' . $matrixEvent . '/' . $matrixChannel, NotificationChannelPolicy::allows($matrixEvent, (string) $matrixChannel) === false);
+        }
+        $library->saveEventEnabled($matrixEvent, true);
+        $fail('every notification can be enabled again: ' . $matrixEvent, $library->eventEnabled($matrixEvent) === true);
+        foreach ((array) $matrixDefinition['channels'] as $matrixChannel) {
+            $library->saveEventChannel($matrixEvent, (string) $matrixChannel, false);
+            $fail('every offered channel can be disabled: ' . $matrixEvent . '/' . $matrixChannel, $library->eventChannelEnabled($matrixEvent, (string) $matrixChannel) === false);
+            $fail('a disabled channel never dispatches: ' . $matrixEvent . '/' . $matrixChannel, NotificationChannelPolicy::allows($matrixEvent, (string) $matrixChannel) === false);
+            if ($matrixEvent === 'account.claim_issued.student' && in_array($matrixChannel, array('whatsapp', 'sms'), true)) continue;
+            $library->saveEventChannel($matrixEvent, (string) $matrixChannel, true);
+            $fail('a re-enabled channel preference is restored: ' . $matrixEvent . '/' . $matrixChannel, $library->eventChannelEnabled($matrixEvent, (string) $matrixChannel) === true);
+        }
+    }
+    $fail('the administration matrix covers the whole catalogue', $seenEvents === count($events));
+
+    $transportSource = (string) file_get_contents(dirname(__DIR__) . '/src/Integrations/Notifications/CompositeNotificationTransport.php');
+    $fail('canonical hand-off re-applies the administrator policy', str_contains($transportSource, 'private function allowed') && str_contains($transportSource, 'channelPolicy'));
+    $studentWorker = (string) file_get_contents(dirname(__DIR__) . '/src/Integrations/BookingStudentNotificationWorker.php');
+    $fail('the booking queue re-checks the switch at dispatch time', str_contains($studentWorker, "eventChannelEnabled(\$eventKey,'email')") && str_contains($studentWorker, 'email_disabled_by_administrator'));
+    $allocationWorker = (string) file_get_contents(dirname(__DIR__) . '/src/Integrations/BookingAllocationNotificationWorker.php');
+    $fail('the allocation queue re-checks the switch at dispatch time', str_contains($allocationWorker, "eventChannelEnabled('booking.new.teacher','email')"));
+    $mobileSource = (string) file_get_contents(dirname(__DIR__) . '/src/Integrations/BookingNotificationMobileDispatcher.php');
+    $fail('SMS keeps its own administrator switch', str_contains($mobileSource, "\$this->allowed(\$eventKey, 'sms')"));
+    $fail('SMS is never triggered by a WhatsApp outcome', str_contains($mobileSource, '!$whatsappAttempted') && str_contains($mobileSource, '!$studentWhatsAppPreferred'));
+    $fail('SMS copy is resolved independently of WhatsApp', str_contains($mobileSource, "NotificationCopyResolver::message(\$eventKey, 'sms'"));
+    $controllerSource = (string) file_get_contents(dirname(__DIR__) . '/src/Admin/Controller/NotificationManagementController.php');
+    $fail('SMS is presented as an independent method, never a fallback', !str_contains($controllerSource, 'SMS fallback') && !str_contains($controllerSource, 'WhatsApp → SMS') && !str_contains($controllerSource, 'notification_event_mandatory'));
+    $fail('the workspace never claims a locked mandatory channel', !str_contains($controllerSource, 'cannot disable all channels') && !str_contains($controllerSource, 'Mandatory and locked'));
+    $fail('the restricted account-claim mobile route is still refused', (static function () use ($library): bool {
+        try { $library->saveEventChannel('account.claim_issued.student', 'whatsapp', true); } catch (InvalidArgumentException $error) { return $error->getMessage() === 'notification_channel_secure_route'; }
+        return false;
+    })());
 
     echo "Notification management unit passed\n";
 }

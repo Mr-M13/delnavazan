@@ -152,6 +152,10 @@ jobs:
           php platform/tests/booking-teacher-delivery-unit.php
           php platform/tests/intro-recurring-slot-override-policy-unit.php
           php platform/tests/booking-allocation-unit.php
+          php platform/tests/booking-allocation-workload-unit.php
+          php platform/tests/booking-engine-capacity-unit.php
+          php platform/tests/booking-engine-scenario-date-unit.php
+          bash platform/tests/booking-stress-runner-contract.sh
           php platform/tests/booking-teacher-response-contract.php
           php platform/tests/teacher-intro-opportunity-board-contract.php
           php platform/tests/intro-recurring-slot-override-contract.php
@@ -885,6 +889,62 @@ jobs:
           DZN_RUNTIME_STATE_DIR: /tmp/dzn-booking-release-runtime
           DZN_COMPOSE_PROJECT: dzn-booking-release-runtime
           DZN_WP_PORT: 18088
+        run: platform/runtime/bin/destroy.sh YES || true
+
+  # Whole-corpus booking stress and allocation fairness. This is the only job that
+  # runs the multi-process harness, so it is the slow one: request volumes
+  # 50/100/500/1000 (scenario A) plus the 2-100 worker matrix, crash recovery,
+  # idempotent replay and partial-overlap contention. Raw evidence is published as
+  # an artifact and never committed; the runner writes it under the disposable
+  # state directory, which the disposable-path guard keeps outside the checkout.
+  booking-stress-runtime:
+    name: Booking stress runtime and fairness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      DZN_RUNTIME_STATE_DIR: /tmp/dzn-booking-stress-runtime
+      DZN_COMPOSE_PROJECT: dzn-booking-stress-runtime
+      DZN_WP_PORT: 18090
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Preload disposable runtime images
+        run: |
+          docker pull mariadb:11.4
+          docker pull wordpress:php8.3-apache
+          docker pull wordpress:cli-php8.3
+      - name: Provision disposable WordPress and MariaDB
+        run: platform/runtime/bin/reset-disposable.sh
+      - name: Run booking stress suite
+        run: platform/runtime/bin/run-booking-engine-stress.sh
+      - name: Publish allocation fairness and safety summary
+        if: always()
+        run: |
+          set -Eeuo pipefail
+          dir="$DZN_RUNTIME_STATE_DIR/booking-stress-evidence/$DZN_COMPOSE_PROJECT"
+          {
+            echo '## Booking stress evidence'
+            echo ''
+            echo '### Fairness and safety audit lines'
+            echo '```'
+            grep -h '^AUDIT_RESULT ' "$dir"/scenario-*.log 2>/dev/null || echo 'no scenario output captured'
+            echo '```'
+          } >"$RUNNER_TEMP/booking-stress-summary.md"
+          cat "$RUNNER_TEMP/booking-stress-summary.md" >>"$GITHUB_STEP_SUMMARY"
+      - name: Upload raw booking stress evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: booking-stress-evidence
+          path: /tmp/dzn-booking-stress-runtime/booking-stress-evidence
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Dispose runtime
+        if: always()
         run: platform/runtime/bin/destroy.sh YES || true
 
   oauth-scope-database-regression:

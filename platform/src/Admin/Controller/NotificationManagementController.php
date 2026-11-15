@@ -121,13 +121,13 @@ final class NotificationManagementController {
         usort($rows,static fn(array $left,array $right):int=>strcmp($left['key'],$right['key']));
         if($rows===array()){echo '<p>No notification event matches these filters.</p>';return;}
         echo '<p class="dzn-notif-meta">'.esc_html((string)count($rows)).' event(s) match. Delivery controls apply to each event; consent and legally required delivery safeguards remain enforced.</p>';
-        echo '<table class="widefat striped dzn-notif-table"><thead><tr><th>Category</th><th>Notification and purpose</th><th>Recipient</th><th>Portal</th><th>Email</th><th>WhatsApp</th><th>SMS</th></tr></thead><tbody>';
+        echo '<table class="widefat striped dzn-notif-table"><thead><tr><th>Category</th><th>Notification and purpose</th><th>Recipient</th><th>All channels</th><th>Portal</th><th>Email</th><th>WhatsApp</th><th>SMS</th></tr></thead><tbody>';
         $groups=array();
         foreach($rows as $row)$groups[$row['family']!==''?'family:'.$row['family']:'event:'.$row['key']][]=$row;
         foreach($groups as $groupKey=>$groupRows){
             if(str_starts_with($groupKey,'family:')){
                 $label=substr($groupKey,7);
-                echo '<tr class="dzn-notif-family"><td colspan="7"><details><summary><strong>'.esc_html($label).'</strong> ('.count($groupRows).' entries)</summary><table class="widefat striped dzn-notif-table"><thead><tr><th>Category</th><th>Notification and purpose</th><th>Recipient</th><th>Portal</th><th>Email</th><th>WhatsApp</th><th>SMS</th></tr></thead><tbody>';
+                echo '<tr class="dzn-notif-family"><td colspan="8"><details><summary><strong>'.esc_html($label).'</strong> ('.count($groupRows).' entries)</summary><table class="widefat striped dzn-notif-table"><thead><tr><th>Category</th><th>Notification and purpose</th><th>Recipient</th><th>All channels</th><th>Portal</th><th>Email</th><th>WhatsApp</th><th>SMS</th></tr></thead><tbody>';
                 foreach($groupRows as $row)self::renderEventRow($row,$library);
                 echo '</tbody></table></details></td></tr>';
             }else self::renderEventRow($groupRows[0],$library);
@@ -156,6 +156,22 @@ final class NotificationManagementController {
         $eventKey=$row['key'];$event=$row['event'];$category=NotificationCatalogue::CATEGORIES[(string)($event['category']??'')]??array('label'=>(string)($event['category']??''),'description'=>'');
         echo '<tr><td>'.esc_html((string)$category['label']).'</td><td><strong>'.esc_html((string)($event['label']??$eventKey)).'</strong><br><span class="dzn-notif-meta">'.esc_html((string)($event['purpose']??$category['description']??'')).'</span><details><summary>Technical detail</summary><code dir="ltr">'.esc_html($eventKey).'</code></details></td>';
         echo '<td>'.esc_html(self::audienceLabel((string)($event['audience']??''))).'</td>';
+        $eventEnabled=$library->eventEnabled($eventKey);
+        $mandatory=NotificationCatalogue::isMandatory($eventKey);
+        echo '<td>';
+        if($mandatory){
+            echo '<span class="dzn-badge is-ok">Required</span><div class="dzn-notif-meta">Mandatory safeguard; cannot disable all channels.</div>';
+        }else{
+            echo '<span class="dzn-badge '.($eventEnabled?'is-ok':'is-warn').'">'.($eventEnabled?'Enabled':'All channels disabled').'</span>';
+            if(self::canEdit()){
+                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="enabled" value="'.($eventEnabled?'0':'1').'">';
+                foreach(self::tableContext() as $contextKey=>$contextValue)echo '<input type="hidden" name="filter_'.esc_attr($contextKey).'" value="'.esc_attr((string)$contextValue).'">';
+                wp_nonce_field('dzn_notification_event_toggle');
+                echo '<button class="button button-small" type="submit">'.($eventEnabled?'Disable all channels':'Enable notification').'</button></form>';
+            }
+            if(!$eventEnabled)echo '<div class="dzn-notif-meta">Saved channel preferences are retained.</div>';
+        }
+        echo '</td>';
         foreach(array('website','email','whatsapp','sms') as $channel){
             $state=$row['states'][$channel];
             echo '<td><div><span class="dzn-badge '.esc_attr($state['state']==='enabled'?'is-ok':($state['state']==='unsupported'?'':'is-warn')).'">'.esc_html($state['label']).'</span></div>';
@@ -468,7 +484,7 @@ final class NotificationManagementController {
         $enabled=isset($_POST['enabled'])&&(string)$_POST['enabled']==='1';
         try{
             (new NotificationTemplateLibrary())->saveEventEnabled($eventKey,$enabled);
-            self::flash('success',$enabled?'Optional notification event enabled.':'Optional notification event disabled.');
+            self::flash('success',$enabled?'Notification enabled; previous channel preferences retained.':'Notification disabled across all channels; preferences retained.');
         }catch(\Throwable $error){self::flash('error',self::eventToggleError($error->getMessage()));}
         self::redirectBack('events',self::postTableContext());
     }
@@ -613,6 +629,7 @@ final class NotificationManagementController {
     }
     private static function effectiveChannelState(NotificationTemplateLibrary $library,string $eventKey,string $channel):array{
         if(!$library->channelOffered($eventKey,$channel))return array('state'=>'unsupported','label'=>'Unsupported','reason'=>'Not offered for this event.');
+        if(!$library->eventEnabled($eventKey))return array('state'=>'disabled','label'=>'Notification disabled','reason'=>'All channels are switched off for this notification.');
         $locked=(NotificationCatalogue::isMandatory($eventKey)&&in_array($channel,array('email','website'),true))||($eventKey==='account.claim_issued.student'&&in_array($channel,array('whatsapp','sms'),true));
         $blocker=self::channelBlocker($library,$eventKey,$channel);
         if(!$locked&&!$library->eventChannelEnabled($eventKey,$channel)){

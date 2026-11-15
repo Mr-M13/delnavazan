@@ -36,7 +36,20 @@ $assert( $deliveryStates === array( 'accepting', 'expired' ), 'The winning deliv
 $offerStates = $wpdb->get_col( $wpdb->prepare( "SELECT state FROM {$p}booking_allocation_offers WHERE booking_request_id IN ($placeholders) ORDER BY id", $requestIds ) );
 sort( $offerStates );
 $assert( $offerStates === array( 'accepted', 'capacity_lost' ), 'The winning offer must be accepted and the losing offer retired with capacity_lost' );
-$assert( (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$p}booking_allocation_offers WHERE teacher_id=%d AND state='pending' AND active_slot=1", (int) $state['teacher_id'] ) ) === 0, 'No stale pending offer may remain after a winning acceptance' );
+$slot = $wpdb->get_row( $wpdb->prepare( "SELECT starts_at_utc,occupied_ends_at_utc FROM {$p}booking_request_requested_times WHERE booking_request_id=%d ORDER BY sequence_number LIMIT 1", $requestIds[0] ) );
+$staleRows = (array) $wpdb->get_results(
+    $wpdb->prepare(
+        "SELECT o.id,o.booking_request_id,o.teacher_id,o.state,o.active_slot,rt.starts_at_utc,rt.occupied_ends_at_utc
+           FROM {$p}booking_allocation_offers o
+           INNER JOIN {$p}booking_request_requested_times rt ON rt.id=o.requested_time_id AND rt.booking_request_id=o.booking_request_id
+          WHERE o.teacher_id=%d AND o.state='pending' AND o.active_slot=1
+            AND o.booking_request_id NOT IN ($placeholders)
+            AND rt.starts_at_utc<%s AND rt.occupied_ends_at_utc>%s",
+        (int) $state['teacher_id'], $requestIds[0], $requestIds[1], (string) $slot->occupied_ends_at_utc, (string) $slot->starts_at_utc
+    ),
+    ARRAY_A
+);
+$assert( $staleRows === array(), 'No stale pending offer may remain for the winning Teacher and interval: ' . wp_json_encode( $staleRows ) );
 $acceptanceOne = $result( 'acceptance', 'w1' );
 $acceptanceTwo = $result( 'acceptance', 'w2' );
 $assert( ( $acceptanceOne['ok'] === true ) !== ( $acceptanceTwo['ok'] === true ), 'Exactly one simultaneous acceptance must succeed' );

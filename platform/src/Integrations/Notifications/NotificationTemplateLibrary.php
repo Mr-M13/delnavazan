@@ -127,7 +127,6 @@ final class NotificationTemplateLibrary {
     /** The per-event control supplements category defaults; it never overrides a legal safeguard. */
     public function eventChannelEnabled(string $eventKey,string $channel):bool{
         if(!$this->channelOffered($eventKey,$channel))return false;
-        if(NotificationCatalogue::isMandatory($eventKey)&&in_array($channel,array('email','website'),true))return true;
         if($eventKey==='account.claim_issued.student'&&in_array($channel,array('whatsapp','sms'),true))return false;
         $saved=$this->option(self::OPTION_EVENT_CHANNELS);
         if(isset($saved[$eventKey])&&array_key_exists($channel,(array)$saved[$eventKey]))return !empty($saved[$eventKey][$channel]);
@@ -139,7 +138,6 @@ final class NotificationTemplateLibrary {
     public function saveEventChannel(string $eventKey,string $channel,bool $enabled):array{
         $event=NotificationCatalogue::get($eventKey);
         if($event===null||!in_array($channel,(array)$event['channels'],true))throw new \InvalidArgumentException('notification_channel_unknown');
-        if(NotificationCatalogue::isMandatory($eventKey)&&in_array($channel,array('email','website'),true)&&!$enabled)throw new \InvalidArgumentException('notification_channel_required');
         // The discovered account-claim WhatsApp template is rejected. One-time account claims must
         // remain on their dedicated secure email route until a separately reviewed authority exists.
         if($enabled&&$eventKey==='account.claim_issued.student'&&in_array($channel,array('whatsapp','sms'),true))throw new \InvalidArgumentException('notification_channel_secure_route');
@@ -466,7 +464,6 @@ final class NotificationTemplateLibrary {
      */
     public function eventEnabled(string $eventKey):bool{
         if(NotificationCatalogue::get($eventKey)===null)return false;
-        if(NotificationCatalogue::isMandatory($eventKey))return true;
         $saved=$this->option(self::OPTION_EVENT_ENABLED);
         return !array_key_exists($eventKey,$saved)||!empty($saved[$eventKey]);
     }
@@ -480,7 +477,6 @@ final class NotificationTemplateLibrary {
 
     public function saveEventEnabled(string $eventKey,bool $enabled):array{
         if(NotificationCatalogue::get($eventKey)===null)throw new \InvalidArgumentException('notification_event_unknown');
-        if(NotificationCatalogue::isMandatory($eventKey)&&!$enabled)throw new \InvalidArgumentException('notification_event_mandatory');
         $saved=$this->option(self::OPTION_EVENT_ENABLED);
         $saved[$eventKey]=$enabled;
         $this->putOption(self::OPTION_EVENT_ENABLED,$saved);

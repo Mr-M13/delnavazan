@@ -7709,3 +7709,24 @@ button.dzn-button:disabled:hover {
 .dzn-notification-banner__dismiss-label{font-size:.78rem;font-weight:700;line-height:1}
 .dzn-notification-banner__close:focus-visible,.dzn-notification-banner__link:focus-visible{outline:2px solid var(--dzn-color-focus, #0e8c8c);outline-offset:2px}
 @media(max-width:47.99rem){.dzn-notification-banner{position:static;inset:auto;z-index:auto;display:block;pointer-events:auto;margin-block:0 1rem}.dzn-notification-banner__inner{inline-size:100%;flex-wrap:wrap;gap:.45rem .65rem;padding:.65rem .75rem;box-shadow:none}.dzn-notification-banner__eyebrow{flex-basis:100%}.dzn-notification-banner__content{flex:1 1 100%}.dzn-notification-banner__actions{inline-size:100%;justify-content:space-between}.dzn-notification-banner__actions form{margin-inline-start:auto}.dzn-notification-banner__close{min-block-size:2.25rem}.dzn-notification-banner__dismiss-label{font-size:.8rem}}
+
+/* Research article: Persian is always primary; allow Persian glyphs to breathe. */
+.dzn-project__language{overflow:visible}
+.dzn-project__label,.dzn-project__hero h2{line-height:1.65;letter-spacing:normal;padding-block:.15em;overflow:visible}
+.dzn-project__hero h2{font-size:clamp(1.8rem,4.5vw,3rem);margin-block:.6rem 1rem;color:var(--dzn-color-text-secondary)}
+.dzn-project [lang="fa"] h2,.dzn-project [lang="fa"] h3{letter-spacing:normal;line-height:1.8;padding-block:.12em}
+.dzn-project__language>summary{border-radius:12px;line-height:1.8}
+.dzn-project__primary{margin-block-start:1.5rem}
+.dzn-project__primary .dzn-project__document{padding-inline:0}
+.dzn-project__suggestion{margin-block:2rem;padding:clamp(1.1rem,3vw,2rem);border:1px solid var(--dzn-color-border-strong);border-radius:12px;background:var(--dzn-color-surface)}
+.dzn-project__suggestion h2{font-size:clamp(1.3rem,2.5vw,1.8rem);margin-block:0 .5rem}
+.dzn-project__suggestion label{display:block;font-weight:650;margin-block-end:.5rem}
+.dzn-project__suggestion-fields{display:flex;gap:.75rem;align-items:stretch}
+.dzn-project__suggestion-fields input{flex:1;min-inline-size:0;padding:.8rem 1rem;border:1px solid var(--dzn-color-border-strong);border-radius:8px;background:var(--dzn-color-background);font:inherit;line-height:1.8}
+.dzn-project__suggestion-fields .dzn-button{flex-shrink:0;min-block-size:48px}
+.dzn-project__suggestion-note{font-size:.85rem;color:var(--dzn-color-text-muted);margin-block-end:0}
+.dzn-project__feedback{padding:1rem;border-inline-start:3px solid var(--dzn-color-action-primary);background:var(--dzn-color-background)}
+.dzn-project__honeypot{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%)}
+.dzn-project input:focus-visible,.dzn-project button:focus-visible{outline:3px solid var(--dzn-color-action-primary);outline-offset:3px}
+@media(max-width:35rem){.dzn-project__suggestion-fields{flex-direction:column}}
+@media print{.dzn-project__suggestion{display:none}}

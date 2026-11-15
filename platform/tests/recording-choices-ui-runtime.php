@@ -117,8 +117,30 @@ dzn_rda_ui_assert($statusModel['status']==='','the confirmation status must be c
 $_SERVER['REQUEST_URI']='/recording-and-research/';
 dzn_rda_ui_assert(dzn_theme_route()==='recording-and-research','the canonical information URL must resolve as a public route');
 ob_start();dzn_theme_render_recording_information_route();$infoHtml=(string)ob_get_clean();
-foreach(array('Recording and research information','Learning riz: the journey matters','currently disabled','lang="fa"','lang="en"','project-source-1','Privacy policy')as$text)dzn_rda_ui_assert(str_contains($infoHtml,$text),'public information route missing '.$text);
-dzn_rda_ui_assert(!str_contains($infoHtml,'<form'),'Project explanation must not collect permission or activate capture');
+foreach(array('پروژه پژوهشی','Research Project','An example: learning riz on setar','currently disabled','lang="fa"','lang="en"','Privacy policy')as$text)dzn_rda_ui_assert(str_contains($infoHtml,$text),'public information route missing '.$text);
+dzn_rda_ui_assert(substr_count($infoHtml,'<form')===1 && str_contains($infoHtml,'name="action" value="dzn_research_name"'),'Only the project name suggestion form belongs on this page');
+dzn_rda_ui_assert(!str_contains($infoHtml,'dzn_unified_student_consent') && !str_contains($infoHtml,'dzn_unified_teacher_consent'),'Name suggestions must not collect recording or research decisions');
+dzn_rda_ui_assert(str_contains($infoHtml,'<article id="project-fa"') && !preg_match('/<details[^>]*id="project-en"[^>]*\bopen\b/',$infoHtml),'Persian must be an article and English must start collapsed');
+dzn_rda_ui_assert(strpos($infoHtml,'id="project-name"') < strpos($infoHtml,'id="project-fa"') && strpos($infoHtml,'id="project-fa"') < strpos($infoHtml,'id="project-en"'),'Form, Persian and English must appear in that order');
+
+// Exercise the anonymous name intake against real WordPress storage and capabilities.
+$inbox=\Delnavazan\Platform\Public\ResearchNameSuggestionController::class;
+wp_set_current_user(0);
+$input=array('_wpnonce'=>wp_create_nonce($inbox::ACTION),'website'=>'','project_name'=>'هم‌آوا — Research fixture');
+$before=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type=%s",$inbox::POST_TYPE));
+dzn_rda_ui_assert($inbox::receive($input,'192.0.2.50','POST')==='received','Anonymous suggestion must save');
+dzn_rda_ui_assert($inbox::receive($input,'192.0.2.50','POST')==='received','Retry must acknowledge the saved suggestion');
+$after=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type=%s",$inbox::POST_TYPE));
+dzn_rda_ui_assert($after===$before+1,'Retry must not create another suggestion');
+$suggestion=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->posts} WHERE post_type=%s ORDER BY ID DESC LIMIT 1",$inbox::POST_TYPE));
+dzn_rda_ui_assert($suggestion && $suggestion->post_status==='private' && $suggestion->post_title===$input['project_name'] && (int)$suggestion->post_author===0,'Stored suggestion must preserve Persian text and remain anonymous/private');
+dzn_rda_ui_assert(!current_user_can('read_post',(int)$suggestion->ID),'Guests cannot read the private inbox');
+wp_set_current_user($adultUser);
+dzn_rda_ui_assert(!current_user_can('read_post',(int)$suggestion->ID),'Students cannot read the private inbox');
+wp_set_current_user(1);
+dzn_rda_ui_assert(current_user_can('read_post',(int)$suggestion->ID),'Administrator can review suggestions');
+$type=get_post_type_object($inbox::POST_TYPE);
+dzn_rda_ui_assert(!$type->public && !$type->publicly_queryable && !$type->show_in_rest,'Suggestions must not be exposed by public queries or REST');
 $pageId=wp_insert_post(array('post_type'=>'page','post_name'=>'recording-and-research','post_status'=>'publish','post_title'=>'Recording and research information'));
 dzn_rda_ui_assert(!is_wp_error($pageId)&&$pageId>0,'fixture information page failed');
 dzn_rda_ui_assert(dzn_theme_route()==='','a published editor-managed page must take over the canonical slug');

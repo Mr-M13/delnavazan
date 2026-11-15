@@ -19,9 +19,9 @@ docker run --rm --pull=never -u 0 \
   -v "$DZN_PLUGIN_SOURCE:$DZN_PLUGIN_SOURCE:ro" \
   --entrypoint sh "$DZN_CLI_IMAGE" -c '
     set -e
-    rm -rf /var/www/html/wp-content/plugins/delnavazan-platform
+    if [ -L /var/www/html/wp-content/plugins/delnavazan-platform ]; then rm /var/www/html/wp-content/plugins/delnavazan-platform; elif [ -d /var/www/html/wp-content/plugins/delnavazan-platform ]; then find /var/www/html/wp-content/plugins/delnavazan-platform -depth -delete; fi
     cp -a "$1/platform" /var/www/html/wp-content/plugins/delnavazan-platform
-    rm -rf /var/www/html/wp-content/themes/delnavazan-theme
+    if [ -L /var/www/html/wp-content/themes/delnavazan-theme ]; then rm /var/www/html/wp-content/themes/delnavazan-theme; elif [ -d /var/www/html/wp-content/themes/delnavazan-theme ]; then find /var/www/html/wp-content/themes/delnavazan-theme -depth -delete; fi
     cp -a "$1/theme" /var/www/html/wp-content/themes/delnavazan-theme
     chmod -R a+rX /var/www/html/wp-content/plugins/delnavazan-platform /var/www/html/wp-content/themes/delnavazan-theme
   ' sh "$DZN_PLUGIN_SOURCE"
@@ -35,7 +35,7 @@ json="$(printf '%s\n' "$out" | sed -n 's/^DZN_TEACHER_STATEMENT_HTTP=//p' | tail
 [ -n "$json" ] || { echo 'error: runtime did not emit the HTTP handshake' >&2; exit 1; }
 
 tmp="$(mktemp -d)"
-cleanup(){ rm -rf "$tmp"; }
+cleanup(){ test -n "$tmp" && test -d "$tmp" && find "$tmp" -depth -delete; }
 trap cleanup EXIT
 printf '%s' "$json" > "$tmp/handshake.json"
 

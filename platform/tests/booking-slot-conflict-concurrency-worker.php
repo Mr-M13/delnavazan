@@ -90,7 +90,7 @@ try {
         $expectedStart = $slot['local_date'] . ' ' . $slot['local_start_time'] . ':00';
         $expectedEnd = gmdate( 'Y-m-d H:i:s', strtotime( $expectedStart . ' UTC +30 minutes' ) );
         add_filter( 'pre_http_request', static function ( $pre, array $args, string $url ) use ( $expectedStart, $expectedEnd ) {
-            if ( str_contains( $url, '/calendar/v3/calendars/primary/events/abcdef12345' ) ) {
+            if ( str_contains( $url, '/calendar/v3/calendars/primary/events/abcde67890' ) ) {
                 $body = json_decode( (string) ( $args['body'] ?? '' ), true );
                 if ( (string) ( $args['method'] ?? '' ) !== 'PATCH'
                     || ! is_array( $body )
@@ -102,7 +102,7 @@ try {
                 }
                 return array(
                     'headers' => array(),
-                    'body' => wp_json_encode( array( 'id' => 'abcdef12345', 'hangoutLink' => 'https://meet.google.com/abc-defg-hij' ) ),
+                    'body' => wp_json_encode( array( 'id' => 'abcde67890', 'hangoutLink' => 'https://meet.google.com/abc-defg-hij' ) ),
                     'response' => array( 'code' => 200, 'message' => 'OK' ),
                     'cookies' => array(),
                     'filename' => null,

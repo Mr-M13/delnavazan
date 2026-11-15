@@ -80,33 +80,35 @@ as-is. Never invent or claim `composer install`, `npm ci`, `npm run lint`, `npm 
 `npm run build`. The packaging step in `.github/workflows/deploy-production.yml` is a release
 action owned by Codex, not a local build.
 
-Before pushing, every agent runs the checks that apply to its diff, **inside PHP 8.3 containers
-that match CI** whenever Docker is available:
+Before pushing, every agent runs the checks that apply to its diff on **PHP 8.3 with the CI
+extensions**. Native PHP 8.3 is acceptable when `tools/ci/check.sh doctor` matches; the container
+is optional strict parity. Docker is required only for the runtime suites.
 
-- **PHP lint (all tracked PHP, as CI does):**
-
-  ```bash
-  git ls-files -z '*.php' | docker run --rm -i -v "$PWD":/repo -w /repo php:8.3-cli \
-    bash -c 'set -euo pipefail; while IFS= read -r -d "" f; do php -l "$f" >/dev/null || exit 1; done'
-  ```
-
-  A single changed file may be checked with `php -l <file>` instead, but the full lint is the CI
-  equivalent and is preferred before opening a PR.
+- **Toolchain:** `tools/ci/check.sh` wraps the checks. Native-first:
+  - `tools/ci/check.sh lint` — `php -l` every tracked PHP file, then `git diff --check`.
+  - `tools/ci/check.sh contracts platform/tests/<area>-contract.php` — affected contracts
+    (and the matching `-unit.php`).
+  - `tools/ci/check.sh doctor` — prove PHP version and extensions before claiming parity.
+  `lint` covers worktree, index and committed whitespace; `all` is lint plus services and does
+  not run platform contracts, which are targeted explicitly with `contracts`.
+  For container parity, pass the same arguments to `tools/ci/run-in-container.sh`; its image tag
+  is derived from `.devcontainer/Dockerfile`, so changes rebuild instead of reusing a stale image.
+  `.tool-versions` pins PHP 8.3.
 - **Whitespace:** `git diff --check`.
-- **Source contracts:** run the affected tests directly, e.g.
-  `docker run --rm -v "$PWD":/repo -w /repo php:8.3-cli php platform/tests/<area>-contract.php`
-  (and the matching `-unit.php`). Add the extensions CI installs when the test needs them
-  (`pdo_sqlite`, `sqlite3`, `curl`, `mbstring`). The contract list in
-  `.github/workflows/pr-runtime-gate.yml` is the authoritative set.
+- **Source contracts:** `platform/tests/<area>-contract.php` and `-unit.php`. Add the extensions
+  CI installs when a test needs them (`pdo_sqlite`, `sqlite3`, `curl`, `mbstring`). The contract
+  list in `.github/workflows/pr-runtime-gate.yml` is the authoritative set.
 - **Runtime suites:** `platform/runtime/bin/run-<suite>-runtime.sh`. These already drive Docker
   with the CI images `mariadb:11.4`, `wordpress:php8.3-apache` and `wordpress:cli-php8.3`.
-- **Service tests:** `bash services/tests/run-all.sh` (CI uses PHP 8.3 with `pdo_sqlite`,
-  `sqlite3`, `curl`, `mbstring`).
+  The booking slot conflict suite also proves that two valid reschedules send Calendar revisions
+  in version order and that Teacher availability covers the introductory buffer.
+- **Service tests:** `tools/ci/check.sh services` (runs `services/tests/run-all.sh` on PHP 8.3
+  with `pdo_sqlite`, `sqlite3`, `curl`, `mbstring`).
 
 Rules:
 
-- If Docker is unavailable, say so explicitly in the PR and handoff; never claim container
-  parity you did not run.
+- State which environment ran the checks (native PHP 8.3 or the container image). Never claim
+  container parity you did not verify.
 - **Never** weaken, skip or delete a contract test to make a change pass. Fix the code or stop.
 - The **PR runtime gate is authoritative**. A green local run never substitutes for green CI,
   and a pending or skipped required check is never treated as passing.
@@ -114,6 +116,16 @@ Rules:
   real student/teacher identities, or live payment details. Follow the pre-launch acceptance
   rules in `README.md`.
 - Never commit secrets, tokens, keys or `.env` values. Document required variables without values.
+
+### 2.2 Docker retirement
+
+The local agent path does **not** require Docker: lint, source contracts and the recording
+services run natively on PHP 8.3 (`tools/ci/check.sh lint|contracts|services|all`), and the
+container is optional parity. The runtime suites (`platform/runtime/bin/run-*-runtime.sh`) are the
+only remaining Docker dependency and are **CI-only for agents**: the PR runtime gate runs them,
+and a green native run never substitutes for green CI. Removing Docker from the repository
+entirely means replacing that harness with a native MariaDB/WordPress setup, or deleting the
+suites — both need Codex review and a workflow change.
 
 ## 3. Change discipline
 
@@ -128,9 +140,9 @@ Rules:
 ## 4. Verification and handoff
 
 - **OpenCode** finishes with: the PR URL; the list of changed files; the exact checks run and the
-  container image/command used; an explicit statement of the build status — this repository has
-  no local production build, so never claim one passed; and the handoff line
-  "Ready for Codex review." It does not merge or deploy.
+  environment used (native PHP 8.3 or container image/command); an explicit statement of the
+  build status — this repository has no local production build, so never claim one passed; and the
+  handoff line "Ready for Codex review." It does not merge or deploy.
 - **Codex** finishes a release only after: PR gate green, review done, merge committed, deployment
   run succeeded, smoke result reviewed, and the release record updated.
 - Neither agent claims a merge or deployment it did not perform. The evidence is the GitHub PR,
@@ -141,6 +153,8 @@ Rules:
 - `platform/` — canonical Delnavazan Platform plugin and backend/application services.
 - `theme/` — Delnavazan WordPress theme and user-facing frontend.
 - `deployment/` — guarded production release and read-only QA tooling (Codex-only).
+- `.devcontainer/` — PHP 8.3 CI-parity image for containerized agent sessions.
+- `tools/ci/` — `check.sh` plus the `run-in-container.sh` wrapper for lint and contracts.
 - `legacy-review/` — migration notes; not active code.
 
 `README.md` and `deployment/README.md` remain authoritative for product background and release

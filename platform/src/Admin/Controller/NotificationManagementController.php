@@ -39,6 +39,7 @@ final class NotificationManagementController {
     public static function register():void{
         add_action('admin_init',static function():void{NotificationTemplateLibrary::retireLegacyCategoryPolicy();});
         add_action('admin_post_dzn_notification_copy_save_draft',array(__CLASS__,'saveDraft'));
+        add_action('admin_post_dzn_notification_prepare_drafts',array(__CLASS__,'prepareCatalogueDrafts'));
         add_action('admin_post_dzn_notification_copy_publish',array(__CLASS__,'publish'));
         add_action('admin_post_dzn_notification_copy_discard',array(__CLASS__,'discardDraft'));
         add_action('admin_post_dzn_notification_copy_restore',array(__CLASS__,'restoreVersion'));
@@ -218,7 +219,13 @@ final class NotificationManagementController {
         $channel=isset($_GET['channel'])&&is_scalar($_GET['channel'])?sanitize_key(wp_unslash((string)$_GET['channel'])):'';
         $locale=isset($_GET['locale'])&&is_scalar($_GET['locale'])?NotificationCatalogue::normaliseLocale(sanitize_text_field(wp_unslash((string)$_GET['locale']))):NotificationCatalogue::PRIMARY_LOCALE;
         $taskFilter=isset($_GET['task'])&&is_scalar($_GET['task'])?sanitize_key(wp_unslash((string)$_GET['task'])):'';
-        echo '<h2>Templates</h2><p>Each event is shown once under its business task, with recipient-specific copy and only the delivery choices that its policy, event and provider state permit. Email and Portal are the defaults for events that support both.</p>';
+        echo '<h2>Templates</h2><p>Review Persian and English drafts before publishing. Preparing drafts never sends a message, enables a channel or approves a WhatsApp provider template.</p>';
+        if(self::canEdit()){
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'">';
+            echo '<input type="hidden" name="action" value="dzn_notification_prepare_drafts">';
+            wp_nonce_field('dzn_notification_prepare_drafts');
+            echo '<button class="button button-secondary" type="submit">Prepare missing catalogue drafts for review</button></form>';
+        }
         echo '<form method="get" action="'.esc_url(admin_url('admin.php')).'" class="dzn-notif-filters"><input type="hidden" name="page" value="'.esc_attr(self::PAGE).'"><input type="hidden" name="tab" value="templates">';
         echo '<label>Task <select name="task"><option value="">All tasks</option>';
         foreach(NotificationCatalogue::TASKS as $value=>$task)echo '<option value="'.esc_attr($value).'"'.($taskFilter===$value?' selected':'').'>'.esc_html((string)$task['label']).'</option>';
@@ -443,6 +450,19 @@ final class NotificationManagementController {
     }
 
     // ------------------------------------------------------------------ handlers
+
+    public static function prepareCatalogueDrafts():never{
+        self::authorizeEdit();
+        check_admin_referer('dzn_notification_prepare_drafts');
+        try{
+            $result=(new NotificationTemplateLibrary())->prepareMissingCatalogueDrafts();
+            self::flash('success',sprintf('Prepared %d drafts; %d already existed. %d lack exact-language copy; %d failed validation. No messages were published or sent.',(int)$result['created'],(int)$result['existing'],count($result['missing']),count($result['invalid'])));
+            if($result['missing']!==array()||$result['invalid']!==array()){
+                update_option('dzn_notification_draft_gap_report',array('missing'=>$result['missing'],'invalid'=>$result['invalid'],'created_at'=>gmdate('c')),false);
+            }
+        }catch(\Throwable $error){self::flash('error','Could not prepare catalogue drafts: '.$error->getMessage());}
+        self::redirectBack('templates',array());
+    }
 
     public static function saveDraft():never{self::handle(function(NotificationTemplateLibrary $library,array $input):array{
         $library->saveDraft($input['event_key'],$input['channel'],$input['locale'],(string)($input['subject']??''),(string)($input['body']??''));

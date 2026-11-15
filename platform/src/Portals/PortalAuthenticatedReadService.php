@@ -11,24 +11,41 @@ namespace Delnavazan\Platform\Portals;
 final class PortalAuthenticatedReadService {
     private const LIMIT = 80;
 
+    /** Public metadata never includes exception messages, SQL or user identifiers. */
+    private function failedRead(string $service, \Throwable $error): array {
+        $correlation = bin2hex(random_bytes(8));
+        $timestamp = gmdate('c');
+        error_log('[dzn_portal_read_failed] ' . json_encode(array('correlation_id' => $correlation, 'service' => $service, 'severity' => 'error', 'timestamp' => $timestamp, 'exception_class' => get_class($error))));
+        // One event per failed upstream call; the presentation layer must not emit a second alert.
+        do_action('dzn_portal_read_failed', array(
+            'correlation_id' => $correlation,
+            'service' => $service,
+            'severity' => 'error',
+            'timestamp' => $timestamp,
+            'exception_class' => get_class($error),
+        ));
+        return array('state' => 'unavailable', 'correlation_id' => $correlation);
+    }
+
     public function student(): array {
         $principal = (new PortalPrincipalResolver())->resolve('student');
         $lessons = $this->lessonsFor('student', (int) $principal['id'], $principal);
         $enrolments = $this->studentEnrolments((int) $principal['id'], $principal);
         $bookingRequests = $this->studentBookingRequests((int) $principal['id']);
         $bookingClasses = (new StudentUpcomingBookingReadService())->forStudent((int) $principal['id']);
+        $readHealth = array('post_intro' => array('state' => 'ok'), 'reschedule_proposals' => array('state' => 'ok'));
         try {
             $postIntro = (new PostIntroStudentReadService())->forStudent((int) $principal['id']);
         } catch (\Throwable $error) {
             // A new workflow surface must never take the whole Student Portal down.
-            do_action('dzn_post_intro_student_read_failed', get_class($error));
+            $readHealth['post_intro'] = $this->failedRead('post_intro', $error);
             $postIntro = array();
         }
         try {
             $rescheduleProposals = $this->studentRescheduleProposals((int) $principal['id']);
         } catch (\Throwable $error) {
             // An additive workflow surface must never take down the whole Student Portal.
-            do_action('dzn_lesson_reschedule_student_read_failed', get_class($error));
+            $readHealth['reschedule_proposals'] = $this->failedRead('reschedule_proposals', $error);
             $rescheduleProposals = array();
         }
         return array(
@@ -42,6 +59,7 @@ final class PortalAuthenticatedReadService {
             'booking_classes' => $bookingClasses,
             'post_intro' => $postIntro,
             'reschedule_proposals' => $rescheduleProposals,
+            'read_health' => $readHealth,
         );
     }
 

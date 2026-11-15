@@ -64,6 +64,16 @@ $show_provisioning = 'ok' === $state && $provisioning
 			<p class="dzn-portal__demo-label" role="status"><?php esc_html_e( 'پیش‌نمایش نمایشی — اطلاعات ساختگی و غیرقابل ذخیره', 'delnavazan-theme' ); ?></p>
 		<?php endif; ?>
 
+		<?php if ( $available && ! empty( $model['read_health'] ) && is_array( $model['read_health'] ) ) : ?>
+			<?php foreach ( array( 'post_intro' => 'اطلاعات ادامهٔ ثبت‌نام و پرداخت', 'reschedule_proposals' => 'درخواست‌های تغییر زمان کلاس' ) as $service => $label ) : ?>
+				<?php if ( 'unavailable' === ( $model['read_health'][ $service ]['state'] ?? '' ) ) : ?>
+					<div class="dzn-portal-action-status dzn-portal-action-status--warning" role="alert" dir="rtl">
+						<p><?php echo esc_html( $label . ' موقتاً در دسترس نیست. این وضعیت به معنی نبود درخواست نیست.' ); ?></p>
+						<a href="<?php echo esc_url( remove_query_arg( array( 'post_intro_status' ) ) ); ?>"><?php esc_html_e( 'تلاش دوباره', 'delnavazan-theme' ); ?></a>
+					</div>
+				<?php endif; ?>
+			<?php endforeach; ?>
+		<?php endif; ?>
 		<?php if ( 'signed_out' === $state ) : ?>
 			<?php
 			dzn_theme_component(

@@ -1426,8 +1426,11 @@ function dzn_theme_platform_student_model( $screen ) {
 	$booking_classes = array_values( array_filter( (array) ( $data['booking_classes'] ?? array() ), static fn( $row ) => is_array( $row ) && 'student_booking_class_v1' === ( $row['version'] ?? '' ) && 'confirmed' === ( $row['confirmation_state'] ?? '' ) ) );
 	$post_intro = array_values( array_filter( (array) ( $data['post_intro'] ?? array() ), 'is_array' ) );
 	$reschedule_proposals = array_values( array_filter( (array) ( $data['reschedule_proposals'] ?? array() ), 'is_array' ) );
+	$read_health = is_array( $data['read_health'] ?? null ) ? $data['read_health'] : array();
+	$read_unavailable = in_array( 'unavailable', array_map( static fn( $item ) => (string) ( $item['state'] ?? '' ), array_filter( $read_health, 'is_array' ) ), true );
 	$provisioning = dzn_theme_platform_provisioning_notice( $enrolments );
 	$state = dzn_theme_platform_student_portal_state( $lessons, $enrolments, $booking_requests, $booking_classes, $post_intro );
+	if ( $read_unavailable && 'no_data' === $state ) { $state = 'error'; }
 	if ( 'ok' !== $state ) { return dzn_theme_platform_student_state_model( $screen, $state ); }
 	$now = time();
 	$payments_enabled = dzn_theme_student_payments_enabled();
@@ -1733,6 +1736,7 @@ function dzn_theme_platform_student_model( $screen ) {
 	$model['schedule'] = dzn_theme_platform_student_schedule_rows( $lessons, $booking_classes, $enrolments, $student_timezone, $now, $student_calendar, $student_locale );
 	$model['timezone_label'] = dzn_theme_platform_timezone_label( $student_timezone );
 	$model['history'] = array_map( static fn( array $lesson ) => dzn_theme_platform_history_item( $lesson, $student_calendar, $student_locale ), array_slice( $history_lessons, 0, 5 ) );
+	$model['read_health'] = $read_health;
 	$model['post_intro'] = $post_intro;
 	$model['reschedule_proposals'] = dzn_theme_platform_student_reschedule_proposals( $reschedule_proposals, $student_timezone, $student_calendar, $student_locale );
 	$model['recording_choices'] = dzn_theme_platform_recording_choices( 'account' === $screen ? 'account' : 'enrolment' );

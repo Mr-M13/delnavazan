@@ -42,7 +42,7 @@ Use this path for every release:
 4. From `main`, run **Deploy production** manually with the full SHA that is still the current `origin/main` commit.
 5. Review the deployment record and read-only production smoke result before closing the release.
 
-`.github/workflows/pr-runtime-gate.yml` runs on pull requests. It covers the Platform source contracts and production deployment tooling. Production deploys are manual-only, serialized, pinned to current `main`, and use a protected GitHub Actions environment named `production`. Configure required reviewers on that environment and add these environment secrets:
+`.github/workflows/pr-runtime-gate.yml` runs on pull requests. It covers the Platform source contracts and production deployment tooling. Production deploys are manual-only, serialized, pinned to current `main`, and use a protected GitHub Actions environment named `production`. The environment is restricted to the `main` branch and its required reviewer must approve each run before the deploy job starts; see `AGENTS.md` §1.3 for the enforced review and ruleset settings. Add these environment secrets:
 
 - `PRODUCTION_SSH_USER` — restricted DirectAdmin account name.
 - `PRODUCTION_SSH_PRIVATE_KEY` — deploy key scoped to the hosting account.

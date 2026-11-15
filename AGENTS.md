@@ -1,6 +1,6 @@
 # AGENTS.md — Delnavazan agent contract
 
-Version 1.1 · effective 2026-11-15
+Version 1.2 · effective 2026-11-16
 
 This file is the single, shared contract for every AI agent working in this repository,
 including **Codex** and **OpenCode** (DeepSeek). Both agents read it from the repository
@@ -14,8 +14,8 @@ At the **start of every session**, before any edit:
 
 1. Read this file in full.
 2. State in your first reply which role you are operating as and which branch you will work on:
-   - `Acknowledged AGENTS.md v1.1 — Codex: feature contributor`
-   - `Acknowledged AGENTS.md v1.1 — OpenCode: release coordinator`
+   - `Acknowledged AGENTS.md v1.2 — Codex: feature contributor`
+   - `Acknowledged AGENTS.md v1.2 — OpenCode: release coordinator`
 3. Confirm the branch you are on. If the branch does not match the rules below, stop and fix
    the branch before touching files.
 
@@ -29,7 +29,8 @@ OpenCode is the primary coordinator for development, review handoff, CI monitori
 
 - Work on short-lived feature branches from current origin/main; never push directly to main.
 - Open pull requests, run native validation, monitor exact-head-SHA required checks, inspect failures, and remediate on the branch.
-- Request independent review and explicit owner approval for merges and production deployment; never self-approve or bypass branch protection.
+- Request independent review and explicit owner approval for merges and production deployment; never self-approve.
+- Never use the ruleset administrator bypass on your own initiative. Each bypass is recorded in the repository audit log, and it is permitted only for a specific merge the owner has explicitly authorised.
 - After approval and green required checks, OpenCode may merge through GitHub's protected merge mechanism, provided its GitHub identity has permission. If not, stop and request an authorised operator.
 - Dispatch only the canonical Deploy production workflow from main with the full current main SHA, subject to the protected production environment and its reviewers. Verify exact SHA, run result, production smoke and deployment record before reporting success.
 - Do not access or disclose deployment secrets. Do not run direct production deploy scripts or production writes outside audited GitHub workflows.
@@ -39,6 +40,21 @@ OpenCode is the primary coordinator for development, review handoff, CI monitori
 ### 1.2 Codex and other agents — feature contributors
 
 Codex and other agents may create branches, implement changes, run checks and open PRs. They must not maintain a competing release process, merge without owner authorisation, or dispatch production deployments. OpenCode coordinates releases; GitHub Actions executes them. All agents must use the same canonical repository, tests and safeguards.
+
+### 1.3 Enforced GitHub controls
+
+These controls live in repository settings, so they hold even when an agent ignores this file:
+
+- **Ruleset `Protect main`** (active; only the repository `admin` role can bypass): blocks deletion and non-fast-forward pushes, requires a pull request, requires one approving review, dismisses stale reviews on push, requires the last push to be approved, requires review threads to be resolved, requires code-owner review from `.github/CODEOWNERS`, and requires the four mandatory status checks on a strict up-to-date head.
+- **`production` environment**: deploys are restricted to `main` and must be approved manually by the required reviewer before the deploy job starts.
+- **`admin` bypass**: the owner role keeps bypass access only because GitHub forbids self-approval and this repository has a single maintainer. Bypass is audit-logged and governed by the rule above.
+
+**Known limitation.** With one GitHub identity there is no second approver. GitHub enforces
+separation of duties against other collaborators, not against the owner's own token, and the
+owner can approve the environment gate from the same identity. Genuine independent review needs a
+second GitHub account with write access (to approve pull requests) added to the environment's
+required reviewers. Until then, owner approval is a process control and the audit log is the
+evidence.
 
 ## 2. Build and test rules (both agents)
 
@@ -112,7 +128,7 @@ suites — both need release-governance review and a workflow change.
 ## 4. Verification and handoff
 
 - Contributors report PR URL, changed files, checks, environment, risk and rollback. No local production build exists.
-- OpenCode verifies required CI for the exact head SHA, obtains independent review and owner approval, merges through protections, dispatches the canonical workflow, then confirms the deployed SHA, smoke results and release record.
+- OpenCode verifies required CI for the exact head SHA, obtains independent review and owner approval, merges through protections (recording any administrator bypass), dispatches the canonical workflow, then confirms the deployed SHA, smoke results and release record.
 - A pending, skipped or failed required check is not a pass. A successful workflow run alone is not evidence that production serves the expected commit.
 - Never claim a merge, deploy, permission or Mac-level Docker audit without direct evidence.
 

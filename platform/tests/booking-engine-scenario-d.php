@@ -158,7 +158,10 @@ $r14b = $newRequest(13, 'D14b'); $allocate($r14b); // cursor A -> B
 $r15 = $newRequest(7, 'D15');
 $o15 = $allocate($r15);
 $assertOffered($o15, 'D15 after the terminal failure');
-$releasedAfterFailure = (new Delnavazan\Platform\Core\Application\BookingTeacherOccupancyReadService())->overlapping($o9Teacher, $r15['time']['starts_at_utc'], $r15['time']['occupied_ends_at_utc']);
+// Exclude D15's own request: allocating it just created a pending offer that may
+// legitimately target this same Teacher now that the interval is free. Without the
+// exclusion the assertion would flag its own new reservation as leaked capacity.
+$releasedAfterFailure = (new Delnavazan\Platform\Core\Application\BookingTeacherOccupancyReadService())->overlapping($o9Teacher, $r15['time']['starts_at_utc'], $r15['time']['occupied_ends_at_utc'], 0, (int) $r15['request']['request_id']);
 dzn_stress_assert($releasedAfterFailure === array(), 'D15 a terminal failed confirmation did not release Teacher capacity: ' . wp_json_encode($releasedAfterFailure));
 $events['terminal_failure'] = array('teacher' => $o9Teacher, 'offered_again' => (int) $o15['teacher_id']);
 

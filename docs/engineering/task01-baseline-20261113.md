@@ -50,3 +50,10 @@ Status: **BLOCKED** until the remaining independent checks are evidenced. This r
 - Live installed plugin build ID now `main-14091b2205a8`, schema `61`. Most recent deployment record names full SHA `14091b2205a8b77ebbe1a36e6e65c283b6518b5f` and its `after.build` agrees with the live 12-character build prefix. This is correlated production identity evidence, not an independent full-file checksum.
 - The newest cutover backup directory contains a SQL export and a tar archive. Backup inventory: 250 cutover directories. Server crontab includes a daily 03:17 prune script and a separate Wednesday 08:41 Softaculous backup job; neither proves that daily deploy backups are generated independently of deployments.
 - **Still pending:** a disposable WordPress boot and HTTP/application smoke using the restored plugin/theme and database, with outbound integrations disabled. The previous database-only restore and archive listing are not a substitute. Confirm whether the observed cutover backup cadence meets the recovery-point objective.
+
+### 2026-11-15 complete isolated application recovery smoke
+
+- Rehearsed latest production cutover backup into a disposable Docker MariaDB 11.4 + WordPress PHP 8.3 Apache stack on an internal-only Docker network; host HTTP bound to loopback. Production SQL restored **298 tables**; archived platform plugin and theme files were present.
+- Initial redirects to `wp-admin/install.php` were caused by using the default `wp_` table prefix instead of the production `wpvr_` prefix. A further canonical redirect was caused by omitting the local port in the HTTP Host header. Both were test-harness configuration issues, not application faults.
+- With `WORDPRESS_TABLE_PREFIX=wpvr_` and the loopback Host header, `GET /` and `HEAD /` returned **HTTP 200**; no PHP fatal/error-connection messages appeared in WordPress startup logs. The disposable database, WordPress containers and state were removed after the test.
+- This verifies an isolated restore and homepage boot, not complete end-to-end behaviour of external provider integrations or every business workflow. The network was isolated to prevent production callbacks.

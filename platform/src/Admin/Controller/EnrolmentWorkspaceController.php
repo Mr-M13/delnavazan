@@ -636,6 +636,7 @@ final class EnrolmentWorkspaceController {
     private static function safeMessage(\Throwable $exception, string $failureReference = ''): string {
         $message = $exception->getMessage();
         return match ($message) {
+            'allocation_busy','teacher_busy' => 'Another booking change is being committed for this Teacher. Nothing was changed; retry in a moment.',
             'Unauthorized' => 'You no longer have permission for this action.',
             'teacher_slot_conflict' => 'The Teacher already has a class at that time. Choose another slot; nothing was double-booked.',
             'student_slot_conflict' => 'The Student already has an overlapping booking or class. Choose another time; nothing was duplicated.',

@@ -140,9 +140,10 @@ final class IntroLessonLifecycleService {
                 'provider_sync' => $providerSync,
             );
         } catch (\Throwable $exception) {
+            $contention = BookingContention::capture($exception, BookingContentionException::TEACHER_BUSY);
             $repository->rollback();
             if ($winner = $repository->command($keyDigest)) return $this->replayCancellation($winner, $payloadDigest);
-            throw $exception;
+            throw $contention ?? $exception;
         }
     }
 
@@ -194,38 +195,47 @@ final class IntroLessonLifecycleService {
         $endsAtUtc = $end->setTimezone($utc)->format('Y-m-d H:i:s');
         $occupiedEndsAtUtc = $occupiedEnd->setTimezone($utc)->format('Y-m-d H:i:s');
         if ($startsAtUtc <= gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('Choose a future introductory time');
-        $coveredByPublishedAvailability = $this->coveredByPublishedAvailability((int) $confirmation->teacher_id, $startsAtUtc, $endsAtUtc);
-        if (! $coveredByPublishedAvailability && $actorType !== 'teacher') {
-            throw new \InvalidArgumentException('The Teacher must explicitly choose a time outside published availability.');
-        }
-        $conflict = (new CanonicalTeacherOccupancyReadService())->overlapping((int) $confirmation->teacher_id, $startsAtUtc, $occupiedEndsAtUtc);
-        if ($conflict) throw new \InvalidArgumentException('The Teacher already has a class at that time. Choose another slot.');
-        try {
-            CanonicalContinuationCapacityAuthority::assertNoActiveHold((int) $confirmation->teacher_id, $startsAtUtc, $occupiedEndsAtUtc);
-            CommercialCapacityAuthority::assertNoConflictingClaim((int) $confirmation->teacher_id, $startsAtUtc, $occupiedEndsAtUtc);
-        } catch (\InvalidArgumentException $exception) {
-            if ($exception->getMessage() === 'teacher_slot_conflict') throw new \InvalidArgumentException('The Teacher has a reserved continuation slot at that time. Choose another slot.');
-            throw $exception;
-        }
-        foreach ((new LessonRescheduleRepository())->studentConflict((int) $request->student_id, $startsAtUtc, $occupiedEndsAtUtc, 0) as $studentConflict) {
-            if ((string) ($studentConflict->source ?? '') === 'booking' && (int) ($studentConflict->lesson_id ?? 0) === (int) $confirmation->id) continue;
-            throw new \InvalidArgumentException('The Student already has a class at that time. Choose another slot.');
-        }
-        $providerSync = 'not_required';
-        if ((string) $confirmation->state === 'confirmed') {
-            try {
-                $this->projector()->reschedule((int) $confirmation->id, $startsAtUtc, $endsAtUtc, $timezone);
-                $providerSync = 'updated';
-            } catch (\Throwable $exception) {
-                $providerSync = 'pending:' . $this->safeProviderCode($exception);
-            }
-        }
+        $studentId = (int) ($request->student_id ?? 0);
+        if ($studentId < 1) throw new \InvalidArgumentException('Resolved Student required');
+        $teacherId = (int) $confirmation->teacher_id;
         $now = gmdate('Y-m-d H:i:s');
+        $confirmationState = (string) $confirmation->state;
+        $providerSync = 'not_required';
+        $wpdb->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
         $wpdb->query('START TRANSACTION');
         try {
+            // Same global order as intake and acceptance: Student root, then Teacher root.
+            $schedules = new CanonicalLessonScheduleRepository();
+            $schedules->ensureAndLockStudentRoot($studentId, $now, $actorId);
+            $schedules->ensureAndLockTeacherRoot($teacherId, $now, $actorId);
             $locked = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_confirmations WHERE id=%d FOR UPDATE", (int) $confirmation->id));
             if (!$locked) throw new \RuntimeException('Booking confirmation changed concurrently');
             if (!in_array((string) $locked->state, array('confirmed', 'awaiting_payment', 'pending_projection', 'retryable', 'awaiting_conference'), true)) throw new \InvalidArgumentException('intro_lesson_not_reschedulable');
+            if ($expectedId > 0 && (int) $locked->id !== $expectedId) throw new \RuntimeException('Booking confirmation changed concurrently');
+            if ($expectedVersion > 0 && (int) $locked->version !== $expectedVersion) throw new \RuntimeException('Booking confirmation changed concurrently');
+            $confirmationState = (string) $locked->state;
+            $courseId = (int) ($locked->course_id ?? $request->selected_intro_course_id ?? 0);
+            $coveredByPublishedAvailability = $this->coveredByPublishedAvailability($teacherId, $startsAtUtc, $endsAtUtc, $courseId > 0 ? $courseId : null);
+            if (! $coveredByPublishedAvailability && $actorType !== 'teacher') {
+                throw new \InvalidArgumentException('The Teacher must explicitly choose a time outside published availability.');
+            }
+            // Booking authority, not canonical-only occupancy: an intro confirmation or a
+            // pending offer for the same Teacher must be re-read under the root. Pending
+            // offers are retired by the winner below rather than treated as hard refusals.
+            $conflict = (new BookingTeacherOccupancyReadService())->overlapping($teacherId, $startsAtUtc, $occupiedEndsAtUtc, 0, $requestId, false);
+            if ($conflict) throw new \InvalidArgumentException('The Teacher already has a class at that time. Choose another slot.');
+            try {
+                CanonicalContinuationCapacityAuthority::assertNoActiveHold($teacherId, $startsAtUtc, $occupiedEndsAtUtc);
+                CommercialCapacityAuthority::assertNoConflictingClaim($teacherId, $startsAtUtc, $occupiedEndsAtUtc);
+            } catch (\InvalidArgumentException $exception) {
+                if ($exception->getMessage() === 'teacher_slot_conflict') throw new \InvalidArgumentException('The Teacher has a reserved continuation slot at that time. Choose another slot.');
+                throw $exception;
+            }
+            foreach ((new LessonRescheduleRepository())->studentConflict($studentId, $startsAtUtc, $occupiedEndsAtUtc, 0) as $studentConflict) {
+                if ((string) ($studentConflict->source ?? '') === 'booking' && (int) ($studentConflict->lesson_id ?? 0) === (int) $confirmation->id) continue;
+                throw new \InvalidArgumentException('The Student already has a class at that time. Choose another slot.');
+            }
+            (new BookingOfferRetirementService())->retireCompeting($teacherId, $startsAtUtc, $occupiedEndsAtUtc, $requestId, $now);
             $updated = $wpdb->query($wpdb->prepare(
                 "UPDATE {$this->p}booking_request_confirmations SET starts_at_utc=%s,ends_at_utc=%s,schedule_timezone=%s,local_wall_date=%s,local_wall_time=%s,version=version+1,updated_at=%s,updated_by=%d WHERE id=%d AND version=%d",
                 $startsAtUtc,
@@ -267,20 +277,32 @@ final class IntroLessonLifecycleService {
             ), 'intro-reschedule:' . $idempotencyKey, $now);
             $wpdb->query('COMMIT');
         } catch (\Throwable $exception) {
+            $contention = BookingContention::capture($exception, BookingContentionException::TEACHER_BUSY);
             $wpdb->query('ROLLBACK');
-            throw $exception;
+            throw $contention ?? $exception;
+        }
+        // The canonical commit is already durable. A provider refusal is retryable projection
+        // state, never a reason to roll back the Student's committed reschedule.
+        if ($confirmationState === 'confirmed') {
+            try {
+                $this->projector()->reschedule((int) $confirmation->id, $startsAtUtc, $endsAtUtc, $timezone);
+                $providerSync = 'updated';
+            } catch (\Throwable $exception) {
+                $providerSync = 'pending:' . $this->safeProviderCode($exception);
+            }
         }
         return array(
             'confirmation_id' => (int) $confirmation->id,
-            'state' => (string) $confirmation->state,
+            'state' => $confirmationState,
             'local_label' => $local->format('D j M Y, H:i') . ' ' . $timezone,
             'provider_sync' => $providerSync,
         );
     }
 
-    private function coveredByPublishedAvailability(int $teacherId, string $startsAtUtc, string $endsAtUtc): bool {
+    private function coveredByPublishedAvailability(int $teacherId, string $startsAtUtc, string $endsAtUtc, ?int $courseId = null): bool {
         try {
-            $segments = (new TeacherAvailabilityService())->effective($teacherId, $startsAtUtc, $endsAtUtc, (int)($confirmation->course_id ?? 0) > 0 ? (new TeacherAvailabilityService())->instrumentIdForCourse((int)$confirmation->course_id) : null);
+            $availability = new TeacherAvailabilityService();
+            $segments = $availability->effective($teacherId, $startsAtUtc, $endsAtUtc, $courseId !== null && $courseId > 0 ? $availability->instrumentIdForCourse($courseId) : null);
         } catch (\Throwable) {
             return false;
         }

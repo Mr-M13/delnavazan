@@ -39,6 +39,52 @@ final class BookingAllocationRepository {
         global $wpdb;
         if($wpdb->update($this->p.'booking_allocation_offers',array('state'=>$outcome,'active_slot'=>null,'responded_at'=>$now,'reason_code'=>$reason),array('id'=>$offerId,'state'=>'pending','active_slot'=>1))!==1)throw new \RuntimeException('Allocation offer changed concurrently');
     }
+    /**
+     * Retire every other pending offer for the same Teacher and interval.
+     *
+     * Called only while the winning path already holds the Teacher scheduling
+     * root. Delivery rows are locked before their offers, matching the expiry
+     * worker's order. Each retired request keeps its history, loses the active
+     * offer and receives one capacity_lost alert for administrator review.
+     *
+     * @return list<array{offer_id:int,booking_request_id:int,delivery_id:int}>
+     */
+    public function retireCompetingOffers(int $teacherId,string $startsAtUtc,string $occupiedEndUtc,int $excludeBookingRequestId,string $now):array{
+        global $wpdb;
+        if($teacherId<1||$occupiedEndUtc<=$startsAtUtc)return array();
+        $rows=(array)$wpdb->get_results($wpdb->prepare(
+            "SELECT o.id offer_id,o.booking_request_id,o.delivery_id
+               FROM {$this->p}booking_allocation_offers o
+               INNER JOIN {$this->p}booking_requests r ON r.id=o.booking_request_id
+               INNER JOIN {$this->p}booking_request_requested_times rt ON rt.id=o.requested_time_id AND rt.booking_request_id=r.id
+              WHERE o.teacher_id=%d AND o.state='pending' AND o.active_slot=1 AND r.id<>%d
+                AND r.lifecycle_status='submitted' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL
+                AND rt.starts_at_utc<%s AND rt.occupied_ends_at_utc>%s
+              ORDER BY o.id",
+            $teacherId,$excludeBookingRequestId,$occupiedEndUtc,$startsAtUtc
+        ),ARRAY_A);
+        if($wpdb->last_error!=='')throw new \RuntimeException('capacity_retirement_read_failed: '.$wpdb->last_error);
+        $retired=array();
+        foreach($rows as $row){
+            $deliveryId=(int)$row['delivery_id'];
+            // Lock in the expiry worker's order: delivery, then offer.
+            $delivery=$wpdb->get_row($wpdb->prepare("SELECT id FROM {$this->p}booking_request_teacher_deliveries WHERE id=%d AND teacher_id=%d AND state='pending_request' FOR UPDATE",$deliveryId,$teacherId));
+            if(!$delivery)continue;
+            $offer=$wpdb->get_row($wpdb->prepare(
+                "SELECT o.id FROM {$this->p}booking_allocation_offers o
+                   INNER JOIN {$this->p}booking_request_requested_times rt ON rt.id=o.requested_time_id AND rt.booking_request_id=o.booking_request_id
+                  WHERE o.id=%d AND o.teacher_id=%d AND o.state='pending' AND o.active_slot=1
+                    AND rt.starts_at_utc<%s AND rt.occupied_ends_at_utc>%s FOR UPDATE",
+                (int)$row['offer_id'],$teacherId,$occupiedEndUtc,$startsAtUtc
+            ));
+            if(!$offer)continue;
+            if($wpdb->update($this->p.'booking_allocation_offers',array('state'=>'capacity_lost','active_slot'=>null,'responded_at'=>$now,'reason_code'=>'capacity_lost'),array('id'=>(int)$row['offer_id'],'state'=>'pending','active_slot'=>1))!==1)throw new \RuntimeException('Allocation offer changed concurrently');
+            if($wpdb->query($wpdb->prepare("UPDATE {$this->p}booking_allocation_notifications SET state='cancelled',next_attempt_at=NULL,lease_expires_at=NULL,last_error_code='capacity_lost',updated_at=%s WHERE offer_id=%d AND state IN ('queued','retryable','sending')",$now,(int)$row['offer_id']))===false)throw new \RuntimeException('capacity_retirement_notification_failed');
+            if($wpdb->update($this->p.'booking_request_teacher_deliveries',array('state'=>'expired','responded_at'=>$now,'updated_at'=>$now),array('id'=>$deliveryId,'state'=>'pending_request','teacher_id'=>$teacherId))!==1)throw new \RuntimeException('capacity_retirement_delivery_failed');
+            $retired[]=array('offer_id'=>(int)$row['offer_id'],'booking_request_id'=>(int)$row['booking_request_id'],'delivery_id'=>$deliveryId);
+        }
+        return $retired;
+    }
     public function rotateDelivery(object $delivery,array $candidate,string $now):int{
         global $wpdb;
         $changed=$wpdb->update($this->p.'booking_request_teacher_deliveries',array('uid'=>Identifier::uid(),'teacher_id'=>$candidate['teacher_id'],'requested_time_id'=>$candidate['requested_time_id'],'match_strength'=>$candidate['match_strength'],'state'=>'pending_request','created_at'=>$now,'updated_at'=>$now,'responded_at'=>null),array('id'=>(int)$delivery->id,'state'=>(string)$delivery->state));

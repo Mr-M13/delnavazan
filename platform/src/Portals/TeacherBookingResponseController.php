@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Portals;
 
+use Delnavazan\Platform\Core\Application\BookingContentionException;
 use Delnavazan\Platform\Core\Application\BookingTeacherResponseService;
 use Delnavazan\Platform\Integrations\BookingCalendarProjectionService;
 
@@ -25,6 +26,7 @@ final class TeacherBookingResponseController {
         }catch(\Throwable $error){
             $message=$error->getMessage();
             $notice=match(true){
+                $error instanceof BookingContentionException=>'این زمان در حال هماهنگی با پاسخ دیگری است. چند لحظه بعد دوباره تلاش کنید؛ پاسخ شما ثبت نشده است.',
                 str_contains($message,'A decline reason is required')=>'برای رد درخواست، دلیل را انتخاب کنید.',
                 str_contains($message,'Describe the decline reason')=>'برای گزینهٔ «دلیل دیگر»، توضیح دلیل را بنویسید.',
                 str_contains($message,'Booking offer expired or reassigned')=>'مهلت پاسخ به پایان رسیده است. این درخواست دیگر برای شما قابل پذیرش یا رد نیست و برای ارجاع به مدرس در دسترس بعدی در اختیار آموزشگاه است.',

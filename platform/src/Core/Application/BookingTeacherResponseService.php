@@ -24,8 +24,8 @@ final class BookingTeacherResponseService {
         // continues to replay rather than conflict.
         $payloadDigest=hash_hmac('sha256','booking-response-payload:'.$deliveryUid.'|'.$decision.($requestedTimeId!==null?'|'.$requestedTimeId:''),wp_salt('dzn_booking_response'));
         $now=gmdate('Y-m-d H:i:s');$confirmationId=null;$deliveryId=null;
-        $this->repository->begin();
         try{
+            $this->repository->begin();
             if($winner=$this->repository->command($keyDigest)){$result=$this->replay($winner,$payloadDigest);$this->repository->commit();return $result;}
             $teacher=$this->repository->teacherForUser($actor,true);
             if(!$teacher||(string)$teacher->status!=='active'||$teacher->archived_at!==null)throw new \RuntimeException('Active Teacher required');
@@ -60,7 +60,11 @@ final class BookingTeacherResponseService {
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($delivery,$teacher,$actor,$keyDigest,$payloadDigest,$now);
             $this->allocation->acceptedLocked($delivery,$now);
             $this->repository->commit();
-        }catch(\Throwable $error){$this->repository->rollback();throw $error;}
+        }catch(\Throwable $error){
+            $contention=BookingContention::capture($error,BookingContentionException::TEACHER_BUSY);
+            $this->repository->rollback();
+            throw $contention??$error;
+        }
         if($paid)return array('delivery_id'=>(int)$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'awaiting_payment','payment_required'=>true,'intro_obligation_uid'=>$introUid,'idempotent'=>false);
         return $this->dispatchProjection((int)$deliveryId,(int)$confirmationId);
     }
@@ -82,8 +86,8 @@ final class BookingTeacherResponseService {
         $keyDigest=hash_hmac('sha256','booking-claim-key:'.$commandKey,wp_salt('dzn_booking_response'));
         $payloadDigest=hash_hmac('sha256','booking-claim-payload:'.$requestUid.'|'.$requestedTimeId,wp_salt('dzn_booking_response'));
         $now=gmdate('Y-m-d H:i:s');$confirmationId=null;$paid=false;$introUid=null;$deliveryId=0;
-        $this->repository->begin();
         try{
+            $this->repository->begin();
             if($winner=$this->repository->command($keyDigest)){$result=$this->replay($winner,$payloadDigest);$this->repository->commit();return $result;}
             $teacher=$this->repository->teacherForUser($actor,true);
             if(!$teacher||(string)$teacher->status!=='active'||$teacher->archived_at!==null)throw new \RuntimeException('Active Teacher required');
@@ -124,7 +128,11 @@ final class BookingTeacherResponseService {
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($locked,$teacher,$actor,$keyDigest,$payloadDigest,$now);
             $this->allocation->acceptedLocked($locked,$now);
             $this->repository->commit();
-        }catch(\Throwable $error){$this->repository->rollback();throw $error;}
+        }catch(\Throwable $error){
+            $contention=BookingContention::capture($error,BookingContentionException::TEACHER_BUSY);
+            $this->repository->rollback();
+            throw $contention??$error;
+        }
         if($paid)return array('delivery_id'=>$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'awaiting_payment','payment_required'=>true,'intro_obligation_uid'=>$introUid,'idempotent'=>false);
         return $this->dispatchProjection($deliveryId,(int)$confirmationId);
     }
@@ -144,8 +152,8 @@ final class BookingTeacherResponseService {
         $commandKey=trim($commandKey);if($commandKey===''||strlen($commandKey)>191)throw new \InvalidArgumentException('Booking response command required');
         $keyDigest=hash_hmac('sha256','booking-opportunity-decline-key:'.$commandKey,wp_salt('dzn_booking_response'));
         $now=gmdate('Y-m-d H:i:s');$requestId=0;
-        $this->repository->begin();
         try{
+            $this->repository->begin();
             $teacher=$this->repository->teacherForUser($actor,true);
             if(!$teacher||(string)$teacher->status!=='active'||$teacher->archived_at!==null)throw new \RuntimeException('Active Teacher required');
             $request=$this->repository->requestByUid($requestUid,true);
@@ -163,7 +171,11 @@ final class BookingTeacherResponseService {
             }
             $this->recordDecline((object)array('id'=>0,'booking_request_id'=>$requestId,'teacher_id'=>(int)$teacher->id),'opportunity',$declineReason,$declineText,$actor,$keyDigest,$now,$requestId);
             $this->repository->commit();
-        }catch(\Throwable $error){$this->repository->rollback();throw $error;}
+        }catch(\Throwable $error){
+            $contention=BookingContention::capture($error,BookingContentionException::TEACHER_BUSY);
+            $this->repository->rollback();
+            throw $contention??$error;
+        }
         return array('request_id'=>$requestId,'delivery_id'=>0,'state'=>'declined','reason_code'=>$declineReason,'idempotent'=>false);
     }
 
@@ -183,8 +195,8 @@ final class BookingTeacherResponseService {
         $keyDigest=hash_hmac('sha256','booking-admin-response-key:'.$commandKey,wp_salt('dzn_booking_response'));
         $payloadDigest=hash_hmac('sha256','booking-admin-response-payload:'.$deliveryId.'|admin_accept',wp_salt('dzn_booking_response'));
         $now=gmdate('Y-m-d H:i:s');$confirmationId=null;$paid=false;$introUid=null;
-        $this->repository->begin();
         try{
+            $this->repository->begin();
             if($winner=$this->repository->command($keyDigest)){$result=$this->replay($winner,$payloadDigest);$this->repository->commit();return$result;}
             $delivery=$this->repository->delivery($deliveryId,true);
             if(!$delivery||(string)$delivery->state!=='pending_request'||(string)$delivery->lifecycle_status!=='submitted'||(string)$delivery->resolution_state!=='unresolved'||$delivery->privacy_erased_at!==null)throw new \InvalidArgumentException('Booking request is no longer pending');
@@ -194,7 +206,11 @@ final class BookingTeacherResponseService {
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($delivery,$teacher,$actor,$keyDigest,$payloadDigest,$now);
             $this->allocation->administratorAcceptedLocked($delivery,$now);
             $this->repository->commit();
-        }catch(\Throwable $error){$this->repository->rollback();throw $error;}
+        }catch(\Throwable $error){
+            $contention=BookingContention::capture($error,BookingContentionException::TEACHER_BUSY);
+            $this->repository->rollback();
+            throw $contention??$error;
+        }
         if($paid)return array('delivery_id'=>$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'awaiting_payment','payment_required'=>true,'intro_obligation_uid'=>$introUid,'idempotent'=>false);
         return $this->dispatchProjection($deliveryId,(int)$confirmationId);
     }

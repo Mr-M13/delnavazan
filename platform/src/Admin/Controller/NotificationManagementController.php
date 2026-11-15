@@ -120,7 +120,7 @@ final class NotificationManagementController {
         }
         usort($rows,static fn(array $left,array $right):int=>strcmp($left['key'],$right['key']));
         if($rows===array()){echo '<p>No notification event matches these filters.</p>';return;}
-        echo '<p class="dzn-notif-meta">'.esc_html((string)count($rows)).' event(s) match. Delivery controls apply to each event; consent and legally required delivery safeguards remain enforced.</p>';
+        echo '<p class="dzn-notif-meta">'.esc_html((string)count($rows)).' event(s) match. Delivery controls apply to each event. Disabling sensitive messages may prevent important account, security and payment notices; business rules remain enforced.</p>';
         echo '<table class="widefat striped dzn-notif-table"><thead><tr><th>Category</th><th>Notification and purpose</th><th>Recipient</th><th>All channels</th><th>Portal</th><th>Email</th><th>WhatsApp</th><th>SMS</th></tr></thead><tbody>';
         $groups=array();
         foreach($rows as $row)$groups[$row['family']!==''?'family:'.$row['family']:'event:'.$row['key']][]=$row;
@@ -159,9 +159,7 @@ final class NotificationManagementController {
         $eventEnabled=$library->eventEnabled($eventKey);
         $mandatory=NotificationCatalogue::isMandatory($eventKey);
         echo '<td>';
-        if($mandatory){
-            echo '<span class="dzn-badge is-ok">Required</span><div class="dzn-notif-meta">Mandatory safeguard; cannot disable all channels.</div>';
-        }else{
+        {
             echo '<span class="dzn-badge '.($eventEnabled?'is-ok':'is-warn').'">'.($eventEnabled?'Enabled':'All channels disabled').'</span>';
             if(self::canEdit()){
                 echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="enabled" value="'.($eventEnabled?'0':'1').'">';
@@ -169,6 +167,7 @@ final class NotificationManagementController {
                 wp_nonce_field('dzn_notification_event_toggle');
                 echo '<button class="button button-small" type="submit">'.($eventEnabled?'Disable all channels':'Enable notification').'</button></form>';
             }
+            if($mandatory)echo '<div class="dzn-notif-meta">Sensitive notification: disabling delivery may prevent important account, security or payment messages. Core transaction and access rules are unchanged.</div>';
             if(!$eventEnabled)echo '<div class="dzn-notif-meta">Saved channel preferences are retained.</div>';
         }
         echo '</td>';
@@ -503,7 +502,7 @@ final class NotificationManagementController {
             }
             $library->saveEventChannel($eventKey,$channel,$enabled);
             self::flash('success',self::channelLabel($channel).' delivery '.($enabled?'enabled.':'disabled.'));
-        }catch(\Throwable $error){self::flash('error',$error->getMessage()==='notification_channel_unavailable'?'This channel cannot be enabled until its template, provider approval and selected route are ready.':'This delivery channel is required for the notification safeguard or is not available for this event.');}
+        }catch(\Throwable $error){self::flash('error',$error->getMessage()==='notification_channel_unavailable'?'This channel cannot be enabled until its template, provider approval and selected route are ready.':'This delivery channel is not available for this event.');}
         self::redirectBack('events',self::postTableContext());
     }
 
@@ -630,7 +629,7 @@ final class NotificationManagementController {
     private static function effectiveChannelState(NotificationTemplateLibrary $library,string $eventKey,string $channel):array{
         if(!$library->channelOffered($eventKey,$channel))return array('state'=>'unsupported','label'=>'Unsupported','reason'=>'Not offered for this event.');
         if(!$library->eventEnabled($eventKey))return array('state'=>'disabled','label'=>'Notification disabled','reason'=>'All channels are switched off for this notification.');
-        $locked=(NotificationCatalogue::isMandatory($eventKey)&&in_array($channel,array('email','website'),true))||($eventKey==='account.claim_issued.student'&&in_array($channel,array('whatsapp','sms'),true));
+        $locked=($eventKey==='account.claim_issued.student'&&in_array($channel,array('whatsapp','sms'),true));
         $blocker=self::channelBlocker($library,$eventKey,$channel);
         if(!$locked&&!$library->eventChannelEnabled($eventKey,$channel)){
             return array('state'=>'disabled','label'=>'Disabled by administrator','reason'=>'Off.'.($blocker===null?'':' '.$blocker['reason']),'enable_blocked'=>$blocker!==null);
@@ -643,7 +642,7 @@ final class NotificationManagementController {
             if($readyCount===0&&$offCount===2)return array('state'=>'policy_disabled','label'=>'Disabled by SMS policy','reason'=>$reason);
             if($readyCount===0)return array('state'=>'missing_provider','label'=>'Missing provider','reason'=>$reason);
         }elseif(in_array($channel,array('email','whatsapp'),true)&&self::providerReady($channel)===false)return array('state'=>'missing_provider','label'=>'Missing provider','reason'=>'Configure and test the provider in Integrations.');
-        if($locked)return array('state'=>'mandatory_locked','label'=>'Mandatory and locked','reason'=>'This required route cannot be disabled.');
+        if($locked)return array('state'=>'policy_disabled','label'=>'Secure route unavailable','reason'=>'This route cannot safely be enabled without approved account-claim delivery.');
         return array('state'=>'enabled','label'=>'Enabled','reason'=>'');
     }
 
@@ -676,8 +675,8 @@ final class NotificationManagementController {
     private static function eventToggleError(string $code):string{
         return match($code){
             'notification_event_unknown'=>'That notification event is not in the catalogue.',
-            'notification_event_mandatory'=>'Security, account and financial notices are mandatory and cannot be disabled.',
-            default=>'The optional notification event was not changed.',
+            'notification_event_mandatory'=>'This notification could not be disabled.',
+            default=>'The notification event was not changed.',
         };
     }
     private static function manualRetryError(string $code):string{

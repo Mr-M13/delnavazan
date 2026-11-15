@@ -318,7 +318,7 @@ final class NotificationManagementController {
             // received it; a changed message or audience is a new batch.
             $commandKey='manual-send:'.get_current_user_id().':'.hash('sha256',wp_json_encode($input));
             $result=(new NotificationManualSendService())->send($input,$commandKey);
-            self::flash('success',sprintf('Manual send complete: %d sent, %d failed, %d skipped. Batch %s.',(int)$result['sent'],(int)$result['failed'],(int)$result['skipped'],(string)$result['batch_id']));
+            self::flash('success',sprintf('Manual send complete: %d sent, %d failed, %d skipped, %d uncertain. Uncertain deliveries are held for reconciliation and are never resent automatically. Batch %s.',(int)$result['sent'],(int)$result['failed'],(int)$result['skipped'],(int)$result['uncertain'],(string)$result['batch_id']));
         }catch(\Throwable $error){
             self::flash('error','Manual send did not run: '.$error->getMessage());
         }

@@ -4,6 +4,7 @@ namespace Delnavazan\Platform\Integrations\Notifications;
 use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
 use Delnavazan\Platform\Core\Application\NotificationSupport;
 use Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy;
+use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationManualSendRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationSuppressionRepository;
 use Delnavazan\Platform\Integrations\SmsIrAdapter;
 use Delnavazan\Platform\Integrations\TelnyxSmsAdapter;
@@ -18,17 +19,24 @@ use Delnavazan\Platform\Integrations\TelnyxWhatsAppAdapter;
  * the existing adapters. Teacher recipients default to SMS and students to WhatsApp, either of which
  * the operator may override.
  *
+ * Reliability model (see §2 of the manual-send review):
+ * - The batch is persisted in the database *before* any message is dispatched, with an atomic,
+ *   database-enforced unique `command_key_digest`, so two identical or concurrent requests can never
+ *   create two batches.
+ * - Each recipient is persisted up front and atomically claimed from `pending` with a single-row
+ *   UPDATE, so the same recipient is never handed to two workers.
+ * - A recipient marked `sent` is never sent again; a recipient left `sending` by an interrupted run
+ *   is moved to `uncertain` (never blindly resent), and a permanent failure is never retried.
+ * - Provider responses and outcomes are written back to the recipient row.
+ *
  * WhatsApp is template-only (Meta requires an approved template). The announcement template is
  * registered here but its Meta approval is separate: until the provider approves it the WhatsApp
- * route fails closed with a clear reason, exactly like every other unmapped route.
+ * route fails closed, exactly like every other unmapped route.
  *
- * Every send is confirmed, capped, audited and recorded as an immutable batch. Nothing here is a
- * marketing channel: it is an operational service notice on the teaching relationship, so it never
- * consults marketing consent — but it always honours an explicit STOP and a channel-neutral
- * suppression.
+ * This is an operational service notice on the teaching relationship, so it never consults marketing
+ * consent — but it always honours an explicit STOP and a channel-neutral suppression.
  */
 final class NotificationManualSendService {
-    public const OPTION_BATCHES='dzn_notification_manual_send_batches';
     public const OPTION_AUDIT='dzn_notification_manual_send_audit';
     public const CAPABILITY='dzn_operate_notification_dispatch';
     public const WHATSAPP_TEMPLATE='delnavazan_announcement_fa';
@@ -36,19 +44,21 @@ final class NotificationManualSendService {
     /** Meta body parameter order for the announcement template. */
     public const WHATSAPP_ORDER=array('name','message');
     public const MAX_RECIPIENTS=500;
-    public const BATCH_LIMIT=100;
+    public const AUDIT_LIMIT=100;
     public const PURPOSE='manual_service_notice';
 
-    /** @param object|null $suppressions @param object|null $lookup @param object|null $settings @param callable|null $http */
+    /** @param object|null $suppressions @param object|null $lookup @param object|null $settings @param callable|null $http @param object|null $repository */
     public function __construct(
         private $suppressions=null,
         private $lookup=null,
         private $settings=null,
-        private $http=null
+        private $http=null,
+        private $repository=null
     ){
         $this->suppressions??=new NotificationSuppressionRepository();
         $this->lookup??=new StudentNotificationContactLookup();
         $this->settings??=new IntegrationSettingsService();
+        $this->repository??=new NotificationManualSendRepository();
     }
 
     /** @return array<string,array{label:string,audience:string,count:int,channels:string[]}> */
@@ -87,42 +97,86 @@ final class NotificationManualSendService {
     }
 
     /**
-     * Send one manual notification. The command key makes a double submit converge on the same batch.
+     * Send one manual notification.
      *
-     * @return array{batch_id:string,idempotent:bool,sent:int,failed:int,skipped:int,summary:array<string,int>}
+     * @return array{batch_id:string,idempotent:bool,sent:int,failed:int,uncertain:int,skipped:int,summary:array<string,int>}
      */
     public function send(array $input,string $commandKey):array{
         if(!self::canSend())throw new \InvalidArgumentException('notification_manual_send_forbidden');
-        $commandDigest=NotificationSupport::keyDigest($commandKey);
-        if($existing=$this->batchByCommand($commandDigest))return array('batch_id'=>(string)$existing['id'],'idempotent'=>true,'sent'=>(int)$existing['sent'],'failed'=>(int)$existing['failed'],'skipped'=>(int)$existing['skipped'],'summary'=>(array)($existing['summary']??array()));
         $resolution=$this->resolve($input);
         if($resolution['errors']!==array())throw new \InvalidArgumentException(implode(' ',$resolution['errors']));
         $channel=(string)$resolution['channel'];
-        $message=self::messageText($input,$channel);
-        if(trim($message)===''&&$channel!=='whatsapp')throw new \InvalidArgumentException('A message is required for SMS.');
-        $sent=0;$failed=0;$skipped=0;$recipients=array();$summary=array();
-        foreach($resolution['recipients'] as $index=>$recipient){
-            if($index>=self::MAX_RECIPIENTS)break;
-            $blocker=$this->blocker($recipient);
-            if($blocker!==null){$skipped++;@$summary['skipped_'.$blocker]++;$recipients[]=array('to'=>self::mask($recipient['to']),'audience'=>$recipient['audience'],'state'=>'skipped','reason'=>$blocker);continue;}
-            $result=$this->dispatch($channel,$recipient,$input);
-            $state=$result['acknowledged']?'sent':'failed';
-            if($state==='sent')$sent++;else{$failed++;@$summary['failed_'.$result['reason']]++;}
-            @$summary[$state]++;
-            $recipients[]=array('to'=>self::mask((string)$recipient['to']),'audience'=>$recipient['audience'],'state'=>$state,'reason'=>$state==='failed'?(string)$result['reason']:null,'reference'=>$result['reference']??null);
+        if($channel!=='whatsapp'&&trim((string)($input['message']??''))==='')throw new \InvalidArgumentException('A message is required for SMS.');
+
+        $commandDigest=NotificationSupport::keyDigest($commandKey);
+        $now=NotificationSupport::now();
+        $actor=NotificationSupport::actor();
+        $audience=implode(',',array_values(array_unique(array_map(static fn(array $r):string=>(string)($r['audience']??''),$resolution['recipients']))));
+
+        // 1. Persist the batch and every recipient before dispatching anything. The unique
+        //    `command_key_digest` makes two identical/concurrent requests converge on one batch; the
+        //    unique `(batch_id, contact_digest)` makes the recipient set idempotent too.
+        $this->repository->begin();
+        try{
+            $inserted=$this->repository->insertBatch(array(
+                'uid'=>NotificationSupport::uid(),'command_key_digest'=>$commandDigest,'channel'=>$channel,
+                'audience'=>$audience,'state'=>'created','created_at'=>$now,'updated_at'=>$now,'created_by'=>$actor,'updated_by'=>$actor,
+            ));
+            $batchId=$inserted['id'];
+            if($inserted['created']){
+                foreach($resolution['recipients'] as $index=>$recipient){
+                    if($index>=self::MAX_RECIPIENTS)break;
+                    $blocked=$this->blocker($recipient);
+                    $this->repository->insertRecipient(array(
+                        'uid'=>NotificationSupport::uid(),'batch_id'=>$batchId,'contact'=>(string)$recipient['to'],
+                        'contact_digest'=>hash_hmac('sha256','contact:'.(string)$recipient['to'],NotificationSupport::salt()),
+                        'audience'=>(string)$recipient['audience'],
+                        'subject_id'=>($recipient['id']??null)===null?null:(int)$recipient['id'],
+                        'state'=>$blocked===null?'pending':'skipped',
+                        'failure_reason'=>$blocked,
+                        'created_at'=>$now,'updated_at'=>$now,
+                    ));
+                }
+            }
+            $this->repository->commit();
+        }catch(\Throwable $error){
+            $this->repository->rollback();
+            throw $error;
         }
-        $batch=array(
-            'id'=>NotificationSupport::uid(),'command_digest'=>$commandDigest,
-            'audience'=>implode(',',array_values(array_unique(array_map(static fn(array $r):string=>(string)($r['audience']??''),$resolution['recipients'])))),
-            'channel'=>$channel,'message'=>$message,'whatsapp_template'=>self::WHATSAPP_TEMPLATE,
-            'parameters'=>(array)($input['parameters']??array()),
-            'sent'=>$sent,'failed'=>$failed,'skipped'=>$skipped,'summary'=>$summary,
-            'created_at'=>NotificationSupport::now(),'created_by'=>NotificationSupport::actor(),
-            'recipients'=>$recipients,
-        );
-        $this->storeBatch($batch);
-        $this->audit('manual_send',$batch['id'],$channel,$sent,$failed,$skipped);
-        return array('batch_id'=>$batch['id'],'idempotent'=>false,'sent'=>$sent,'failed'=>$failed,'skipped'=>$skipped,'summary'=>$summary);
+
+        // 2. Claim and dispatch only pending recipients. Already `sent`, `failed` or `uncertain`
+        //    recipients are counted, never re-sent; a `sending` row left by an interrupted run is
+        //    marked `uncertain` rather than blindly resent.
+        $sent=0;$failed=0;$uncertain=0;$skipped=0;
+        foreach($this->repository->recipients($batchId) as $row){
+            $state=(string)$row->state;
+            if($state==='sent'){$sent++;continue;}
+            if($state==='skipped'){$skipped++;continue;}
+            if($state==='failed'){$failed++;continue;}
+            if($state==='uncertain'){$uncertain++;continue;}
+            if($state==='sending'){
+                $this->repository->markRecipient((int)$row->id,'uncertain',array('failure_reason'=>'interrupted','updated_at'=>gmdate('Y-m-d H:i:s')));
+                $uncertain++;continue;
+            }
+            // pending
+            if(!$this->repository->claimRecipient((int)$row->id,$now))continue;
+            $idempotencyKey='dzn-manual:'.hash('sha256',$batchId.':'.(int)$row->id.':'.$commandDigest);
+            $result=$this->dispatch($channel,(string)$row->contact,$input,$idempotencyKey);
+            if(!empty($result['acknowledged'])){
+                $this->repository->markRecipient((int)$row->id,'sent',array('failure_reason'=>null,'finished_at'=>gmdate('Y-m-d H:i:s'),'updated_at'=>gmdate('Y-m-d H:i:s')));
+                $sent++;
+            }elseif(($result['permanent_failure']??null)!==null){
+                $this->repository->markRecipient((int)$row->id,'failed',array('failure_reason'=>(string)$result['permanent_failure'],'finished_at'=>gmdate('Y-m-d H:i:s'),'updated_at'=>gmdate('Y-m-d H:i:s')));
+                $failed++;
+            }else{
+                $this->repository->markRecipient((int)$row->id,'uncertain',array('failure_reason'=>(string)($result['reason']??'ambiguous'),'finished_at'=>gmdate('Y-m-d H:i:s'),'updated_at'=>gmdate('Y-m-d H:i:s')));
+                $uncertain++;
+            }
+        }
+        $this->repository->updateBatchState($batchId,'completed',$now);
+        $summary=array('sent'=>$sent,'failed'=>$failed,'uncertain'=>$uncertain,'skipped'=>$skipped);
+        $this->audit('manual_send',(string)$batchId,$channel,$summary);
+        return array('batch_id'=>(string)$batchId,'idempotent'=>!$inserted['created'],'sent'=>$sent,'failed'=>$failed,'uncertain'=>$uncertain,'skipped'=>$skipped,'summary'=>$summary);
     }
 
     // ------------------------------------------------------------------ resolution
@@ -188,25 +242,27 @@ final class NotificationManualSendService {
 
     /** Why a recipient may not be sent to, or null when reachable. */
     private function blocker(array $recipient):?string{
-        $channel=null; // blocked is channel-neutral: STOP/suppression are on the person, not the route.
         if(($recipient['id']??null)===null)return null;
         $digest=(string)$recipient['audience']==='teacher'?$this->lookup->teacherRecipientDigest((int)$recipient['id']):$this->lookup->recipientDigest((int)$recipient['id']);
         if($this->suppressions->active($digest,self::PURPOSE,NotificationSupport::now(),true)!==null)return 'stopped';
         return null;
     }
 
-    private function dispatch(string $channel,array $recipient,array $input):array{
+    /**
+     * @return array{acknowledged:bool,permanent_failure:?string,reason:string}
+     */
+    private function dispatch(string $channel,string $to,array $input,string $idempotencyKey):array{
         if($channel==='sms'){
-            $provider=SmsProviderRoutingPolicy::select((string)$recipient['to']);
+            $provider=SmsProviderRoutingPolicy::select($to);
             $body=trim(self::messageText($input,'sms'));
             if($provider==='sms_ir')$adapter=new SmsIrAdapter($this->settings,$this->http);
             else$adapter=new TelnyxSmsAdapter($this->settings,$this->http);
-            $result=$adapter->send(array('to'=>(string)$recipient['to'],'body'=>$body));
-            return array('acknowledged'=>(bool)($result['acknowledged']??false),'reason'=>(string)($result['permanent_failure']??($result['reason']??'sms_failed')),'reference'=>null);
+            $result=$adapter->send(array('to'=>$to,'body'=>$body,'idempotency_key'=>$idempotencyKey));
+            return array('acknowledged'=>(bool)($result['acknowledged']??false),'permanent_failure'=>isset($result['permanent_failure'])?$result['permanent_failure']:null,'reason'=>(string)($result['reason']??'sms_failed'));
         }
         $adapter=new TelnyxWhatsAppAdapter($this->settings,$this->http);
-        $result=$adapter->sendManual((string)$recipient['to'],self::WHATSAPP_TEMPLATE,self::WHATSAPP_LANGUAGE,self::WHATSAPP_ORDER,(array)($input['parameters']??array()),0);
-        return array('acknowledged'=>(bool)($result['acknowledged']??false),'reason'=>(string)($result['permanent_failure']??($result['reason']??'whatsapp_failed')),'reference'=>null);
+        $result=$adapter->sendManual($to,self::WHATSAPP_TEMPLATE,self::WHATSAPP_LANGUAGE,self::WHATSAPP_ORDER,(array)($input['parameters']??array()),0,$idempotencyKey);
+        return array('acknowledged'=>(bool)($result['acknowledged']??false),'permanent_failure'=>isset($result['permanent_failure'])?$result['permanent_failure']:null,'reason'=>(string)($result['reason']??'whatsapp_failed'));
     }
 
     private static function messageText(array $input,string $channel):string{
@@ -219,7 +275,6 @@ final class NotificationManualSendService {
         return array_values(array_unique(array_filter(array_map('trim',preg_split('/\s+/',$text)?:array()))));
     }
     private static function e164(string $phone):string{return PhoneNumberNormalizer::toE164($phone);}
-    private static function mask(string $number):string{return preg_replace('/[0-9](?=[0-9]{4})/','*',substr($number,0,-4)).substr($number,-4);}
     public static function canSend():bool{return current_user_can(self::CAPABILITY)||current_user_can('manage_options');}
 
     // ------------------------------------------------------------------ segments
@@ -247,28 +302,13 @@ final class NotificationManualSendService {
         return array_map(static fn(object $row):array=>array('id'=>(int)$row->id,'phone'=>(string)($row->phone??''),'whatsapp_phone'=>(string)($row->whatsapp_phone??'')),$rows);
     }
 
-    // ------------------------------------------------------------------ persistence
+    // ------------------------------------------------------------------ audit
 
-    private function batchByCommand(string $digest):?array{
-        foreach($this->batches() as $batch)if(($batch['command_digest']??'')===$digest)return $batch;
-        return null;
-    }
-    private function storeBatch(array $batch):void{
-        $batches=$this->batches();
-        array_unshift($batches,$batch);
-        if(count($batches)>self::BATCH_LIMIT)$batches=array_slice($batches,0,self::BATCH_LIMIT);
-        update_option(self::OPTION_BATCHES,$batches,false);
-    }
-    private function batches():array{
-        if(!function_exists('get_option'))return array();
-        $value=get_option(self::OPTION_BATCHES,array());
-        return is_array($value)?$value:array();
-    }
-    private function audit(string $action,string $batchId,string $channel,int $sent,int $failed,int $skipped):void{
+    private function audit(string $action,string $batchId,string $channel,array $summary):void{
         if(!function_exists('get_option'))return;
         $log=is_array(get_option(self::OPTION_AUDIT,array()))?get_option(self::OPTION_AUDIT,array()):array();
-        $log[]=array('at'=>NotificationSupport::now(),'actor'=>NotificationSupport::actor(),'action'=>$action,'batch_id'=>$batchId,'channel'=>$channel,'sent'=>$sent,'failed'=>$failed,'skipped'=>$skipped);
-        if(count($log)>self::BATCH_LIMIT)$log=array_slice($log,-self::BATCH_LIMIT);
+        $log[]=array('at'=>NotificationSupport::now(),'actor'=>NotificationSupport::actor(),'action'=>$action,'batch_id'=>$batchId,'channel'=>$channel,'summary'=>$summary);
+        if(count($log)>self::AUDIT_LIMIT)$log=array_slice($log,-self::AUDIT_LIMIT);
         update_option(self::OPTION_AUDIT,$log,false);
     }
 }

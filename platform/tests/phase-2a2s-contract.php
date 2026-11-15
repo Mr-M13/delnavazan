@@ -3,7 +3,7 @@
  * Phase 2A.2-S canonical notification & communications authority source contract (Schema 032).
  *
  * A pure source-string guard, runnable without WordPress: it proves the schema identity, the migration and
- * verifier wiring, the eighteen declared tables, the exact `platform_outbox` extension, the two routing
+ * verifier wiring, the twenty declared tables, the exact `platform_outbox` extension, the two routing
  * slots and their unique keys, the rule-freeze columns, the notification schedule columns, the attempt
  * retry columns, the closed intent registry and binding matrix, the §6.2.1 required-code vocabulary, the
  * closed §6.3 composition and canonical encoding, the §9 retry encoding with its narrow-only intervals,
@@ -55,7 +55,7 @@ if(!str_contains($migration,"in_array( '032_notification_communications_authorit
 if(!preg_match("/'032_notification_communications_authority'\s*[,)]/",$migration))throw new RuntimeException('The S migration must be listed as required');
 if(!str_contains($migration,'CAPABILITY_OPTION_S')||!str_contains($migration,'dzn_platform_capability_version_2a2s'))throw new RuntimeException('The S capability marker is missing');
 
-// 2. The migration is additive only and declares exactly the eighteen S-owned tables, each once.
+// 2. The migration is additive only and declares exactly the twenty S-owned tables, each once.
 // Bound the installer by the next function declaration: later migrations append their own
 // installers, and the outbox extension helper is no longer the immediate following function.
 $installStart=strpos($migration,'private static function install_notification_communications_authority');
@@ -63,10 +63,10 @@ $installEnd=strpos($migration,'private static function ',$installStart+1);
 $install=substr($migration,$installStart,$installEnd-$installStart);
 if(str_contains($install,'INSERT INTO')||str_contains($install,'UPDATE '))throw new RuntimeException('Migration 032 must be additive only: no INSERT/UPDATE statement');
 preg_match_all('/CREATE TABLE \{\$p\}([a-z_]+)/',$install,$created);
-$declaredTables=array('notification_workflows','notification_workflow_versions','notification_workflow_rules','notification_workflow_commands','notification_templates','notification_template_versions','notification_template_commands','notification_rendered_snapshots','notifications','notification_events','notification_commands','notification_attempts','notification_attempt_events','notification_deliveries','notification_suppressions','notification_suppression_events','notification_suppression_commands','notification_privacy_tombstones');
+$declaredTables=array('notification_workflows','notification_workflow_versions','notification_workflow_rules','notification_workflow_commands','notification_templates','notification_template_versions','notification_template_commands','notification_rendered_snapshots','notifications','notification_events','notification_commands','notification_attempts','notification_attempt_events','notification_deliveries','notification_suppressions','notification_suppression_events','notification_suppression_commands','notification_privacy_tombstones','notification_manual_send_batches','notification_manual_send_recipients');
 $createdTables=$created[1];sort($createdTables);sort($declaredTables);
-if($createdTables!==$declaredTables)throw new RuntimeException('Migration 032 must create exactly the eighteen declared S tables');
-if(count(array_unique($createdTables))!==18)throw new RuntimeException('Migration 032 must declare each S table exactly once');
+if($createdTables!==$declaredTables)throw new RuntimeException('Migration 032 must create exactly the twenty declared S tables');
+if(count(array_unique($createdTables))!==20)throw new RuntimeException('Migration 032 must declare each S table exactly once');
 foreach(array('notification_workflow_versions','notification_workflow_rules','notification_events','notification_attempts','notification_deliveries','notification_privacy_tombstones') as $table)if(!preg_match('/CREATE TABLE \{\$p\}'.preg_quote($table,'/').' \(/',$install))throw new RuntimeException('Missing the declared S table: '.$table);
 foreach(array('UNIQUE KEY workflow_active(workflow_id,active_slot)','UNIQUE KEY intent_active(intent_key,intent_active_slot)','UNIQUE KEY version_rule(workflow_version_id,rule_kind,rule_code,ordinal)','UNIQUE KEY notification_key_digest(notification_key_digest)','UNIQUE KEY outbox_id(outbox_id)','UNIQUE KEY attempt_lease(notification_id,attempt_sequence)','UNIQUE KEY lease_token_digest(lease_token_digest)','UNIQUE KEY provider_reference(provider_event_reference_digest)') as $needle)if(!str_contains($install,$needle))throw new RuntimeException('Missing the declared S unique key: '.$needle);
 

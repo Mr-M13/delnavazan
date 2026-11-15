@@ -169,7 +169,7 @@ final class TelnyxWhatsAppAdapter {
      * @param string[] $order
      * @param array<string,string> $parameters
      */
-    public function sendManual(string $to,string $templateName,string $language,array $order,array $parameters,int $correlationId):array{
+    public function sendManual(string $to,string $templateName,string $language,array $order,array $parameters,int $correlationId,?string $idempotencyKey=null):array{
         $to=PhoneNumberNormalizer::toE164($to);
         if(!preg_match('/^\+[1-9][0-9]{7,14}$/',$to))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
         if($templateName===''||$order===array())return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'template_not_configured');
@@ -178,9 +178,11 @@ final class TelnyxWhatsAppAdapter {
         if($sender==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'sender_not_configured');
         $profile=(string)$this->settings->value('whatsapp','messaging_profile_id');
         $payload=self::templatePayload($sender,$to,$templateName,$language,$order,$parameters,$profile);
+        $headers=array('Authorization'=>'Bearer '.(string)$this->settings->value('sms','api_key'),'Content-Type'=>'application/json');
+        if($idempotencyKey!==null&&$idempotencyKey!=='')$headers['Idempotency-Key']=$idempotencyKey;
         $response=$this->post('https://api.telnyx.com/v2/messages/whatsapp',array(
             'timeout'=>20,'redirection'=>0,
-            'headers'=>array('Authorization'=>'Bearer '.(string)$this->settings->value('sms','api_key'),'Content-Type'=>'application/json'),
+            'headers'=>$headers,
             'body'=>wp_json_encode($payload),
         ));
         if(is_wp_error($response))return array('acknowledged'=>false,'permanent_failure'=>null,'failure'=>'transport','ambiguous'=>true);

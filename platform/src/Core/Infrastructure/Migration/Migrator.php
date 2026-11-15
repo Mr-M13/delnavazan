@@ -1893,6 +1893,8 @@ final class Migrator {
 			"CREATE TABLE {$p}notification_suppression_events (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,suppression_id bigint unsigned NOT NULL,event_sequence int unsigned NOT NULL,event_type varchar(32) NOT NULL,from_state varchar(16) NULL,to_state varchar(16) NOT NULL,reason_code varchar(64) NULL,evidence_channel varchar(32) NOT NULL,evidence_reference_digest char(64) NOT NULL,evidence_at datetime NOT NULL,occurred_at datetime NOT NULL,recorded_at datetime NOT NULL,recorded_by bigint unsigned NOT NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY suppression_sequence(suppression_id,event_sequence)) ENGINE=InnoDB $c",
 			"CREATE TABLE {$p}notification_suppression_commands (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,command_domain varchar(48) NOT NULL,operation varchar(48) NOT NULL,command_key_digest char(64) NOT NULL,command_payload_digest char(64) NOT NULL,suppression_id bigint unsigned NULL,result_state varchar(32) NOT NULL,result_id bigint unsigned NULL,created_at datetime NOT NULL,created_by bigint unsigned NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY command_key_digest(command_key_digest),KEY suppression_id(suppression_id)) ENGINE=InnoDB $c",
 			"CREATE TABLE {$p}notification_privacy_tombstones (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,notification_id bigint unsigned NOT NULL,subject_reference_digest char(64) NOT NULL,erased_scope varchar(24) NOT NULL,erased_at datetime NOT NULL,erased_by bigint unsigned NOT NULL,reason_code varchar(64) NOT NULL,integrity_digest char(64) NOT NULL,created_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY notification_id(notification_id)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}notification_manual_send_batches (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,command_key_digest char(64) NOT NULL,channel varchar(16) NOT NULL,audience varchar(191) NOT NULL,state varchar(16) NOT NULL,created_at datetime NOT NULL,updated_at datetime NOT NULL,created_by bigint unsigned NULL,updated_by bigint unsigned NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY command_key_digest(command_key_digest),KEY state(state)) ENGINE=InnoDB $c",
+			"CREATE TABLE {$p}notification_manual_send_recipients (id bigint unsigned NOT NULL AUTO_INCREMENT,uid char(26) NOT NULL,batch_id bigint unsigned NOT NULL,contact varchar(32) NOT NULL,contact_digest char(64) NOT NULL,audience varchar(16) NOT NULL,subject_id bigint unsigned NULL,state varchar(16) NOT NULL,failure_reason varchar(64) NULL,provider_reference_digest char(64) NULL,claimed_at datetime NULL,finished_at datetime NULL,created_at datetime NOT NULL,updated_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY uid(uid),UNIQUE KEY batch_contact(batch_id,contact_digest),KEY batch_state(batch_id,state),KEY contact_digest(contact_digest)) ENGINE=InnoDB $c",
 		);
 		foreach ( $tables as $sql ) { dbDelta( self::dbdelta_sql( $sql ) ); if ( $wpdb->last_error !== '' ) throw new \RuntimeException('Migration operation failed: ' . $wpdb->last_error); }
 		self::install_notification_outbox_extension();
@@ -1983,6 +1985,8 @@ final class Migrator {
 			'notification_suppression_events' => array('uid','suppression_id','event_sequence','event_type','from_state','to_state','reason_code','evidence_channel','evidence_reference_digest','evidence_at','occurred_at','recorded_at','recorded_by'),
 			'notification_suppression_commands' => array('uid','command_domain','operation','command_key_digest','command_payload_digest','suppression_id','result_state','result_id'),
 			'notification_privacy_tombstones' => array('uid','notification_id','subject_reference_digest','erased_scope','erased_at','erased_by','reason_code','integrity_digest'),
+			'notification_manual_send_batches' => array('uid','command_key_digest','channel','audience','state'),
+			'notification_manual_send_recipients' => array('uid','batch_id','contact','contact_digest','audience','subject_id','state','failure_reason','provider_reference_digest','claimed_at','finished_at'),
 		);
 		foreach ( $spec as $table => $columns ) {
 			$physical = $p . $table;
@@ -2008,6 +2012,7 @@ final class Migrator {
 			array('notification_rendered_snapshots','params_digest'),array('notifications','notification_key_digest'),array('notifications','recipient_digest'),array('notifications','recipient_contact_digest'),array('notifications','subject_reference_digest'),array('notifications','notification_key_scope_digest'),
 			array('notification_attempts','lease_token_digest'),array('notification_deliveries','provider_fact_digest'),array('notification_deliveries','provider_event_reference_digest'),
 			array('notification_suppressions','subject_digest'),array('notification_privacy_tombstones','subject_reference_digest'),array('notification_privacy_tombstones','integrity_digest'),
+			array('notification_manual_send_batches','command_key_digest'),array('notification_manual_send_recipients','contact_digest'),array('notification_manual_send_recipients','provider_reference_digest'),
 		) as $shape ) {
 			$row = $wpdb->get_row("SHOW COLUMNS FROM {$p}{$shape[0]} LIKE '{$shape[1]}'");
 			if ( ! $row || strtolower( $row->Type ) !== 'char(64)' || $row->Null !== 'NO' ) throw new \RuntimeException('Migration verification failed: notification digest structure '.$shape[0].'.'.$shape[1]);
@@ -2021,16 +2026,17 @@ final class Migrator {
 			array('notification_attempts','attempt_lease',true),array('notification_attempts','lease_token_digest',true),array('notification_attempt_events','attempt_sequence',true),
 			array('notification_deliveries','notification_delivery',true),array('notification_deliveries','provider_reference',true),
 			array('notification_suppression_commands','command_key_digest',true),array('notification_privacy_tombstones','notification_id',true),
+			array('notification_manual_send_batches','command_key_digest',true),array('notification_manual_send_recipients','uid',true),array('notification_manual_send_recipients','batch_state',false),
 		) as $index ) if ( ! self::has_index( $p.$index[0], $index[1], $index[2] ) ) throw new \RuntimeException('Migration verification failed: notification index '.$index[1]);
 		foreach ( array( array('workflow_active','workflow_id','active_slot'), array('intent_active','intent_key','intent_active_slot') ) as $slot ) if ( ! self::has_index_columns( $p.'notification_workflow_versions', $slot[0], true, array($slot[1],$slot[2]) ) ) throw new \RuntimeException('Migration verification failed: notification routing slot '.$slot[0]);
-		// The S-owned tables are exactly the eighteen declared ones: no extra `dzn_notification_*` table may
+		// The S-owned tables are exactly the twenty declared ones: no extra `dzn_notification_*` table may
 		// exist, and no Term/Lesson/schedule/attendance/payment table may be smuggled in beside them.
 		$owned = array(); foreach ( array_keys( $spec ) as $declared ) $owned[ $p . $declared ] = true;
 		foreach ( (array) $wpdb->get_col( $wpdb->prepare( 'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE %s', $p . 'notification%' ) ) as $existing ) {
 			$existing = (string) $existing;
 			if ( ! isset( $owned[ $existing ] ) ) throw new \RuntimeException('Migration verification failed: unexpected notification storage '.$existing);
 		}
-		if ( count( $owned ) !== 18 ) throw new \RuntimeException('Migration verification failed: notification storage table count');
+		if ( count( $owned ) !== 20 ) throw new \RuntimeException('Migration verification failed: notification storage table count');
 		self::verify_notification_outbox_extension();
 		self::verify_notification_authority_data();
 	}

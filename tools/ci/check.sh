@@ -18,13 +18,15 @@ Commands:
   lint                   php -l every tracked PHP file, then git diff --check
   contracts <file...>    Run the given platform/tests/*.php contracts, e.g.
                          tools/ci/check.sh contracts platform/tests/phase-1b-contract.php
+  services               Run services/tests/run-all.sh (recording services)
+  all                    lint, then services
 
 Runs natively on PHP 8.3 with the CI extensions; use tools/ci/run-in-container.sh
 for exact container parity or when the host PHP differs.
 
 The PR runtime gate in .github/workflows/pr-runtime-gate.yml remains authoritative.
-Runtime suites (platform/runtime/bin/run-*-runtime.sh) and services tests
-(services/tests/run-all.sh) are separate and still need Docker/MariaDB.
+Runtime suites (platform/runtime/bin/run-*-runtime.sh) still need Docker/MariaDB
+and are run by CI; they are not part of this script.
 EOF
 }
 
@@ -89,6 +91,17 @@ contracts() {
   printf 'OK    %d contract(s)\n' "$#"
 }
 
+services() {
+  check_environment
+  bash services/tests/run-all.sh
+  printf 'OK    services tests\n'
+}
+
+all() {
+  lint
+  services
+}
+
 [[ $# -gt 0 ]] || { usage >&2; exit 2; }
 command="$1"
 shift
@@ -96,6 +109,8 @@ case "$command" in
   doctor) doctor ;;
   lint) lint "$@" ;;
   contracts) contracts "$@" ;;
+  services) services "$@" ;;
+  all) all "$@" ;;
   -h|--help|help) usage ;;
   *) usage >&2; exit 2 ;;
 esac

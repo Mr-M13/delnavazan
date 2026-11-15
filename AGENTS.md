@@ -98,8 +98,8 @@ is optional strict parity. Docker is required only for the runtime suites.
   list in `.github/workflows/pr-runtime-gate.yml` is the authoritative set.
 - **Runtime suites:** `platform/runtime/bin/run-<suite>-runtime.sh`. These already drive Docker
   with the CI images `mariadb:11.4`, `wordpress:php8.3-apache` and `wordpress:cli-php8.3`.
-- **Service tests:** `bash services/tests/run-all.sh` (CI uses PHP 8.3 with `pdo_sqlite`,
-  `sqlite3`, `curl`, `mbstring`).
+- **Service tests:** `tools/ci/check.sh services` (runs `services/tests/run-all.sh` on PHP 8.3
+  with `pdo_sqlite`, `sqlite3`, `curl`, `mbstring`).
 
 Rules:
 
@@ -115,12 +115,13 @@ Rules:
 
 ### 2.2 Docker retirement
 
-Lint and source contracts do **not** require Docker: they run on any PHP 8.3 host with the CI
-extensions, and the container is optional parity. Docker is still required for
-`platform/runtime/bin/run-*-runtime.sh`, because those suites pull `mariadb:11.4`,
-`wordpress:php8.3-apache` and `wordpress:cli-php8.3`. Docker can be retired from the repository
-only when those suites gain a native harness or are formally declared CI-only; until then the PR
-runtime gate remains authoritative.
+The local agent path does **not** require Docker: lint, source contracts and the recording
+services run natively on PHP 8.3 (`tools/ci/check.sh lint|contracts|services|all`), and the
+container is optional parity. The runtime suites (`platform/runtime/bin/run-*-runtime.sh`) are the
+only remaining Docker dependency and are **CI-only for agents**: the PR runtime gate runs them,
+and a green native run never substitutes for green CI. Removing Docker from the repository
+entirely means replacing that harness with a native MariaDB/WordPress setup, or deleting the
+suites — both need Codex review and a workflow change.
 
 ## 3. Change discipline
 

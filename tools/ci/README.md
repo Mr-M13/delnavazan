@@ -2,12 +2,14 @@
 
 `check.sh` runs the checks from `.github/workflows/pr-runtime-gate.yml` on PHP 8.3.
 
-## Native (default)
+## Native (default, no Docker)
 
 ```bash
 tools/ci/check.sh doctor        # PHP version, extensions, repo state
 tools/ci/check.sh lint          # php -l every tracked PHP file + git diff --check
 tools/ci/check.sh contracts platform/tests/<area>-contract.php
+tools/ci/check.sh services      # services/tests/run-all.sh
+tools/ci/check.sh all           # lint, then services
 ```
 
 Native runs require PHP 8.3 and the extensions `curl`, `mbstring`, `pdo_sqlite`, `sqlite3`,
@@ -20,24 +22,29 @@ PHP does not match, `check.sh` stops instead of producing a false signal.
 tools/ci/run-in-container.sh doctor
 tools/ci/run-in-container.sh lint
 tools/ci/run-in-container.sh contracts platform/tests/<area>-contract.php
+tools/ci/run-in-container.sh services
 ```
 
 The image is built from `.devcontainer/Dockerfile` and tagged with that file's hash, so a
 Dockerfile change rebuilds instead of reusing a stale image. Opening the repository in the
 devcontainer gives the same environment for a whole session.
 
-## What still requires Docker
+## Docker retirement status
 
-Only the runtime suites and their databases:
+The local agent path is Docker-free:
 
-- `platform/runtime/bin/run-*-runtime.sh` pulls `mariadb:11.4`, `wordpress:php8.3-apache` and
-  `wordpress:cli-php8.3`.
-- `services/tests/run-all.sh` needs PHP with `pdo_sqlite`, `sqlite3`, `curl`, `mbstring` (CI runs
-  it on the runner, no Docker).
+| Area | Local command | Docker |
+|---|---|---|
+| PHP lint | `tools/ci/check.sh lint` | No |
+| Source contracts | `tools/ci/check.sh contracts …` | No |
+| Recording services | `tools/ci/check.sh services` | No |
+| Runtime suites | CI only | Yes — `mariadb:11.4`, `wordpress:php8.3-apache`, `wordpress:cli-php8.3` |
 
-Lint and source contracts no longer need Docker. Retiring Docker entirely means replacing the
-runtime harness with a native MariaDB/WordPress setup or declaring those suites CI-only. Until
-then, the PR runtime gate stays authoritative and a green native run never substitutes for CI.
+The runtime suites (`platform/runtime/bin/run-*-runtime.sh`) are the only remaining Docker
+dependency. They are declared CI-only for agents: the PR runtime gate runs them, and a green
+native run never substitutes for green CI. Removing Docker from the repository entirely would
+mean replacing that harness with a native MariaDB/WordPress setup, or deleting the suites — both
+need a Codex review and a workflow change.
 
 ## Boundaries
 

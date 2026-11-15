@@ -11,7 +11,7 @@ final class BookingStudentAccountRepository {
     public function rollback(): void { global $wpdb; $wpdb->query( 'ROLLBACK' ); }
     public function assertTransactionalStorage(): void {
         global $wpdb;
-        $tables = array( $wpdb->users, $wpdb->usermeta, $this->prefix . 'students', $this->prefix . 'student_principal_links', $this->prefix . 'student_schedule_roots', $this->prefix . 'booking_requests', $this->prefix . 'booking_request_identity_resolution_events', $this->prefix . 'booking_request_submission_keys' );
+        $tables = array( $wpdb->users, $wpdb->usermeta, $this->prefix . 'students', $this->prefix . 'student_acceptance_capacity_classifications', $this->prefix . 'student_principal_links', $this->prefix . 'student_schedule_roots', $this->prefix . 'booking_requests', $this->prefix . 'booking_request_identity_resolution_events', $this->prefix . 'booking_request_submission_keys' );
         foreach ( $tables as $table ) {
             $engine = $wpdb->get_var( $wpdb->prepare( 'SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s', $table ) );
             if ( ! is_string( $engine ) || strcasecmp( $engine, 'InnoDB' ) !== 0 ) throw new \RuntimeException( 'Transactional account storage unavailable' );
@@ -78,6 +78,29 @@ final class BookingStudentAccountRepository {
         if ( $wpdb->insert( $this->prefix . 'students', $data ) === false ) throw new \RuntimeException( 'Student creation failed' );
         return (int) $wpdb->insert_id;
     }
+    /** Capture an explicit adult self-attestation within the account/booking transaction. */
+    public function recordAdultSelfAttestation(int $studentId, int $userId, string $now): void {
+        global $wpdb;
+        $id = $wpdb->insert( $this->prefix . 'student_acceptance_capacity_classifications', array(
+            'uid' => \Delnavazan\Platform\Core\Support\Identifier::uid(),
+            'student_id' => $studentId,
+            'classification' => 'adult',
+            'verification_basis' => 'self_attestation',
+            'evidence_channel' => 'authenticated_platform',
+            'evidence_reference' => 'booking-adult-attestation-' . \Delnavazan\Platform\Core\Support\Identifier::uid(),
+            'evidence_at' => $now,
+            'classified_at' => $now,
+            'classified_by' => $userId,
+            'created_at' => $now,
+            'created_by' => $userId,
+        ) );
+        if ( $id !== 1 || (int) $wpdb->insert_id < 1 ) throw new \RuntimeException( 'Student adult attestation persistence failed' );
+        $capacityId = (int) $wpdb->insert_id;
+        if ( $wpdb->update( $this->prefix . 'students', array( 'current_acceptance_capacity_classification_id' => $capacityId ), array( 'id' => $studentId, 'current_acceptance_capacity_classification_id' => null ) ) !== 1 ) {
+            throw new \RuntimeException( 'Student adult attestation projection failed' );
+        }
+    }
+
     public function assignStudentReference(int $studentId, string $reference): void {
         global $wpdb;
         if ( $wpdb->update( $this->prefix . 'students', array( 'reference_code' => $reference ), array( 'id' => $studentId, 'reference_code' => null ) ) !== 1 ) throw new \RuntimeException( 'Student reference assignment failed' );

@@ -122,6 +122,8 @@ final class BookingStudentAccountService {
             'uid' => Identifier::uid(), 'reference_code' => null, 'status' => 'active', 'display_name' => $contact['full_name'], 'email' => $contact['email'], 'phone' => $contact['mobile'], 'whatsapp_phone' => $contact['whatsapp_number'], 'country_code' => $contact['country'], 'city' => $contact['city'], 'timezone' => $contact['timezone'], 'timezone_source' => 'booking_account', 'locale' => $contact['communication_language'], 'calendar_preference' => 'auto', 'wordpress_user_id' => $userId, 'created_at' => $now, 'updated_at' => $now, 'created_by' => $userId, 'updated_by' => $userId,
         ) );
         $this->accounts->assignStudentReference( $studentId, Identifier::reference( 'DZN-STU-', $studentId ) );
+        // The booking form requires explicit 18+ attestation. Never infer adulthood when absent.
+        if ( ! empty( $contact['adult_self_attested'] ) ) $this->accounts->recordAdultSelfAttestation( $studentId, $userId, $now );
         $this->accounts->createPrincipal( array(
             'student_id' => $studentId, 'wordpress_user_id' => $userId, 'status' => 'active', 'link_sequence' => $this->accounts->nextPrincipalSequence( $studentId ), 'active_slot' => 1, 'version' => 1, 'verification_basis' => 'verified_internal_record', 'evidence_channel' => 'verified_internal_record', 'evidence_reference' => 'booking-account-' . Identifier::uid(), 'evidence_at' => $now, 'linked_at' => $now, 'linked_by' => $userId, 'updated_at' => $now, 'updated_by' => $userId,
         ) );

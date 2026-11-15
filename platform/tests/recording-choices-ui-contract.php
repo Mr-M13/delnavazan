@@ -92,6 +92,12 @@ $need(str_contains($routes,'dzn_theme_render_recording_information_route'),'the 
 $need(str_contains($migrator,"'dzn_accept_own_recording_terms'"),'the Teacher self-service capability must be installed');
 $need(str_contains($authority,'CAPTURE_ENABLED=false')&&str_contains($authority,'RESEARCH_EXPORT_ENABLED=false'),'capture and research export must remain disabled');
 $need(!str_contains($controller,'ContractRecordingProvider')&&!str_contains($controller,'recording_provider'),'no recording provider may be added');
+$unifiedService=$read('src/Core/Application/UnifiedConsentService.php');
+$need(str_contains($authority, "'privacy'=>\$this->decisionState(\$privacy,ConsentPurposeRegistry::PRIVACY_TERMS)"),'Teacher and Student decision states must expose privacy acceptance');
+$need(str_contains($readService, "!empty(\$state['privacy']['positive'])"),'Unified consent must require all purposes, including privacy');
+$need(str_contains($readService, "\$privacy!==null"),'Teacher unified form needs a published privacy notice');
+$need(str_contains($teacher, "if ( \$unified_accepted )"),'Teacher must not report unified completion based on terms alone');
+$need(str_contains($unifiedService, "!empty(\$state['privacy']['positive'])"),'Student unified state must include privacy acceptance');
 $need(!str_contains($readService,'wp_remote_')&&!str_contains($readService,'curl_'),'the UI read service must not transport media');
 echo $fail?'Recording choices UI contract failed:\n- '.implode("\n- ",$fail)."\n":'Recording choices UI contract passed'."\n";
 if($fail)exit(1);

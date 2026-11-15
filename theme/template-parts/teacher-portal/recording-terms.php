@@ -26,10 +26,11 @@ $format_date = static function ( string $value ): string {
 $iso_datetime = static function ( string $value ): string { return '' === $value ? '' : str_replace( ' ', 'T', $value ) . 'Z'; };
 $status_messages = array(
 	'unified_saved' => array( 'success', 'Consent saved. Recording, research and privacy are accepted.', 'رضایت ذخیره شد. ضبط کلاس، پژوهش و حریم خصوصی پذیرفته شد.' ),
-	'terms_unavailable' => array( 'error', 'The choice could not be saved. No record was created.', 'انتخاب ذخیره نشد؛ هیچ سابقه‌ای ساخته نشد.' ),
+	'terms_unavailable' => array( 'error', 'Consent was not fully saved. Review the current decisions before retrying.', 'ثبت رضایت کامل نشد. پیش از تلاش دوباره، تصمیم‌های ثبت‌شده را بررسی کنید.' ),
 );
 $unified = isset( $recording['unified'] ) && is_array( $recording['unified'] ) ? $recording['unified'] : array();
 $mandatory_accepted = ! empty( $unified['mandatory_accepted'] ) || ! empty( $recording['mandatory_accepted'] );
+$unified_accepted = ! empty( $unified['consent_active'] ) || ! empty( $recording['unified_accepted'] );
 $policy_urls = isset( $recording['policy_urls'] ) && is_array( $recording['policy_urls'] ) ? $recording['policy_urls'] : array(
 	'privacy' => home_url( '/privacy-policy/' ),
 	'recording_ai' => home_url( '/recording-and-ai-policy/' ),
@@ -50,7 +51,7 @@ $unified_available = ! empty( $unified['available'] );
 	<?php if ( ! $linked ) : ?>
 		<p class="dzn-tp-help" role="status">این بخش فقط برای حساب مدرس فعال در دسترس است. هیچ رضایتی ثبت نشده است. · Teacher consent is available only to an active Teacher account. No consent has been recorded.</p>
 	<?php elseif ( $unified_available ) : ?>
-		<?php if ( $mandatory_accepted ) : ?>
+		<?php if ( $unified_accepted ) : ?>
 			<p class="dzn-tp-help" role="status"><strong>رضایت شما ثبت شده است.</strong> ضبط کلاس، پژوهش و حریم خصوصی پذیرفته شد<?php echo ! empty( $terms_state['decided_at'] ) ? ' · ' . esc_html( $format_date( (string) $terms_state['decided_at'] ) ) : ''; ?>. · Consent saved on <time datetime="<?php echo esc_attr( $iso_datetime( (string) ( $terms_state['decided_at'] ?? '' ) ) ); ?>"><?php echo esc_html( $format_date( (string) ( $terms_state['decided_at'] ?? '' ) ) ); ?></time></p>
 		<?php else : ?>
 			<form class="dzn-tp-form" method="post" action="<?php echo esc_url( (string) ( $unified['action_url'] ?? '' ) ); ?>">

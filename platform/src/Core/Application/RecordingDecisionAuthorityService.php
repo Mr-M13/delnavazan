@@ -352,11 +352,13 @@ final class RecordingDecisionAuthorityService {
         $terms=$this->latestDecision('teacher',$teacher,ConsentPurposeRegistry::TEACHER_TERMS,false);
         $recording=$this->latestDecision('teacher',$teacher,ConsentPurposeRegistry::TEACHER_RECORDING,false);
         $research=$this->latestDecision('teacher',$teacher,ConsentPurposeRegistry::TEACHER_RESEARCH,false);
+        $privacy=$this->latestDecision('teacher',$teacher,ConsentPurposeRegistry::PRIVACY_TERMS,false);
         return array(
             'available'=>true,'reason'=>null,'teacher_id'=>$teacher,'authority'=>'teacher',
             'terms'=>$this->decisionState($terms,ConsentPurposeRegistry::TEACHER_TERMS),
             'recording'=>$this->decisionState($recording,ConsentPurposeRegistry::TEACHER_RECORDING),
             'research'=>$this->decisionState($research,ConsentPurposeRegistry::TEACHER_RESEARCH),
+            'privacy'=>$this->decisionState($privacy,ConsentPurposeRegistry::PRIVACY_TERMS),
         );
     }
 
@@ -364,6 +366,7 @@ final class RecordingDecisionAuthorityService {
         $guardian=$authority==='guardian';
         $recording=$this->latestDecision('student',$studentId,ConsentPurposeRegistry::STUDENT_RECORDING,$guardian);
         $research=$this->latestDecision('student',$studentId,ConsentPurposeRegistry::STUDENT_RESEARCH,$guardian);
+        $privacy=$this->latestDecision('student',$studentId,ConsentPurposeRegistry::PRIVACY_TERMS,$guardian);
         return array(
             'available'=>true,'reason'=>null,'student_id'=>$studentId,'authority'=>$authority,
             'guardian_grant_id'=>$grant?(int)$grant->id:null,
@@ -371,6 +374,7 @@ final class RecordingDecisionAuthorityService {
             'capture_eligible'=>$recording!==null&&(string)$recording->decision_code==='allow'&&$this->noticeIsCurrent((int)$recording->notice_version_id),
             'recording'=>$this->decisionState($recording,ConsentPurposeRegistry::STUDENT_RECORDING),
             'research'=>$this->decisionState($research,ConsentPurposeRegistry::STUDENT_RESEARCH),
+            'privacy'=>$this->decisionState($privacy,ConsentPurposeRegistry::PRIVACY_TERMS),
             'research_export_enabled'=>self::RESEARCH_EXPORT_ENABLED,
         );
     }
@@ -393,12 +397,13 @@ final class RecordingDecisionAuthorityService {
         return array('available'=>false,'reason'=>$reason,'teacher_id'=>null,'authority'=>'teacher',
             'terms'=>array('decision'=>null,'decided_at'=>null,'notice_uid'=>null,'notice_version'=>null,'language'=>null,'decision_id'=>null,'current'=>false,'positive'=>false),
             'recording'=>array('decision'=>null,'decided_at'=>null,'notice_uid'=>null,'notice_version'=>null,'language'=>null,'decision_id'=>null,'current'=>false,'positive'=>false),
-            'research'=>array('decision'=>null,'decided_at'=>null,'notice_uid'=>null,'notice_version'=>null,'language'=>null,'decision_id'=>null,'current'=>false,'positive'=>false));
+            'research'=>array('decision'=>null,'decided_at'=>null,'notice_uid'=>null,'notice_version'=>null,'language'=>null,'decision_id'=>null,'current'=>false,'positive'=>false),
+            'privacy'=>array('decision'=>null,'decided_at'=>null,'notice_uid'=>null,'notice_version'=>null,'language'=>null,'decision_id'=>null,'current'=>false,'positive'=>false));
     }
 
     private function emptyStudentState(string $reason):array{
         $empty=array('decision'=>null,'decided_at'=>null,'notice_uid'=>null,'notice_version'=>null,'language'=>null,'decision_id'=>null,'current'=>false,'positive'=>false);
-        return array('available'=>false,'reason'=>$reason,'student_id'=>null,'authority'=>null,'guardian_grant_id'=>null,'guardian_grant_version'=>null,'capture_eligible'=>false,'recording'=>$empty,'research'=>$empty,'research_export_enabled'=>self::RESEARCH_EXPORT_ENABLED);
+        return array('available'=>false,'reason'=>$reason,'student_id'=>null,'authority'=>null,'guardian_grant_id'=>null,'guardian_grant_version'=>null,'capture_eligible'=>false,'recording'=>$empty,'research'=>$empty,'privacy'=>$empty,'research_export_enabled'=>self::RESEARCH_EXPORT_ENABLED);
     }
 
     private function code(string $value,string $fallback):string{

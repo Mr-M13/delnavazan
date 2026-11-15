@@ -28,7 +28,7 @@ $messages = array(
 	'research_saved' => array( 'success', 'انتخاب پژوهش شما ذخیره شد.' ),
 	'research_withdrawn' => array( 'success', 'مشارکت در پژوهش پس گرفته شد.' ),
 	'privacy_saved' => array( 'success', 'تأیید حریم خصوصی شما ذخیره شد.' ),
-	'recording_unavailable' => array( 'error', 'انتخاب ذخیره نشد. هیچ اجازهٔ ضبطی ثبت نشد.' ),
+	'recording_unavailable' => array( 'error', 'ثبت همهٔ رضایت‌ها کامل نشد. وضعیت فعلی را بررسی کرده و پس از رفع مشکل دوباره تلاش کنید.' ),
 );
 $unified = isset( $recording['unified'] ) && is_array( $recording['unified'] ) ? $recording['unified'] : array();
 $consent_active = ! empty( $recording['consent_active'] ) || ! empty( $unified['consent_active'] );

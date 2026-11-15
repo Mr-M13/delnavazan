@@ -51,4 +51,13 @@ foreach ( array( 'canonical_lesson_schedule_versions', 'lesson_schedule_versions
     $expect(strpos($occupancyQuery, $needle) !== false, 'Missing Student occupancy source: ' . $needle);
 }
 $expect(strpos($controller, "'student_slot_conflict'") !== false && strpos($javascript, 'student_slot_conflict') !== false, 'Student slot conflicts must map to a non-generic public response.');
+$expect(str_contains($repository, "'student_acceptance_capacity_classifications'"), 'Capacity classification storage must be transactional.');
+$expect(str_contains($repository, 'function recordAdultSelfAttestation('), 'The new student requires capacity evidence.');
+foreach (array("'classification' => 'adult'", "'verification_basis' => 'self_attestation'", "'evidence_channel' => 'authenticated_platform'", 'current_acceptance_capacity_classification_id') as $field) {
+    $expect(str_contains($repository, $field), 'Capacity evidence missing: ' . $field);
+}
+$expect(str_contains($service, "! empty( \$contact['adult_self_attested'] )"), 'Never infer adulthood without attestation.');
+$expect(strpos($service, 'recordAdultSelfAttestation(') < strpos($service, 'createPrincipal('), 'Capacity evidence must precede principal linkage.');
+$expect(str_contains($controller, "'consent_status' => \$consentStatus") && str_contains($controller, "'not_recorded'"), 'Booking must report optional consent status independently.');
+$expect(str_contains($controller, "'recording_unavailable'") && str_contains($controller, 'set_transient('), 'Student must see consent write failure on portal.');
 echo "Booking student account source contract passed\n";

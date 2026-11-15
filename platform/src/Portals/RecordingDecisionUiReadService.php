@@ -32,7 +32,7 @@ final class RecordingDecisionUiReadService {
             if($researchNotice!==null)$forms['research']=$this->form(ConsentPurposeRegistry::STUDENT_RESEARCH,$researchNotice,'dzn_recording_student_choice',$context);
             if($privacyNotice!==null)$forms['privacy']=$this->form(ConsentPurposeRegistry::PRIVACY_TERMS,$privacyNotice,'dzn_recording_student_choice',$context);
         }
-        $consentActive=!empty($state['recording']['positive'])&&!empty($state['research']['positive']);
+        $consentActive=!empty($state['recording']['positive'])&&!empty($state['research']['positive'])&&!empty($state['privacy']['positive']);
         $unified=array('available'=>false,'consent_active'=>$consentActive,'action_url'=>'','nonce_action'=>'dzn_unified_student_consent','withdraw_action_url'=>'','withdraw_nonce_action'=>'dzn_unified_student_withdraw','idempotency_key'=>'','withdraw_idempotency_key'=>'','language'=>$language,'return_to'=>$context==='enrolment'?'home':'account','notices'=>array());
         if(!empty($state['available'])&&$recordingNotice!==null&&$researchNotice!==null&&$privacyNotice!==null){
             $unified['available']=true;
@@ -54,6 +54,7 @@ final class RecordingDecisionUiReadService {
             'guardian_grant_id'=>$state['guardian_grant_id']??null,
             'recording'=>$state['recording']??$this->emptyChoice(),
             'research'=>$state['research']??$this->emptyChoice(),
+            'privacy'=>$state['privacy']??$this->emptyChoice(),
             'capture_eligible'=>!empty($state['capture_eligible']),
             'recording_notice'=>$recordingNotice,
             'research_notice'=>$researchNotice,
@@ -83,13 +84,15 @@ final class RecordingDecisionUiReadService {
         foreach($researchNotices as$notice)$forms['research'][]=$this->form(ConsentPurposeRegistry::TEACHER_RESEARCH,$notice,'dzn_recording_teacher_choice',$context);
         foreach($privacyNotices as$notice)$forms['privacy'][]=$this->form(ConsentPurposeRegistry::PRIVACY_TERMS,$notice,'dzn_recording_teacher_choice',$context);
         $mandatoryAccepted=!empty($state['terms']['positive'])&&!empty($state['recording']['positive']);
-        $unified=$this->teacherUnified($state['available']??false,$context,$termsNotices,$recordingNotices,$researchNotices,$privacyNotices,$mandatoryAccepted);
+        $unifiedAccepted=$mandatoryAccepted&&!empty($state['research']['positive'])&&!empty($state['privacy']['positive']);
+        $unified=$this->teacherUnified($state['available']??false,$context,$termsNotices,$recordingNotices,$researchNotices,$privacyNotices,$mandatoryAccepted,$unifiedAccepted);
         return array(
             'available'=>!empty($state['available'])&&$termsNotices!==array(),
             'linked'=>!empty($state['available']),
             'reason'=>$state['reason']??null,
             'accepted'=>!empty($state['terms']['positive']),
             'mandatory_accepted'=>$mandatoryAccepted,
+            'unified_accepted'=>$unifiedAccepted,
             'accepted_at'=>$state['terms']['decided_at']??null,
             'notice_uid'=>$state['terms']['notice_uid']??null,
             'notice_version'=>$state['terms']['notice_version']??null,
@@ -97,6 +100,7 @@ final class RecordingDecisionUiReadService {
             'terms'=>$state['terms']??$this->emptyChoice(),
             'recording'=>$state['recording']??$this->emptyChoice(),
             'research'=>$state['research']??$this->emptyChoice(),
+            'privacy'=>$state['privacy']??$this->emptyChoice(),
             'notices'=>$forms['terms']??array(),
             'recording_notices'=>$recordingNotices,
             'research_notices'=>$researchNotices,
@@ -109,7 +113,7 @@ final class RecordingDecisionUiReadService {
         );
     }
 
-    private function teacherUnified(bool $linked,string $context,$termsNotices,$recordingNotices,$researchNotices,$privacyNotices,bool $mandatoryAccepted):array{
+    private function teacherUnified(bool $linked,string $context,$termsNotices,$recordingNotices,$researchNotices,$privacyNotices,bool $mandatoryAccepted,bool $unifiedAccepted):array{
         $locale=function_exists('get_user_locale')?(string)get_user_locale():'en';
         $preferred=str_starts_with(strtolower($locale),'fa')?'fa':'en';
         $pick=function($notices)use($preferred){
@@ -122,8 +126,8 @@ final class RecordingDecisionUiReadService {
             return null;
         };
         $terms=$pick($termsNotices);$recording=$pick($recordingNotices);$research=$pick($researchNotices);$privacy=$pick($privacyNotices);
-        $available=$linked&&$terms!==null&&$recording!==null&&$research!==null;
-        $unified=array('available'=>$available,'mandatory_accepted'=>$mandatoryAccepted,'action_url'=>'','nonce_action'=>'dzn_unified_teacher_consent','idempotency_key'=>'','language'=>$preferred,'return_to'=>$context,'notices'=>array());
+        $available=$linked&&$terms!==null&&$recording!==null&&$research!==null&&$privacy!==null;
+        $unified=array('available'=>$available,'mandatory_accepted'=>$mandatoryAccepted,'consent_active'=>$unifiedAccepted,'action_url'=>'','nonce_action'=>'dzn_unified_teacher_consent','idempotency_key'=>'','language'=>$preferred,'return_to'=>$context,'notices'=>array());
         if($available){
             $unified['action_url']=admin_url('admin-post.php?action=dzn_unified_teacher_consent');
             $unified['idempotency_key']=wp_generate_uuid4();

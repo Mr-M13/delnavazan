@@ -81,7 +81,7 @@ final class UnifiedConsentService {
     public function studentConsentActive():bool{
         try{$state=$this->authority->studentDecisionState();}
         catch(\Throwable){return false;}
-        return !empty($state['recording']['positive'])&&!empty($state['research']['positive']);
+        return !empty($state['recording']['positive'])&&!empty($state['research']['positive'])&&!empty($state['privacy']['positive']);
     }
 
     private function resolveNotices(array $purposes,string $language):array{

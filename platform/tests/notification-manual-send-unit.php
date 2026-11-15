@@ -9,7 +9,7 @@ namespace {
     if (!function_exists('wp_salt')) { function wp_salt($s = 'auth') { return 'test-salt:' . $s; } }
     if (!function_exists('wp_json_encode')) { function wp_json_encode($v) { return json_encode($v, JSON_UNESCAPED_UNICODE); } }
     if (!function_exists('do_action')) { function do_action(...$a) {} }
-    if (!function_exists('current_user_can')) { function current_user_can($c) { return true; } }
+    if (!function_exists('current_user_can')) { function current_user_can($c) { return $GLOBALS['dzn_test_can'] ?? true; } }
     if (!function_exists('get_current_user_id')) { function get_current_user_id() { return 7; } }
     if (!function_exists('get_option')) { function get_option($k, $d = false) { return $GLOBALS['dzn_test_options'][$k] ?? $d; } }
     if (!function_exists('update_option')) { function update_option($k, $v, $a = null) { $GLOBALS['dzn_test_options'][$k] = $v; return true; } }
@@ -162,6 +162,22 @@ namespace {
     $fail('an empty SMS message is reported', in_array('A message is required for SMS.', $empty['errors'], true));
     $unknown = $service->preview(array('segments' => array('nonsense'), 'channel' => '', 'message' => 'x', 'parameters' => array()));
     $fail('an unknown segment is reported', in_array('Unknown audience segment.', $unknown['errors'], true));
+
+    /* 7. A manual send is gated by the dispatch capability. */
+    $GLOBALS['dzn_test_can'] = false;
+    $forbidden = false;
+    try { $service->send(array('segments' => array('teachers'), 'channel' => '', 'message' => 'x', 'parameters' => array()), 'manual-test-perm'); } catch (InvalidArgumentException $error) { $forbidden = $error->getMessage() === 'notification_manual_send_forbidden'; }
+    $GLOBALS['dzn_test_can'] = true;
+    $fail('a send without the dispatch capability is refused', $forbidden);
+
+    /* 8. Re-submitting the identical send converges on the same batch — a partial batch is never
+     *     resent to recipients who already received it. This is what the content-derived command key
+     *     guarantees in the controller. */
+    $GLOBALS['dzn_http_calls'] = array();
+    $contentKey = 'manual-send:' . get_current_user_id() . ':' . hash('sha256', wp_json_encode(array('segments' => array('teachers'), 'channel' => 'sms', 'message' => 'same message', 'parameters' => array())));
+    $first = $service->send(array('segments' => array('teachers'), 'channel' => 'sms', 'message' => 'same message', 'parameters' => array()), $contentKey);
+    $second = $service->send(array('segments' => array('teachers'), 'channel' => 'sms', 'message' => 'same message', 'parameters' => array()), $contentKey);
+    $fail('an identical send never reaches the provider twice', $second['idempotent'] === true && $first['sent'] === 2 && count($GLOBALS['dzn_http_calls']) === 2);
 
     echo "Notification manual send unit passed\n";
 }

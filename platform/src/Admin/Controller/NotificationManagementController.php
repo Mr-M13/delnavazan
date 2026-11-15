@@ -312,7 +312,11 @@ final class NotificationManagementController {
             ),
         );
         try{
-            $commandKey='manual-send:'.gmdate('YmdHis').':'.get_current_user_id().':'.hash('sha256',wp_json_encode($input));
+            // The command key is derived from the send intent — audience, channel, message and the
+            // acting administrator — not from a clock. Re-submitting an identical send converges on the
+            // same batch, so a partially completed batch is never resent to recipients who already
+            // received it; a changed message or audience is a new batch.
+            $commandKey='manual-send:'.get_current_user_id().':'.hash('sha256',wp_json_encode($input));
             $result=(new NotificationManualSendService())->send($input,$commandKey);
             self::flash('success',sprintf('Manual send complete: %d sent, %d failed, %d skipped. Batch %s.',(int)$result['sent'],(int)$result['failed'],(int)$result['skipped'],(string)$result['batch_id']));
         }catch(\Throwable $error){

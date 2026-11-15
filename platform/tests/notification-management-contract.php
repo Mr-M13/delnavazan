@@ -28,9 +28,10 @@ foreach (array(
     'dzn_notification_approve_draft', 'dzn_notification_revoke_approval', 'dzn_notification_approve_operational',
     'dzn_notification_manual_send',
 ) as $action) {
-    $fail('registered action ' . $action, str_contains($controller, "admin_post_" . $action));
-}
+    $fail('registered action ' . $action, str_contains($controller, "admin_post_" . $action));}
 $fail('editing uses the canonical template capability', str_contains($controller, "CAP_EDIT='dzn_manage_notification_templates'"));
+$fail('a manual send is idempotent by content, not by clock', str_contains($controller, "hash('sha256',wp_json_encode(\$input))") && !str_contains($controller, "'manual-send:'.gmdate"));
+$fail('a manual send requires the dispatch capability', str_contains((string) file_get_contents(dirname(__DIR__) . '/src/Integrations/Notifications/NotificationManualSendService.php'), "current_user_can(self::CAPABILITY)"));
 $fail('every handler checks a nonce', substr_count($controller, 'check_admin_referer(') >= 2);
 $fail('redirects are validated', str_contains($controller, 'wp_safe_redirect'));
 $fail('no eval or request superglobal', !str_contains($controller, 'eval(') && !str_contains($controller, '$_REQUEST'));

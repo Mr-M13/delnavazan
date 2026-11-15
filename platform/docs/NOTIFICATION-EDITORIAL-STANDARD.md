@@ -101,7 +101,7 @@ delivery control described in §10: any notification and any offered channel can
 | Account | Calm and operational | Not offered; the message is not marketing |
 | Booking | Helpful, time-specific | Not offered while a booking is live |
 | Lesson | Operational, time-zone explicit | Not offered for changes already made |
-| Payment | Precise, neutral, no pressure | Not offered; requires financial/legal review before activation |
+| Payment | Precise, neutral, no pressure | Not offered; follows ordinary editorial approval |
 | Optional | Warm but restrained | Requires marketing consent |
 
 Operational authority comes from the teaching relationship, not from marketing consent. Marketing consent
@@ -142,9 +142,10 @@ is never used to justify a booking, class, payment or security message.
 
 ## 9. Review rules
 
-- Financial, refund and renewal copy must be reviewed by the academy's finance/legal owner before the
-  category is activated. The dashboard labels this explicitly.
-- Security copy must be reviewed together with the claim/invitation flow; never add extra variables.
+- Financial, refund and renewal copy follows ordinary editorial approval — the same prepare, approve
+  and publish workflow as any operational message. No separate finance or legal reviewer is required.
+- Security copy must be reviewed together with the claim/invitation flow; never add extra variables,
+  and it keeps its additional review hold.
 - Any change to a WhatsApp template requires a new Meta approval before sending.
 - Persian and English variants must carry the same facts, deadline and action; they need not be literal
   translations.
@@ -178,8 +179,8 @@ result and the last result stays on the page, so a step never looks like it did 
    version and no draft. It never sends, publishes or enables anything, and it never overwrites a
    draft or a published version.
 2. **Approve operational drafts** records one explicit approval per draft whose channel approvals are
-   already complete. Finance, legal, security, dedicated-authority and unmapped-provider copy is
-   skipped and listed with the reason it is held.
+   already complete. Security, dedicated-authority and unmapped-provider copy is skipped and listed
+   with the reason it is held; financial copy is approved like any other operational copy.
 3. **Publish approved drafts** creates a new immutable version for each approved draft. It never
    enables a delivery channel and never changes a notification that already froze a version.
 
@@ -201,7 +202,7 @@ administration surface must not merge them into one badge.
 |---|---|---|
 | Enabled | The channel is on and nothing blocks it | none |
 | Disabled | An administrator switched it off | switch it on when intended |
-| Awaiting approval | Sensitive canonical copy needs its finance, legal or security owner | publish it from the editor after that sign-off |
+| Awaiting approval | Sensitive canonical copy (security) needs its security owner | publish it from the editor after that sign-off |
 | Missing template | No usable copy exists for this route | prepare and approve a draft |
 | Missing provider | Provider configuration or approval is absent | configure the provider, or wait for Meta approval |
 | Not offered | This notification does not use this delivery method | none |

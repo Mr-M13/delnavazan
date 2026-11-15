@@ -49,4 +49,21 @@ $teacherUnavailable = $render($teacherFile, $baseTeacher + array('read_health' =
 $assert(substr_count($teacherUnavailable, 'role="alert"') === 1, 'Repeated teacher alerts must be combined');
 $assert(str_contains($teacherUnavailable, 'dir="rtl"') && str_contains($teacherUnavailable, 'تلاش دوباره'), 'Missing teacher RTL/retry');
 $assert(str_contains($teacherUnavailable, 'درخواست‌های آشنایی') && str_contains($teacherUnavailable, 'تأیید نتیجهٔ کلاس آشنایی'), 'Teacher failed read sections not identified');
-echo "Portal Persian RTL read-warning rendering PASS\n";
+// Teacher optional read contract: successful data, genuine empty, failure and retry.
+if (!function_exists('add_filter')) { function add_filter($tag, $callback, $priority = 10, $accepted = 1) {} }
+if (!function_exists('do_action')) { function do_action($tag, $payload) {} }
+if (!class_exists(\Delnavazan\Platform\Portals\PortalAuthenticatedReadService::class)) {
+    require_once ABSPATH . 'platform/src/Portals/PortalAuthenticatedReadService.php';
+}
+require_once ABSPATH . 'theme/inc/platform-bridge.php';
+$health = array();
+$valid = dzn_theme_platform_teacher_optional_read('teacher_booking_requests', static fn() => array(array('ref' => 'OWNED-TEACHER-1')), $health);
+$assert(count($valid) === 1 && $health['teacher_booking_requests']['state'] === 'ok', 'Teacher owned result unavailable');
+$empty = dzn_theme_platform_teacher_optional_read('teacher_booking_requests', static fn() => array(), $health);
+$assert($empty === array() && $health['teacher_booking_requests']['state'] === 'ok', 'Teacher genuine empty mislabeled');
+$failed = dzn_theme_platform_teacher_optional_read('teacher_booking_requests', static function () { throw new RuntimeException('PRIVATE_SQL_SECRET'); }, $health);
+$assert($failed === array() && $health['teacher_booking_requests']['state'] === 'unavailable', 'Teacher exception silently empty');
+$assert(!str_contains(json_encode($health), 'PRIVATE_SQL_SECRET'), 'Teacher exception leaked details');
+$retry = dzn_theme_platform_teacher_optional_read('teacher_booking_requests', static fn() => array(array('ref' => 'OWNED-TEACHER-1')), $health);
+$assert(count($retry) === 1 && $health['teacher_booking_requests']['state'] === 'ok', 'Teacher retry did not recover');
+echo "Portal Persian RTL warning and teacher optional reads PASS\n";

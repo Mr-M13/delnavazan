@@ -62,7 +62,14 @@ mkdir -p "$logs"
 
 gate_root="$DZN_WP_DIR/booking-stress-gate"
 gate_container="/var/www/html/booking-stress-gate"
-mkdir -p "$gate_root"
+# The WordPress volume is owned by the container user on Linux CI, so the host
+# user cannot create directories inside it: `mkdir` fails with EACCES. Every
+# mutation of the shared gate directory therefore runs as root in the already
+# required CLI container, matching run-booking-slot-conflict.sh. The host side
+# still validates the path before anything is removed.
+gate_exec(){ dzn_assert_runtime_paths; docker run --rm --pull=never -u 0 -v "$DZN_WP_DIR:/var/www/html" --entrypoint sh "$DZN_CLI_IMAGE" -c "$1"; }
+gate_open(){ dzn_assert_disposable_path "$1"; gate_exec "mkdir -p '$2'"; }
+gate_exec "mkdir -p '$gate_container'"
 
 if [ "${DZN_STRESS_SKIP_SCENARIOS:-0}" != "1" ]; then
 dzn_wp --user=1 eval-file "$plugin_root/tests/booking-engine-scenario-a.php" | tee "$logs/scenario-a.log"
@@ -80,7 +87,7 @@ run_level(){
   local gate="$gate_root/$action-$level"
   local cgate="$gate_container/$action-$level"
   dzn_remove_disposable_path "$gate"
-  mkdir -p "$gate"
+  gate_open "$gate" "$cgate"
   local out="$logs/$action-$level"
   mkdir -p "$out"
   local container_cmd
@@ -137,13 +144,13 @@ run_crash(){
   local cgate="$gate_container/submit_crash-$level"
   local out="$logs/crash-$level"
   dzn_remove_disposable_path "$gate"
-  mkdir -p "$gate"; mkdir -p "$out"
+  gate_open "$gate" "$cgate"; mkdir -p "$out"
   DZN_STRESS_KILL_INDEX=0 DZN_STRESS_SKIP_VERIFY=1 run_level submit_crash "$level" || true
   # The killed worker's transaction rolled back. Retry the same Student/key once.
   local retry="$gate_root/crash-retry"
   local cretry="$gate_container/crash-retry"
   dzn_remove_disposable_path "$retry"
-  mkdir -p "$retry"; touch "$retry/release"
+  gate_open "$retry" "$cretry"; gate_exec ": > '$cretry/release'"
   docker run --rm --pull=never --network "$DZN_NETWORK" -u 0 \
     -e WP_ENVIRONMENT_TYPE=local -e WORDPRESS_DB_HOST=db \
     -e "WORDPRESS_DB_NAME=$DZN_DB_NAME" -e "WORDPRESS_DB_USER=$DZN_DB_USER" -e "WORDPRESS_DB_PASSWORD=$DZN_DB_PASSWORD" \
@@ -151,7 +158,7 @@ run_crash(){
     -e "DZN_STRESS_LEVEL=$level" -e "DZN_STRESS_ACTION=submit_crash" -e "DZN_STRESS_GATE=$cretry" -e "DZN_STRESS_INDEX=0" \
     -v "$DZN_WP_DIR:/var/www/html" -v "$DZN_PLUGIN_SOURCE:$DZN_PLUGIN_SOURCE:ro" \
     --entrypoint php "$DZN_CLI_IMAGE" -d memory_limit=64M "$plugin_root/tests/booking-engine-concurrency-light-worker.php" >"$out/retry.log" 2>&1 || true
-  cp "$retry/0.result" "$gate/0.result" 2>/dev/null || true
+  gate_exec "cp -f '$cretry/0.result' '$cgate/0.result' 2>/dev/null || true"
   dzn_wp_env "DZN_BOOKING_STRESS_RUNTIME=concurrency" "DZN_STRESS_LEVEL=$level" "DZN_STRESS_ACTION=submit_crash" "DZN_STRESS_GATE=$cgate" -- eval-file "$plugin_root/tests/booking-engine-concurrency-verify.php" | tee "$out/verify.log"
 }
 

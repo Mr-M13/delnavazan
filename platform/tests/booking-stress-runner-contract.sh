@@ -76,6 +76,22 @@ else
   ok 'runner performs no direct rm; deletion goes through dzn_remove_disposable_path'
 fi
 
+# The WordPress bind mount is owned by the container user on Linux CI, so any
+# host-side mkdir/touch/cp inside it fails with EACCES on a runner while passing
+# on a Mac. Every gate mutation must therefore run inside the CLI container.
+if grep -Eq 'mkdir[[:space:]]+-p[[:space:]]+"\$gate|touch[[:space:]]+"\$retry|cp[[:space:]]+"\$retry' "$runner"; then
+  bad 'the runner mutates the container-owned WordPress volume from the host'
+else
+  ok 'gate mutations run inside the CLI container, not on the host'
+fi
+grep -q 'gate_exec()' "$runner" \
+  && ok 'the runner has an in-container gate mutation helper' \
+  || bad 'the runner has no in-container gate mutation helper'
+# The helper must keep validating the path before the container removes anything.
+grep -q 'gate_open(){ dzn_assert_disposable_path' "$runner" \
+  && ok 'the in-container gate helper still validates the disposable path first' \
+  || bad 'the in-container gate helper skips the disposable-path guard'
+
 # --- 3. The disposable-path guard itself refuses an outside path -------------
 # shellcheck source=../runtime/bin/common.sh
 . "$inputs"

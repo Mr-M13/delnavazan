@@ -100,7 +100,15 @@ if ($action === 'submit' || $action === 'submit_partial' || $action === 'submit_
     dzn_stress_assert(dzn_stress_capacity_violations(array((int) $fixture['teacher_id'])) === 0, 'Acceptance level produced a capacity violation (confirmed or live-offer overlap)');
     foreach ($failures as $failure) {
         $message = (string) ($failure['message'] ?? '');
-        dzn_stress_assert(in_array($message, array('teacher_slot_conflict', 'student_slot_conflict', 'Booking time is no longer available', 'Booking offer expired or reassigned'), true), 'Unexpected losing acceptance error: ' . $message);
+        // Every entry is a documented refusal for a loser whose interval was taken or
+        // whose delivery the winner's retirement already moved off pending_request
+        // (BookingTeacherResponseService line 42). Anything else is a real defect.
+        dzn_stress_assert(in_array($message, array(
+            'teacher_slot_conflict', 'student_slot_conflict',
+            'Booking time is no longer available',
+            'Booking offer expired or reassigned',
+            'Booking request is no longer pending',
+        ), true), 'Unexpected losing acceptance error: ' . $message);
     }
     $payload += array(
         'confirmations' => $confirmations, 'accepted_deliveries' => $acceptedDeliveries,

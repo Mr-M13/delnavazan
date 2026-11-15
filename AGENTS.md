@@ -115,3 +115,20 @@ Before pushing, every agent runs the checks that apply to its diff:
 
 `README.md` and `deployment/README.md` remain authoritative for product background and release
 mechanics. This file is authoritative for **who may do what**.
+
+## 6. Contract synchronization (Codex-owned)
+
+Whenever Codex changes CI checks, build or test scripts, package-manager commands,
+Node/PHP/runtime versions, Docker build requirements, or any workflow in
+`.github/workflows/**`, Codex must review and update this `AGENTS.md` in the
+**same commit** so OpenCode receives the current commands and boundaries.
+
+- Record the exact executable commands that match GitHub Actions; never prescribe
+  `npm ci`, `npm run lint`, `npm run build`, or `npm test` unless the repository
+  actually defines and uses those commands.
+- If a workflow change introduces a new check, make it mandatory for the affected
+  PRs and describe it here. Never treat a skipped or pending required check as passing.
+- OpenCode must refresh from current `origin/main` and reread `AGENTS.md` before
+  beginning each new feature branch or resuming work after a release change.
+- This document describes agent responsibilities; GitHub branch protections,
+  permissions, and environment rules must separately enforce release access.

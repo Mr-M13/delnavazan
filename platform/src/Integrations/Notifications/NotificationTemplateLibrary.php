@@ -231,6 +231,40 @@ final class NotificationTemplateLibrary {
         );
     }
 
+    /**
+     * Prepare reviewable copy without sending, publishing or changing channel enablement.
+     * Only exact-locale catalogue defaults are used; an absent English translation is
+     * reported rather than silently copying Persian into the English template.
+     * Existing drafts and active versions are never overwritten.
+     *
+     * @return array{created:int,existing:int,missing:array<int,string>,invalid:array<int,string>}
+     */
+    public function prepareMissingCatalogueDrafts():array{
+        $created=0;$existing=0;$missing=array();$invalid=array();
+        foreach(NotificationCatalogue::events() as $eventKey=>$event){
+            foreach((array)$event['channels'] as $channel){
+                foreach(NotificationCatalogue::SUPPORTED_LOCALES as $locale){
+                    $key=NotificationCatalogue::templateKey($eventKey,$channel,$locale);
+                    $working=$this->workingCopy($eventKey,$channel,$locale);
+                    if($working['draft']!==null||($working['active']['source']??'')==='published'){
+                        $existing++;continue;
+                    }
+                    $copy=$event['defaults'][$locale][$channel]??null;
+                    if(!is_array($copy)||trim((string)($copy['body']??''))===''){
+                        $missing[]=$key;continue;
+                    }
+                    try{
+                        $this->saveDraft($eventKey,$channel,$locale,(string)($copy['subject']??''),(string)$copy['body']);
+                        $created++;
+                    }catch(\Throwable $error){
+                        $invalid[]=$key.': '.$error->getMessage();
+                    }
+                }
+            }
+        }
+        return array('created'=>$created,'existing'=>$existing,'missing'=>$missing,'invalid'=>$invalid);
+    }
+
     public function saveDraft(string $eventKey,string $channel,string $locale,string $subject,string $body):array{
         $locale=NotificationCatalogue::normaliseLocale($locale);
         $validated=NotificationTemplateSanitizer::validate($eventKey,$channel,$subject,$body);

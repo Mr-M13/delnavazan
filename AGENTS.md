@@ -19,8 +19,7 @@ At the **start of every session**, before any edit:
 3. Confirm the branch you are on. If the branch does not match the rules below, stop and fix
    the branch before touching files.
 
-Working directory or container does not change these rules. They apply equally on the host
-and inside Docker.
+Working directory or execution environment does not change these rules. They apply on the host and in GitHub Actions.
 
 ## 1. Roles
 
@@ -49,8 +48,7 @@ Ubuntu 24.04 with PHP 8.3.
 **There is no install step and no local production build.** The repository has no
 `composer.json`, `package.json`, bundler or compiled-asset pipeline; theme assets are committed
 as-is. Never invent or claim `composer install`, `npm ci`, `npm run lint`, `npm test` or
-`npm run build`. The packaging step in `.github/workflows/deploy-production.yml` is a release
-action owned by Codex, not a local build.
+`npm run build`. The packaging step in `.github/workflows/deploy-production.yml` is a protected GitHub Actions release step, not a local build.
 
 Before pushing, every agent runs the checks that apply to its diff on **PHP 8.3 with the CI
 extensions**. Native PHP 8.3 is acceptable when `tools/ci/check.sh doctor` matches; the container
@@ -120,7 +118,7 @@ suites — both need release-governance review and a workflow change.
 
 - `platform/` — canonical Delnavazan Platform plugin and backend/application services.
 - `theme/` — Delnavazan WordPress theme and user-facing frontend.
-- `deployment/` — guarded production release and read-only QA tooling (Codex-only).
+- `deployment/` — guarded production release and read-only QA tooling (protected release path).
 - `.devcontainer/` — PHP 8.3 CI-parity image for containerized agent sessions.
 - `tools/ci/` — `check.sh` plus the `run-in-container.sh` wrapper for lint and contracts.
 - `legacy-review/` — migration notes; not active code.
@@ -132,7 +130,7 @@ mechanics. This file is authoritative for **who may do what**.
 
 Whenever the release coordinator changes CI checks, build or test scripts, package-manager commands,
 Node/PHP/runtime versions, Docker build requirements, or any workflow in
-`.github/workflows/**`, Codex must review and update this `AGENTS.md` in the
+`.github/workflows/**`, the release coordinator must review and update this `AGENTS.md` in the
 **same commit** so OpenCode receives the current commands and boundaries.
 
 - Record the exact executable commands that match GitHub Actions; never prescribe

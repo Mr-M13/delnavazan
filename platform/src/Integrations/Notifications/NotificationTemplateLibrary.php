@@ -242,6 +242,8 @@ final class NotificationTemplateLibrary {
     public function prepareMissingCatalogueDrafts():array{
         $created=0;$existing=0;$missing=array();$invalid=array();
         foreach(NotificationCatalogue::events() as $eventKey=>$event){
+            // Dedicated one-time-secret messages are owned by their secure sender, not this editor.
+            if(($event['authority']??'')==='dedicated')continue;
             foreach((array)$event['channels'] as $channel){
                 foreach(NotificationCatalogue::SUPPORTED_LOCALES as $locale){
                     $key=NotificationCatalogue::templateKey($eventKey,$channel,$locale);

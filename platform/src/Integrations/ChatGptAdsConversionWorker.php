@@ -19,16 +19,36 @@ final class ChatGptAdsConversionWorker {
     }
 
     public static function configured(): bool {
-        return self::apiKey() !== '' && self::pixelId() !== '';
+        return self::apiKey() !== '' && self::pixelId() !== '' && (new \Delnavazan\Platform\Core\Application\IntegrationSettingsService())->value('chatgpt_ads', 'enabled') === '1';
     }
 
     private static function apiKey(): string {
-        return trim((string) (defined('DZN_CHATGPT_ADS_API_KEY') ? constant('DZN_CHATGPT_ADS_API_KEY') : getenv('DZN_CHATGPT_ADS_API_KEY')));
+        $environment = trim((string) (defined('DZN_CHATGPT_ADS_API_KEY') ? constant('DZN_CHATGPT_ADS_API_KEY') : getenv('DZN_CHATGPT_ADS_API_KEY')));
+        return $environment !== '' ? $environment : (new \Delnavazan\Platform\Core\Application\IntegrationSettingsService())->value('chatgpt_ads', 'api_key');
     }
 
     private static function pixelId(): string {
         $value = defined('DZN_CHATGPT_ADS_PIXEL_ID') ? constant('DZN_CHATGPT_ADS_PIXEL_ID') : '6wyWvkz5rmQXEPAC4T2Zm9';
         return preg_match('/^[A-Za-z0-9]{10,64}$/D', (string) $value) ? (string) $value : '';
+    }
+
+    public static function pixelIdForAdmin(): string { return self::pixelId(); }
+
+    public static function keyPresentForAdmin(): bool { return self::apiKey() !== ''; }
+
+    public static function validateConnection(): array {
+        if (self::apiKey() === '' || self::pixelId() === '') return array('state'=>'blocked','code'=>'missing_configuration');
+        $payload = array('validate_only'=>true,'events'=>array(array(
+            'id'=>'dzn-validation-'.wp_generate_uuid4(), 'type'=>'appointment_scheduled',
+            'timestamp_ms'=>time()*1000, 'source_url'=>home_url('/'),
+            'action_source'=>'web', 'data'=>array('type'=>'customer_action'),
+        )));
+        $response=wp_remote_post('https://bzr.openai.com/v1/events?pid='.rawurlencode(self::pixelId()),array(
+            'timeout'=>15,'redirection'=>0,'headers'=>array('Authorization'=>'Bearer '.self::apiKey(),'Content-Type'=>'application/json'),
+            'body'=>wp_json_encode($payload),
+        ));
+        $http=is_wp_error($response)?0:(int)wp_remote_retrieve_response_code($response);
+        return array('state'=>$http>=200&&$http<300?'success':'failed','code'=>$http===0?'transport_error':'http_'.$http);
     }
 
     public static function run(): void {

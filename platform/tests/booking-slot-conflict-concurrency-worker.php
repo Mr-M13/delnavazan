@@ -20,7 +20,7 @@ $release = static function () use ( $gate ): void {
     for ( $i = 0; $i < 1200 && ! is_file( $gate . '/release' ); $i++ ) usleep( 100000 );
     if ( ! is_file( $gate . '/release' ) ) throw new RuntimeException( 'gate timeout' );
 };
-if ( $worker === 'w1' ) add_action( 'dzn_booking_student_root_held', static function () use ( $mark, $release, $worker ): void { $mark( 'locked', 'student_root' ); $release(); } );
+if ( $worker === 'w1' && $action !== 'reschedule_sequence' ) add_action( 'dzn_booking_student_root_held', static function () use ( $mark, $release, $worker ): void { $mark( 'locked', 'student_root' ); $release(); } );
 $mark( 'connection', (string) $GLOBALS['wpdb']->get_var( 'SELECT CONNECTION_ID()' ) );
 $mark( 'started' );
 try {
@@ -87,6 +87,29 @@ try {
         }
         $race = $state['reschedule']['race'];
         $slot = $race['slots'][ $worker ];
+        $expectedStart = $slot['local_date'] . ' ' . $slot['local_start_time'] . ':00';
+        $expectedEnd = gmdate( 'Y-m-d H:i:s', strtotime( $expectedStart . ' UTC +30 minutes' ) );
+        add_filter( 'pre_http_request', static function ( $pre, array $args, string $url ) use ( $expectedStart, $expectedEnd ) {
+            if ( str_contains( $url, '/calendar/v3/calendars/primary/events/abcde67890' ) ) {
+                $body = json_decode( (string) ( $args['body'] ?? '' ), true );
+                if ( (string) ( $args['method'] ?? '' ) !== 'PATCH'
+                    || ! is_array( $body )
+                    || (string) ( $body['start']['dateTime'] ?? '' ) !== str_replace( ' ', 'T', $expectedStart ) . 'Z'
+                    || (string) ( $body['end']['dateTime'] ?? '' ) !== str_replace( ' ', 'T', $expectedEnd ) . 'Z'
+                    || (string) ( $body['start']['timeZone'] ?? '' ) !== 'UTC'
+                    || (string) ( $body['end']['timeZone'] ?? '' ) !== 'UTC' ) {
+                    throw new RuntimeException( 'Calendar revision did not contain the winning slot' );
+                }
+                return array(
+                    'headers' => array(),
+                    'body' => wp_json_encode( array( 'id' => 'abcde67890', 'hangoutLink' => 'https://meet.google.com/abc-defg-hij' ) ),
+                    'response' => array( 'code' => 200, 'message' => 'OK' ),
+                    'cookies' => array(),
+                    'filename' => null,
+                );
+            }
+            return $pre;
+        }, 10, 3 );
         $result = ( new IntroLessonLifecycleService() )->reschedule(
             (int) $race['request_id'],
             'admin',
@@ -95,6 +118,29 @@ try {
             (string) $race['keys'][ $worker ],
             (int) $race['confirmation_id'],
             (int) $race['expected_version']
+        );
+        $mark( 'result', wp_json_encode( array( 'ok' => true, 'action' => $action, 'result' => $result ) ) . "\n" );
+    } elseif ( $action === 'reschedule_sequence' ) {
+        wp_set_current_user( 1 );
+        $sequence = $state['provider_sequence'];
+        $slot = $sequence['slots'][ $worker ];
+        $expectedStart = $slot['local_date'] . ' ' . $slot['local_start_time'] . ':00';
+        $expectedEnd = gmdate( 'Y-m-d H:i:s', strtotime( $expectedStart . ' UTC +30 minutes' ) );
+        if ( $worker === 'w2' ) add_action( 'dzn_intro_reschedule_committed', static function () use ( $mark ): void { $mark( 'committed' ); } );
+        add_filter( 'pre_http_request', static function ( $pre, array $args, string $url ) use ( $worker, $mark, $release, $gate, $expectedStart, $expectedEnd ) {
+            if ( ! str_contains( $url, '/calendar/v3/calendars/primary/events/abcdef12345' ) ) return $pre;
+            $body = json_decode( (string) ( $args['body'] ?? '' ), true );
+            if ( (string) ( $args['method'] ?? '' ) !== 'PATCH' || ! is_array( $body )
+                || (string) ( $body['start']['dateTime'] ?? '' ) !== str_replace( ' ', 'T', $expectedStart ) . 'Z'
+                || (string) ( $body['end']['dateTime'] ?? '' ) !== str_replace( ' ', 'T', $expectedEnd ) . 'Z' ) throw new RuntimeException( 'Provider revision used a stale or incorrect slot' );
+            if ( $worker === 'w1' ) { $mark( 'provider_waiting' ); $release(); }
+            file_put_contents( $gate . '/provider-requests.ndjson', wp_json_encode( array( 'worker' => $worker, 'start' => $body['start']['dateTime'] ) ) . "\n", FILE_APPEND | LOCK_EX );
+            return array( 'headers' => array(), 'body' => wp_json_encode( array( 'id' => 'abcdef12345', 'hangoutLink' => 'https://meet.google.com/abc-defg-hij' ) ), 'response' => array( 'code' => 200, 'message' => 'OK' ), 'cookies' => array(), 'filename' => null );
+        }, 10, 3 );
+        $result = ( new IntroLessonLifecycleService() )->reschedule(
+            (int) $sequence['request_id'], 'admin', $slot, 'operational_change',
+            'slot-provider-sequence-' . $worker . '-' . $state['suffix'],
+            (int) $sequence['confirmation_id'], $worker === 'w1' ? 1 : 2
         );
         $mark( 'result', wp_json_encode( array( 'ok' => true, 'action' => $action, 'result' => $result ) ) . "\n" );
     } else {

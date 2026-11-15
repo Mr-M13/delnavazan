@@ -57,6 +57,21 @@ run_single(){
   [ -f "$gate/$race/w2.result" ] || { echo "single=$race artefacts=FAIL"; return 1; }
   echo "single=$race PASS"
 }
+run_provider_order(){
+  local race='provider-order' out="$logs/provider-order"
+  mkdir -p "$out"
+  gate_prepare "$race"
+  worker "$race" w1 reschedule_sequence >"$out/w1.out" 2>&1 & local p1=$!
+  waitfor "$gate/$race/w1.provider_waiting" || { echo 'provider-order first dispatch=FAIL'; kill "$p1" 2>/dev/null || true; return 1; }
+  worker "$race" w2 reschedule_sequence >"$out/w2.out" 2>&1 & local p2=$!
+  waitfor "$gate/$race/w2.committed" || { echo 'provider-order second commit=FAIL'; gate_release "$race/release"; kill "$p2" 2>/dev/null || true; wait "$p1" 2>/dev/null || true; return 1; }
+  gate_release "$race/release"
+  wait "$p1" 2>/dev/null || true
+  wait "$p2" 2>/dev/null || true
+  [ -f "$gate/$race/w1.result" ] && [ -f "$gate/$race/w2.result" ] && [ -f "$gate/$race/provider-requests.ndjson" ] || { echo 'provider-order artefacts=FAIL'; return 1; }
+  if grep -Eiq 'deadlock|lock wait timeout|WordPress database error' "$out/w1.out" "$out/w2.out"; then echo 'provider-order database contention=FAIL'; return 1; fi
+  echo 'provider-order PASS'
+}
 
 dzn_wp_env "DZN_BOOKING_SLOT_RUNTIME=concurrency" -- eval-file "$plugin_root/tests/booking-slot-conflict-concurrency-setup.php"
 run_race submission submission
@@ -64,6 +79,7 @@ run_single single-nonoverlap non_overlap
 run_single single-timezone timezone_overlap
 run_race acceptance acceptance
 run_race reschedule reschedule
+run_provider_order
 dzn_wp_env "DZN_BOOKING_SLOT_RUNTIME=concurrency" "DZN_SLOT_GATE_DIR=$gate_container" -- eval-file "$plugin_root/tests/booking-slot-conflict-concurrency-verify.php"
 dzn_wp_env "DZN_BOOKING_SLOT_RUNTIME=runtime" -- eval-file "$plugin_root/tests/booking-slot-conflict-runtime.php"
 echo 'Booking Student-slot database integration: PASS'

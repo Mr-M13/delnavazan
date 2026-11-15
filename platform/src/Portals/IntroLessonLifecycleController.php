@@ -117,6 +117,7 @@ final class IntroLessonLifecycleController {
             'The Teacher has a reserved continuation slot at that time. Choose another slot.' => 'این زمان برای تداوم کلاس دیگری رزرو شده است. زمان دیگری انتخاب کنید.',
             'This local time does not exist in the chosen timezone' => 'این ساعت در منطقهٔ زمانی انتخاب‌شده وجود ندارد. ساعت دیگری انتخاب کنید.',
             'intro_lesson_not_reschedulable' => 'این کلاس آشنایی دیگر قابل تغییر زمان نیست.',
+            'allocation_busy','teacher_busy' => 'این زمان در حال هماهنگی با پاسخ دیگری است. چند لحظه بعد دوباره تلاش کنید؛ تغییر زمان ثبت نشده است.',
             'Choose a valid service-area timezone' => 'منطقهٔ زمانی انتخاب‌شده معتبر نیست.',
             default => 'اقدام انجام نشد. صفحه را تازه کنید و دوباره تلاش کنید.',
         };

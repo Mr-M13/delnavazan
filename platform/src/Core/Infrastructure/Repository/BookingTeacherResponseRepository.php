@@ -33,6 +33,16 @@ final class BookingTeacherResponseRepository {
     public function activeAllocationOffer(int $requestId,bool $lock=false):?object{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_allocation_offers WHERE booking_request_id=%d AND active_slot=1{$suffix}",$requestId))?:null;}
     public function confirmation(int $id,bool $lock=false):?object{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_confirmations WHERE id=%d{$suffix}",$id))?:null;}
     public function retryableConfirmations(int $limit=10):array{global $wpdb;$limit=max(1,min(25,$limit));return (array)$wpdb->get_results("SELECT * FROM {$this->p}booking_request_confirmations WHERE state IN ('pending_projection','awaiting_conference','retryable') AND (next_attempt_at IS NULL OR next_attempt_at<=UTC_TIMESTAMP()) ORDER BY id LIMIT {$limit}");}
+    /** Confirmed intro reschedules whose provider revision is still pending. */
+    public function rescheduleRetryConfirmations(int $limit=10):array{global $wpdb;$limit=max(1,min(25,$limit));return (array)$wpdb->get_results("SELECT * FROM {$this->p}booking_request_confirmations WHERE state='confirmed' AND failure_reason_code LIKE 'reschedule_provider_pending:%' AND (next_attempt_at IS NULL OR next_attempt_at<=UTC_TIMESTAMP()) ORDER BY id LIMIT {$limit}");}
+    /** Durable provider-revision failure marker; deliberately does not change the confirmation version. */
+    public function markRescheduleProviderPending(int $confirmationId,string $code,int $attempt,?string $nextAttemptAt,string $now,bool $terminal=false):void{
+        global $wpdb;
+        $safe=substr(preg_replace('/[^a-z0-9_:-]/','_',strtolower($code))?:'provider_sync_failed',0,32);
+        $prefix=$terminal?'reschedule_provider_failed:':'reschedule_provider_pending:';
+        if($wpdb->update($this->p.'booking_request_confirmations',array('failure_reason_code'=>$prefix.$safe,'attempt_count'=>max(1,$attempt),'next_attempt_at'=>$nextAttemptAt,'updated_at'=>$now),array('id'=>$confirmationId,'state'=>'confirmed'))!==1)throw new \RuntimeException('reschedule_provider_marker_failed');
+    }
+    public function clearRescheduleProviderPending(int $confirmationId,string $now):void{global $wpdb;if($wpdb->query($wpdb->prepare("UPDATE {$this->p}booking_request_confirmations SET failure_reason_code=NULL,attempt_count=0,next_attempt_at=NULL,updated_at=%s WHERE id=%d AND state='confirmed' AND failure_reason_code LIKE 'reschedule_provider_pending:%'",$now,$confirmationId))===false)throw new \RuntimeException('reschedule_provider_clear_failed');}
     public function projectionSecret(int $confirmationId):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}provider_projection_secrets WHERE mapping_kind='booking_calendar' AND mapping_id=%d AND active_slot=1",$confirmationId))?:null;}
 
     public function insertConfirmation(array $data):int{return $this->insert('booking_request_confirmations',$data);}

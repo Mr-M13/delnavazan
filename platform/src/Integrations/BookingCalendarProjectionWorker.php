@@ -37,6 +37,10 @@ final class BookingCalendarProjectionWorker {
                 try{$service->dispatch((int)$row->id);}
                 catch(\Throwable $error){do_action('dzn_booking_calendar_projection_failed',(int)$row->id,get_class($error));}
             }
+            foreach($repository->rescheduleRetryConfirmations(10)as$row){
+                try{$service->retryReschedule((int)$row->id);}
+                catch(\Throwable $error){do_action('dzn_booking_calendar_projection_failed',(int)$row->id,get_class($error));}
+            }
         };
         if($central){$work();return;}
         (new ProviderProjectionWorkerContext())->run($work);

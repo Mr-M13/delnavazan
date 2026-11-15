@@ -63,6 +63,7 @@ run_race submission submission
 run_single single-nonoverlap non_overlap
 run_single single-timezone timezone_overlap
 run_race acceptance acceptance
+run_race reschedule reschedule
 dzn_wp_env "DZN_BOOKING_SLOT_RUNTIME=concurrency" "DZN_SLOT_GATE_DIR=$gate_container" -- eval-file "$plugin_root/tests/booking-slot-conflict-concurrency-verify.php"
 dzn_wp_env "DZN_BOOKING_SLOT_RUNTIME=runtime" -- eval-file "$plugin_root/tests/booking-slot-conflict-runtime.php"
 echo 'Booking Student-slot database integration: PASS'

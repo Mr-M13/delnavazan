@@ -1,0 +1,17 @@
+{
+  "name": "Delnavazan CI (PHP 8.3)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "workspaceFolder": "/workspaces/delnavazan",
+  "postCreateCommand": "bash tools/ci/check.sh doctor",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "files.eol": "\n",
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

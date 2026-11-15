@@ -52,6 +52,7 @@ final class RecordingDecisionUiReadService {
             'context'=>$context,
             'authority'=>$state['authority']??null,
             'guardian_grant_id'=>$state['guardian_grant_id']??null,
+            'capacity_recovery_available'=>($state['reason']??'')==='recording_student_capacity_unavailable',
             'recording'=>$state['recording']??$this->emptyChoice(),
             'research'=>$state['research']??$this->emptyChoice(),
             'privacy'=>$state['privacy']??$this->emptyChoice(),

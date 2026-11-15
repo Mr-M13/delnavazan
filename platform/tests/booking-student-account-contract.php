@@ -39,7 +39,7 @@ $expect(!preg_match('/(?:error_log|trigger_error|wp_json_encode|serialize)\s*\([
 $expect(strpos($service, "'user_pass' => \$password") !== false && strpos($service, "'role' => 'subscriber'") !== false, 'WordPress must remain the password hash and least-privilege role authority.');
 $expect(strpos($service, 'update_user_meta') === false && strpos($service, 'set_role') === false && strpos($service, 'add_role') === false, 'Booking must not alter existing WordPress roles.');
 $expect(strpos($portal, 'user_pass') === false && strpos($template, 'email') === false, 'Portal booking projection must not expose credentials or contact identity.');
-$expect(strpos($javascript, 'location.assign(result.dashboard_url)') !== false && strpos($theme, "home_url( '/student-portal/' )") !== false, 'Successful booking must continue to the student dashboard.');
+$expect(strpos($javascript, "dashboardLink.href = result.dashboard_url") !== false && strpos($theme, "home_url( '/student-portal/' )") !== false, 'Successful booking must continue to the student dashboard.');
 $expect(strpos($service, 'submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate, $studentId )') !== false, 'Account-aware intake must pass the resolved Student into the one transaction.');
 foreach ( array( 'ensureAndLockStudentRoot', 'studentOccupancyConflicts', 'BookingRequestSlotConflictException', 'dzn_booking_student_root_held' ) as $needle ) {
     $expect(strpos($submission . $bookingRepository, $needle) !== false, 'Missing Student slot-conflict intake contract: ' . $needle);
@@ -60,4 +60,7 @@ $expect(str_contains($service, "! empty( \$contact['adult_self_attested'] )"), '
 $expect(strpos($service, 'recordAdultSelfAttestation(') < strpos($service, 'createPrincipal('), 'Capacity evidence must precede principal linkage.');
 $expect(str_contains($controller, "'consent_status' => \$consentStatus") && str_contains($controller, "'not_recorded'"), 'Booking must report optional consent status independently.');
 $expect(str_contains($controller, "'recording_unavailable'") && str_contains($controller, 'set_transient('), 'Student must see consent write failure on portal.');
+$expect(str_contains($javascript, "status === 'saved'") && str_contains($javascript, "status === 'not_requested'") && str_contains($javascript, "[data-consent-result]"), 'Frontend must distinguish booking success from consent persistence');
+$expect(!str_contains($javascript, 'location.assign(result.dashboard_url)'), 'Do not redirect before consent outcome is visible');
+
 echo "Booking student account source contract passed\n";

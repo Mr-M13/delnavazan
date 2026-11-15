@@ -25,7 +25,7 @@ $format_date = static function ( string $value ): string {
 };
 $iso_datetime = static function ( string $value ): string { return '' === $value ? '' : str_replace( ' ', 'T', $value ) . 'Z'; };
 $status_messages = array(
-	'unified_saved' => array( 'success', 'Consent saved. Recording, research and privacy are accepted.', 'رضایت ذخیره شد. ضبط کلاس، پژوهش و حریم خصوصی پذیرفته شد.' ),
+	'unified_saved' => array( 'success', 'Your submitted consent choices were saved. Research participation is optional and may be withdrawn.', 'انتخاب‌های رضایت ثبت شدند. شرکت در پژوهش اختیاری است و می‌توان آن را لغو کرد.' ),
 	'terms_unavailable' => array( 'error', 'Consent was not fully saved. Review the current decisions before retrying.', 'ثبت رضایت کامل نشد. پیش از تلاش دوباره، تصمیم‌های ثبت‌شده را بررسی کنید.' ),
 );
 $unified = isset( $recording['unified'] ) && is_array( $recording['unified'] ) ? $recording['unified'] : array();
@@ -42,7 +42,7 @@ $unified_available = ! empty( $unified['available'] );
 <section class="dzn-tp-section dzn-teacher-recording-terms" id="dzn-teacher-recording-terms" aria-labelledby="tp-recording-terms">
 	<div class="dzn-tp-heading">
 		<div><p class="dzn-tp-kicker">حریم خصوصی، ضبط و پژوهش</p><h2 id="tp-recording-terms">Consent and recording</h2></div>
-		<span><?php echo esc_html( $mandatory_accepted ? 'شرایط پذیرفته شده' : ( ( $available && $unified_available ) ? 'نیازمند بررسی' : 'ثبت نشده' ) ); ?></span>
+		<span><?php echo esc_html( $unified_accepted ? 'همهٔ انتخاب‌ها ثبت شده' : ( $mandatory_accepted ? 'شرایط تدریس پذیرفته شده؛ پژوهش اختیاری است' : 'نیازمند بررسی' ) ); ?></span>
 	</div>
 	<?php if ( isset( $status_messages[ $status ] ) ) : ?>
 		<?php $message = $status_messages[ $status ]; ?>
@@ -59,7 +59,7 @@ $unified_available = ! empty( $unified['available'] );
 				<input type="hidden" name="idempotency_key" value="<?php echo esc_attr( (string) ( $unified['idempotency_key'] ?? '' ) ); ?>">
 				<input type="hidden" name="return_to" value="<?php echo esc_attr( (string) ( $unified['return_to'] ?? 'onboarding' ) ); ?>">
 				<label class="dzn-tp-unified-consent"><input type="checkbox" name="unified_agree" value="1" checked required> <span>I accept the <a href="<?php echo esc_url( $policy_urls['privacy'] ); ?>" target="_blank" rel="noopener">Privacy Policy</a>, <a href="<?php echo esc_url( $policy_urls['terms'] ); ?>" target="_blank" rel="noopener">Terms and Conditions</a>, and the <a href="<?php echo esc_url( $policy_urls['recording_ai'] ); ?>" target="_blank" rel="noopener">Recording &amp; AI Policy</a>: my classes may be recorded and used for teaching quality, research and AI model training. Please read them fully before continuing. · <span lang="fa" dir="rtl">سیاست حریم خصوصی، شرایط و ضوابط و سیاست ضبط و هوش مصنوعی را می‌پذیرم؛ کلاس‌هایم می‌توانند ضبط شوند و برای بهبود کیفیت آموزش، پژوهش و آموزش مدل هوش مصنوعی استفاده شوند. لطفاً پیش از ادامه آن‌ها را کامل بخوانید.</span></span></label>
-				<p class="dzn-tp-help"><strong>این رضایت برای همکاری با دلنوازان الزامی است.</strong> بدون آن نمی‌توانید در دلنوازان کار کنید و ضبط کلاس انجام نمی‌شود. · <strong>Recording consent is mandatory to work with Delnavazan.</strong></p>
+				<p class="dzn-tp-help"><strong>پذیرش شرایط تدریس و ضبط الزامی است؛ مشارکت در پژوهش اختیاری است.</strong> بدون آن نمی‌توانید در دلنوازان کار کنید و ضبط کلاس انجام نمی‌شود. · <strong>Teaching terms and recording consent are mandatory to work; research participation is optional.</strong></p>
 				<button class="dzn-button" type="submit">I agree · موافقم</button>
 			</form>
 		<?php endif; ?>

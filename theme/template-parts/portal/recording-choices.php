@@ -28,6 +28,8 @@ $messages = array(
 	'research_saved' => array( 'success', 'انتخاب پژوهش شما ذخیره شد.' ),
 	'research_withdrawn' => array( 'success', 'مشارکت در پژوهش پس گرفته شد.' ),
 	'privacy_saved' => array( 'success', 'تأیید حریم خصوصی شما ذخیره شد.' ),
+	'capacity_saved' => array( 'success', 'تأیید جدید بزرگسال بودن ثبت شد. اکنون می‌توانید رضایت‌های خود را جداگانه ثبت کنید.' ),
+	'capacity_unavailable' => array( 'error', 'ثبت تأیید بزرگسال بودن ممکن نشد. لطفاً با پشتیبانی تماس بگیرید.' ),
 	'recording_unavailable' => array( 'error', 'ثبت همهٔ رضایت‌ها کامل نشد. وضعیت فعلی را بررسی کرده و پس از رفع مشکل دوباره تلاش کنید.' ),
 );
 $unified = isset( $recording['unified'] ) && is_array( $recording['unified'] ) ? $recording['unified'] : array();
@@ -60,6 +62,14 @@ $format_date = static function ( string $value ): string {
 		<?php $message = $messages[ $status ]; ?>
 		<p class="dzn-portal-action-status<?php echo 'error' === $message[0] ? ' is-error' : ''; ?>" role="<?php echo 'error' === $message[0] ? 'alert' : 'status'; ?>"><span lang="fa" dir="rtl"><?php echo esc_html( $message[1] ); ?></span></p>
 	<?php endif; ?>
+	<?php if ( ! empty( $recording['capacity_recovery_available'] ) ) : ?>
+        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php?action=dzn_student_adult_attestation' ) ); ?>">
+            <?php dzn_theme_nonce_field( 'dzn_student_adult_attestation' ); ?>
+            <input type="hidden" name="return_to" value="<?php echo esc_attr( $context ); ?>">
+            <label><input type="checkbox" name="adult_attested" value="1" required> تأیید می‌کنم اکنون ۱۸ سال یا بیشتر دارم. این تأیید جدید است و رضایت‌های گذشته را ایجاد نمی‌کند.</label>
+            <button class="dzn-button" type="submit">ثبت تأیید بزرگسال بودن</button>
+        </form>
+    <?php endif; ?>
 	<?php if ( ! $available ) : ?>
 		<p class="dzn-portal-help" role="status">انتخاب ضبط و پژوهش برای این حساب در دسترس نیست. هیچ تصمیمی دربارهٔ ضبط ثبت نشده است.</p>
 		<p><a href="<?php echo esc_url( $information_url ); ?>" target="_blank" rel="noopener">اطلاعات ضبط و پژوهش</a></p>

@@ -35,25 +35,37 @@ final class UnifiedConsentService {
     public function acceptTeacherUnified(string $baseKey,string $preferredLanguage='en',string $channel='portal_unified',string $workflow='teacher_unified'):array{
         $language=$this->language($preferredLanguage);
         $notices=$this->resolveNotices(array_keys(self::TEACHER_PURPOSES),$language);
-        $out=array();
-        foreach(self::TEACHER_PURPOSES as $purpose=>$choice){
-            $notice=$notices[$purpose];
-            if($purpose===ConsentPurposeRegistry::TEACHER_TERMS){
-                $out[$purpose]=$this->authority->recordTeacherChoice($purpose,$choice,$notice['uid'],$notice['language'],$this->key($baseKey,$purpose),$channel,$workflow);
-            }else{
-                $out[$purpose]=$this->authority->recordTeacherChoice($purpose,$choice,$notice['uid'],$notice['language'],$this->key($baseKey,$purpose),$channel,$workflow);
-            }
-        }
-        return $out;
+        return $this->recordBundle(self::TEACHER_PURPOSES,$notices,$baseKey,$channel,$workflow,true);
     }
 
     public function acceptStudentUnified(string $baseKey,string $preferredLanguage='en',string $channel='portal_unified',string $workflow='student_unified'):array{
         $language=$this->language($preferredLanguage);
         $notices=$this->resolveNotices(array_keys(self::STUDENT_PURPOSES),$language);
+        return $this->recordBundle(self::STUDENT_PURPOSES,$notices,$baseKey,$channel,$workflow,false);
+    }
+
+    /**
+     * Each authority call owns its own database transaction. Do not wrap these in an
+     * outer START TRANSACTION: that would be implicitly committed by the inner call.
+     * Stable per-purpose keys make retries replay committed decisions without duplication.
+     * On failure, report exactly which purposes committed, which failed, and which
+     * were not attempted. The caller must not claim the entire bundle succeeded.
+     */
+    private function recordBundle(array $purposes,array $notices,string $baseKey,string $channel,string $workflow,bool $teacher):array{
         $out=array();
-        foreach(self::STUDENT_PURPOSES as $purpose=>$choice){
+        foreach($purposes as $purpose=>$choice){
             $notice=$notices[$purpose];
-            $out[$purpose]=$this->authority->recordOwnStudentChoice($purpose,$choice,$notice['uid'],$notice['language'],$this->key($baseKey,$purpose),$channel,$workflow);
+            try{
+                $out[$purpose]=$teacher
+                    ?$this->authority->recordTeacherChoice($purpose,$choice,$notice['uid'],$notice['language'],$this->key($baseKey,$purpose),$channel,$workflow)
+                    :$this->authority->recordOwnStudentChoice($purpose,$choice,$notice['uid'],$notice['language'],$this->key($baseKey,$purpose),$channel,$workflow);
+            }catch(\Throwable $error){
+                $outcomes=array();
+                foreach($purposes as $name=>$_choice){
+                    $outcomes[$name]=isset($out[$name])?'recorded':($name===$purpose?'failed':'not_attempted');
+                }
+                throw new UnifiedConsentPartialFailure($outcomes,$purpose,$error);
+            }
         }
         return $out;
     }

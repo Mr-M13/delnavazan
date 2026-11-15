@@ -98,6 +98,15 @@ $need(str_contains($readService, "!empty(\$state['privacy']['positive'])"),'Unif
 $need(str_contains($readService, "\$privacy!==null"),'Teacher unified form needs a published privacy notice');
 $need(str_contains($teacher, "if ( \$unified_accepted )"),'Teacher must not report unified completion based on terms alone');
 $need(str_contains($unifiedService, "!empty(\$state['privacy']['positive'])"),'Student unified state must include privacy acceptance');
+$need(str_contains($unifiedService,'function recordBundle(') && str_contains($unifiedService,'UnifiedConsentPartialFailure'), 'Bundled writes must report purpose-specific failures and preserve retry keys');
+$partial=$read('src/Core/Application/UnifiedConsentPartialFailure.php');
+$need(str_contains($partial,'purposeOutcomes') && str_contains($partial,'failedPurpose'), 'Partial failure must expose per-purpose outcomes');
+$recovery=$read('src/Core/Application/StudentAdultAttestationRecoveryService.php');
+$need(str_contains($recovery,'activePrincipalForUserForUpdate') && str_contains($recovery,'current_acceptance_capacity_classification_id!==null') && str_contains($recovery,'recordAdultSelfAttestation'), 'Recovery must be authenticated, prospective and refuse overwriting classifications');
+$need(str_contains($controller,'ADULT_RECOVERY_ACTION') && str_contains($controller,'studentGuardFor(self::ADULT_RECOVERY_ACTION)'), 'Recovery must require a separate nonce and authenticated Student');
+$need(str_contains($student,'adult_attested') && str_contains($student,'capacity_recovery_available'), 'Existing Student must explicitly submit new adult attestation');
+
+
 $need(!str_contains($readService,'wp_remote_')&&!str_contains($readService,'curl_'),'the UI read service must not transport media');
 echo $fail?'Recording choices UI contract failed:\n- '.implode("\n- ",$fail)."\n":'Recording choices UI contract passed'."\n";
 if($fail)exit(1);

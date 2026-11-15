@@ -138,4 +138,26 @@ $fail('the inventory reports no invalid template', (int) $inventory['totals']['i
 $fail('the inventory required total matches the catalogue', (int) $inventory['totals']['required_templates'] === $coverage['required']);
 $fail('the inventory is generated from the current catalogue version', (string) $inventory['catalogue_version'] === NotificationCatalogue::VERSION);
 
+/* 6. The administration surface separates completeness, drafts, publication, approvals, delivery and
+ *    producer state, and the bulk publish path is gated by an explicit editorial approval. */
+$controller = (string) file_get_contents($root . '/src/Admin/Controller/NotificationManagementController.php');
+$librarySource = (string) file_get_contents($root . '/src/Integrations/Notifications/NotificationTemplateLibrary.php');
+foreach (array('Catalogue copy', 'Drafts', 'Publication', 'Approvals', 'Delivery', 'Producer') as $dimension) {
+    $fail('the catalogue row reports ' . $dimension . ' separately', str_contains($controller, "'" . $dimension . "'"));
+}
+$fail('completeness is never merged with delivery readiness', !str_contains($controller, '<th>Template readiness</th>') && str_contains($controller, 'dzn-notif-lifecycle'));
+$fail('a producer gap is visible as its own state', str_contains($controller, "return 'no_producer'") && str_contains($controller, '>No producer yet<'));
+$fail('an approval is required before bulk publication', str_contains($librarySource, 'The draft has not been approved for publication.'));
+$fail('editing the copy revokes the approval', str_contains($librarySource, 'private function forgetApproval') && substr_count($librarySource, 'forgetApproval(') >= 4);
+$fail('the approval is bound to a content digest', str_contains($librarySource, 'public function contentDigest') && str_contains($librarySource, "'digest'=>"));
+$fail('the provider gate is a positive whitelist', str_contains($librarySource, '$state!==TelnyxTemplateAuthority::MAPPED') && str_contains($librarySource, "default=>'The provider approval state is unknown, so publication is refused.'"));
+$fail('the publish action is capability and nonce gated', substr_count($controller, 'check_admin_referer(') >= 2 && str_contains($controller, 'dzn_notification_approve_draft'));
+
+/* 7. Producer gaps and unmapped provider routes are reported as outstanding implementation work. */
+$inventory = json_decode((string) file_get_contents($root . '/docs/NOTIFICATION-TEMPLATE-INVENTORY.json'), true);
+$fail('the inventory lists the producer gaps', count((array) $inventory['events_without_registered_producer']) > 0);
+$fail('the inventory lists the unmapped WhatsApp routes', count((array) $inventory['whatsapp_routes_without_registry_mapping']) > 0);
+$fail('the inventory separates outstanding work from delivered functionality', str_contains((string) file_get_contents($root . '/docs/NOTIFICATION-TEMPLATE-INVENTORY.md'), 'Outstanding implementation work (not delivered functionality)'));
+$fail('the catalogue declares producer registration per event', str_contains((string) file_get_contents($root . '/src/Integrations/Notifications/NotificationCatalogue.php'), "'producer_registered'=>"));
+
 echo "Notification template readiness contract passed\n";

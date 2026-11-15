@@ -168,7 +168,60 @@ template is mapped. A locally prepared draft is never presented as a Meta-approv
 | `renewal.term_lapsed.student` | financial, legal |
 | `teacher.invitation_issued.teacher` | security, dedicated_authority |
 
-## 6. Live checks outstanding
+## 6. Outstanding implementation work (not delivered functionality)
+
+These entries have copy and provider metadata but cannot be delivered as working notifications,
+so they must not be reported as completed functionality.
+
+### 6.1 Events with no registered producer (13)
+
+| Event key | Declared producer | Why it cannot fire |
+|---|---|---|
+| `lesson.access.student` | `ClassAccessService` | The named producer class does not exist in this repository. |
+| `lesson.cancelled.student` | `LessonCancellationService` | The named producer class does not exist in this repository. |
+| `lesson.reminder.student` | `LessonReminderService` | The named producer class does not exist in this repository. |
+| `payment.failed.student` | `canonical:PAYMENT_FAILED` | Finance intent only; no dispatch workflow is registered. |
+| `payment.recovered.student` | `canonical:PAYMENT_RECOVERED` | Finance intent only; no dispatch workflow is registered. |
+| `refund.resolved.student` | `canonical:REFUND_RESOLVED` | Finance intent only; no dispatch workflow is registered. |
+| `refund.review_required.student` | `canonical:REFUND_REVIEW_REQUIRED` | Finance intent only; no dispatch workflow is registered. |
+| `renewal.automatic_charged.student` | `canonical:AUTOMATIC_RENEWAL_CHARGED` | Finance intent only; no dispatch workflow is registered. |
+| `renewal.automatic_failed.student` | `canonical:AUTOMATIC_RENEWAL_FAILED` | Finance intent only; no dispatch workflow is registered. |
+| `renewal.automatic_upcoming.student` | `canonical:AUTOMATIC_RENEWAL_UPCOMING` | Finance intent only; no dispatch workflow is registered. |
+| `renewal.guarantee_deadline_approaching.student` | `canonical:GUARANTEE_DEADLINE_APPROACHING` | Finance intent only; no dispatch workflow is registered. |
+| `renewal.manual_payment_required.student` | `canonical:MANUAL_RENEWAL_PAYMENT_REQUIRED` | Finance intent only; no dispatch workflow is registered. |
+| `renewal.term_lapsed.student` | `canonical:TERM_LAPSED` | Finance intent only; no dispatch workflow is registered. |
+
+### 6.2 WhatsApp routes with no Meta template (24)
+
+Local copy exists for provider submission, but no approved provider template is mapped, so
+these routes cannot be enabled and no message is sent.
+
+- `account.claim_issued.student`
+- `payment.failed.student`
+- `refund.resolved.student`
+- `refund.review_required.student`
+- `renewal.automatic_charged.student`
+- `renewal.automatic_failed.student`
+- `renewal.guarantee_deadline_approaching.student`
+- `renewal.term_lapsed.student`
+- `reschedule.change.cancelled.student`
+- `reschedule.change.cancelled.teacher`
+- `reschedule.change.failed.student`
+- `reschedule.change.failed.teacher`
+- `reschedule.change.proposed.teacher`
+- `reschedule.change.rejected.teacher`
+- `reschedule.replacement.accepted.student`
+- `reschedule.replacement.accepted.teacher`
+- `reschedule.replacement.cancelled.student`
+- `reschedule.replacement.cancelled.teacher`
+- `reschedule.replacement.failed.student`
+- `reschedule.replacement.failed.teacher`
+- `reschedule.replacement.proposed.student`
+- `reschedule.replacement.proposed.teacher`
+- `reschedule.replacement.rejected.student`
+- `reschedule.replacement.rejected.teacher`
+
+### 6.3 Live checks outstanding
 
 - wpvr_dzn_notification_templates row count and active versions
 - dzn_notification_catalogue_seeded option presence

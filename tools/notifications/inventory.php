@@ -60,7 +60,9 @@ foreach ($catalogue as $eventKey => $event) {
         'task' => NotificationCatalogue::taskKey($eventKey),
         'recipient' => (string) $event['audience'],
         'producer' => (string) $event['producer'],
-        'producer_registered' => $producerRegistered((string) $event['producer']),
+        // Declared by the catalogue, then cross-checked against the class names in platform/src.
+        'producer_registered' => !empty($event['producer_registered']),
+        'producer_class_found' => $producerRegistered((string) $event['producer']),
         'implementation' => (string) $event['implementation'],
         'delivery_authority' => (string) $event['authority'],
         'channels' => $channels,
@@ -110,6 +112,7 @@ $declared = 0;
 $noProducer = array();
 $unsupportedRoutes = array();
 $unmappedWhatsApp = array();
+$producerMismatch = array();
 $reviewRequired = array();
 
 foreach ($rows as $row) {
@@ -127,6 +130,7 @@ foreach ($rows as $row) {
     elseif ($row['implementation'] === 'partial') $partial++;
     else $declared++;
     if (!$row['producer_registered']) $noProducer[] = $row['event_key'];
+    if ($row['producer_registered'] !== $row['producer_class_found'] && !str_contains((string) $row['producer'], ':')) $producerMismatch[] = $row['event_key'];
     if ($row['review_outstanding'] !== array()) $reviewRequired[$row['event_key']] = $row['review_outstanding'];
     if ($row['provider']['whatsapp_state'] === 'not_mapped') $unmappedWhatsApp[] = $row['event_key'];
     foreach ($row['templates'] as $template) {
@@ -169,6 +173,7 @@ $document = array(
     'events_per_channel' => $perChannel,
     'implementation' => array('implemented' => $implemented, 'partial' => $partial, 'declared' => $declared),
     'events_without_registered_producer' => $noProducer,
+    'producer_declaration_mismatch' => $producerMismatch,
     'events_with_outstanding_review' => $reviewRequired,
     'whatsapp_routes_without_registry_mapping' => $unmappedWhatsApp,
     'whatsapp_registry' => $registry,
@@ -291,9 +296,44 @@ if ($reviewRequired === array()) {
     foreach ($reviewRequired as $eventKey => $codes) $markdown[] = $line('`' . $eventKey . '` | ' . implode(', ', $codes));
 }
 $markdown[] = '';
-$markdown[] = '## 6. Live checks outstanding';
+$markdown[] = '## 6. Outstanding implementation work (not delivered functionality)';
+$markdown[] = '';
+$markdown[] = 'These entries have copy and provider metadata but cannot be delivered as working notifications,';
+$markdown[] = 'so they must not be reported as completed functionality.';
+$markdown[] = '';
+$markdown[] = '### 6.1 Events with no registered producer (' . count($noProducer) . ')';
+$markdown[] = '';
+if ($noProducer === array()) {
+    $markdown[] = 'None.';
+} else {
+    $markdown[] = '| Event key | Declared producer | Why it cannot fire |';
+    $markdown[] = '|---|---|---|';
+    foreach ($noProducer as $eventKey) {
+        $producer = (string) (NotificationCatalogue::get($eventKey)['producer'] ?? '');
+        $why = str_contains($producer, ':') ? 'Finance intent only; no dispatch workflow is registered.' : 'The named producer class does not exist in this repository.';
+        $markdown[] = $line('`' . $eventKey . '` | `' . $producer . '` | ' . $why);
+    }
+}
+$markdown[] = '';
+$markdown[] = '### 6.2 WhatsApp routes with no Meta template (' . count($unmappedWhatsApp) . ')';
+$markdown[] = '';
+if ($unmappedWhatsApp === array()) {
+    $markdown[] = 'None.';
+} else {
+    $markdown[] = 'Local copy exists for provider submission, but no approved provider template is mapped, so';
+    $markdown[] = 'these routes cannot be enabled and no message is sent.';
+    $markdown[] = '';
+    foreach ($unmappedWhatsApp as $eventKey) $markdown[] = '- `' . $eventKey . '`';
+}
+$markdown[] = '';
+$markdown[] = '### 6.3 Live checks outstanding';
 $markdown[] = '';
 foreach ($document['live_checks_outstanding'] as $check) $markdown[] = '- ' . $check;
+if ($producerMismatch !== array()) {
+    $markdown[] = '';
+    $markdown[] = '### 6.4 Producer declaration mismatches (';
+    $markdown[] = implode(', ', $producerMismatch) . ')';
+}
 file_put_contents($docs . '/NOTIFICATION-TEMPLATE-INVENTORY.md', implode(PHP_EOL, $markdown) . PHP_EOL);
 
 printf(

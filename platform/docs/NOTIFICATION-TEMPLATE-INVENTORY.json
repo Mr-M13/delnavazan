@@ -1,5 +1,5 @@
 {
-    "generated_at": "2026-11-15T11:48:14+00:00",
+    "generated_at": "2026-11-15T12:52:07+00:00",
     "catalogue_version": "2026-11-15.1",
     "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
     "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
@@ -55,6 +55,7 @@
         "renewal.manual_payment_required.student",
         "renewal.term_lapsed.student"
     ],
+    "producer_declaration_mismatch": [],
     "events_with_outstanding_review": {
         "account.claim_issued.student": [
             "security"
@@ -422,6 +423,7 @@
             "recipient": "student",
             "producer": "StudentAccountClaimNotificationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "canonical",
             "channels": [
@@ -478,6 +480,7 @@
             "recipient": "teacher",
             "producer": "CanonicalAttendanceNotificationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -521,6 +524,7 @@
             "recipient": "teacher",
             "producer": "CanonicalAttendanceNotificationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -564,6 +568,7 @@
             "recipient": "student",
             "producer": "IntroLessonLifecycleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -607,6 +612,7 @@
             "recipient": "teacher",
             "producer": "IntroLessonLifecycleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -650,6 +656,7 @@
             "recipient": "student",
             "producer": "BookingCalendarProjectionService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -704,6 +711,7 @@
             "recipient": "student",
             "producer": "BookingTeacherResponseService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -747,6 +755,7 @@
             "recipient": "admin",
             "producer": "BookingAllocationWorker",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -779,6 +788,7 @@
             "recipient": "teacher",
             "producer": "BookingAllocationWorker",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -811,6 +821,7 @@
             "recipient": "teacher",
             "producer": "BookingTeacherDeliveryService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -876,6 +887,7 @@
             "recipient": "admin",
             "producer": "BookingAllocationWorker",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -908,6 +920,7 @@
             "recipient": "student",
             "producer": "BookingRequestSubmissionService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -973,6 +986,7 @@
             "recipient": "student",
             "producer": "IntroLessonLifecycleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -1016,6 +1030,7 @@
             "recipient": "teacher",
             "producer": "IntroLessonLifecycleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -1059,6 +1074,7 @@
             "recipient": "admin",
             "producer": "ConsentNotificationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "partial",
             "delivery_authority": "queue",
             "channels": [
@@ -1091,6 +1107,7 @@
             "recipient": "guardian",
             "producer": "ConsentNotificationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "partial",
             "delivery_authority": "queue",
             "channels": [
@@ -1134,6 +1151,7 @@
             "recipient": "student",
             "producer": "ConsentNotificationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "partial",
             "delivery_authority": "queue",
             "channels": [
@@ -1177,6 +1195,7 @@
             "recipient": "teacher",
             "producer": "ConsentNotificationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "partial",
             "delivery_authority": "queue",
             "channels": [
@@ -1220,6 +1239,7 @@
             "recipient": "student",
             "producer": "ConsentNotificationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "partial",
             "delivery_authority": "queue",
             "channels": [
@@ -1252,6 +1272,7 @@
             "recipient": "teacher",
             "producer": "ConsentNotificationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "partial",
             "delivery_authority": "queue",
             "channels": [
@@ -1284,6 +1305,7 @@
             "recipient": "student",
             "producer": "ConsentNotificationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "partial",
             "delivery_authority": "queue",
             "channels": [
@@ -1327,6 +1349,7 @@
             "recipient": "teacher",
             "producer": "ConsentNotificationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "partial",
             "delivery_authority": "queue",
             "channels": [
@@ -1370,6 +1393,7 @@
             "recipient": "student",
             "producer": "ConsentNotificationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "partial",
             "delivery_authority": "queue",
             "channels": [
@@ -1413,6 +1437,7 @@
             "recipient": "teacher",
             "producer": "ConsentNotificationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "partial",
             "delivery_authority": "queue",
             "channels": [
@@ -1456,6 +1481,7 @@
             "recipient": "student",
             "producer": "ClassAccessService",
             "producer_registered": false,
+            "producer_class_found": false,
             "implementation": "declared",
             "delivery_authority": "queue",
             "channels": [
@@ -1521,6 +1547,7 @@
             "recipient": "student",
             "producer": "LessonCancellationService",
             "producer_registered": false,
+            "producer_class_found": false,
             "implementation": "declared",
             "delivery_authority": "queue",
             "channels": [
@@ -1586,6 +1613,7 @@
             "recipient": "student",
             "producer": "LessonReminderService",
             "producer_registered": false,
+            "producer_class_found": false,
             "implementation": "declared",
             "delivery_authority": "queue",
             "channels": [
@@ -1651,6 +1679,7 @@
             "recipient": "student",
             "producer": "canonical:PAYMENT_FAILED",
             "producer_registered": false,
+            "producer_class_found": false,
             "implementation": "partial",
             "delivery_authority": "canonical",
             "channels": [
@@ -1708,6 +1737,7 @@
             "recipient": "student",
             "producer": "canonical:PAYMENT_RECOVERED",
             "producer_registered": false,
+            "producer_class_found": false,
             "implementation": "partial",
             "delivery_authority": "canonical",
             "channels": [
@@ -1765,6 +1795,7 @@
             "recipient": "student",
             "producer": "PostIntroActivationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -1819,6 +1850,7 @@
             "recipient": "teacher",
             "producer": "PostIntroActivationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -1862,6 +1894,7 @@
             "recipient": "student",
             "producer": "PostIntroPreparationService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -1905,6 +1938,7 @@
             "recipient": "student",
             "producer": "PostIntroSurveyWorker",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -1948,6 +1982,7 @@
             "recipient": "student",
             "producer": "canonical:REFUND_RESOLVED",
             "producer_registered": false,
+            "producer_class_found": false,
             "implementation": "partial",
             "delivery_authority": "canonical",
             "channels": [
@@ -2005,6 +2040,7 @@
             "recipient": "student",
             "producer": "canonical:REFUND_REVIEW_REQUIRED",
             "producer_registered": false,
+            "producer_class_found": false,
             "implementation": "partial",
             "delivery_authority": "canonical",
             "channels": [
@@ -2062,6 +2098,7 @@
             "recipient": "student",
             "producer": "canonical:AUTOMATIC_RENEWAL_CHARGED",
             "producer_registered": false,
+            "producer_class_found": false,
             "implementation": "partial",
             "delivery_authority": "canonical",
             "channels": [
@@ -2119,6 +2156,7 @@
             "recipient": "student",
             "producer": "canonical:AUTOMATIC_RENEWAL_FAILED",
             "producer_registered": false,
+            "producer_class_found": false,
             "implementation": "partial",
             "delivery_authority": "canonical",
             "channels": [
@@ -2176,6 +2214,7 @@
             "recipient": "student",
             "producer": "canonical:AUTOMATIC_RENEWAL_UPCOMING",
             "producer_registered": false,
+            "producer_class_found": false,
             "implementation": "partial",
             "delivery_authority": "canonical",
             "channels": [
@@ -2233,6 +2272,7 @@
             "recipient": "student",
             "producer": "canonical:GUARANTEE_DEADLINE_APPROACHING",
             "producer_registered": false,
+            "producer_class_found": false,
             "implementation": "partial",
             "delivery_authority": "canonical",
             "channels": [
@@ -2290,6 +2330,7 @@
             "recipient": "student",
             "producer": "canonical:MANUAL_RENEWAL_PAYMENT_REQUIRED",
             "producer_registered": false,
+            "producer_class_found": false,
             "implementation": "partial",
             "delivery_authority": "canonical",
             "channels": [
@@ -2347,6 +2388,7 @@
             "recipient": "student",
             "producer": "RenewalReminderWorker",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -2390,6 +2432,7 @@
             "recipient": "student",
             "producer": "canonical:TERM_LAPSED",
             "producer_registered": false,
+            "producer_class_found": false,
             "implementation": "partial",
             "delivery_authority": "canonical",
             "channels": [
@@ -2447,6 +2490,7 @@
             "recipient": "admin",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -2479,6 +2523,7 @@
             "recipient": "student",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -2533,6 +2578,7 @@
             "recipient": "teacher",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -2587,6 +2633,7 @@
             "recipient": "admin",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -2619,6 +2666,7 @@
             "recipient": "student",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -2673,6 +2721,7 @@
             "recipient": "teacher",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -2727,6 +2776,7 @@
             "recipient": "admin",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -2759,6 +2809,7 @@
             "recipient": "student",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -2813,6 +2864,7 @@
             "recipient": "teacher",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -2867,6 +2919,7 @@
             "recipient": "admin",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -2899,6 +2952,7 @@
             "recipient": "student",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -2953,6 +3007,7 @@
             "recipient": "teacher",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3007,6 +3062,7 @@
             "recipient": "admin",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3039,6 +3095,7 @@
             "recipient": "student",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3093,6 +3150,7 @@
             "recipient": "teacher",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3147,6 +3205,7 @@
             "recipient": "admin",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3179,6 +3238,7 @@
             "recipient": "student",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3233,6 +3293,7 @@
             "recipient": "teacher",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3287,6 +3348,7 @@
             "recipient": "admin",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3319,6 +3381,7 @@
             "recipient": "student",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3373,6 +3436,7 @@
             "recipient": "teacher",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3427,6 +3491,7 @@
             "recipient": "admin",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3459,6 +3524,7 @@
             "recipient": "student",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3513,6 +3579,7 @@
             "recipient": "teacher",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3567,6 +3634,7 @@
             "recipient": "admin",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3599,6 +3667,7 @@
             "recipient": "student",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3653,6 +3722,7 @@
             "recipient": "teacher",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3707,6 +3777,7 @@
             "recipient": "admin",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3739,6 +3810,7 @@
             "recipient": "student",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3793,6 +3865,7 @@
             "recipient": "teacher",
             "producer": "LessonRescheduleService",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3847,6 +3920,7 @@
             "recipient": "admin",
             "producer": "notification_management",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
@@ -3879,6 +3953,7 @@
             "recipient": "teacher",
             "producer": "TeacherInvitationDeliveryWorker",
             "producer_registered": true,
+            "producer_class_found": true,
             "implementation": "implemented",
             "delivery_authority": "dedicated",
             "channels": [

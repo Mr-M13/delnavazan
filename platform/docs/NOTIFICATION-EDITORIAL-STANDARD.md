@@ -168,3 +168,25 @@ payment notices, and including the portal and email routes that used to be locke
 - Every administrator change is written to the notification audit log.
 - Suppression is evaluated at enqueue, at claim and immediately before provider hand-off, so a queued
   notification or a retry obeys the current switch rather than the value it was created with.
+
+## 11. Preparing and publishing copy
+
+1. **Prepare** creates a reviewable draft for every supported template that has no published version
+   and no draft. It never sends, publishes or enables anything, and it never overwrites a draft or a
+   published version.
+2. **Approve** records that an administrator has read one exact draft. The approval stores a digest of
+   the subject and body, so editing the draft, discarding it or publishing it invalidates the approval.
+3. **Publish in bulk** only publishes drafts that carry a valid approval *and* whose channel approval is
+   complete. Financial, legal, security and dedicated-authority copy always needs its owning reviewer
+   and is published individually.
+4. **Provider approval is separate.** A WhatsApp draft is only bulk-publishable when the route is
+   positively mapped. Not mapped, rejected, pending re-approval, ambiguous, contract-mismatched or
+   unrecognised provider states are refused; a locally prepared draft is never presented as an
+   approved Meta template.
+5. Publishing a template never enables its delivery channel, and it never changes a notification that
+   already froze an earlier version.
+
+Completeness is reported separately from readiness. A notification can have complete Persian and
+English copy and still be unpublished, awaiting approval, awaiting a provider template, or impossible
+to raise because no producer is registered. Those are different facts and the administration surface
+must not merge them into one badge.

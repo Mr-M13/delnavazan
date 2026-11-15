@@ -371,7 +371,7 @@ final class NotificationCatalogue {
         // provider mapping are ready, but nothing dispatches the event yet, so it must not be reported
         // as implemented. A future scheduling worker can switch it on without touching this catalogue.
         foreach(array('lesson.reminder.student','lesson.cancelled.student','lesson.access.student') as $declaredOnly){
-            foreach($out as $index=>$candidate)if($candidate['key']===$declaredOnly)$out[$index]['implementation']='declared';
+            foreach($out as $index=>$candidate)if($candidate['key']===$declaredOnly){$out[$index]['implementation']='declared';$out[$index]['producer_registered']=false;}
         }
         self::appendRescheduleStudent($out);
         $out[]=self::event('account.claim_issued.student','Student Account Invitation','security','student','StudentAccountClaimNotificationService','canonical',array('email','whatsapp','sms'),'security',true,array('claim_code'),'account.claim_issued',array(
@@ -978,6 +978,8 @@ final class NotificationCatalogue {
             'authority'=>$authority,'channels'=>$channels,'consent'=>$consent,'mandatory'=>$mandatory,
             'variables'=>array_values(array_unique($variables)),'template_key'=>$templateKey,
             'implementation'=>str_starts_with($producer,'canonical:')?'declared':'implemented',
+            // `canonical:<INTENT>` names a finance intent, not a class, so nothing dispatches it yet.
+            'producer_registered'=>!str_starts_with($producer,'canonical:'),
             'review'=>array_values(array_unique($review)),
             'defaults'=>$defaults,
             'provider_templates'=>array(

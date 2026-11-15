@@ -24,7 +24,8 @@ foreach (array(
     'dzn_notification_copy_save_draft', 'dzn_notification_copy_publish', 'dzn_notification_copy_discard',
     'dzn_notification_copy_restore', 'dzn_notification_copy_restore_default', 'dzn_notification_provider_mapping',
     'dzn_notification_event_toggle', 'dzn_notification_event_channel_toggle', 'dzn_notification_inbox_prune', 'dzn_notification_inbox_test',
-    'dzn_notification_recover_leases',
+    'dzn_notification_recover_leases', 'dzn_notification_prepare_drafts', 'dzn_notification_publish_drafts',
+    'dzn_notification_approve_draft', 'dzn_notification_revoke_approval',
 ) as $action) {
     $fail('registered action ' . $action, str_contains($controller, "admin_post_" . $action));
 }

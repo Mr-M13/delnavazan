@@ -84,11 +84,17 @@ if ($action === 'submit' || $action === 'submit_partial' || $action === 'submit_
     $confirmations = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_confirmations WHERE booking_request_id IN ($in) AND state NOT IN ('failed','cancelled')", $requestIds));
     $acceptedDeliveries = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_teacher_deliveries WHERE booking_request_id IN ($in) AND state='accepting'", $requestIds));
     $pendingDeliveries = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_teacher_deliveries WHERE booking_request_id IN ($in) AND state='pending_request'", $requestIds));
+    $expiredDeliveries = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_teacher_deliveries WHERE booking_request_id IN ($in) AND state='expired'", $requestIds));
     dzn_stress_assert(count($successes) === 1, 'Expected exactly one successful acceptance, got ' . count($successes));
     dzn_stress_assert(count($failures) === $level - 1, 'Expected ' . ($level - 1) . ' refused acceptances, got ' . count($failures));
     dzn_stress_assert($confirmations === 1, 'Expected exactly one confirmation, got ' . $confirmations);
     dzn_stress_assert($acceptedDeliveries === 1, 'Expected exactly one accepting delivery, got ' . $acceptedDeliveries);
-    dzn_stress_assert($pendingDeliveries === $level - 1, 'Expected the losing deliveries to remain pending, got ' . $pendingDeliveries);
+    // BookingOfferRetirementService retires every competing offer when a winner
+    // commits and moves its delivery to `expired`: no pending Teacher action survives
+    // the winner. Asserting that contract, not the `pending_request` state the
+    // application never leaves behind, is what proves retirement actually ran.
+    dzn_stress_assert($expiredDeliveries === $level - 1, 'Expected the losing deliveries to be retired to expired, got ' . $expiredDeliveries . ' of ' . ($level - 1));
+    dzn_stress_assert($pendingDeliveries === 0, 'A retired losing delivery must not stay pending, got ' . $pendingDeliveries);
     dzn_stress_assert(dzn_stress_teacher_double_bookings() === 0, 'Acceptance level produced a Teacher double booking');
     // Scoped to the acceptance Teacher for the same reason as the submission level.
     dzn_stress_assert(dzn_stress_capacity_violations(array((int) $fixture['teacher_id'])) === 0, 'Acceptance level produced a capacity violation (confirmed or live-offer overlap)');
@@ -99,6 +105,7 @@ if ($action === 'submit' || $action === 'submit_partial' || $action === 'submit_
     $payload += array(
         'confirmations' => $confirmations, 'accepted_deliveries' => $acceptedDeliveries,
         'pending_losing_deliveries' => $pendingDeliveries,
+        'expired_losing_deliveries' => $expiredDeliveries,
         'capacity' => dzn_stress_capacity_violation_detail(array((int) $fixture['teacher_id'])),
     );
 } elseif ($action === 'idempotent') {

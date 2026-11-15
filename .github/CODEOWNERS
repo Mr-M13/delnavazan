@@ -1,0 +1,12 @@
+# Delnavazan code ownership.
+#
+# The repository ruleset "Protect main" requires code-owner review, so a pull
+# request opened by any identity other than the owner below needs an explicit
+# approval from that owner before it can merge.
+
+* @Mr-M13
+
+# Release, deployment and agent-governance surfaces always belong to the owner.
+/.github/ @Mr-M13
+/deployment/ @Mr-M13
+/AGENTS.md @Mr-M13

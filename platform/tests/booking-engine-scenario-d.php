@@ -150,5 +150,5 @@ dzn_stress_assert((int) $o16['teacher_id'] === $ids[0], 'D16 must continue the o
 $events['completion'] = array('cursor_before' => $cursorBefore, 'cursor_after' => $cursor(), 'next_teacher' => (int) $o16['teacher_id']);
 
 dzn_stress_assert(dzn_stress_teacher_double_bookings() === 0, 'Scenario D produced a Teacher double booking');
-dzn_stress_assert(dzn_stress_capacity_violations() === 0, 'Scenario D produced overlapping confirmations');
+dzn_stress_assert(dzn_stress_capacity_violations() === 0, 'Scenario D produced a capacity violation (confirmed or live-offer overlap)');
 dzn_stress_emit('D_allocation_lifecycle', array('pass' => true, 'teacher_ids' => $ids, 'events' => $events, 'final_cursor' => $cursor()));

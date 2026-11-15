@@ -131,5 +131,5 @@ dzn_stress_assert($count4 === 1, 'G4 replay created ' . $count4 . ' confirmation
 $out['projection_failure_replay'] = array('confirmation_state' => $state4, 'confirmation_id' => $confirmation4, 'confirmations' => $count4, 'replay_idempotent' => !empty($replay['idempotent']));
 
 dzn_stress_assert(dzn_stress_teacher_double_bookings() === 0, 'Scenario G produced a Teacher double booking');
-dzn_stress_assert(dzn_stress_capacity_violations() === 0, 'Scenario G produced overlapping confirmations');
+dzn_stress_assert(dzn_stress_capacity_violations() === 0, 'Scenario G produced a capacity violation (confirmed or live-offer overlap)');
 dzn_stress_emit('G_failure_recovery', array('pass' => true, 'cases' => $out));

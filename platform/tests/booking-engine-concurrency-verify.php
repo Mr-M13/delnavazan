@@ -66,7 +66,7 @@ if ($action === 'submit' || $action === 'submit_partial' || $action === 'submit_
     dzn_stress_assert($referrals === $level - 1, 'Expected ' . ($level - 1) . ' referrals, got ' . $referrals);
     dzn_stress_assert($confirmations === 0, 'Intake created a confirmation');
     dzn_stress_assert(dzn_stress_teacher_double_bookings() === 0, 'Submission level produced a Teacher double booking');
-    dzn_stress_assert(dzn_stress_capacity_violations() === 0, 'Submission level produced overlapping confirmations');
+    dzn_stress_assert(dzn_stress_capacity_violations() === 0, 'Submission level produced a capacity violation (confirmed or live-offer overlap)');
     $payload += array(
         'intake_requests' => count($requestIds), 'active_offers' => count($activeOffers),
         'referrals' => $referrals, 'confirmations' => $confirmations,
@@ -85,7 +85,7 @@ if ($action === 'submit' || $action === 'submit_partial' || $action === 'submit_
     dzn_stress_assert($acceptedDeliveries === 1, 'Expected exactly one accepting delivery, got ' . $acceptedDeliveries);
     dzn_stress_assert($pendingDeliveries === $level - 1, 'Expected the losing deliveries to remain pending, got ' . $pendingDeliveries);
     dzn_stress_assert(dzn_stress_teacher_double_bookings() === 0, 'Acceptance level produced a Teacher double booking');
-    dzn_stress_assert(dzn_stress_capacity_violations() === 0, 'Acceptance level produced overlapping confirmations');
+    dzn_stress_assert(dzn_stress_capacity_violations() === 0, 'Acceptance level produced a capacity violation (confirmed or live-offer overlap)');
     foreach ($failures as $failure) {
         $message = (string) ($failure['message'] ?? '');
         dzn_stress_assert(in_array($message, array('teacher_slot_conflict', 'student_slot_conflict', 'Booking time is no longer available', 'Booking offer expired or reassigned'), true), 'Unexpected losing acceptance error: ' . $message);

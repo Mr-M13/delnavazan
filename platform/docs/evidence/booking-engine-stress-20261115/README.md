@@ -1,16 +1,35 @@
 # Booking engine stress-test evidence — 2026-11-15
 
-This directory contains the curated machine-readable results of the disposable
+This directory holds the instructions for reproducing the disposable
 WordPress/MariaDB audit described in
 `platform/docs/BOOKING-ENGINE-STRESS-AUDIT-20261115.md`.
 
-## What is here
+## Generated output is not committed
 
-- `results.json` — every `AUDIT_RESULT` line emitted by the executed scenarios,
-  plus environment, database and pure-test metadata.
+The audit emits machine-readable `AUDIT_RESULT` lines, per-worker logs, verifier
+output and environment metadata. That output is **generated**, so it is not part
+of the repository: per `AGENTS.md`, pre-merge commits carry authored sources and
+reproducibility instructions, never generated artefacts.
 
-It contains synthetic Teacher/Student/request identifiers only. It contains no
-production data, real contact details, credentials or provider payloads.
+The runner writes it outside the tracked checkout, under the disposable runtime
+state directory:
+
+```
+$DZN_RUNTIME_STATE_DIR/booking-stress-evidence/$DZN_COMPOSE_PROJECT/
+├── scenario-a.log … scenario-g.log     # committed AUDIT_RESULT lines per scenario
+├── concurrency-setup.log
+├── <action>-<level>/launcher.log       # worker stdout/stderr
+└── <action>-<level>/verify.log         # committed-row verifier output
+```
+
+`DZN_RUNTIME_STATE_DIR` must already be outside the shared checkout — the
+harness refuses any other value — so evidence can never end up inside a commit
+by accident. The directory is deleted and recreated on each run.
+
+The output contains synthetic Teacher/Student/request identifiers only. It
+contains no production data, real contact details, credentials or provider
+payloads. Attach it to a pull-request comment or an external record when a
+review needs the raw numbers; do not `git add` it.
 
 ## Environment
 
@@ -54,8 +73,37 @@ DZN_STRESS_IDEMPOTENT=0 DZN_STRESS_CRASH=0 \
   bash platform/runtime/bin/run-booking-engine-stress.sh
 ```
 
-The runner writes per-worker logs and verify output under
-`$TMPDIR/dzn-booking-stress-logs-$DZN_COMPOSE_PROJECT`.
+`DZN_STRESS_LEVELS` and `DZN_STRESS_ACTIONS` apply their documented defaults
+only when **unset**. An explicitly empty value is an empty selection and
+disables that loop, so the scenarios-only command above really does skip the
+concurrency matrix.
+
+Every selection is validated before any derived path is created or removed:
+levels must be plain integers (`1`…`DZN_STRESS_MAX_LEVEL`, default `1000`) and
+actions must be one of `submit`, `accept`, `submit_partial`, `process`,
+`idempotent`, `submit_crash`. Anything else aborts with exit status `2` before
+Docker starts and before the disposable-path guard is asked to delete anything.
+
+Print the resolved plan without touching Docker or the filesystem:
+
+```bash
+DZN_STRESS_VALIDATE_ONLY=1 DZN_STRESS_LEVELS="" DZN_STRESS_ACTIONS="" \
+  bash platform/runtime/bin/run-booking-engine-stress.sh
+```
+
+## Safety regressions for the runner itself
+
+`platform/tests/booking-stress-runner-contract.sh` runs on a plain host with no
+Docker and no WordPress. It proves that path-shaped, unsupported, signed,
+zero and over-ceiling selections are refused, that unrelated files survive every
+rejected invocation, that the runner deletes only through the validated
+disposable-path primitive, and that empty selections plan zero jobs while unset
+selections plan the documented default matrix.
+
+`platform/tests/booking-engine-capacity-unit.php` covers the overlap authority:
+adjacent lessons, buffer collisions, overlapping live offers, confirmed double
+bookings, legitimate cross-Teacher competing offers, and single-counting across
+lifecycle states.
 
 ## Executed vs not executed
 

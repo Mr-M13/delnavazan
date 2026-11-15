@@ -12,7 +12,15 @@ $student = dzn_stress_student($suffix, 'Scenario F Student');
 $availability = new Delnavazan\Platform\Core\Application\TeacherAvailabilityService();
 $out = array();
 
-$preferenceCase = static function (string $label, array $teacherRanges, array $teacherStates, array $localTimes) use ($suffix, $student): array {
+// Derived from the run time: every date below is passed through allocation, so a
+// fixed calendar date would fall inside the 25-hour lead time in a later year.
+$dayA = dzn_stress_allocation_date(4, 'UTC');
+$dayB = dzn_stress_allocation_date(5, 'UTC');
+$dayC = dzn_stress_allocation_date(6, 'UTC');
+$dayD = dzn_stress_allocation_date(7, 'UTC');
+$dayE = dzn_stress_allocation_date(8, 'UTC');
+
+$preferenceCase = static function (string $label, string $date, array $teacherRanges, array $teacherStates, array $localTimes) use ($suffix, $student): array {
     $course = dzn_stress_course($suffix, 'f-' . substr(md5($label), 0, 6), 'F ' . $label);
     $teachers = array();
     foreach ($teacherRanges as $index => $ranges) {
@@ -21,7 +29,7 @@ $preferenceCase = static function (string $label, array $teacherRanges, array $t
         ));
     }
     $times = array();
-    foreach ($localTimes as $time) $times[] = dzn_stress_time('2026-12-21 ' . $time . ':00', 30, 15);
+    foreach ($localTimes as $time) $times[] = dzn_stress_time($date . ' ' . $time . ':00', 30, 15);
     $request = dzn_stress_request($student, $course['instrument_id'], $course['course_id'], $times, $suffix, 'F-' . substr(md5($label), 0, 8));
     $offer = dzn_stress_allocate($request['request_id'], $course['course_id'], dzn_stress_times_for_allocation($request['request_id']));
     return array(
@@ -32,17 +40,17 @@ $preferenceCase = static function (string $label, array $teacherRanges, array $t
 };
 
 // Teacher covers all three; the earliest preference wins.
-$out['first_preference'] = $preferenceCase('first-preference', array(array(array('00:00:00', '24:00:00'))), array('preferred'), array('09:00', '10:00', '11:00'));
+$out['first_preference'] = $preferenceCase('first-preference', $dayA, array(array(array('00:00:00', '24:00:00'))), array('preferred'), array('09:00', '10:00', '11:00'));
 // Teacher covers only the third preference; the engine must find it rather than refer.
-$out['third_preference'] = $preferenceCase('third-preference', array(array(array('11:00:00', '12:00:00'))), array('preferred'), array('09:00', '10:00', '11:00'));
+$out['third_preference'] = $preferenceCase('third-preference', $dayA, array(array(array('11:00:00', '12:00:00'))), array('preferred'), array('09:00', '10:00', '11:00'));
 // Teacher covers the first and third; order still selects the first.
-$out['ordered_windows'] = $preferenceCase('ordered-windows', array(array(array('09:00:00', '09:45:00'), array('11:00:00', '11:45:00'))), array('preferred'), array('09:00', '10:00', '11:00'));
+$out['ordered_windows'] = $preferenceCase('ordered-windows', $dayA, array(array(array('09:00:00', '09:45:00'), array('11:00:00', '11:45:00'))), array('preferred'), array('09:00', '10:00', '11:00'));
 
 // Teacher id ordering dominates the preference index across different Teachers.
 $idCourse = dzn_stress_course($suffix, 'f-id', 'F Teacher Id');
 $low = dzn_stress_teacher($suffix, 'F Low Teacher', array($idCourse['course_id']), array('timezone' => 'UTC', 'ranges' => array(array('09:00:00', '09:45:00'))));
 $high = dzn_stress_teacher($suffix, 'F High Teacher', array($idCourse['course_id']), array('timezone' => 'UTC', 'ranges' => array(array('10:00:00', '10:45:00'))));
-$idTimes = array(dzn_stress_time('2026-12-22 09:00:00', 30, 15), dzn_stress_time('2026-12-22 10:00:00', 30, 15));
+$idTimes = array(dzn_stress_time($dayB . ' 09:00:00', 30, 15), dzn_stress_time($dayB . ' 10:00:00', 30, 15));
 $idRequest = dzn_stress_request($student, $idCourse['instrument_id'], $idCourse['course_id'], $idTimes, $suffix, 'F-id');
 $idOffer = dzn_stress_allocate($idRequest['request_id'], $idCourse['course_id'], dzn_stress_times_for_allocation($idRequest['request_id']));
 $out['teacher_id_vs_preference'] = array('low' => $low['teacher_id'], 'high' => $high['teacher_id'], 'offered_teacher' => $idOffer['teacher_id'] ?? null, 'offered_time_id' => $idOffer['requested_time_id'] ?? null);
@@ -52,7 +60,7 @@ $out['teacher_id_vs_preference'] = array('low' => $low['teacher_id'], 'high' => 
 $strengthCourse = dzn_stress_course($suffix, 'f-strength', 'F Match Strength');
 $possible = dzn_stress_teacher($suffix, 'F Possible Teacher', array($strengthCourse['course_id']), array('timezone' => 'UTC', 'ranges' => array(array('10:00:00', '10:45:00')), 'state' => 'requestable'));
 $strong = dzn_stress_teacher($suffix, 'F Strong Teacher', array($strengthCourse['course_id']), array('timezone' => 'UTC', 'ranges' => array(array('09:00:00', '09:45:00')), 'state' => 'preferred'));
-$strengthTimes = array(dzn_stress_time('2026-12-23 09:00:00', 30, 15), dzn_stress_time('2026-12-23 10:00:00', 30, 15));
+$strengthTimes = array(dzn_stress_time($dayC . ' 09:00:00', 30, 15), dzn_stress_time($dayC . ' 10:00:00', 30, 15));
 $strengthRequest = dzn_stress_request($student, $strengthCourse['instrument_id'], $strengthCourse['course_id'], $strengthTimes, $suffix, 'F-strength');
 $strengthOffer = dzn_stress_allocate($strengthRequest['request_id'], $strengthCourse['course_id'], dzn_stress_times_for_allocation($strengthRequest['request_id']));
 $out['match_strength'] = array('possible_teacher' => $possible['teacher_id'], 'strong_teacher' => $strong['teacher_id'], 'offered_teacher' => $strengthOffer['teacher_id'] ?? null, 'offered_match_strength' => $strengthOffer['match_strength'] ?? null);
@@ -67,7 +75,7 @@ dzn_stress_assert($out['match_strength']['offered_match_strength'] === 'possible
 $claimCourse = dzn_stress_course($suffix, 'f-claim', 'F Claim');
 $claimT1 = dzn_stress_teacher($suffix, 'F Claim T1', array($claimCourse['course_id']), array('timezone' => 'UTC', 'ranges' => array(array('15:00:00', '16:00:00'))));
 $claimT2 = dzn_stress_teacher($suffix, 'F Claim T2', array($claimCourse['course_id']), array('timezone' => 'UTC', 'ranges' => array(array('15:00:00', '16:00:00'))));
-$claimTime = dzn_stress_time('2026-12-24 09:00:00', 30, 15);
+$claimTime = dzn_stress_time($dayD . ' 09:00:00', 30, 15);
 $claimRequest = dzn_stress_request($student, $claimCourse['instrument_id'], $claimCourse['course_id'], array($claimTime), $suffix, 'F-claim');
 dzn_stress_resolve_identity($claimRequest['request_id'], $student, $suffix);
 $claimReferral = dzn_stress_allocate($claimRequest['request_id'], $claimCourse['course_id'], dzn_stress_times_for_allocation($claimRequest['request_id']));
@@ -88,7 +96,7 @@ catch (Throwable $error) { $claimBlocked = true; }
 dzn_stress_assert($claimBlocked, 'A second Teacher claimed an already-confirmed request');
 $occupancyAfterClaim = (new Delnavazan\Platform\Core\Application\BookingTeacherOccupancyReadService())->overlapping($claimT1['teacher_id'], $claimTime['starts_at_utc'], $claimTime['occupied_ends_at_utc']);
 dzn_stress_assert($occupancyAfterClaim !== array(), 'An accepted out-of-availability claim did not reserve capacity');
-$claimTime2 = dzn_stress_time('2026-12-24 09:00:00', 30, 15);
+$claimTime2 = dzn_stress_time($dayD . ' 09:00:00', 30, 15);
 $claimRequest2 = dzn_stress_request($student, $claimCourse['instrument_id'], $claimCourse['course_id'], array($claimTime2), $suffix, 'F-claim-second');
 $claimOffer2 = dzn_stress_allocate($claimRequest2['request_id'], $claimCourse['course_id'], dzn_stress_times_for_allocation($claimRequest2['request_id']));
 dzn_stress_assert($claimOffer2 === null, 'A later request was offered to a Teacher already claimed at that interval');
@@ -100,7 +108,7 @@ $setar1 = dzn_stress_teacher($suffix, 'F Board Setar 1', array($boardCourse['cou
 $setar2 = dzn_stress_teacher($suffix, 'F Board Setar 2', array($boardCourse['course_id']), array('timezone' => 'UTC', 'ranges' => array(array('15:00:00', '16:00:00'))));
 $otherCourse = dzn_stress_course($suffix, 'f-board-other', 'F Board Other');
 $tarOnly = dzn_stress_teacher($suffix, 'F Board Tar Only', array($otherCourse['course_id']), array('timezone' => 'UTC', 'ranges' => array(array('15:00:00', '16:00:00'))));
-$boardTime = dzn_stress_time('2026-12-25 09:00:00', 30, 15);
+$boardTime = dzn_stress_time($dayE . ' 09:00:00', 30, 15);
 $boardRequest = dzn_stress_request($student, $boardCourse['instrument_id'], $boardCourse['course_id'], array($boardTime), $suffix, 'F-board');
 dzn_stress_resolve_identity($boardRequest['request_id'], $student, $suffix);
 $boardReferral = dzn_stress_allocate($boardRequest['request_id'], $boardCourse['course_id'], dzn_stress_times_for_allocation($boardRequest['request_id']));
@@ -122,5 +130,5 @@ dzn_stress_assert(!$visible['setar1_after_claim'] && !$visible['setar2_after_cla
 $out['opportunity_board'] = $visible;
 
 dzn_stress_assert(dzn_stress_teacher_double_bookings() === 0, 'Scenario F produced a Teacher double booking');
-dzn_stress_assert(dzn_stress_capacity_violations() === 0, 'Scenario F produced overlapping confirmations');
+dzn_stress_assert(dzn_stress_capacity_violations() === 0, 'Scenario F produced a capacity violation (confirmed or live-offer overlap)');
 dzn_stress_emit('F_preferences_and_claim', array('pass' => true, 'cases' => $out));

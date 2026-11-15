@@ -722,7 +722,16 @@ change until these are explicit.
 | `platform/tests/booking-engine-concurrency-light-worker.php` | Lightweight 100-process worker |
 | `platform/tests/booking-engine-concurrency-verify.php` | Committed-row and artefact verifier |
 | `platform/runtime/bin/run-booking-engine-stress.sh` | Guarded end-to-end audit runner |
-| `platform/docs/evidence/booking-engine-stress-20261115/results.json` | Machine-readable executed results |
+| `platform/runtime/bin/booking-stress-inputs.sh` | Side-effect-free selection validation shared by the runner and its regression test |
+| `platform/tests/booking-engine-capacity-toolkit.php` | Pure, buffer-aware occupancy overlap and classification authority |
+| `platform/tests/booking-engine-capacity-unit.php` | Native overlap regressions: adjacency, buffers, live offers, double booking, cross-Teacher competition |
+| `platform/tests/booking-stress-runner-contract.sh` | Native proof that malformed or empty selections are refused before any deletion |
+
+Generated output (per-scenario `AUDIT_RESULT` lines, worker logs, verifier logs)
+is deliberately **not** committed. The runner writes it under
+`$DZN_RUNTIME_STATE_DIR/booking-stress-evidence/$DZN_COMPOSE_PROJECT/`, outside
+the tracked checkout; see
+`platform/docs/evidence/booking-engine-stress-20261115/README.md`.
 
 All tests refuse to run outside a disposable `local`/`development` WordPress
 whose home URL is loopback. They create synthetic rows only and make no external

@@ -14,6 +14,8 @@ use Delnavazan\Platform\Core\Application\BookingTeacherDeliveryService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
 
+require_once __DIR__ . '/booking-engine-capacity-toolkit.php';
+
 function dzn_stress_guard(): void {
     if (!defined('WP_CLI') || !WP_CLI) {
         fwrite(STDERR, "Refused: WP-CLI is required.\n");
@@ -33,6 +35,59 @@ function dzn_stress_guard(): void {
 function dzn_stress_suffix(string $label): string {
     return strtolower(preg_replace('/[^a-z0-9]+/i', '-', $label)) . '-' . strtolower(wp_generate_password(8, false, false));
 }
+
+/**
+ * A local calendar date that is always far enough ahead to be allocatable.
+ *
+ * Initial offers require the start to be beyond the 25-hour lead time. A fixed
+ * calendar date therefore turns every scenario that passes through allocation
+ * into a time bomb: it starts failing for calendar reasons rather than for an
+ * application regression. Offsets of three days or more keep the gap above
+ * 48 hours whatever the current wall-clock time, and the weekday is irrelevant
+ * because these fixtures declare availability on every day.
+ *
+ * Pure DST and Jalali *conversion* assertions keep their fixed dates; only
+ * dates that flow through allocation are derived here.
+ */
+function dzn_stress_allocation_date(int $offsetDays = 4, string $timezone = 'UTC'): string {
+    if ($offsetDays < 3) {
+        throw new RuntimeException('An allocation date must be at least 3 days ahead to clear the 25-hour lead time, got +' . $offsetDays . ' days');
+    }
+    return (new DateTimeImmutable('today', new DateTimeZone($timezone)))
+        ->modify('+' . $offsetDays . ' days')->format('Y-m-d');
+}
+
+/**
+ * The next real DST transition date in a zone, so the DST cases stay valid in
+ * later years instead of pinning one calendar date.
+ *
+ * Returns the local date on which the offset moves, e.g. for
+ * America/New_York in 2027 the 2027-03-14 spring-forward or the 2027-11-07
+ * fall-back. Fails closed if the zone has no such transition in the window,
+ * rather than silently testing a non-transition day.
+ */
+function dzn_stress_dst_transition_date(string $timezone, bool $springForward, ?string $afterUtc = null): string {
+    $zone = new DateTimeZone($timezone);
+    $after = new DateTimeImmutable($afterUtc ?? 'now', new DateTimeZone('UTC'));
+    $from = $after->getTimestamp();
+    $transitions = $zone->getTransitions($from, $from + 86400 * 900);
+    if (!is_array($transitions) || count($transitions) < 2) {
+        throw new RuntimeException('No DST transitions available for ' . $timezone);
+    }
+    $previous = null;
+    foreach ($transitions as $transition) {
+        $offset = (int) $transition['offset'];
+        if ($previous !== null) {
+            $delta = $offset - $previous;
+            if (($springForward && $delta > 0) || (!$springForward && $delta < 0)) {
+                return (new DateTimeImmutable('@' . (int) $transition['ts']))->setTimezone($zone)->format('Y-m-d');
+            }
+        }
+        $previous = $offset;
+    }
+    throw new RuntimeException('No ' . ($springForward ? 'spring-forward' : 'fall-back') . ' transition found for ' . $timezone);
+}
+
 
 function dzn_stress_assert(bool $ok, string $message): void {
     if (!$ok) throw new RuntimeException('ASSERT: ' . $message);
@@ -469,29 +524,71 @@ function dzn_stress_teacher_double_bookings(): int {
     );
 }
 
-function dzn_stress_capacity_violations(): int {
+/**
+ * Confirmed occupancy for every Teacher, using the authoritative occupied end.
+ *
+ * A confirmation's `ends_at_utc` is the instructional end, so reading it drops
+ * the course buffer and hides a lesson that starts inside that buffer. The
+ * requested-time row owns the real interval; the confirmation end is only a
+ * fallback for a row that has no requested time at all (which the toolkit then
+ * reports as malformed instead of ignoring).
+ */
+function dzn_stress_confirmed_occupancy(): array {
     global $wpdb;
     $p = $wpdb->prefix . 'dzn_';
-    // Any two non-failed confirmations or pending offers for the same Teacher
-    // whose half-open occupied intervals overlap.
-    $rows = (array) $wpdb->get_results(
-        "SELECT c.teacher_id,c.starts_at_utc,c.ends_at_utc
+    return (array) $wpdb->get_results(
+        "SELECT c.id,c.teacher_id,c.booking_request_id,c.starts_at_utc,
+                COALESCE(rt.occupied_ends_at_utc,c.ends_at_utc) occupied_ends_at_utc
          FROM {$p}booking_request_confirmations c
-         INNER JOIN {$p}booking_request_requested_times rt ON rt.id=c.requested_time_id AND rt.booking_request_id=c.booking_request_id
+         LEFT JOIN {$p}booking_request_requested_times rt ON rt.id=c.requested_time_id AND rt.booking_request_id=c.booking_request_id
          WHERE c.state NOT IN ('failed','cancelled')"
     );
-    $byTeacher = array();
-    foreach ($rows as $row) {
-        $byTeacher[(int) $row->teacher_id][] = array((string) $row->starts_at_utc, (string) $row->ends_at_utc);
-    }
-    $violations = 0;
-    foreach ($byTeacher as $intervals) {
-        usort($intervals, static fn(array $a, array $b): int => $a[0] <=> $b[0]);
-        for ($i = 1, $n = count($intervals); $i < $n; $i++) {
-            if ($intervals[$i][0] < $intervals[$i - 1][1]) $violations++;
-        }
-    }
-    return $violations;
+}
+
+/** Live pending offers, which hold Teacher capacity before a confirmation exists. */
+function dzn_stress_pending_occupancy(): array {
+    global $wpdb;
+    $p = $wpdb->prefix . 'dzn_';
+    return (array) $wpdb->get_results(
+        "SELECT o.id,o.teacher_id,o.booking_request_id,rt.starts_at_utc,rt.occupied_ends_at_utc
+         FROM {$p}booking_allocation_offers o
+         LEFT JOIN {$p}booking_request_requested_times rt ON rt.id=o.requested_time_id AND rt.booking_request_id=o.booking_request_id
+         WHERE o.state='pending' AND o.active_slot=1"
+    );
+}
+
+/** Full classification: hard violations plus the informational offer counts. */
+function dzn_stress_capacity_report(): array {
+    return dzn_capacity_violations(dzn_stress_confirmed_occupancy(), dzn_stress_pending_occupancy());
+}
+
+/**
+ * Hard capacity violations: overlapping confirmed occupancy (including the
+ * course buffer), a live offer still holding confirmed capacity, or two live
+ * offers over-committing one Teacher. Competing offers across Teachers are not
+ * a violation and are reported separately by dzn_stress_competing_pending_offers().
+ */
+function dzn_stress_capacity_violations(): int {
+    return (int) dzn_stress_capacity_report()['hard_count'];
+}
+
+/** Live offers holding the same student slot open at more than one Teacher. */
+function dzn_stress_competing_pending_offers(): int {
+    return count(dzn_stress_capacity_report()['competing_pending']);
+}
+
+/** Privacy-safe description of every hard violation, for the audit record. */
+function dzn_stress_capacity_violation_detail(): array {
+    $report = dzn_stress_capacity_report();
+    return array(
+        'confirmed_overlaps' => array_map('dzn_capacity_describe', $report['confirmed_overlaps']),
+        'pending_over_confirmed' => array_map('dzn_capacity_describe', $report['pending_over_confirmed']),
+        'pending_overlaps' => array_map('dzn_capacity_describe', $report['pending_overlaps']),
+        'orphan_pending' => $report['orphan_pending'],
+        'malformed_confirmed' => $report['malformed_confirmed'],
+        'competing_pending' => count($report['competing_pending']),
+        'hard_count' => $report['hard_count'],
+    );
 }
 
 function dzn_stress_latency(array $seconds): array {

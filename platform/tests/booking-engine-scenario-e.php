@@ -37,36 +37,45 @@ $case = static function (string $label, string $timezone, array $ranges, string 
     );
 };
 
+// Allocation dates are derived from the run time so these cases stay beyond the
+// 25-hour lead time in every future year. Fixed dates remain only for the pure
+// DST-gap, DST-fold and Jalali conversion assertions further below.
+$utcDayA = dzn_stress_allocation_date(4, 'UTC');
+$utcDayB = dzn_stress_allocation_date(5, 'UTC');
+$tehranDay = dzn_stress_allocation_date(6, 'Asia/Tehran');
+$dstSpringDay = dzn_stress_dst_transition_date('America/New_York', true);
+$dstFallDay = dzn_stress_dst_transition_date('America/New_York', false);
+
 // Example 1: Teacher 10:00-10:15; Student 10:00-10:30 (+15 buffer).
-$results[] = $case('E1-partial-tail', 'UTC', array(array('10:00:00', '10:15:00')), '2026-12-10', '10:00:00', 30, 15);
+$results[] = $case('E1-partial-tail', 'UTC', array(array('10:00:00', '10:15:00')), $utcDayA, '10:00:00', 30, 15);
 // Example 2: Teacher 10:15-10:45; Student 10:00-10:30 (+15 buffer).
-$results[] = $case('E2-partial-head', 'UTC', array(array('10:15:00', '10:45:00')), '2026-12-10', '10:00:00', 30, 15);
+$results[] = $case('E2-partial-head', 'UTC', array(array('10:15:00', '10:45:00')), $utcDayA, '10:00:00', 30, 15);
 // Example 3: Teacher 10:00-10:30; Student 10:15-10:45 (+15 buffer).
-$results[] = $case('E3-partial-both', 'UTC', array(array('10:00:00', '10:30:00')), '2026-12-10', '10:15:00', 30, 15);
+$results[] = $case('E3-partial-both', 'UTC', array(array('10:00:00', '10:30:00')), $utcDayA, '10:15:00', 30, 15);
 // Example 4a: literal adjacency, buffer-free course facts (10:00-10:30 occupied).
-$results[] = $case('E4-adjacent-no-buffer', 'UTC', array(array('10:00:00', '10:15:00'), array('10:15:00', '10:30:00')), '2026-12-10', '10:00:00', 30, 0);
+$results[] = $case('E4-adjacent-no-buffer', 'UTC', array(array('10:00:00', '10:15:00'), array('10:15:00', '10:30:00')), $utcDayA, '10:00:00', 30, 0);
 // Example 4b: adjacency covering the full 30+15 occupied interval.
-$results[] = $case('E4b-adjacent-with-buffer', 'UTC', array(array('10:00:00', '10:15:00'), array('10:15:00', '10:45:00')), '2026-12-10', '10:00:00', 30, 15);
+$results[] = $case('E4b-adjacent-with-buffer', 'UTC', array(array('10:00:00', '10:15:00'), array('10:15:00', '10:45:00')), $utcDayA, '10:00:00', 30, 15);
 // Example 5a: 30-minute availability cannot hold 30 lesson + 15 buffer.
-$results[] = $case('E5-buffer-short', 'UTC', array(array('10:00:00', '10:30:00')), '2026-12-10', '10:00:00', 30, 15);
+$results[] = $case('E5-buffer-short', 'UTC', array(array('10:00:00', '10:30:00')), $utcDayA, '10:00:00', 30, 15);
 // Example 5b: 45-minute availability holds 30 lesson + 15 buffer exactly.
-$results[] = $case('E5b-buffer-exact', 'UTC', array(array('10:00:00', '10:45:00')), '2026-12-10', '10:00:00', 30, 15);
+$results[] = $case('E5b-buffer-exact', 'UTC', array(array('10:00:00', '10:45:00')), $utcDayA, '10:00:00', 30, 15);
 // Exact end boundary: availability ends exactly at the occupied end.
-$results[] = $case('E6-exact-end', 'UTC', array(array('10:00:00', '10:45:00')), '2026-12-10', '10:00:00', 30, 15);
+$results[] = $case('E6-exact-end', 'UTC', array(array('10:00:00', '10:45:00')), $utcDayA, '10:00:00', 30, 15);
 // One minute past the end.
-$results[] = $case('E7-one-minute-past', 'UTC', array(array('10:00:00', '10:44:00')), '2026-12-10', '10:00:00', 30, 15);
+$results[] = $case('E7-one-minute-past', 'UTC', array(array('10:00:00', '10:44:00')), $utcDayA, '10:00:00', 30, 15);
 // Midnight crossing: 23:00+45 ends 23:45, covered by 22:00-24:00.
-$results[] = $case('E8-midnight-inside', 'UTC', array(array('22:00:00', '24:00:00')), '2026-12-11', '23:00:00', 30, 15);
+$results[] = $case('E8-midnight-inside', 'UTC', array(array('22:00:00', '24:00:00')), $utcDayB, '23:00:00', 30, 15);
 // Midnight crossing: 23:30+45 ends 00:15 next day, outside 22:00-24:00.
-$results[] = $case('E9-midnight-cross', 'UTC', array(array('22:00:00', '24:00:00')), '2026-12-11', '23:30:00', 30, 15);
-// DST spring-forward: 2027-03-14 America/New_York, 01:00-04:00 local.
-$results[] = $case('E10-dst-spring-valid', 'America/New_York', array(array('01:00:00', '04:00:00')), '2027-03-14', '03:00:00', 30, 15);
-// DST fall-back: 2027-11-07 America/New_York, 00:00-03:00 local, 02:00 valid.
-$results[] = $case('E11-dst-fall-valid', 'America/New_York', array(array('00:00:00', '03:00:00')), '2027-11-07', '02:00:00', 30, 15);
+$results[] = $case('E9-midnight-cross', 'UTC', array(array('22:00:00', '24:00:00')), $utcDayB, '23:30:00', 30, 15);
+// DST spring-forward: the next real America/New_York transition, 01:00-04:00 local.
+$results[] = $case('E10-dst-spring-valid', 'America/New_York', array(array('01:00:00', '04:00:00')), $dstSpringDay, '03:00:00', 30, 15);
+// DST fall-back: the next real America/New_York transition, 00:00-03:00 local, 02:00 valid.
+$results[] = $case('E11-dst-fall-valid', 'America/New_York', array(array('00:00:00', '03:00:00')), $dstFallDay, '02:00:00', 30, 15);
 // Timezone conversion: 10:00 Asia/Tehran is 06:30 UTC; teacher UTC 06:30-07:30.
-$results[] = $case('E12-timezone-conversion', 'UTC', array(array('06:30:00', '07:30:00')), '2026-12-10', '10:00:00', 30, 15, 'Asia/Tehran');
-// Jalali equivalence: 2026-11-15 (1405-08-24) full-day availability.
-$results[] = $case('E13-jalali-date', 'Asia/Tehran', array(array('00:00:00', '24:00:00')), '2026-12-15', '10:00:00', 30, 15);
+$results[] = $case('E12-timezone-conversion', 'UTC', array(array('06:30:00', '07:30:00')), $utcDayA, '10:00:00', 30, 15, 'Asia/Tehran');
+// Jalali equivalence: full-day availability on a derived Tehran date.
+$results[] = $case('E13-jalali-date', 'Asia/Tehran', array(array('00:00:00', '24:00:00')), $tehranDay, '10:00:00', 30, 15);
 
 $byLabel = array();
 foreach ($results as $row) $byLabel[$row['label']] = $row;
@@ -92,6 +101,9 @@ $expect('E12-timezone-conversion', true);
 $expect('E13-jalali-date', true);
 
 // Nonexistent and ambiguous local wall times must fail closed before persistence.
+// These two stay on fixed calendar dates on purpose: they assert a pure
+// conversion for a known transition and never pass through allocation, so they
+// remain correct in any future year.
 $dstGap = false;
 try { AvailabilityLocalTime::wall('2027-03-14', '02:30:00', 'America/New_York'); }
 catch (Throwable $error) { $dstGap = $error instanceof Delnavazan\Platform\Core\Application\UnavailableLocalTimeException; }
@@ -113,21 +125,23 @@ dzn_stress_assert($utcMirror['starts_at_utc'] === $e13['start_utc'], 'Timezone c
 dzn_stress_emit('E_availability_boundaries', array(
     'pass' => true,
     'cases' => $results,
+    'dates' => array('utc_day_a' => $utcDayA, 'utc_day_b' => $utcDayB, 'tehran_day' => $tehranDay, 'dst_spring' => $dstSpringDay, 'dst_fall' => $dstFallDay),
     'dst_gap_rejected' => $dstGap, 'dst_fold_rejected' => $dstFold,
     'jalali_2026_12_15' => $jalali,
-    'notes' => 'Coverage and allocation use the full occupied interval (instructional duration + course buffer). Adjacent rules are merged by the availability resolver.',
+    'notes' => 'Coverage and allocation use the full occupied interval (instructional duration + course buffer). Adjacent rules are merged by the availability resolver. Allocation dates are derived from the run time so the cases stay beyond the 25-hour lead time in every year; only the pure DST/Jalali conversion assertions keep a fixed date.',
 ));
 
 // Existing confirmed class inside the requested interval must block the Teacher.
+$blockDay = dzn_stress_allocation_date(7, 'UTC');
 $blockCourse = dzn_stress_course($suffix, 'e14-block', 'E14 Blocker');
 $blockTeacher = dzn_stress_teacher($suffix, 'E14 blocker teacher', array($blockCourse['course_id']), array('timezone' => 'UTC'));
-dzn_stress_confirmation_blocker($student, $blockCourse['instrument_id'], $blockCourse['course_id'], $blockTeacher['teacher_id'], '2026-12-20 10:15:00', $suffix);
-$targetStart = '2026-12-20 10:00:00';
+dzn_stress_confirmation_blocker($student, $blockCourse['instrument_id'], $blockCourse['course_id'], $blockTeacher['teacher_id'], $blockDay . ' 10:15:00', $suffix);
+$targetStart = $blockDay . ' 10:00:00';
 $targetTime = dzn_stress_time($targetStart, 30, 15);
 $targetCoverage = $availability->coverage($blockTeacher['teacher_id'], $targetTime['starts_at_utc'], $targetTime['occupied_ends_at_utc'], $blockCourse['instrument_id']);
 $targetRequest = dzn_stress_request($student, $blockCourse['instrument_id'], $blockCourse['course_id'], array($targetTime), $suffix, 'E14-target');
 $targetOffer = dzn_stress_allocate($targetRequest['request_id'], $blockCourse['course_id'], dzn_stress_times_for_allocation($targetRequest['request_id']));
-$nonOverlapTime = dzn_stress_time('2026-12-20 12:00:00', 30, 15);
+$nonOverlapTime = dzn_stress_time($blockDay . ' 12:00:00', 30, 15);
 $nonOverlapRequest = dzn_stress_request($student, $blockCourse['instrument_id'], $blockCourse['course_id'], array($nonOverlapTime), $suffix, 'E14-nonoverlap');
 $nonOverlapOffer = dzn_stress_allocate($nonOverlapRequest['request_id'], $blockCourse['course_id'], dzn_stress_times_for_allocation($nonOverlapRequest['request_id']));
 dzn_stress_assert($targetCoverage === 'preferred', 'E14 declared availability should cover the target time');
@@ -138,7 +152,7 @@ echo 'AUDIT_RESULT ' . wp_json_encode(array('scenario' => 'E14_existing_lesson_o
 // 15. Open-ended temporary unavailability excludes an otherwise fully available Teacher.
 $leaveCourse = dzn_stress_course($suffix, 'e15-leave', 'E15 Leave');
 $leaveTeacher = dzn_stress_teacher($suffix, 'E15 on leave', array($leaveCourse['course_id']), array('timezone' => 'UTC', 'leave' => true));
-$leaveTime = dzn_stress_time('2026-12-27 10:00:00', 30, 15);
+$leaveTime = dzn_stress_time(dzn_stress_allocation_date(8, 'UTC') . ' 10:00:00', 30, 15);
 $leaveCoverage = $availability->coverage($leaveTeacher['teacher_id'], $leaveTime['starts_at_utc'], $leaveTime['occupied_ends_at_utc'], $leaveCourse['instrument_id']);
 $leaveRequest = dzn_stress_request($student, $leaveCourse['instrument_id'], $leaveCourse['course_id'], array($leaveTime), $suffix, 'E15');
 $leaveOffer = dzn_stress_allocate($leaveRequest['request_id'], $leaveCourse['course_id'], dzn_stress_times_for_allocation($leaveRequest['request_id']));
@@ -147,7 +161,7 @@ dzn_stress_assert($leaveCoverage === null && $leaveOffer === null, 'E15 an open-
 // 16. A limited accepting state remains eligible, but records a possible match.
 $limitedCourse = dzn_stress_course($suffix, 'e16-limited', 'E16 Limited');
 $limitedTeacher = dzn_stress_teacher($suffix, 'E16 limited', array($limitedCourse['course_id']), array('timezone' => 'UTC', 'accepting_state' => 'limited'));
-$limitedTime = dzn_stress_time('2026-12-27 12:00:00', 30, 15);
+$limitedTime = dzn_stress_time(dzn_stress_allocation_date(9, 'UTC') . ' 12:00:00', 30, 15);
 $limitedRequest = dzn_stress_request($student, $limitedCourse['instrument_id'], $limitedCourse['course_id'], array($limitedTime), $suffix, 'E16');
 $limitedOffer = dzn_stress_allocate($limitedRequest['request_id'], $limitedCourse['course_id'], dzn_stress_times_for_allocation($limitedRequest['request_id']));
 dzn_stress_assert($limitedOffer !== null && $limitedOffer['match_strength'] === 'possible', 'E16 a limited-accepting Teacher was not offered with a possible match');

@@ -87,7 +87,7 @@ dzn_stress_assert($referred === 0, 'Scenario C unexpected referrals: ' . $referr
 dzn_stress_assert($acceptErrors === 0, 'Scenario C acceptance errors: ' . $acceptErrors);
 dzn_stress_assert($globalFairness['spread'] > 1, 'The per-instrument policy is expected to produce unequal total workload across portfolios');
 dzn_stress_assert(dzn_stress_teacher_double_bookings() === 0, 'Scenario C produced a Teacher double booking');
-dzn_stress_assert(dzn_stress_capacity_violations() === 0, 'Scenario C produced overlapping confirmations');
+dzn_stress_assert(dzn_stress_capacity_violations() === 0, 'Scenario C produced a capacity violation (confirmed or live-offer overlap)');
 
 $rowsOut = array();
 foreach ($teachers as $id => $teacher) {

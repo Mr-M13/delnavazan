@@ -80,18 +80,18 @@ as-is. Never invent or claim `composer install`, `npm ci`, `npm run lint`, `npm 
 `npm run build`. The packaging step in `.github/workflows/deploy-production.yml` is a release
 action owned by Codex, not a local build.
 
-Before pushing, every agent runs the checks that apply to its diff, **inside PHP 8.3 containers
-that match CI** whenever Docker is available:
+Before pushing, every agent runs the checks that apply to its diff on **PHP 8.3 with the CI
+extensions**. Native PHP 8.3 is acceptable when `tools/ci/check.sh doctor` matches; the container
+is optional strict parity. Docker is required only for the runtime suites.
 
-- **Toolchain:** `.devcontainer/` builds the PHP 8.3 image, and `tools/ci/check.sh` wraps the
-  checks. Use it through the container so PHP matches CI:
-  - `tools/ci/run-in-container.sh lint` — `php -l` every tracked PHP file, then `git diff --check`.
-  - `tools/ci/run-in-container.sh contracts platform/tests/<area>-contract.php` — affected
-    contracts (and the matching `-unit.php`).
-  - `tools/ci/run-in-container.sh doctor` — prove PHP version and extensions before claiming
-    container parity.
-  The wrapper derives its image tag from `.devcontainer/Dockerfile`, so changes rebuild instead of
-  reusing a stale image. The devcontainer runs the same image for a fully containerized session.
+- **Toolchain:** `tools/ci/check.sh` wraps the checks. Native-first:
+  - `tools/ci/check.sh lint` — `php -l` every tracked PHP file, then `git diff --check`.
+  - `tools/ci/check.sh contracts platform/tests/<area>-contract.php` — affected contracts
+    (and the matching `-unit.php`).
+  - `tools/ci/check.sh doctor` — prove PHP version and extensions before claiming parity.
+  For container parity, pass the same arguments to `tools/ci/run-in-container.sh`; its image tag
+  is derived from `.devcontainer/Dockerfile`, so changes rebuild instead of reusing a stale image.
+  `.tool-versions` pins PHP 8.3.
 - **Whitespace:** `git diff --check`.
 - **Source contracts:** `platform/tests/<area>-contract.php` and `-unit.php`. Add the extensions
   CI installs when a test needs them (`pdo_sqlite`, `sqlite3`, `curl`, `mbstring`). The contract
@@ -103,8 +103,8 @@ that match CI** whenever Docker is available:
 
 Rules:
 
-- If Docker is unavailable, say so explicitly in the PR and handoff; never claim container
-  parity you did not run.
+- State which environment ran the checks (native PHP 8.3 or the container image). Never claim
+  container parity you did not verify.
 - **Never** weaken, skip or delete a contract test to make a change pass. Fix the code or stop.
 - The **PR runtime gate is authoritative**. A green local run never substitutes for green CI,
   and a pending or skipped required check is never treated as passing.
@@ -112,6 +112,15 @@ Rules:
   real student/teacher identities, or live payment details. Follow the pre-launch acceptance
   rules in `README.md`.
 - Never commit secrets, tokens, keys or `.env` values. Document required variables without values.
+
+### 2.2 Docker retirement
+
+Lint and source contracts do **not** require Docker: they run on any PHP 8.3 host with the CI
+extensions, and the container is optional parity. Docker is still required for
+`platform/runtime/bin/run-*-runtime.sh`, because those suites pull `mariadb:11.4`,
+`wordpress:php8.3-apache` and `wordpress:cli-php8.3`. Docker can be retired from the repository
+only when those suites gain a native harness or are formally declared CI-only; until then the PR
+runtime gate remains authoritative.
 
 ## 3. Change discipline
 
@@ -126,9 +135,9 @@ Rules:
 ## 4. Verification and handoff
 
 - **OpenCode** finishes with: the PR URL; the list of changed files; the exact checks run and the
-  container image/command used; an explicit statement of the build status — this repository has
-  no local production build, so never claim one passed; and the handoff line
-  "Ready for Codex review." It does not merge or deploy.
+  environment used (native PHP 8.3 or container image/command); an explicit statement of the
+  build status — this repository has no local production build, so never claim one passed; and the
+  handoff line "Ready for Codex review." It does not merge or deploy.
 - **Codex** finishes a release only after: PR gate green, review done, merge committed, deployment
   run succeeded, smoke result reviewed, and the release record updated.
 - Neither agent claims a merge or deployment it did not perform. The evidence is the GitHub PR,

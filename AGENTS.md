@@ -51,8 +51,9 @@ Codex merges only after those checks pass, then deploys exactly as described in
 
 OpenCode contributes features upstream and never releases.
 
-- **Feature branches only.** Every change goes on a short-lived branch named
-  `feat/<slug>-<YYYYMMDD>`, cut from current `origin/main`.
+- **Feature branches only.** Refresh first, then branch from the latest `origin/main`:
+  `git fetch origin && git switch -c <branch> origin/main`. Use a short-lived branch named
+  `feat/<slug>-<YYYYMMDD>` or `fix/<slug>-<YYYYMMDD>`.
 - **Never commits or pushes to `main`.** Never force-pushes a shared branch, never merges,
   never approves its own PR, never enables auto-merge.
 - **Opens a PR for every change**, with what/why, tests run, risk and rollback in the body,
@@ -70,18 +71,45 @@ OpenCode contributes features upstream and never releases.
 
 ## 2. Build and test rules (both agents)
 
-The repository is a PHP 8.3 WordPress plugin (`platform/`) and theme (`theme/`). There is no
-`composer.json`, `package.json` or asset build step; theme assets are committed as-is.
+The repository is a PHP 8.3 WordPress plugin (`platform/`) and theme (`theme/`). CI runs on
+Ubuntu 24.04 with PHP 8.3.
 
-Before pushing, every agent runs the checks that apply to its diff:
+**There is no install step and no local production build.** The repository has no
+`composer.json`, `package.json`, bundler or compiled-asset pipeline; theme assets are committed
+as-is. Never invent or claim `composer install`, `npm ci`, `npm run lint`, `npm test` or
+`npm run build`. The packaging step in `.github/workflows/deploy-production.yml` is a release
+action owned by Codex, not a local build.
 
-- **PHP lint:** `php -l <file>` for every PHP file added or changed. CI lints all tracked PHP files.
+Before pushing, every agent runs the checks that apply to its diff, **inside PHP 8.3 containers
+that match CI** whenever Docker is available:
+
+- **PHP lint (all tracked PHP, as CI does):**
+
+  ```bash
+  git ls-files -z '*.php' | docker run --rm -i -v "$PWD":/repo -w /repo php:8.3-cli \
+    bash -c 'set -euo pipefail; while IFS= read -r -d "" f; do php -l "$f" >/dev/null || exit 1; done'
+  ```
+
+  A single changed file may be checked with `php -l <file>` instead, but the full lint is the CI
+  equivalent and is preferred before opening a PR.
 - **Whitespace:** `git diff --check`.
 - **Source contracts:** run the affected tests directly, e.g.
-  `php platform/tests/<area>-contract.php` and `php platform/tests/<area>-unit.php`.
-  The contract list in `.github/workflows/pr-runtime-gate.yml` is the authoritative set.
+  `docker run --rm -v "$PWD":/repo -w /repo php:8.3-cli php platform/tests/<area>-contract.php`
+  (and the matching `-unit.php`). Add the extensions CI installs when the test needs them
+  (`pdo_sqlite`, `sqlite3`, `curl`, `mbstring`). The contract list in
+  `.github/workflows/pr-runtime-gate.yml` is the authoritative set.
+- **Runtime suites:** `platform/runtime/bin/run-<suite>-runtime.sh`. These already drive Docker
+  with the CI images `mariadb:11.4`, `wordpress:php8.3-apache` and `wordpress:cli-php8.3`.
+- **Service tests:** `bash services/tests/run-all.sh` (CI uses PHP 8.3 with `pdo_sqlite`,
+  `sqlite3`, `curl`, `mbstring`).
+
+Rules:
+
+- If Docker is unavailable, say so explicitly in the PR and handoff; never claim container
+  parity you did not run.
 - **Never** weaken, skip or delete a contract test to make a change pass. Fix the code or stop.
-- The **PR runtime gate is authoritative**. A green local run never substitutes for green CI.
+- The **PR runtime gate is authoritative**. A green local run never substitutes for green CI,
+  and a pending or skipped required check is never treated as passing.
 - Tests and acceptance data use synthetic identities only. Never use real academy data,
   real student/teacher identities, or live payment details. Follow the pre-launch acceptance
   rules in `README.md`.
@@ -99,7 +127,9 @@ Before pushing, every agent runs the checks that apply to its diff:
 
 ## 4. Verification and handoff
 
-- **OpenCode** finishes with: PR URL, check status, tests run locally, and the handoff line
+- **OpenCode** finishes with: the PR URL; the list of changed files; the exact checks run and the
+  container image/command used; an explicit statement of the build status — this repository has
+  no local production build, so never claim one passed; and the handoff line
   "Ready for Codex review." It does not merge or deploy.
 - **Codex** finishes a release only after: PR gate green, review done, merge committed, deployment
   run succeeded, smoke result reviewed, and the release record updated.

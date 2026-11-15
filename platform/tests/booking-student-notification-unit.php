@@ -84,6 +84,23 @@ namespace {
     $disabledResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$disabledEmail);
     $assert($disabledResult['state']==='cancelled'&&$disabledEmail->row->last_error_code==='email_disabled_by_administrator','Disabling booking email must prevent email handoff.');
     $assert(count($mailCalls)===1&&count(\Delnavazan\Platform\Integrations\BookingNotificationMobileDispatcher::$calls)===1,'Disabling booking email must not suppress independent mobile and portal channels.');
+
+    // A queued notification that is retried or reclaimed after the switch was turned off must not
+    // reach the mailer, and the switch must not touch the booking record.
+    $retried=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository('retryable',1);
+    $retried->row->next_attempt_at=null;
+    $retriedBefore=clone $retried->row;
+    $retriedResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$retried);
+    $assert($retriedResult['state']==='cancelled'&&$retried->row->last_error_code==='email_disabled_by_administrator','A retrying notification must respect the current email switch.');
+    $assert(count($mailCalls)===1,'A retrying notification must not reach the mailer while email is disabled.');
+    $assert($retried->row->delivery_state===$retriedBefore->delivery_state&&$retried->row->lifecycle_status===$retriedBefore->lifecycle_status&&$retried->row->resolution_state===$retriedBefore->resolution_state,'Suppression must not alter the booking delivery, lifecycle or resolution state.');
+
+    $reclaimed=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository('sending',1);
+    $reclaimedResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$reclaimed);
+    $assert($reclaimedResult['state']==='cancelled'&&$reclaimed->row->last_error_code==='email_disabled_by_administrator','A reclaimed lease must respect the current email switch instead of sending.');
+    $assert(count($mailCalls)===1,'A reclaimed lease must not reach the mailer while email is disabled.');
+    $assert($reclaimed->row->delivery_state==='declined'&&$reclaimed->row->lifecycle_status==='closed'&&$reclaimed->row->resolution_state==='teacher_declined','Reclaiming a lease must not alter the booking record.');
+
     \Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary::$emailEnabled=true;
     try{\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(81,$repository);throw new \RuntimeException('A completed handoff was dispatched again.');}catch(\InvalidArgumentException){}
     $assert(count($mailCalls)===1,'A completed handoff must be idempotent.');
@@ -110,7 +127,7 @@ namespace {
     $confirmed->row->student_calendar='persian';
     $confirmedResult=\Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::dispatch(82,$confirmed);
     $assert($confirmedResult['state']==='handed_off'&&count($mailCalls)===3,'A confirmed booking must hand off without a Meet secret.');
-    $assert(str_contains($mailCalls[2]['subject'],'کلاس معارفه')&&str_contains($mailCalls[2]['body'],class_exists('IntlCalendar')?'آبان':'زمان کلاس')&&str_contains($mailCalls[2]['body'],'حساب کاربری'),'The confirmation must use the Persian calendar when Intl is available and retain account wording.');
+    $assert(str_contains($mailCalls[2]['subject'],'کلاس آشنایی')&&str_contains($mailCalls[2]['body'],class_exists('IntlCalendar')?'آبان':'زمان کلاس')&&str_contains($mailCalls[2]['body'],'حساب کاربری'),'The confirmation must use the Persian calendar when Intl is available and retain account wording.');
     $assert(!str_contains($mailCalls[2]['body'],'meet.google.com')&&!str_contains($mailCalls[2]['body'],'Google Meet'),'The confirmation email must not expose the Google Meet backup link.');
 
     $teacher=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();

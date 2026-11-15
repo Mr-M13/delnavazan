@@ -199,7 +199,7 @@ final class BookingStudentNotificationWorker {
         if((string)$row->notification_kind!=='confirmed'||(int)$row->confirmation_record_id<1)throw new \RuntimeException('Booking confirmation notification incomplete');
         $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;
         $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,self::calendarPreference($row));
-        return array('دلنوازان · کلاس معارفه شما تأیید شد',"درود {$name}،\n\nکلاس معارفهٔ «{$course}» با {$teacher} تأیید شد.\n\nزمان کلاس: {$when}\n\nاین کلاس در محیط کلاس آنلاین دلنوازان برگزار می‌شود. کمی پیش از زمان کلاس وارد حساب کاربری خود شوید و کلاس را از همان‌جا آغاز کنید. دسترسی کلاس را در اختیار دیگران قرار ندهید.\n\nبرای دیدن برنامهٔ کلاس‌ها وارد حساب کاربری خود شوید:\n{$portal}\n\nبا احترام، دلنوازان",$base+array('when'=>$when));
+        return array('دلنوازان · کلاس آشنایی شما تأیید شد',"درود {$name}،\n\nکلاس آشنایی «{$course}» با {$teacher} تأیید شد.\n\nزمان کلاس: {$when}\n\nاین کلاس در محیط کلاس آنلاین دلنوازان برگزار می‌شود. کمی پیش از زمان کلاس وارد حساب کاربری خود شوید و کلاس را از همان‌جا آغاز کنید. دسترسی کلاس را در اختیار دیگران قرار ندهید.\n\nبرای دیدن برنامهٔ کلاس‌ها وارد حساب کاربری خود شوید:\n{$portal}\n\nبا احترام، دلنوازان",$base+array('when'=>$when));
     }
 
     /**

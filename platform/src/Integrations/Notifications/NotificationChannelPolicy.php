@@ -17,6 +17,6 @@ final class NotificationChannelPolicy {
         return (new NotificationTemplateLibrary())->channelPermitted($eventKey,$channel);
     }
 
-    /** A mandatory category (security/account/payment) can never be disabled by a channel preference. */
+    /** Classification of sensitive events for administrator warnings, not a delivery override. */
     public static function isMandatory(string $eventKey):bool{return NotificationCatalogue::isMandatory($eventKey);}
 }

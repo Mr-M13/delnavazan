@@ -132,6 +132,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Portals\IntroLessonLifecycleController::register();
 	Delnavazan\Platform\Integrations\LessonRescheduleWorker::register();
 	Delnavazan\Platform\Integrations\BookingCalendarProjectionWorker::register();
+	Delnavazan\Platform\Integrations\ChatGptAdsConversionWorker::register();
 	Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::register();
 	Delnavazan\Platform\Integrations\BookingAllocationWorker::register();
 	Delnavazan\Platform\Integrations\BookingAllocationNotificationWorker::register();

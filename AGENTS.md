@@ -97,7 +97,9 @@ is optional strict parity. Docker is required only for the runtime suites.
 - **Whitespace:** `git diff --check`.
 - **Source contracts:** `platform/tests/<area>-contract.php` and `-unit.php`. Add the extensions
   CI installs when a test needs them (`pdo_sqlite`, `sqlite3`, `curl`, `mbstring`). The contract
-  list in `.github/workflows/pr-runtime-gate.yml` is the authoritative set.
+  list in `.github/workflows/pr-runtime-gate.yml` is the authoritative set. The notification
+  remediation gate includes `php platform/tests/notification-template-readiness-contract.php`
+  beside the notification management contracts.
 - **Runtime suites:** `platform/runtime/bin/run-<suite>-runtime.sh`. These already drive Docker
   with the CI images `mariadb:11.4`, `wordpress:php8.3-apache` and `wordpress:cli-php8.3`.
   The booking slot conflict suite also proves that two valid reschedules send Calendar revisions

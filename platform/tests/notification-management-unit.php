@@ -366,6 +366,18 @@ namespace {
     $ascii = NotificationTemplateSanitizer::smsSegmentation(str_repeat('a', 160));
     $fail('ASCII SMS is one GSM part', $ascii['encoding'] === 'GSM-7' && $ascii['segments'] === 1);
 
+    /* 2b. The action-link rule is a choice, not a specific placeholder: an editor who keeps the
+     *     payment or survey destination is not forced to add the account link as well. */
+    $altLink = NotificationTemplateSanitizer::validate('renewal.reminder.student', 'email', 'عنوان', "درود {{name}}،\n\n{{instalment_note}}\n\n{{payment_url}}\n\nدلنوازان");
+    $fail('an alternative action link satisfies the contract', $altLink['ok']);
+    $surveyLink = NotificationTemplateSanitizer::validate('post_intro.survey.student', 'email', 'عنوان', "درود {{name}}،\n\n{{survey_url}}\n\nدلنوازان");
+    $fail('the survey destination satisfies the contract', $surveyLink['ok']);
+    $noLink = NotificationTemplateSanitizer::validate('lesson.reminder.student', 'email', 'عنوان', "درود {{name}}،\n\n{{when}}\n\nدلنوازان");
+    $fail('a message with no action link is refused', !$noLink['ok'] && str_contains(implode(' ', $noLink['errors']), 'action link'));
+    $noTime = NotificationTemplateSanitizer::validate('lesson.reminder.student', 'email', 'عنوان', "درود {{name}}،\n\nکلاس برگزار می‌شود.\n\n{{portal_url}}\n\nدلنوازان");
+    $fail('dropping the class time is refused with a readable reason', !$noTime['ok'] && str_contains(implode(' ', $noTime['errors']), 'when the class or deadline'));
+    $fail('the required action links are exposed to the editor', NotificationTemplateSanitizer::requiredActionLinks('renewal.reminder.student', 'email') === array('portal_url', 'payment_url'));
+
     /* 3. Branded email: RTL, brand colours, escaped content, plain-text alternative, safe CTA. */
     $rendered = DelnavazanEmailRenderer::render('عنوان <تست>', "سلام {{x}} <script>alert(1)</script>\n\nخط دوم", array('locale' => 'fa-IR', 'cta' => array('label' => 'رفتن', 'url' => 'https://delnavazan.com/student-portal/')));
     $fail('email is RTL Persian', str_contains($rendered['html'], 'dir="rtl"') && str_contains($rendered['html'], 'lang="fa"'));
@@ -553,7 +565,13 @@ namespace {
     $unmappedBlocker = $blockerMethod->invoke(null, $library, $unmappedEvent, 'whatsapp');
     $fail('the toggle handler receives the same unavailable blocker', is_array($unmappedBlocker) && $unmappedBlocker['state'] === 'missing_provider');
     $canonicalBlocker = $blockerMethod->invoke(null, $library, 'account.claim_issued.student', 'whatsapp');
-    $fail('a required missing canonical version blocks independently of provider state', is_array($canonicalBlocker) && $canonicalBlocker['state'] === 'missing_template');
+    $fail('a sensitive canonical event without a version reports the outstanding approval, not missing copy', is_array($canonicalBlocker) && $canonicalBlocker['state'] === 'awaiting_approval' && str_contains((string) $canonicalBlocker['reason'], 'Security review required'));
+    $operationalCanonicalBlocker = $blockerMethod->invoke(null, $library, 'renewal.automatic_charged.student', 'email');
+    $fail('a finance canonical event names finance and legal approval', is_array($operationalCanonicalBlocker) && $operationalCanonicalBlocker['state'] === 'awaiting_approval' && str_contains((string) $operationalCanonicalBlocker['reason'], 'Finance approval required'));
+    $fail('an unsupported channel is not described as a fault', (static function () use ($stateMethod, $library): bool {
+        $unsupported = $stateMethod->invoke(null, $library, 'account.claim_issued.student', 'website');
+        return $unsupported['state'] === 'unsupported' && $unsupported['label'] === 'Not offered';
+    })());
     $fail('a ready channel has no blocker', $blockerMethod->invoke(null, $library, $event, 'website') === null);
     $library->saveEventChannel($event, 'website', false);
     $readyOff = $stateMethod->invoke(null, $library, $event, 'website');
@@ -777,6 +795,44 @@ namespace {
     $financialEvent = $lifecycleMethod->invoke(null, $library, 'payment.failed.student', array('email', 'website', 'whatsapp'));
     $fail('financial approval is shown as outstanding', str_contains($financialEvent['Approvals']['text'], 'Finance approval required') && str_contains($financialEvent['Approvals']['text'], 'Legal review required'));
     $fail('a canonical event without a published version says so', str_contains($financialEvent['Publication']['text'], 'Required'));
+
+    /* 16. The three-step workflow actually reaches a published state. This is the regression the
+     *     production report described: Prepare succeeded, Publish published nothing, and the
+     *     catalogue looked unchanged afterwards. */
+    $targetEvent = 'post_intro.activated.teacher';
+    $fail('the workflow target starts unpublished', $library->status($targetEvent, 'email', 'fa-IR')['published'] === false);
+    $bulkApprove = $library->approveOperationalDrafts();
+    $fail('step 2 approves operational drafts in bulk', $bulkApprove['approved'] > 0);
+    $fail('step 2 lists the drafts it held back', $bulkApprove['skipped'] !== array());
+    $skippedReasons = implode(' | ', array_column($bulkApprove['skipped'], 'reason'));
+    $fail('step 2 never approves finance or legal copy', str_contains($skippedReasons, 'Finance and legal approval'));
+    $fail('step 2 never approves security copy', str_contains($skippedReasons, 'Security approval'));
+    $fail('step 2 never approves unmapped provider routes', str_contains($skippedReasons, 'Meta'));
+    $workflow = $library->workflowReport();
+    $fail('the workflow report counts the approved drafts', $workflow['approved'] > 0 && $workflow['publishable'] > 0);
+    $fail('the workflow report classifies every draft exactly once', $workflow['approved'] + $workflow['awaiting'] + $workflow['held'] === $workflow['drafts']);
+    $fail('the workflow report explains what is held back', $workflow['held'] > 0 && array_sum($workflow['held_by_reason']) >= $workflow['held']);
+    $fail('the workflow report names the finance hold', isset($workflow['held_by_reason']['Finance approval required']));
+    $bulkPublish = $library->publishReviewedDrafts();
+    $fail('step 3 publishes the approved drafts', count($bulkPublish['published']) > 0);
+    $fail('step 3 changes the catalogue state it was meant to change', $library->status($targetEvent, 'email', 'fa-IR')['published'] === true);
+    $fail('step 3 still refuses the restricted drafts', $library->status('payment.failed.student', 'email', 'fa-IR')['published'] === false);
+    $fail('step 3 refuses financial copy even when its draft is approved', (static function () use ($library): bool {
+        try {
+            $library->approveDraft('payment.failed.student', 'email', 'fa-IR');
+            $library->approveDraft('payment.failed.student', 'legal', 'fa-IR');
+        } catch (Throwable $error) {
+            // approval of a restricted draft is allowed; publication is what must stay refused
+        }
+        return $library->draftReviewPolicy('payment.failed.student', 'email', 'fa-IR')['allowed'] === false;
+    })());
+    $fail('a second run publishes nothing new', count($library->publishReviewedDrafts()['published']) === 0);
+    $library->saveDraft($targetEvent, 'website', 'en', 'Your class with a new student is active', "Hello {{teacher}},\n\nThe student enrolment is active.\n\nView your classes:\n{{teacher_portal_url}}\n\nDelnavazan");
+    $library->saveEventChannel($targetEvent, 'website', false);
+    $library->approveDraft($targetEvent, 'website', 'en');
+    $library->publishReviewedDrafts();
+    $fail('publishing never re-enables a channel the administrator switched off', $library->eventChannelEnabled($targetEvent, 'website') === false);
+    $library->saveEventChannel($targetEvent, 'website', true);
 
     echo "Notification management unit passed\n";
 }

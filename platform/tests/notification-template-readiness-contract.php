@@ -152,6 +152,12 @@ $fail('editing the copy revokes the approval', str_contains($librarySource, 'pri
 $fail('the approval is bound to a content digest', str_contains($librarySource, 'public function contentDigest') && str_contains($librarySource, "'digest'=>"));
 $fail('the provider gate is a positive whitelist', str_contains($librarySource, '$state!==TelnyxTemplateAuthority::MAPPED') && str_contains($librarySource, "default=>'The provider approval state is unknown, so publication is refused.'"));
 $fail('the publish action is capability and nonce gated', substr_count($controller, 'check_admin_referer(') >= 2 && str_contains($controller, 'dzn_notification_approve_draft'));
+$fail('the workflow exposes a bulk approval step', str_contains($controller, 'dzn_notification_approve_operational') && str_contains($librarySource, 'public function approveOperationalDrafts'));
+$fail('the workflow reports each step persistently', str_contains($controller, 'dzn_notification_workflow_result') && str_contains($controller, 'private static function rememberWorkflowResult'));
+$fail('a canonical event awaiting sign-off is not labelled as missing copy', str_contains($controller, "'awaiting_approval'") && str_contains($controller, 'Awaiting approval'));
+$fail('a channel the event does not use is rendered quietly', str_contains($controller, "'Not offered'") && str_contains($controller, 'dzn-notif-meta" title='));
+$fail('a rejected edit is preserved instead of discarded', str_contains($controller, 'private static function rememberRejectedSubmission') && str_contains($controller, 'Your last change was not saved'));
+$fail('the action link is a choice, not one fixed placeholder', str_contains((string) file_get_contents($root . '/src/Integrations/Notifications/NotificationTemplateSanitizer.php'), 'public static function requiredActionLinks'));
 
 /* 7. Producer gaps and unmapped provider routes are reported as outstanding implementation work. */
 $inventory = json_decode((string) file_get_contents($root . '/docs/NOTIFICATION-TEMPLATE-INVENTORY.json'), true);

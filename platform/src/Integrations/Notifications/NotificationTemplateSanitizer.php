@@ -55,7 +55,15 @@ final class NotificationTemplateSanitizer {
         }
         foreach(array_keys($unknown) as $code)$errors[]='Placeholder not allowed: {{'.$code.'}}';
         foreach(self::requiredVariables($eventKey,$channel) as $code)if(!str_contains($subject,'{{'.$code.'}}')&&!str_contains($body,'{{'.$code.'}}'))$missing[]=$code;
-        foreach($missing as $code)$errors[]='Required placeholder missing: {{'.$code.'}}';
+        foreach($missing as $code)$errors[]=self::missingReason($code);
+        // At least one action destination must survive an edit; naming a specific one would reject
+        // copy that points at a different, equally valid screen.
+        $links=self::requiredActionLinks($eventKey,$channel);
+        if($links!==array()){
+            $present=false;
+            foreach($links as $code)if(str_contains($subject,'{{'.$code.'}}')||str_contains($body,'{{'.$code.'}}')){$present=true;break;}
+            if(!$present)$errors[]='The message needs one action link. Keep one of: '.implode(', ',array_map(static fn(string $code):string=>'{{'.$code.'}}',$links)).'.';
+        }
         $cleanSubject=self::plain($subject);
         // Bodies are authored as plain text. The branded HTML shell supplies the only markup, so an
         // administrator can never introduce a tag, style or handler into a delivered message.
@@ -72,8 +80,19 @@ final class NotificationTemplateSanitizer {
         if(function_exists('wp_kses'))return trim(wp_kses($text,self::ALLOWED_TAGS));
         return trim(strip_tags($text,'<p><br><strong><b><em><i><ul><ol><li><a><h2><h3><hr><blockquote>'));
     }
-    public static function plain(string $text):string{
-        $text=preg_replace('/<[^>]*>/','',$text);
+    /** A human explanation for a dropped placeholder, in the editor's language. */
+    private static function missingReason(string $code):string{
+        return match($code){
+            'when'=>'The message must still state when the class or deadline is: keep {{when}}.',
+            'claim_code'=>'The one-time account code must not be removed: keep {{claim_code}}.',
+            'invitation_code'=>'The one-time invitation code must not be removed: keep {{invitation_code}}.',
+            'claim_url'=>'The invitation link must not be removed: keep {{claim_url}}.',
+            'join_url'=>'The class join link must not be removed: keep {{join_url}}.',
+            default=>'Required placeholder missing: {{'.$code.'}}',
+        };
+    }
+
+    public static function plain(string $text):string{        $text=preg_replace('/<[^>]*>/','',$text);
         return trim(html_entity_decode((string)$text,ENT_QUOTES|ENT_HTML5,'UTF-8'));
     }
     private static function sanitiseText(string $text):string{return trim(self::plain($text));}
@@ -88,6 +107,12 @@ final class NotificationTemplateSanitizer {
     /**
      * Required placeholders: the class time and one action link are what make a message actionable, and
      * one-time secrets must never be dropped by an edit. SMS is allowed to omit the long portal link.
+     *
+     * The action link is a *choice*: any allowed destination satisfies it, so an editor who keeps
+     * `{{payment_url}}` or `{{survey_url}}` is not forced to add `{{portal_url}}` as well. The
+     * alternative codes are returned separately so the editor can name them all in one message.
+     *
+     * @return string[] Codes that must all appear.
      */
     public static function requiredVariables(string $eventKey,string $channel='email'):array{
         $variables=NotificationCatalogue::variables($eventKey);
@@ -99,12 +124,23 @@ final class NotificationTemplateSanitizer {
             if($code==='join_url'&&$channel==='sms')continue;
             if(in_array($code,$variables,true))$required[]=$code;
         }
-        if($channel!=='sms'){
-            foreach(array('portal_url','teacher_portal_url','claim_url','payment_url','join_url') as $code){
-                if(in_array($code,$variables,true)){$required[]=$code;break;}
-            }
-        }
         return array_values(array_unique($required));
+    }
+
+    /**
+     * The action destination a message must offer, as a group: at least one of these codes has to be
+     * present. Empty when the event has no destination or the channel carries its own link.
+     *
+     * @return string[]
+     */
+    public static function requiredActionLinks(string $eventKey,string $channel='email'):array{
+        if(in_array($channel,array('website','sms'),true))return array();
+        $variables=NotificationCatalogue::variables($eventKey);
+        $links=array();
+        foreach(array('portal_url','teacher_portal_url','payment_url','survey_url','claim_url','join_url') as $code){
+            if(in_array($code,$variables,true))$links[]=$code;
+        }
+        return $links;
     }
 
     /**

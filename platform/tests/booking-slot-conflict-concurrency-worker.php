@@ -87,6 +87,29 @@ try {
         }
         $race = $state['reschedule']['race'];
         $slot = $race['slots'][ $worker ];
+        $expectedStart = $slot['local_date'] . ' ' . $slot['local_start_time'] . ':00';
+        $expectedEnd = gmdate( 'Y-m-d H:i:s', strtotime( $expectedStart . ' UTC +30 minutes' ) );
+        add_filter( 'pre_http_request', static function ( $pre, array $args, string $url ) use ( $expectedStart, $expectedEnd ) {
+            if ( str_contains( $url, '/calendar/v3/calendars/primary/events/abcde67890' ) ) {
+                $body = json_decode( (string) ( $args['body'] ?? '' ), true );
+                if ( (string) ( $args['method'] ?? '' ) !== 'PATCH'
+                    || ! is_array( $body )
+                    || (string) ( $body['start']['dateTime'] ?? '' ) !== str_replace( ' ', 'T', $expectedStart ) . 'Z'
+                    || (string) ( $body['end']['dateTime'] ?? '' ) !== str_replace( ' ', 'T', $expectedEnd ) . 'Z'
+                    || (string) ( $body['start']['timeZone'] ?? '' ) !== 'UTC'
+                    || (string) ( $body['end']['timeZone'] ?? '' ) !== 'UTC' ) {
+                    throw new RuntimeException( 'Calendar revision did not contain the winning slot' );
+                }
+                return array(
+                    'headers' => array(),
+                    'body' => wp_json_encode( array( 'id' => 'abcde67890', 'hangoutLink' => 'https://meet.google.com/abc-defg-hij' ) ),
+                    'response' => array( 'code' => 200, 'message' => 'OK' ),
+                    'cookies' => array(),
+                    'filename' => null,
+                );
+            }
+            return $pre;
+        }, 10, 3 );
         $result = ( new IntroLessonLifecycleService() )->reschedule(
             (int) $race['request_id'],
             'admin',

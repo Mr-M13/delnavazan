@@ -54,7 +54,7 @@ function dzn_theme_virtual_route_document_title( $title ) {
 		$page = dzn_theme_legal_page( substr( $route, 6 ) );
 		return $page ? (string) $page['title'] . ' – Delnavazan' : $title;
 	}
-	if ( 'recording-and-research' === $route ) { return 'Recording and research information – Delnavazan'; }
+	if ( 'recording-and-research' === $route ) { return 'پروژه پژوهشی – دلنوازان'; }
 	return 'booking' === dzn_theme_route() ? 'درخواست کلاس معارفه – Delnavazan' : $title;
 }
 add_filter( 'pre_get_document_title', 'dzn_theme_virtual_route_document_title' );

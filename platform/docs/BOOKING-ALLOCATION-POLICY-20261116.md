@@ -106,17 +106,56 @@ Teacher is idle", which would silently disable the policy. This is asserted by
 
 ## 7. Evidence
 
+Measured on a disposable WordPress 7.x + MariaDB 11.4 stack in GitHub Actions,
+run `43742903765` (job `132899759731`), commit `da9a1edb`, 2026-11-16.
+Duration 1m56s. Zero `deadlock`, `lock wait timeout` or `WordPress database error`
+lines in any launcher or verify log (the runner greps for them and fails the step).
+
 | Check | Environment | Result |
 |---|---|---|
-| `platform/tests/booking-allocation-unit.php` | native PHP 8.3.35 | PASS — ordering: strength, then workload, then round-robin; determinism |
-| `platform/tests/booking-allocation-workload-unit.php` | native PHP 8.3.35 | PASS — weight arithmetic, query predicates, single counting, fail-closed read |
-| `platform/tests/booking-engine-capacity-unit.php` | native PHP 8.3.35 | PASS — overlap authority |
-| `platform/tests/booking-engine-scenario-b.php` | disposable WordPress/MariaDB | **pending runtime execution** — cross-instrument scope |
-| `platform/tests/booking-engine-scenario-c.php` | disposable WordPress/MariaDB | **pending runtime execution** — 500-request fairness measurement |
-| `platform/tests/booking-engine-scenario-f.php` | disposable WordPress/MariaDB | **pending runtime execution** — strength before id |
+| `platform/tests/booking-allocation-unit.php` | native PHP 8.3.35 | PASS — strength, workload, round-robin, determinism |
+| `platform/tests/booking-allocation-workload-unit.php` | native PHP 8.3.35 | PASS — 19 assertions: weights, query predicates, single counting, fail-closed read |
+| `platform/tests/booking-engine-capacity-unit.php` | native PHP 8.3.35 | PASS — 14 overlap regressions |
+| `platform/tests/booking-stress-runner-contract.sh` | native PHP 8.3.35 | PASS — 30 assertions |
+| `scenario A` (50/100/500/1000 requests) | disposable MariaDB | PASS — 0 referrals, 0 errors, spread 0, Gini 0, cyclic order preserved |
+| `scenario B` (cross-instrument scope) | disposable MariaDB | PASS — idle specialist takes the first Setar offer; totals 2/1/1 both orders |
+| `scenario C` (500 mixed requests) | disposable MariaDB | PASS — 500 accepted, 0 referred, 0 errors |
+| `scenario D` (lifecycle) | disposable MariaDB | PASS — decline, expiry, cancellation, projection failure, terminal failure |
+| `scenario E` (boundaries, DST, lead time) | disposable MariaDB | PASS — 15 boundary cases, 2 DST conversions, Jalali, leave, 24.5h/25h/26h |
+| `scenario F` (preferences, strength, claims) | disposable MariaDB | PASS — strong match offered over a lower-id possible match |
+| `scenario G` (failure injection) | disposable MariaDB | PASS |
+| concurrency `submit` 2…100 | disposable MariaDB | PASS — every worker succeeded; distinct DB sessions equal the level |
+| concurrency `accept` 2…100 | disposable MariaDB | PASS — exactly one winner per level |
+| `submit_partial` 25 | disposable MariaDB | PASS — 1 active offer, 24 referrals |
+| `process` 2, `idempotent` 25, `submit_crash` 5 | disposable MariaDB | PASS |
 
-The runtime rows are unverified in the authoring environment (no Docker). Do not
-treat the fairness improvement as measured until a run of
-`run-booking-engine-stress.sh` on a disposable stack records
-`fairness_global_workload` for scenario C and the audited baseline (range
-27–143, Gini 0.297) is replaced with a measured post-change value.
+### Measured fairness (scenario C, 500 requests over 10 Teachers)
+
+| | min | max | spread | Gini |
+|---|---:|---:|---:|---:|
+| Audited per-instrument baseline | 27 | 143 | 116 | 0.297 |
+| **Approved cross-instrument policy** | **37** | **125** | **88** | **0.1832** |
+
+Gini improved 38% and spread fell 24%. The residual spread is **not** an ordering
+defect and is fully explained by eligibility:
+
+| Portfolio | Teachers | min | max | spread |
+|---|---:|---:|---:|---:|
+| `tar_only` | 4 | 37 | 38 | **1** |
+| `setar_only` | 3 | 45 | 45 | **0** |
+| `tar_setar` | 2 | 45 | 46 | **1** |
+| `all_three` | 1 | 125 | 125 | 0 |
+
+Within every interchangeable portfolio workload equalises to within one booking,
+which is precisely what the least-loaded rule controls. The single `all_three`
+Teacher holds 125 because 80 of the 500 requests are Santur and it is the only
+Santur-eligible Teacher, giving a hard floor of 80 plus its share of Tar/Setar.
+No greedy online policy can pre-empt a bottleneck that only appears in a later
+phase of the request stream, so the global maximum is bounded by the corpus, not
+by the ordering.
+
+One honest consequence, worth review: **per-instrument** Setar equality got
+*worse* (spread 37; the `all_three` Teacher takes only 8 Setar classes because it
+is already the most loaded) while **cross-instrument total** equality got better.
+That is the explicit trade-off the approved policy asks for — total workload
+across instruments outranks per-instrument rotation.

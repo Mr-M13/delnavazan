@@ -791,3 +791,31 @@ The recommended next step is **not** to replace the engine. It is to approve
 the policy decisions in §8, then implement match-quality ordering, workload-
 aware fairness, and the lead-time/queue UX on top of the existing safe
 transaction and occupancy model.
+
+---
+
+## 12. Post-change addendum — approved allocation policy (2026-11-16)
+
+The audit above measured the **per-instrument cursor policy** at commit
+`27f78946`. The approved cross-instrument policy (see
+`BOOKING-ALLOCATION-POLICY-20261116.md`) was measured on the same 500-request
+mixed corpus in run `43742903765`, commit `da9a1edb`.
+
+| Metric | Audited baseline | Approved policy |
+|---|---:|---:|
+| Minimum total workload | 27 | 37 |
+| Maximum total workload | 143 | 125 |
+| Spread | 116 | **88** |
+| Gini coefficient | 0.297 | **0.1832** |
+| Confirmed double bookings | 0 | **0** |
+| Overlapping confirmed/live capacity | not measured | **0** |
+
+Within interchangeable portfolios the least-loaded rule equalises totals to within
+one booking: `tar_only` 37–38, `setar_only` 45, `tar_setar` 45–46. The single
+Santur-eligible Teacher at 125 sets the global maximum, because 80 Santur requests
+can only be served by that Teacher — a corpus floor rather than an ordering defect.
+
+Gap 1 of this report ("Teacher quality ordering is ignored") and Gap 2 ("Fairness is
+instrument-scoped only") are therefore closed. Gaps 3 and 4 were already addressed
+in the booked remediation releases and are re-verified by scenario E17 and the
+concurrency acceptance bursts respectively.

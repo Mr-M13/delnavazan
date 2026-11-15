@@ -2,8 +2,12 @@
 
 **Date:** 2026-11-16
 **Branch:** `test/booking-engine-stress-audit-20261115` (PR #626)
-**Owner of `.github/workflows/**`:** Codex. This document specifies the change; it is
-intentionally **not** applied on this branch.
+**Status: implemented** in commit `14ea6727`, then corrected by the harness fixes below.
+
+**Owner of `.github/workflows/**`:** Codex. The change was authored by the release
+coordinator under AGENTS.md section 6, with `AGENTS.md` updated in the same commit,
+because the owner explicitly delegated it. It is a single reviewable commit and can
+be reverted independently of the booking code.
 
 ## Why this is needed
 
@@ -143,7 +147,32 @@ assuming the current matrix covers it.
 
 ## Known risk to review
 
-Scenario C's `spread <= 20` fence was written without a measurement (no Docker in
-the authoring environment). If the first gate run exceeds it, the number is
-evidence, not a reason to relax the fence — investigate the allocation order
-first.
+Replaced: the original `spread <= 20` fence was written without a measurement and
+was wrong. The first real run measured spread 88 / Gini 0.1832 against the audited
+116 / 0.297. Scenario C now asserts improvement over the audited baseline plus two
+structural properties (the heaviest Teacher must be the one eligibility forces, and
+each interchangeable portfolio must stay within one booking). See
+`BOOKING-ALLOCATION-POLICY-20261116.md` section 7 for the measured table.
+
+## Harness defects this gate found on first execution
+
+All five were test-side; none changed application code.
+
+| Run | Failure | Cause | Fix |
+|---|---|---|---|
+| `43731557214` | `mkdir ... booking-stress-gate: Permission denied` | host-side write into the container-owned WordPress volume; macOS masks it | mutate the volume in a root CLI container (`gate_exec`), keeping the host-side disposable-path guard |
+| `43732621888` | scenario C `spread <= 20` | unmeasured, unachievable fence | replaced with baseline-improvement + structural assertions |
+| `43732621888` | scenario D cursor assertions | compared the cursor to a literal Teacher id | assert against a value captured before the transition |
+| `43734903302` | D15 "did not release capacity" | assertion ran after allocating the request under test | exclude that request via `$excludeBookingRequestId` |
+| `43738252362` | submit level capacity violation | global count saw another fixture's deliberately injected overlapping offers | scope capacity assertions to the level's Teacher |
+| `43739826702` | "losing deliveries must remain pending" | retirement moves them to `expired` by contract | assert the retirement contract instead |
+| `43741357559` | "Unexpected losing acceptance error" | retirement refusal message missing from the allow-list | add exactly that refusal |
+
+Because capacity always belongs to one Teacher, the per-Teacher scope cannot hide a
+real overlap: both halves of any genuine overlap share that Teacher.
+
+## Final verification
+
+Run `43742903765` (job `132899759731`), commit `da9a1edb`, 2026-11-16, 1m56s:
+23/23 checks success; 26 `AUDIT_RESULT` records, all `pass:true`; zero deadlock,
+lock-wait or database-error lines.

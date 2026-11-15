@@ -32,7 +32,8 @@ final class BookingRequestValidationService {
     }
 
     /** Resolves one coherent, locked catalogue state for every requested-time child. */
-    public function resolveLockedCatalogue(array $data, ?object $instrument, ?object $course): array {
+    public function resolveLockedCatalogue(array $data, ?object $instrument, ?object $course, ?string $now = null): array {
+        $now ??= gmdate('Y-m-d H:i:s');
         if ( ! $instrument || $instrument->status !== 'active' || $instrument->archived_at !== null ) throw new \InvalidArgumentException( 'Active Instrument required' );
         $duration = 30; $buffer = 15;
         if ( $data['course_id'] ) { if ( ! $course || $course->status !== 'active' || $course->archived_at !== null || $course->course_type !== 'introductory' || (int) $course->instrument_id !== (int) $instrument->id ) throw new \InvalidArgumentException( 'Valid active Intro Course for Instrument required' ); $duration = Normalizer::count( $course->default_duration_minutes, 5, 480 ); $buffer = Normalizer::count( $course->default_buffer_minutes, 0, 240 ); }
@@ -40,6 +41,10 @@ final class BookingRequestValidationService {
         foreach ( $data['requested_times'] as $time ) {
             $item = RequestedTimeNormalizer::normalize( $time, $duration, $buffer );
             if ( ! self::isWithinHorizon( $item ) ) throw new \InvalidArgumentException( 'Requested time outside booking horizon' );
+            // The same minimum notice the public day grid and preview apply; a time
+            // can never be presented as requestable and then refused here.
+            $leadTime = BookingLeadTimePolicy::refusal( (string) $item['starts_at_utc'], $now, (string) ( $item['timezone'] ?? $data['contact']['timezone'] ?? 'UTC' ) );
+            if ( $leadTime !== null ) throw new BookingLeadTimeException( $leadTime );
             $utcKey = (string) $item['starts_at_utc'];
             if ( isset( $seenUtc[ $utcKey ] ) ) throw new \InvalidArgumentException( 'Duplicate requested time' );
             $seenUtc[ $utcKey ] = true;

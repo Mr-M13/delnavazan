@@ -64,8 +64,10 @@ $assert($cancelAudit === 1, 'Cancellation audit evidence missing');
 // A second introductory booking proves the Teacher/Admin reschedule path. The same disposable
 // Teacher is already known to be free in this synthetic slot after the first one is cancelled.
 $secondIntro = (new AdministratorIntroBookingService())->create($runtimeStudent, (int) $fixture['intro_course_id'], (int) $fixture['teacher_id'], $slot, $agreement, 'runtime-intro-reschedule-' . wp_generate_uuid4());
+$secondConfirmation = $wpdb->get_row($wpdb->prepare("SELECT id,version FROM {$p}booking_request_confirmations WHERE booking_request_id=%d ORDER BY id DESC LIMIT 1", (int) $secondIntro['request_id']));
+$assert($secondConfirmation !== null, 'Administrator intro confirmation for reschedule missing');
 $newDate = gmdate('Y-m-d', strtotime('+33 days'));
-$rescheduled = (new IntroLessonLifecycleService())->reschedule((int) $secondIntro['request_id'], 'admin', array('local_date' => $newDate, 'local_start_time' => '20:00', 'timezone' => 'Australia/Brisbane'), 'operational_change', 'runtime-intro-reschedule-command-' . wp_generate_uuid4());
+$rescheduled = (new IntroLessonLifecycleService())->reschedule((int) $secondIntro['request_id'], 'admin', array('local_date' => $newDate, 'local_start_time' => '20:00', 'timezone' => 'Australia/Brisbane'), 'operational_change', 'runtime-intro-reschedule-command-' . wp_generate_uuid4(), (int) $secondConfirmation->id, (int) $secondConfirmation->version);
 $assert(str_contains((string) $rescheduled['local_label'], '20:00'), 'Reschedule did not return the requested local time');
 $rescheduledRow = $wpdb->get_row($wpdb->prepare("SELECT starts_at_utc,local_wall_date,local_wall_time FROM {$p}booking_request_confirmations WHERE booking_request_id=%d LIMIT 1", (int) $secondIntro['request_id']));
 $assert($rescheduledRow !== null && (string) $rescheduledRow->local_wall_date === $newDate && str_starts_with((string) $rescheduledRow->local_wall_time, '20:00'), 'Rescheduled confirmation facts were not persisted');

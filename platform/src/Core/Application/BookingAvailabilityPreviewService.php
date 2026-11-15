@@ -44,10 +44,26 @@ final class BookingAvailabilityPreviewService {
             $seen[$key] = true;
         }
         $assessment = new BookingAvailabilityAssessmentService( $courseId, $this->repo, $this->availability );
+        $now = gmdate( 'Y-m-d H:i:s' );
         $result = array();
         foreach ( $normalized as $index => $time ) {
             if ( null === $time ) {
                 $result[] = array( 'sequence' => $index + 1, 'status' => 'blocked', 'teacher_times' => array(), 'quiet_hours' => array( 'enabled' => false, 'policy_enabled' => false, 'student_advisory_enabled' => false, 'scope' => 'none', 'candidate_count' => 0, 'affected_candidate_count' => 0, 'candidates' => array() ) );
+                continue;
+            }
+            $leadTime = BookingLeadTimePolicy::refusal( (string) $time['starts_at_utc'], $now, (string) ( $time['timezone'] ?? 'UTC' ) );
+            if ( $leadTime !== null ) {
+                $result[] = array(
+                    'sequence' => $index + 1,
+                    'status' => 'blocked',
+                    'reason_code' => (string) $leadTime['reason_code'],
+                    'reason_message' => (string) $leadTime['message'],
+                    'minimum_start_utc' => (string) $leadTime['minimum_start_utc'],
+                    'minimum_start_local' => (string) $leadTime['minimum_start_local'],
+                    'lead_time_hours' => (int) $leadTime['lead_time_hours'],
+                    'teacher_times' => array(),
+                    'quiet_hours' => array( 'enabled' => false, 'policy_enabled' => false, 'student_advisory_enabled' => false, 'scope' => 'none', 'candidate_count' => 0, 'affected_candidate_count' => 0, 'candidates' => array() ),
+                );
                 continue;
             }
             $scored = $assessment->assess( $time );

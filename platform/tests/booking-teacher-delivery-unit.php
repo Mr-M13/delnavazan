@@ -46,6 +46,9 @@ namespace Delnavazan\Platform\Core\Support {
     final class Identifier { public static function uid(): string { return '01TESTBOOKINGDELIVERY00001'; } }
 }
 namespace {
+    require_once dirname(__DIR__) . '/src/Core/Application/BookingLeadTimePolicy.php';
+    require_once dirname(__DIR__) . '/src/Core/Application/BookingContention.php';
+    require_once dirname(__DIR__) . '/src/Core/Application/BookingContentionException.php';
     require_once dirname(__DIR__) . '/src/Core/Application/BookingAllocationService.php';
     require_once dirname(__DIR__) . '/src/Core/Application/BookingTeacherDeliveryService.php';
     $matches = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestMatchAssessmentRepository();

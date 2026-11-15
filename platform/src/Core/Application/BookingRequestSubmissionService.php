@@ -15,7 +15,7 @@ final class BookingRequestSubmissionService {
      * secondary abuse controls from changing the authoritative retry outcome.
      */
     public function submitPublic(array $input, string $idempotencyKey, ?callable $newSubmissionGate = null, ?int $studentId = null): array {
-        $this->repo->begin(); try { $result = $this->submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate, $studentId ); $this->repo->commit(); unset( $result['request_id'] ); return $result; } catch ( \Throwable $e ) { $this->repo->rollback(); throw $e; }
+        $this->repo->begin(); try { $result = $this->submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate, $studentId ); $this->repo->commit(); unset( $result['request_id'] ); return $result; } catch ( \Throwable $e ) { $contention = BookingContention::capture( $e ); $this->repo->rollback(); throw $contention ?? $e; }
     }
 
     /**
@@ -101,7 +101,7 @@ final class BookingRequestSubmissionService {
                 $data['course_id'] = (int) $defaultCourse->id;
                 $course = $defaultCourse;
             }
-            $data = $this->validator->resolveLockedCatalogue( $data, $instrument, $course );
+            $data = $this->validator->resolveLockedCatalogue( $data, $instrument, $course, $now );
             if ( $studentId !== null && $studentId > 0 && $this->repo->studentHasActiveInstrumentEnrolment( $studentId, (int) $data['instrument_id'] ) ) {
                 throw new BookingRequestInstrumentEnrollmentException( 'student_instrument_already_enrolled' );
             }

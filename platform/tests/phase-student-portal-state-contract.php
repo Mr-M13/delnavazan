@@ -197,4 +197,8 @@ if ( ! str_contains( $profile, 'readonly' ) ) {
 	$fail( 'profile fields must be read-only while no write contract exists' );
 }
 
-echo "Student Portal state contract passed\n";
+// Required PR gate invokes this contract: exercise the read-error behaviour too.
+require __DIR__ . '/portal-read-health-contract.php';
+require __DIR__ . '/portal-authenticated-read-scenarios-unit.php';
+require __DIR__ . '/portal-read-warning-render-unit.php';
+echo "Student Portal state and read-error contracts passed\n";

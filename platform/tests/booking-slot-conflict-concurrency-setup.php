@@ -5,6 +5,8 @@ if ( getenv( 'DZN_BOOKING_SLOT_RUNTIME' ) !== 'concurrency' || ! defined( 'WP_CL
     exit( 1 );
 }
 use Delnavazan\Platform\Core\Support\Identifier;
+use Delnavazan\Platform\Core\Application\IntegrationSecretService;
+use Delnavazan\Platform\Core\Application\ProviderReferenceVault;
 
 global $wpdb;
 $p = $wpdb->prefix . 'dzn_';
@@ -134,6 +136,13 @@ $confirmedRequest = static function ( string $label, string $localTime ) use ( $
 };
 $boundary = $confirmedRequest( 'BOUNDARY', '12:00:00' );
 $race = $confirmedRequest( 'RACE', '18:00:00' );
+
+// The race confirmation has a synthetic provider reference and credential so the
+// post-commit projection can succeed when the worker's HTTP filter answers Google.
+$sealedCredential = ( new IntegrationSecretService() )->seal( $connection, 'google_calendar', (string) wp_json_encode( array( 'access_token' => 'synthetic-google-access-token' ) ) );
+$wpdb->update( $p . 'integration_credentials', array_merge( $sealedCredential, array( 'state' => 'active', 'valid_until_utc' => gmdate( 'Y-m-d H:i:s', strtotime( '+1 day' ) ) ) ), array( 'connection_id' => $connection, 'credential_sequence' => 1 ) );
+$raceSecret = ( new ProviderReferenceVault() )->seal( 'booking_calendar', (int) $race['confirmation_id'], array( 'provider_object_reference' => 'abcdef12345', 'join_uri_reference' => 'https://meet.google.com/abc-defg-hij' ) );
+$wpdb->insert( $p . 'provider_projection_secrets', array_merge( array( 'uid' => Identifier::uid(), 'mapping_kind' => 'booking_calendar', 'mapping_id' => (int) $race['confirmation_id'], 'state' => 'active', 'active_slot' => 1, 'created_at' => $now, 'created_by' => 1, 'retired_at' => null, 'retired_by' => null ), $raceSecret ) );
 
 update_option( 'dzn_booking_slot_concurrency_state', array(
     'suffix' => $suffix, 'at' => $at, 'occupied_ends_at_utc' => $occupied,

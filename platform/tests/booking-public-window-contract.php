@@ -60,10 +60,12 @@ $projectionWorker = file_get_contents( $root . '/src/Integrations/BookingCalenda
 if ( false === $projectionWorker || strpos( $projectionWorker, 'rescheduleRetryConfirmations' ) === false ) throw new RuntimeException( 'The projection worker must drain durable reschedule retries' );
 $concurrencyVerify = file_get_contents( $root . '/tests/booking-slot-conflict-concurrency-verify.php' );
 if ( false === $concurrencyVerify ) throw new RuntimeException( 'Unable to read booking concurrency verifier' );
-foreach ( array( 'Booking confirmation changed concurrently', 'reschedule_provider_pending:', 'provider_sync' ) as $needle ) if ( strpos( $concurrencyVerify, $needle ) === false ) throw new RuntimeException( 'Concurrent reschedule/provider proof missing: ' . $needle );
+foreach ( array( 'Booking confirmation changed concurrently', 'reschedule_provider_pending:', 'provider_sync', 'provider_sync":"updated"', 'retryable":false' ) as $needle ) if ( strpos( $concurrencyVerify, $needle ) === false ) throw new RuntimeException( 'Concurrent reschedule/provider proof missing: ' . $needle );
+$concurrencyWorker = file_get_contents( $root . '/tests/booking-slot-conflict-concurrency-worker.php' );
+if ( false === $concurrencyWorker || strpos( $concurrencyWorker, 'pre_http_request' ) === false || strpos( $concurrencyWorker, 'abcdef12345' ) === false ) throw new RuntimeException( 'Provider-success runtime proof missing from the reschedule worker' );
 $concurrencySetup = file_get_contents( $root . '/tests/booking-slot-conflict-concurrency-setup.php' );
 if ( false === $concurrencySetup ) throw new RuntimeException( 'Unable to read booking concurrency fixture' );
-foreach ( array( "'10:44:59'", "'10:45:00'", "'16:30'", "'17:00'" ) as $needle ) if ( strpos( $concurrencySetup, $needle ) === false ) throw new RuntimeException( 'Buffer-boundary reschedule fixture missing: ' . $needle );
+foreach ( array( "'10:44:59'", "'10:45:00'", "'16:30'", "'17:00'", 'provider_projection_secrets', 'IntegrationSecretService' ) as $needle ) if ( strpos( $concurrencySetup, $needle ) === false ) throw new RuntimeException( 'Buffer-boundary or provider-success fixture missing: ' . $needle );
 $themeJs = file_get_contents( $root . '/../theme/assets/js/booking.js' );
 if ( false === $themeJs ) throw new RuntimeException( 'Unable to read booking theme script' );
 foreach ( array( 'lead_time_omitted', 'lead_time_hours', 'lead_time_too_short', 'minimum_start_local' ) as $needle ) if ( strpos( $themeJs, $needle ) === false ) throw new RuntimeException( 'Student booking UI must explain minimum notice: ' . $needle );

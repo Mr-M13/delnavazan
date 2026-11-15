@@ -87,6 +87,18 @@ try {
         }
         $race = $state['reschedule']['race'];
         $slot = $race['slots'][ $worker ];
+        add_filter( 'pre_http_request', static function ( $pre, array $args, string $url ) {
+            if ( str_contains( $url, '/calendar/v3/calendars/primary/events/abcdef12345' ) ) {
+                return array(
+                    'headers' => array(),
+                    'body' => wp_json_encode( array( 'id' => 'abcdef12345', 'hangoutLink' => 'https://meet.google.com/abc-defg-hij' ) ),
+                    'response' => array( 'code' => 200, 'message' => 'OK' ),
+                    'cookies' => array(),
+                    'filename' => null,
+                );
+            }
+            return $pre;
+        }, 10, 3 );
         $result = ( new IntroLessonLifecycleService() )->reschedule(
             (int) $race['request_id'],
             'admin',

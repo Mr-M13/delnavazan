@@ -193,6 +193,17 @@ is optional strict parity. Docker is required only for the runtime suites.
   fingerprint and the confirm token. It requires the production-only
   `PURGE_ATTESTATION_TOKEN` secret and refuses a second run after the durable one-shot marker
   exists. A session never runs the execute mode directly.
+- **Backup and rollback tooling:** `deployment/qa/backup-point.sh` takes one verified production
+  rollback point on the host — a gzip + SHA-256 database export, a `public_html` archive without
+  `wp-content/cache`, and a manifest recording the `main-<12 SHA>` build identity and
+  `dzn_platform_schema_version` — and keeps only the newest `DZN_BACKUP_KEEP=2`.
+  `deployment/qa/restore-point.sh --confirm RESTORE` restores the newest or a named point under
+  maintenance mode, refuses a corrupt archive, a missing token or a schema that does not pair with
+  the deployed code, and prints the point's build identity to redeploy. Its source contract is
+  `bash deployment/qa/backup-rollback-contract.sh`, which runs in the PR gate's production
+  tooling step and is offline. Both scripts are operator-only host tools: agents prepare and
+  review them, never run them against production. The procedure is
+  `docs/BACKUP-ROLLBACK-RUNBOOK.md`.
 - **Service tests:** `tools/ci/check.sh services` (runs `services/tests/run-all.sh` on PHP 8.3
   with `pdo_sqlite`, `sqlite3`, `curl`, `mbstring`).
 

@@ -269,6 +269,7 @@ function dzn_theme_render_booking_route(): void {
                         <p class="dzn-booking__reference" data-reference dir="ltr"></p>
                         <p>زمان‌های پیشنهادی شما:</p>
                         <ul class="dzn-booking__success-times" data-success-times></ul>
+                        <p data-consent-result role="status" hidden></p>
                         <p>هنوز زمان جلسه تأیید یا رزرو نشده است. درخواست در حساب هنرجویی شما با وضعیت در انتظار بررسی نمایش داده می‌شود.</p>
                         <a class="dzn-booking__button" data-dashboard-link href="<?php echo esc_url( home_url( '/student-portal/' ) ); ?>">رفتن به داشبورد هنرجو</a>
                     </section>

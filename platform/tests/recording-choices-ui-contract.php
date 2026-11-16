@@ -92,6 +92,24 @@ $need(str_contains($routes,'dzn_theme_render_recording_information_route'),'the 
 $need(str_contains($migrator,"'dzn_accept_own_recording_terms'"),'the Teacher self-service capability must be installed');
 $need(str_contains($authority,'CAPTURE_ENABLED=false')&&str_contains($authority,'RESEARCH_EXPORT_ENABLED=false'),'capture and research export must remain disabled');
 $need(!str_contains($controller,'ContractRecordingProvider')&&!str_contains($controller,'recording_provider'),'no recording provider may be added');
+$unifiedService=$read('src/Core/Application/UnifiedConsentService.php');
+$need(str_contains($authority, "'privacy'=>\$this->decisionState(\$privacy,ConsentPurposeRegistry::PRIVACY_TERMS)"),'Teacher and Student decision states must expose privacy acceptance');
+$need(str_contains($readService, "!empty(\$state['privacy']['positive'])"),'Unified consent must require all purposes, including privacy');
+$need(str_contains($readService, "\$privacy!==null"),'Teacher unified form needs a published privacy notice');
+$need(str_contains($teacher, "if ( \$unified_accepted )"),'Teacher must not report unified completion based on terms alone');
+$need(str_contains($unifiedService, "!empty(\$state['privacy']['positive'])"),'Student unified state must include privacy acceptance');
+$need(str_contains($unifiedService,'function recordBundle(') && str_contains($unifiedService,'UnifiedConsentPartialFailure'), 'Bundled writes must report purpose-specific failures and preserve retry keys');
+$need(str_contains($authority,"approval_state='approved'"),'Only approved published notices may support consent');
+$need(str_contains($unifiedService,'bool $researchOptIn=false') && str_contains($teacher,'name="research_opt_in"'), 'Teacher research must require a separate unchecked opt-in');
+
+$partial=$read('src/Core/Application/UnifiedConsentPartialFailure.php');
+$need(str_contains($partial,'purposeOutcomes') && str_contains($partial,'failedPurpose'), 'Partial failure must expose per-purpose outcomes');
+$recovery=$read('src/Core/Application/StudentAdultAttestationRecoveryService.php');
+$need(str_contains($recovery,'activePrincipalForUserForUpdate') && str_contains($recovery,'current_acceptance_capacity_classification_id!==null') && str_contains($recovery,'recordAdultSelfAttestation'), 'Recovery must be authenticated, prospective and refuse overwriting classifications');
+$need(str_contains($controller,'ADULT_RECOVERY_ACTION') && str_contains($controller,'studentGuardFor(self::ADULT_RECOVERY_ACTION)'), 'Recovery must require a separate nonce and authenticated Student');
+$need(str_contains($student,'adult_attested') && str_contains($student,'capacity_recovery_available'), 'Existing Student must explicitly submit new adult attestation');
+
+
 $need(!str_contains($readService,'wp_remote_')&&!str_contains($readService,'curl_'),'the UI read service must not transport media');
 echo $fail?'Recording choices UI contract failed:\n- '.implode("\n- ",$fail)."\n":'Recording choices UI contract passed'."\n";
 if($fail)exit(1);

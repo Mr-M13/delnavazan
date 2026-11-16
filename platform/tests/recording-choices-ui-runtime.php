@@ -22,6 +22,7 @@ dzn_rda_ui_assert('Delnavazan Production Theme'===(string)wp_get_theme()->get('N
 $teacherUser=dzn_rda_ui_user('teacher');$teacher=dzn_rda_ui_teacher('UI Teacher');dzn_rda_ui_teacher_link($teacher,$teacherUser);
 $adultUser=dzn_rda_ui_user('adult');$adult=dzn_rda_ui_student('UI Adult','adult');dzn_rda_ui_student_link($adult,$adultUser);
 $minorUser=dzn_rda_ui_user('minor');$minor=dzn_rda_ui_student('UI Minor','minor');dzn_rda_ui_student_link($minor,$minorUser);
+$noCapacityUser=dzn_rda_ui_user('no-capacity');$noCapacity=dzn_rda_ui_student('UI No Capacity','none');dzn_rda_ui_student_link($noCapacity,$noCapacityUser);
 $unlinkedUser=dzn_rda_ui_user('unlinked');
 $teacherEn=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'en',1,'Teacher recording terms v1');
 $teacherFa=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_TEACHER_TERMS,'fa',1,'شرایط ضبط درس برای مدرسان نسخه ۱');
@@ -66,6 +67,82 @@ dzn_rda_ui_assert(str_contains($accountHtml,'unified_agree'),'withdrawn student 
 wp_set_current_user($minorUser);$minorModel=$ui->student('enrolment','en');$minorHtml=dzn_rda_ui_render_student($minorModel);
 dzn_rda_ui_assert($minorModel['available']===false&&$minorModel['capture_eligible']===false,'minor must be unavailable');
 dzn_rda_ui_assert(str_contains($minorHtml,'انتخاب ضبط و پژوهش برای این حساب در دسترس نیست')&&!str_contains($minorHtml,'<form'),'minor must not receive a writable form');
+dzn_rda_ui_assert(empty($minorModel['capacity_recovery_available']),'known minor must not be offered adult attestation');
+wp_set_current_user($noCapacityUser);
+$noCapacityModel=$ui->student('account','en');$noCapacityHtml=dzn_rda_ui_render_student($noCapacityModel);
+dzn_rda_ui_assert(!empty($noCapacityModel['capacity_recovery_available']) && str_contains($noCapacityHtml,'dzn_student_adult_attestation'),'unclassified existing student must have authenticated attestation recovery');
+dzn_rda_ui_assert(empty($noCapacityModel['available']) && !str_contains($noCapacityHtml,'name="unified_agree"'),'unclassified student must not bypass consent authority');
+$capacityRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingStudentAccountRepository();
+$capacityRepo->assertTransactionalStorage();
+$beforeBad=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}student_acceptance_capacity_classifications WHERE student_id=%d",$noCapacity));
+$capacityRepo->begin();
+try{
+    $capacityRepo->recordAdultSelfAttestation(-1,$noCapacityUser,gmdate('Y-m-d H:i:s'));
+    throw new RuntimeException('Invalid capacity write must fail');
+}catch(\RuntimeException $e){$capacityRepo->rollback();}
+dzn_rda_ui_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}student_acceptance_capacity_classifications WHERE student_id=%d",$noCapacity))===$beforeBad,'failed capacity write must not change an existing Student');
+$recovery=new \Delnavazan\Platform\Core\Application\StudentAdultAttestationRecoveryService();
+$recovery->recover();
+$recovered=$wpdb->get_row($wpdb->prepare("SELECT c.classification,c.verification_basis,c.evidence_reference FROM {$p}students s JOIN {$p}student_acceptance_capacity_classifications c ON c.id=s.current_acceptance_capacity_classification_id WHERE s.id=%d",$noCapacity));
+dzn_rda_ui_assert($recovered && $recovered->classification==='adult' && $recovered->verification_basis==='self_attestation' && str_contains($recovered->evidence_reference,'account_recovery'),'recovery must write new prospective capacity evidence');
+dzn_rda_ui_assert($ui->student('account','en')['available']===true && !$ui->student('account','en')['consent_active'],'capacity recovery must not fabricate consent');
+$recoveryRefused=false;try{$recovery->recover();}catch(\RuntimeException){$recoveryRefused=true;}
+dzn_rda_ui_assert($recoveryRefused,'repeat recovery must not overwrite evidence');
+wp_set_current_user($minorUser);
+dzn_rda_ui_assert(!$recovery->eligible(),'minor must not be eligible for adult recovery');
+$minorRefused=false;try{$recovery->recover();}catch(\RuntimeException){$minorRefused=true;}
+dzn_rda_ui_assert($minorRefused,'known minor must not overwrite capacity');
+// Booking account-creation branch must persist attested adult evidence before new consent.
+$newBookingUser=dzn_rda_ui_user('new-booking-adult');
+$newBookingAccount=get_userdata($newBookingUser);
+$bookingAccountRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingStudentAccountRepository();
+$bookingAccountService=new \Delnavazan\Platform\Core\Application\BookingStudentAccountService($bookingAccountRepo);
+$bookingContact=array('full_name'=>'Synthetic New Booking Adult','email'=>$newBookingAccount->user_email,
+    'mobile'=>'+61400000000','whatsapp_number'=>'+61400000000','country'=>'AU','city'=>'Brisbane',
+    'timezone'=>'Australia/Brisbane','communication_language'=>'en','adult_self_attested'=>1);
+$bookingAccountRepo->begin();
+try{
+    $newStudentId=(new ReflectionMethod($bookingAccountService,'resolveStudent'))->invoke($bookingAccountService,$newBookingUser,$bookingContact);
+    $bookingAccountRepo->commit();
+}catch(\Throwable $e){$bookingAccountRepo->rollback();throw $e;}
+wp_set_current_user($newBookingUser);
+$newAccountState=$ui->student('account','en');
+dzn_rda_ui_assert($newAccountState['available']===true && !$newAccountState['consent_active'],'new booking adult must have valid capacity but no fabricated consent');
+$bookingUnified=new \Delnavazan\Platform\Core\Application\UnifiedConsentService();
+$bookingDecisions=$bookingUnified->acceptStudentUnified('ui-new-booking-student-v1','en');
+dzn_rda_ui_assert(count($bookingDecisions)===3 && $ui->student('account','en')['consent_active']===true,'new booking account can record all explicit student consent purposes');
+
+// Partial Student writes are purpose-specific and can be replayed safely.
+$partialStudentUser=dzn_rda_ui_user('student-retry');$partialStudent=dzn_rda_ui_student('Retry Student','adult');dzn_rda_ui_student_link($partialStudent,$partialStudentUser);
+wp_set_current_user($partialStudentUser);
+$studentIntercept=function($type,$subjectId,$purpose)use($wpdb,$p,$partialStudent){
+    if($type==='student' && (int)$subjectId===$partialStudent && $purpose==='lesson_recording'){
+        $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='draft',published_at=NULL WHERE audience_code=%s AND language_code='en'",RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RESEARCH));
+    }
+};
+add_action('dzn_consent_decision_recorded',$studentIntercept,10,3);
+$studentPartial=null;
+try{$bookingUnified->acceptStudentUnified('ui-partial-student-v1','en');}catch(\Delnavazan\Platform\Core\Application\UnifiedConsentPartialFailure $e){$studentPartial=$e;}
+remove_action('dzn_consent_decision_recorded',$studentIntercept,10);
+dzn_rda_ui_assert($studentPartial!==null && $studentPartial->failedPurpose==='research_model_training'
+    && $studentPartial->purposeOutcomes['lesson_recording']==='recorded'
+    && $studentPartial->purposeOutcomes['privacy_terms']==='not_attempted','Student partial failure must report committed, failed and unattempted purposes');
+$wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='published',published_at=%s WHERE audience_code=%s AND language_code='en'",gmdate('Y-m-d H:i:s'),RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RESEARCH));
+$studentRetry=$bookingUnified->acceptStudentUnified('ui-partial-student-v1','en');
+dzn_rda_ui_assert($studentRetry['lesson_recording']['idempotent']===true && $ui->student('account','en')['consent_active']===true,'Student consent retry must finish without duplicating recorded decisions');
+dzn_rda_ui_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}recording_decisions WHERE subject_type='student' AND subject_id=%d AND purpose_code='lesson_recording'",$partialStudent))===1,'Student retry must retain exactly one recording grant');
+$newRenderRetry=$bookingUnified->acceptStudentUnified('ui-partial-student-new-render-v2','en');
+dzn_rda_ui_assert($newRenderRetry['lesson_recording']['idempotent'] && $newRenderRetry['research_model_training']['idempotent'] && $newRenderRetry['privacy_terms']['idempotent'],'new Student form key must not duplicate current positive decisions');
+$bookingUnified->withdrawStudentAll('ui-partial-student-withdraw','en');
+dzn_rda_ui_assert(!$ui->student('account','en')['consent_active'],'Student withdrawal must revoke active bundled consent without deleting append-only history');
+$staleReplayRefused=false;
+try{$bookingUnified->acceptStudentUnified('ui-partial-student-v1','en');}
+catch(\Delnavazan\Platform\Core\Application\UnifiedConsentPartialFailure){$staleReplayRefused=true;}
+dzn_rda_ui_assert($staleReplayRefused && !$ui->student('account','en')['consent_active'],'stale replay after withdrawal must never claim consent restored');
+
+
+
+
 wp_set_current_user($unlinkedUser);$unlinkedModel=$ui->student('enrolment','en');
 dzn_rda_ui_assert($unlinkedModel['available']===false,'unlinked account must be unavailable');
 
@@ -80,6 +157,50 @@ $accepted=$service->acceptTeacherTerms($teacherEn['uid'],'en','ui-runtime-terms-
 $teacherModel=$ui->teacher();dzn_rda_ui_assert($teacherModel['accepted']===true&&!empty($teacherModel['accepted_at']),'teacher acceptance must expose its recorded date');
 $teacherHtml=dzn_rda_ui_render_teacher($teacherModel);
 dzn_rda_ui_assert(str_contains($teacherHtml,'unified_agree'),'teacher component must still offer unified completion after terms only');
+// Teacher mandatory consent must not silently record research or require a research publication.
+$optionalUser=dzn_rda_ui_user('teacher-optional');$optionalTeacher=dzn_rda_ui_teacher('Optional Research Teacher');dzn_rda_ui_teacher_link($optionalTeacher,$optionalUser);
+wp_set_current_user($optionalUser);
+$bundle=new \Delnavazan\Platform\Core\Application\UnifiedConsentService();
+$optionalResults=$bundle->acceptTeacherUnified('ui-optional-teacher-v1','en','portal_unified','teacher_unified',false);
+dzn_rda_ui_assert(count($optionalResults)===3 && !isset($optionalResults['teacher_research_model_training']),'research must not be bundled without separate opt-in');
+$optionalState=$ui->teacher('settings');
+dzn_rda_ui_assert($optionalState['mandatory_accepted']===true && $optionalState['unified_accepted']===true && !$optionalState['research_opted_in'],'teacher can complete terms without research');
+$optionalHtml=dzn_rda_ui_render_teacher($optionalState);
+dzn_rda_ui_assert(str_contains($optionalHtml,'Opt in to research') && !str_contains($optionalHtml,'Withdraw research consent'),'research opt-in must be independent of teaching');
+$optionalUpgrade=$bundle->acceptTeacherUnified('ui-optional-teacher-research-v2','en','portal_unified','teacher_unified',true);
+dzn_rda_ui_assert(count($optionalUpgrade)===4 && $optionalUpgrade['teacher_terms']['idempotent']===true,'separate optional opt-in must not duplicate required teaching decisions');
+$optionalState=$ui->teacher('settings');
+dzn_rda_ui_assert($optionalState['research_opted_in']===true && $optionalState['mandatory_accepted']===true,'independent research acceptance must not alter teaching eligibility');
+dzn_rda_ui_assert(str_contains(dzn_rda_ui_render_teacher($optionalState),'Withdraw research consent'),'opted-in teacher needs withdrawal action');
+(new \Delnavazan\Platform\Core\Application\ConsentWithdrawalService())->withdrawTeacherResearch($teacherResEn['uid'],'en','ui-optional-research-withdraw');
+$optionalState=$ui->teacher('settings');
+dzn_rda_ui_assert(!$optionalState['research_opted_in'] && $optionalState['mandatory_accepted'],'research withdrawal must preserve teaching consent');
+$afterOptout=$bundle->acceptTeacherUnified('ui-optional-teacher-no-research-v3','en','portal_unified','teacher_unified',false);
+dzn_rda_ui_assert(count($afterOptout)===3 && !$ui->teacher('settings')['research_opted_in'],'re-submitting required terms must not re-enable research after withdrawal');
+
+
+// Fail second purpose after first commit; retry must replay, not duplicate.
+$partialUser=dzn_rda_ui_user('teacher-retry');$partialTeacher=dzn_rda_ui_teacher('Retry Teacher');dzn_rda_ui_teacher_link($partialTeacher,$partialUser);
+wp_set_current_user($partialUser);
+$intercept=function($type,$subjectId,$purpose)use($wpdb,$p,$partialTeacher){
+    if($type==='teacher' && (int)$subjectId===$partialTeacher && $purpose==='teacher_terms'){
+        $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='draft',published_at=NULL WHERE audience_code=%s AND language_code='en'",RecordingDecisionAuthorityService::AUDIENCE_TEACHER_RECORDING));
+    }
+};
+add_action('dzn_consent_decision_recorded',$intercept,10,3);
+$partialError=null;
+try{$bundle->acceptTeacherUnified('ui-partial-teacher-v1','en');}catch(\Delnavazan\Platform\Core\Application\UnifiedConsentPartialFailure $e){$partialError=$e;}
+remove_action('dzn_consent_decision_recorded',$intercept,10);
+dzn_rda_ui_assert($partialError!==null && $partialError->failedPurpose==='teacher_lesson_recording' && $partialError->purposeOutcomes['teacher_terms']==='recorded','failure must identify first committed and second failed purposes');
+$wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='published',published_at=%s WHERE audience_code=%s AND language_code='en'",gmdate('Y-m-d H:i:s'),RecordingDecisionAuthorityService::AUDIENCE_TEACHER_RECORDING));
+$retried=$bundle->acceptTeacherUnified('ui-partial-teacher-v1','en');
+dzn_rda_ui_assert($retried['teacher_terms']['idempotent']===true && $ui->teacher('settings')['unified_accepted']===true,'retry must replay first purpose and finish remaining purposes');
+dzn_rda_ui_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}recording_decisions WHERE subject_type='teacher' AND subject_id=%d AND purpose_code='teacher_terms'",$partialTeacher))===1,'retry must not duplicate teacher terms evidence');
+$reRendered=$bundle->acceptTeacherUnified('ui-partial-teacher-new-render-v2','en');
+dzn_rda_ui_assert($reRendered['teacher_terms']['idempotent'] && $reRendered['teacher_lesson_recording']['idempotent'] && $reRendered['privacy_terms']['idempotent'],'new form idempotency key must not duplicate current positive Teacher decisions');
+dzn_rda_ui_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}recording_decisions WHERE subject_type='teacher' AND subject_id=%d",$partialTeacher))===3,'repeat unified Teacher consent must not append duplicate decisions');
+
+
 wp_set_current_user($unlinkedUser);$missing=$ui->teacher();$missingHtml=dzn_rda_ui_render_teacher($missing);
 dzn_rda_ui_assert($missing['available']===false&&str_contains($missingHtml,'available only to an active Teacher account')&&!str_contains($missingHtml,'name="unified_agree"'),'unlinked Teacher must get no acceptance form');
 
@@ -92,6 +213,16 @@ $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publicatio
 wp_set_current_user($adultUser);$noRecording=$ui->student('enrolment','en');$noRecordingHtml=dzn_rda_ui_render_student($noRecording);
 dzn_rda_ui_assert(!isset($noRecording['forms']['recording'])&&str_contains($noRecordingHtml,'ثبت رضایت در دسترس نیست'),'missing recording publication must not render unified consent');
 dzn_rda_ui_assert(!str_contains($noRecordingHtml,'name="unified_agree"'),'missing recording publication must not write a decision');
+// Published-but-unapproved notice cannot authorise a new consent decision.
+$wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET approval_state='pending_review' WHERE audience_code=%s AND language_code='en'",RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RESEARCH));
+$unapproved=$ui->student('account','en');
+dzn_rda_ui_assert(empty($unapproved['unified']['available']) && $service->publishedNotice(RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RESEARCH,'en')===null,'unapproved published Student notice must be unavailable');
+$refusedUnapproved=false;
+try{$service->recordOwnStudentChoice('research_model_training','opt_in',$researchNotice['uid'],'en','ui-unapproved-research-choice');}
+catch(\RuntimeException $e){$refusedUnapproved=$e->getMessage()==='recording_notice_unavailable';}
+dzn_rda_ui_assert($refusedUnapproved,'unapproved notice must fail closed on write');
+$wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET approval_state='approved' WHERE audience_code=%s AND language_code='en'",RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RESEARCH));
+
 $wpdb->query($wpdb->prepare("UPDATE {$p}recording_notice_versions SET publication_state='published',published_at=%s WHERE audience_code=%s",gmdate('Y-m-d H:i:s'),RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RECORDING));
 
 // The presentation bridge must supply the same Account Settings and onboarding models.

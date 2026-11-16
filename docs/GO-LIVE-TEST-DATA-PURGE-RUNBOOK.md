@@ -23,7 +23,9 @@ prepare and review it; `AGENTS.md` §3 keeps production read-only for agents.
 2. requires the deployed build identity to equal `main-<first 12 chars of the passed main SHA>`;
 3. requires the retained administrator to exist and hold `manage_options`;
 4. inventories every `{prefix}dzn_*` table and **fails closed** if any table is not in the
-   reviewed classification list (`deployment/qa/purge-test-data-tables.php`);
+   reviewed classification list (`deployment/qa/purge-test-data-tables.php`); classified tables
+   this deployment has not created yet are reported as `absent_tables` and skipped (they hold no
+   rows);
 5. in `report` mode, changes nothing and prints a pre-state fingerprint;
 6. in `execute` mode, takes a full `wp db export`, verifies its gzip integrity and SHA-256, then
    requires the exact report fingerprint and confirm token before deleting;
@@ -43,10 +45,17 @@ prepare and review it; `AGENTS.md` §3 keeps production read-only for agents.
 - Every God Mode session/test row (the authority row for the retained admin is preserved).
 - Public research-name submissions (`dzn_research_name` posts) and comments authored by deleted
   identities (with their metadata).
-- Every WordPress user except the retained administrator and the two dedicated automation
-  identities (`dzn_post_intro_automation`, `dzn_provider_evidence`). Content authored by deleted
-  users is reassigned to the retained administrator rather than deleted.
+- Every WordPress user except the retained administrator and the dedicated
+  automation/worker principals. The principal identities are discovered from the reviewed
+  system-user options (`dzn_post_intro_automation_user_id`, `dzn_platform_payment_worker_principal`,
+  `dzn_reschedule_system_user_id`, `dzn_reschedule_calendar_system_user_id`,
+  `dzn_replacement_system_user_id`, `dzn_platform_provider_projection_worker_principal`,
+  `dzn_notification_dispatch_user_id`, `dzn_provider_evidence_system_user_id`) and only when the
+  login is a synthetic `dzn`/`dzn-` account without the `dzn_teacher` role. Content authored by
+  deleted users is reassigned to the retained administrator rather than deleted.
 - The retained administrator's `dzn_teacher` role and teacher-assignment user meta.
+- The monthly-statement draft actor option (it points at a deleted Teacher identity); statement
+  drafting is switched off and the administrator re-enables it deliberately after go-live.
 
 ### Preserved
 

@@ -45,6 +45,16 @@ $dzn_plan_file   = $dzn_purge_arg( 5 );
 $dzn_purge_confirm_token = 'PURGE_ALL_TEST_DATA';
 $dzn_admin_email         = 'hamed.moqadasi@yahoo.com';
 $dzn_service_logins      = array( 'dzn_post_intro_automation', 'dzn_provider_evidence' );
+$dzn_system_user_options = array(
+	'dzn_post_intro_automation_user_id',
+	'dzn_platform_payment_worker_principal',
+	'dzn_reschedule_system_user_id',
+	'dzn_reschedule_calendar_system_user_id',
+	'dzn_replacement_system_user_id',
+	'dzn_platform_provider_projection_worker_principal',
+	'dzn_notification_dispatch_user_id',
+	'dzn_provider_evidence_system_user_id',
+);
 $dzn_research_post_type  = 'dzn_research_name';
 
 // eval-file runs inside a closure, so named helpers cannot rely on the
@@ -53,6 +63,7 @@ if ( ! defined( 'DZN_PURGE_CONFIRM_TOKEN' ) ) {
 	define( 'DZN_PURGE_CONFIRM_TOKEN', $dzn_purge_confirm_token );
 	define( 'DZN_PURGE_ADMIN_EMAIL', $dzn_admin_email );
 	define( 'DZN_PURGE_SERVICE_LOGINS', $dzn_service_logins );
+	define( 'DZN_PURGE_SYSTEM_USER_OPTIONS', $dzn_system_user_options );
 	define( 'DZN_PURGE_RESEARCH_POST_TYPE', $dzn_research_post_type );
 }
 
@@ -111,7 +122,9 @@ function dzn_purge_state( array $plan ): array {
 
 	$known      = array_merge( $plan['preserve'], $plan['purge'] );
 	$unclassified = array_values( array_diff( $short, $known ) );
-	$missing      = array_values( array_diff( $known, $short ) );
+	// Absent tables are migrations this deployment has not applied yet. They
+	// hold no rows, so they are reported but never a reason to refuse.
+	$absent = array_values( array_diff( $known, $short ) );
 
 	$counts = array();
 	foreach ( $short as $name ) {
@@ -158,7 +171,7 @@ function dzn_purge_state( array $plan ): array {
 		'prefix'            => $wpdb->prefix,
 		'discovered'        => $short,
 		'unclassified'      => $unclassified,
-		'missing'           => $missing,
+		'absent'            => $absent,
 		'counts'            => $counts,
 		'preserve_counts'   => $preserve_counts,
 		'purge_counts'      => $purge_counts,
@@ -190,6 +203,25 @@ function dzn_purge_kept_user_ids( int $adminId ): array {
 		if ( $user instanceof WP_User ) {
 			$keep[] = (int) $user->ID;
 		}
+	}
+	// Dedicated worker principals referenced by reviewed options. Only a
+	// synthetic `dzn` login qualifies; a teacher/student identity never does.
+	foreach ( (array) DZN_PURGE_SYSTEM_USER_OPTIONS as $option ) {
+		$userId = (int) get_option( $option, 0 );
+		if ( $userId < 1 ) {
+			continue;
+		}
+		$user = get_userdata( $userId );
+		if ( ! $user instanceof WP_User ) {
+			continue;
+		}
+		if ( ! preg_match( '/\Adzn[-_]/i', (string) $user->user_login ) ) {
+			continue;
+		}
+		if ( in_array( 'dzn_teacher', (array) $user->roles, true ) ) {
+			continue;
+		}
+		$keep[] = $userId;
 	}
 	return array_values( array_unique( array_filter( $keep ) ) );
 }
@@ -246,9 +278,6 @@ try {
 if ( array() !== $state['unclassified'] ) {
 	dzn_purge_fail( 'unclassified_platform_tables', 'inventory', array( 'unclassified' => $state['unclassified'] ) );
 }
-if ( array() !== $state['missing'] ) {
-	dzn_purge_fail( 'classification_lists_unknown_tables', 'inventory', array( 'missing' => $state['missing'] ) );
-}
 
 $report = array(
 	'ok'              => true,
@@ -273,6 +302,8 @@ $report = array(
 	'purge_table_count'   => count( $plan['purge'] ),
 	'purge_row_total'     => $state['purge_total'],
 	'purge_counts'        => $state['purge_counts'],
+	'absent_table_count'  => count( $state['absent'] ),
+	'absent_tables'       => $state['absent'],
 	'preserve_table_count' => count( $plan['preserve'] ),
 	'preserve_counts'     => $state['preserve_counts'],
 	'unmanaged_tables'    => dzn_purge_unmanaged_tables(),
@@ -312,6 +343,7 @@ if ( ! hash_equals( $dzn_backup_sha, (string) hash_file( 'sha256', $dzn_backup )
 }
 
 $dzn_keep_ids = dzn_purge_kept_user_ids( (int) $dzn_admin->ID );
+$dzn_existing = array_flip( $state['discovered'] );
 $dzn_purged_users = 0;
 $dzn_purged_posts = 0;
 $dzn_deleted_rows  = 0;
@@ -350,12 +382,19 @@ try {
 	$wpdb->query( "DELETE c FROM {$wpdb->comments} c LEFT JOIN {$wpdb->users} u ON u.ID=c.user_id WHERE c.user_id>0 AND u.ID IS NULL" );
 	$wpdb->query( "DELETE cm FROM {$wpdb->commentmeta} cm LEFT JOIN {$wpdb->comments} c ON c.comment_ID=cm.comment_id WHERE c.comment_ID IS NULL" );
 
-	// 3. Strip any Student/Teacher portal association from the retained admin.
+	// 3. Strip any Student/Teacher portal association from the retained admin,
+	//    and clear the monthly-statement draft actor if it pointed at a deleted
+	//    Teacher identity. The administrator re-enables it deliberately later.
 	$dzn_admin->remove_role( 'dzn_teacher' );
 	delete_user_meta( (int) $dzn_admin->ID, 'dzn_access_role_assignment_v1' );
+	delete_option( 'dzn_monthly_statement_draft_actor' );
+	update_option( 'dzn_monthly_statement_draft_enabled', '0', false );
 
-	// 4. Every classified user-activity table.
+	// 4. Every classified user-activity table that this schema actually has.
 	foreach ( $plan['purge'] as $short ) {
+		if ( ! isset( $dzn_existing[ $short ] ) ) {
+			continue;
+		}
 		$physical = dzn_purge_table_name( $short );
 		$result   = $wpdb->query( 'DELETE FROM ' . dzn_purge_ident( $physical ) );
 		if ( false === $result ) {
@@ -369,6 +408,9 @@ try {
 	// 5. Verify inside the transaction before committing.
 	$post_purge = array();
 	foreach ( $plan['purge'] as $short ) {
+		if ( ! isset( $dzn_existing[ $short ] ) ) {
+			continue;
+		}
 		$remaining = dzn_purge_count( dzn_purge_table_name( $short ) );
 		if ( 0 !== $remaining ) {
 			throw new RuntimeException( 'purge_incomplete:' . $short . ':' . $remaining );
@@ -376,6 +418,9 @@ try {
 		$post_purge[ $short ] = $remaining;
 	}
 	foreach ( $plan['preserve'] as $short ) {
+		if ( ! isset( $dzn_existing[ $short ] ) ) {
+			continue;
+		}
 		$physical = dzn_purge_table_name( $short );
 		if ( dzn_purge_count( $physical ) !== ( $state['preserve_counts'][ $short ] ?? 0 ) ) {
 			throw new RuntimeException( 'preserve_table_changed:' . $short );
@@ -422,6 +467,7 @@ $receipt = array(
 	'deleted_research_posts' => $dzn_purged_posts,
 	'deleted_platform_rows'  => $dzn_deleted_rows,
 	'purged_tables'          => count( $plan['purge'] ),
+	'absent_tables'          => count( $state['absent'] ),
 	'preserved_tables'       => count( $plan['preserve'] ),
 	'preserve_counts'        => $state['preserve_counts'],
 	'provider_side_cleanup'  => array(

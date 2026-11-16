@@ -48,6 +48,10 @@ esac
 : "${PRODUCTION_SSH_USER:?Set the protected production SSH user}"
 [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || fail 'SSH username contains unsupported characters'
 
+# OpenSSH drops empty trailing arguments, so send explicit placeholders.
+[[ -n "$fingerprint" ]] || fingerprint='none'
+[[ -n "$confirm" ]] || confirm='none'
+
 bundle="$(tar -czf - -C "$QA_DIR" purge-test-data.php purge-test-data-tables.php | base64 | tr -d '\n')"
 [[ -n "$bundle" ]] || fail 'payload bundle is empty'
 

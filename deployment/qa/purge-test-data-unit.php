@@ -78,6 +78,10 @@ function update_option(string $key, $value, $autoload = null): bool
 {
     return true;
 }
+function delete_option(string $key): bool
+{
+    return true;
+}
 function wp_json_encode($value, int $flags = 0)
 {
     return json_encode($value, $flags);

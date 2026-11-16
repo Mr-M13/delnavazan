@@ -9,6 +9,8 @@ final class PrincipalInvitationRepository {
     public function commit():void{global $wpdb;if($wpdb->query('COMMIT')===false)throw new \RuntimeException('Transaction commit failed');}
     public function rollback():void{global $wpdb;$wpdb->query('ROLLBACK');}
     public function teacherForUpdate(int $id):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->prefix}teachers WHERE id=%d FOR UPDATE",$id));}
+    /** The teacher's SMS contact, read outside the delivery transaction for the post-email SMS leg. */
+    public function teacherContactForId(int $id):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT phone,country_code FROM {$this->prefix}teachers WHERE id=%d",$id));}
     public function invitationForTeacher(int $teacherId):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->prefix}teacher_invitations WHERE teacher_id=%d FOR UPDATE",$teacherId));}
     public function invitationForIdForUpdate(int $id):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->prefix}teacher_invitations WHERE id=%d FOR UPDATE",$id));}
     public function generationForUpdate(int $id):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->prefix}teacher_invitation_generations WHERE id=%d FOR UPDATE",$id));}
@@ -19,6 +21,11 @@ final class PrincipalInvitationRepository {
      * The secret is intentionally never reused; a resend creates a replacement. */
     public function failPreparedDelivery(int $generationId,string $reason):void{$this->finishPreparedDelivery($generationId,'failed',sanitize_key($reason));}
     public function failPendingDelivery(int $generationId,string $reason):void{global $wpdb;$now=current_time('mysql',true);$this->begin();try{$generation=$this->generationForUpdate($generationId);$outbox=$this->deliveryOutboxForGenerationForUpdate($generationId);if(!$generation||!$outbox||$outbox->status!=='pending')throw new \RuntimeException('Invitation delivery is not pending');$n=$wpdb->update($this->prefix.'platform_outbox',array('status'=>'failed','failure_reason_code'=>sanitize_key($reason),'processed_at'=>$now),array('id'=>(int)$outbox->id,'status'=>'pending'));if($n!==1)throw new \RuntimeException('Invitation delivery outcome conflict');$this->audit('teacher_invitation',(int)$generation->invitation_id,'teacher_invitation.delivery_failed',null,hash('sha256','delivery-outcome:'.$generationId.':failed:'.$now),sanitize_key($reason));$this->commit();}catch(\Throwable $e){$this->rollback();throw $e;}}
+    /** Record the SMS-leg outcome as a separate audit event. It never touches the email outbox terminal state. */
+    public function recordSmsDelivery(int $invitationId,int $generationId,string $outcome,?string $reason=null):void{
+        if(!in_array($outcome,array('accepted','refused','skipped','failed'),true))throw new \InvalidArgumentException('Invalid invitation SMS outcome');
+        $this->audit('teacher_invitation',$invitationId,'teacher_invitation.sms_'.$outcome,null,hash('sha256','teacher-invitation-sms:'.$generationId),$reason===null?null:sanitize_key($reason));
+    }
     public function deliveryOutboxForGenerationForUpdate(int $generationId):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->prefix}platform_outbox WHERE generation_id=%d AND event_type='teacher_invitation.delivery_requested' ORDER BY id DESC LIMIT 1 FOR UPDATE",$generationId));}
     public function attemptForCommand(string $key):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->prefix}account_claim_attempts WHERE command_key=%s FOR UPDATE",$key));}
     public function attemptForGeneration(int $generationId):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->prefix}account_claim_attempts WHERE generation_id=%d AND domain='teacher' FOR UPDATE",$generationId));}

@@ -93,7 +93,8 @@ $fail('the account claim keeps its dedicated secure authority contract', $claim[
 $fail('the account claim preview never shows a real code', NotificationCatalogue::previewVariables('account.claim_issued.student')['claim_code'] === '[one-time code]');
 $invitation = NotificationCatalogue::get('teacher.invitation_issued.teacher');
 $fail('the teacher invitation is owned by a dedicated authority', $invitation['authority'] === 'dedicated' && in_array('dedicated_authority', NotificationCatalogue::reviewFor('teacher.invitation_issued.teacher'), true));
-$fail('a dedicated event never offers a general email editor path', $invitation['channels'] === array('email'));
+$fail('a dedicated event never offers a general editor path', $invitation['channels'] === array('email','sms'));
+$fail('the teacher invitation SMS copy declares the one-time code and claim link in both locales', NotificationCatalogue::exactCopy('teacher.invitation_issued.teacher','sms','fa-IR')['body']!==null && NotificationCatalogue::exactCopy('teacher.invitation_issued.teacher','sms','en')['body']!==null && $placeholders((string) NotificationCatalogue::exactCopy('teacher.invitation_issued.teacher','sms','fa-IR')['body']) === array('claim_url','invitation_code') && $placeholders((string) NotificationCatalogue::exactCopy('teacher.invitation_issued.teacher','sms','en')['body']) === array('claim_url','invitation_code'));
 foreach (NotificationCatalogue::events() as $eventKey => $event) {
     foreach ((array) $event['channels'] as $channel) {
         foreach (NotificationCatalogue::SUPPORTED_LOCALES as $locale) {

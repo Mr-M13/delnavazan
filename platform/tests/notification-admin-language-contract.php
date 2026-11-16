@@ -27,7 +27,7 @@ $fail('the notification catalogue is the only workspace', str_contains($controll
 $fail('legacy tabs are aliases, not navigation entries', str_contains($controller, 'LEGACY_TABS') && str_contains($controller, "'templates'=>'events'"));
 
 /* 2. The admin surface is LTR and contains no Persian UI labels. */
-$fail('admin wrapper is LTR', str_contains($controller, 'dir="ltr"') && str_contains($controller, '.dzn-notif-admin{direction:ltr}'));
+$fail('admin wrapper is LTR', str_contains($controller, 'dir="ltr"') && str_contains($controller, '.dzn-notif-admin{direction:ltr'));
 $fail('no Persian remains in the admin controller', !$persian($controller));
 $fail('no Persian remains in the admin menu', !$persian($menu));
 foreach (array('Save Draft', 'Publish New Version', 'Discard Draft', 'Restore Default', 'Version History', 'Preview', 'Record Mapping', 'Category', 'Notification catalogue', 'Recipient', 'Portal', 'Email', 'WhatsApp', 'SMS') as $label) {

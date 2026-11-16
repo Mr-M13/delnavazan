@@ -185,6 +185,28 @@ def _parse_json(raw):
         return None
 
 
+def _provider_error_detail(body):
+    """A short, secret-free provider error detail for the per-template result artifact."""
+    if not isinstance(body, dict):
+        return ""
+    parts = []
+    for key in ("message", "detail", "title"):
+        value = body.get(key)
+        if isinstance(value, str) and value.strip():
+            parts.append(value.strip())
+    errors = body.get("errors")
+    if isinstance(errors, list):
+        for item in errors[:2]:
+            if not isinstance(item, dict):
+                continue
+            for key in ("detail", "title", "message", "code"):
+                value = item.get(key)
+                if value is not None and str(value).strip() != "":
+                    parts.append(str(value).strip())
+    text = " · ".join(parts)
+    return (" — " + text[:200]) if text else ""
+
+
 def list_existing(api_key, waba_id):
     """Paginate every WABA template and return {(name, language): True}."""
     existing = {}
@@ -212,7 +234,9 @@ def create_template(api_key, waba_id, template):
     """POST one missing template. Returns (result, status, detail)."""
     variables = template["variables"]
     samples = template["samples"]
-    example_body_text = [samples[var] for var in variables]
+    # Meta/Telnyx expect example.body_text as a list of example ROWS; one row
+    # carrying one value per positional placeholder ([[v1, v2, ...]]).
+    example_body_text = [[samples[var] for var in variables]]
     payload = {
         "waba_id": waba_id,
         "name": template["name"],
@@ -233,7 +257,7 @@ def create_template(api_key, waba_id, template):
         return "created", status, "ok"
     if status == 409:
         return "skipped", status, "duplicate"
-    return "refused", status, "status %s" % status
+    return "refused", status, "status %s%s" % (status, _provider_error_detail(body))
 
 
 def run_plan(validated, existing, mode, api_key, waba_id):

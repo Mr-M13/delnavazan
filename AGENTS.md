@@ -219,6 +219,17 @@ is optional strict parity. Docker is required only for the runtime suites.
   cannot restore, delete, deploy, migrate, purge or read a credential. The nightly cron then runs on
   the host, and the encrypted rclone remote stays an owner action. **Restore remains operator-only
   and never runs from CI.** The procedure is `docs/BACKUP-ROLLBACK-RUNBOOK.md`.
+- **WhatsApp template creation:** `.github/workflows/create-whatsapp-templates.yml` creates the
+  reviewed Utility templates from `deployment/notifications/whatsapp-templates.json` in the owner's
+  Telnyx WABA, so the platform can later map them via Integrations → WhatsApp → "Refresh approved
+  templates". It is workflow_dispatch-only, runs in the protected `production` environment from
+  `main`, and is bound to the exact current origin/main SHA plus the `CREATE_WA_TEMPLATES` confirm
+  token; the default mode is `dry_run` (list + report only), and `apply` creates only the missing
+  templates with ~2s pacing. It uses only the `TELNYX_API_KEY` and `TELNYX_WABA_ID` secrets, never
+  prints them, and fails closed if either is missing. It can list templates (GET) and create missing
+  ones (POST); it cannot update, delete, send a message, deploy, migrate or purge. Its source
+  contract, `bash deployment/notifications/whatsapp-template-create-contract.sh`, runs in the PR
+  gate's production-tooling step and is offline.
 - **Service tests:** `tools/ci/check.sh services` (runs `services/tests/run-all.sh` on PHP 8.3
   with `pdo_sqlite`, `sqlite3`, `curl`, `mbstring`).
 

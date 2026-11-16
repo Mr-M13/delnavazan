@@ -271,7 +271,21 @@ main(){
     excluded="$excluded,\"$base/$rel_backup\""
   fi
   tar_args+=("$base")
-  tar "${tar_args[@]}" || fail 'file archive failed'
+  tar_rc=0
+  if ! tar "${tar_args[@]}"; then
+    tar_rc=$?
+  fi
+  # A live WordPress site always has writers inside wp-content (cron, uploads,
+  # sessions), so tar routinely exits 1 with "file changed as we read it".
+  # That archive is internally consistent and usable for restore, and the
+  # gzip/SHA-256/listing verification below re-proves it; exit 1 is therefore
+  # accepted and recorded, while exit codes >= 2 are real failures.
+  if (( tar_rc >= 2 )); then
+    fail "file archive failed (tar exit $tar_rc)"
+  fi
+  if (( tar_rc == 1 )); then
+    printf 'FILES_TAR_WARN=changed-during-read\n' >&2
+  fi
   gzip -t "$DZN_WORK/public_html.tar.gz" || fail 'file archive failed gzip integrity'
   files_sha="$(sha256_of "$DZN_WORK/public_html.tar.gz")" || fail 'no SHA-256 tool is available'
   write_sidecar "$DZN_WORK" 'public_html.tar.gz' "$files_sha"

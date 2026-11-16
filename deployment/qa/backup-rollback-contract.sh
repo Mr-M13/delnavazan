@@ -47,6 +47,8 @@ need "$backup_sh" '--skip-plugins --skip-themes db export'
 need "$backup_sh" '--add-drop-table'
 need "$backup_sh" 'gzip -t'
 need "$backup_sh" 'tar -tzf'
+need "$backup_sh" 'FILES_TAR_WARN=changed-during-read'
+need "$backup_sh" 'tar_rc >= 2'
 need "$backup_sh" 'sha256sum'
 need "$backup_sh" 'wp-content/cache'
 need "$backup_sh" "not 'production'"

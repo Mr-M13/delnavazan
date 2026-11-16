@@ -13,6 +13,10 @@ Unified product repository for the Delnavazan academy platform and WordPress fro
 
 New product work is developed on feature branches in this repository and reviewed through pull requests. This monorepo is the sole code source for the live Delnavazan site.
 
+## Who executes
+
+OpenCode is the sole execution agent: it develops, self-reviews, merges and releases, and may run parallel sessions. External agents (Codex, Copilot, ChatGPT, others) are advisory only and never hold write access. See [AGENTS.md](AGENTS.md) for the contract and the enforced GitHub controls.
+
 ## Production
 
 The permanent public site is `https://delnavazan.com`. Releases follow feature branch → PR checks and review → `main` → protected manual production deployment. See [deployment/README.md](deployment/README.md) for the production workflow and host configuration, and [platform/docs/RELEASE-2026-10-27-HOME-POLISH.md](platform/docs/RELEASE-2026-10-27-HOME-POLISH.md) for the latest release record, evidence and follow-ups.

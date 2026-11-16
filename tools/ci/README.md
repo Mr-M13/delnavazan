@@ -46,10 +46,10 @@ The local agent path is Docker-free:
 | Runtime suites | CI only | Yes — `mariadb:11.4`, `wordpress:php8.3-apache`, `wordpress:cli-php8.3` |
 
 The runtime suites (`platform/runtime/bin/run-*-runtime.sh`) are the only remaining Docker
-dependency. They are declared CI-only for agents: the PR runtime gate runs them, and a green
+dependency. They are declared CI-only for sessions: the PR runtime gate runs them, and a green
 native run never substitutes for green CI. Removing Docker from the repository entirely would
 mean replacing that harness with a native MariaDB/WordPress setup, or deleting the suites — both
-need a Codex review and a workflow change.
+need a governance review and a workflow change.
 
 ## Boundaries
 

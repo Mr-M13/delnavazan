@@ -8,11 +8,14 @@ $files = array(
 	'migration' => $read( $root . '/src/Core/Infrastructure/Migration/Migrator.php' ),
 	'claim' => $read( $root . '/src/Core/Application/PrincipalInvitationService.php' ),
 	'onboarding' => $read( $root . '/src/Core/Application/TeacherOnboardingService.php' ),
+	'availability_service' => $read( $root . '/src/Core/Application/TeacherAvailabilityService.php' ),
+	'planner' => $read( $root . '/src/Core/Application/TeacherAvailabilityPlanner.php' ),
 	'controller' => $read( $root . '/src/Portals/TeacherOnboardingController.php' ),
 	'admin' => $read( $root . '/src/Admin/Controller/ScreenController.php' ),
 	'teacher_actions' => $read( $root . '/src/Admin/RecordAction/RecordActionRegistry.php' ),
 	'teacher_repo' => $read( $root . '/src/Core/Infrastructure/Repository/TeacherRepository.php' ),
 	'bridge' => $read( $theme . '/inc/platform-bridge.php' ),
+	'booking' => $read( $theme . '/inc/booking.php' ),
 	'route' => $read( $theme . '/inc/routes.php' ),
 	'wizard' => $read( $theme . '/template-parts/teacher-portal/onboarding.php' ),
 	'settings' => $read( $theme . '/template-parts/teacher-portal/account.php' ),
@@ -28,6 +31,12 @@ $checks = array(
 	'profile mobile and settings edits are real POST forms' => str_contains( $files['settings'], 'autocomplete="tel"' ) && str_contains( $files['settings'], 'dzn_teacher_onboarding_profile' ) && str_contains( $files['settings'], 'name="whatsapp_phone"' ),
 	'portal is RTL and responsive' => str_contains( $files['shell'], 'dir="rtl"' ) && str_contains( $files['css'], '@media(min-width:48rem)' ) && str_contains( $files['css'], 'max-inline-size:100%' ),
 	'64-hex invitation remains POST-only and mobile copyable' => str_contains( $files['route'], 'minlength="64"' ) && str_contains( $files['route'], 'maxlength="64"' ) && str_contains( $files['route'], 'autocomplete="one-time-code"' ) && str_contains( $files['route'], 'dzn-invitation-code' ),
+	'teacher country is a Persian-name select, never a 2-char code input' => str_contains( $files['settings'], 'dzn_theme_platform_country_options' ) && str_contains( $files['settings'], 'name="country_code"' ) && ! str_contains( $files['settings'], 'pattern="[A-Z]{2}"' ) && ! str_contains( $files['settings'], 'maxlength="2"' ),
+	'shared country options helper defaults Iran first and reuses the booking list' => str_contains( $files['bridge'], 'function dzn_theme_platform_country_options' ) && str_contains( $files['bridge'], "'IR' => 'ایران'" ) && str_contains( $files['booking'], 'dzn_theme_platform_country_options' ),
+	'teacher timezone defaults to Asia/Tehran when empty' => str_contains( $files['bridge'], "\$onboarding_timezone = 'Asia/Tehran'" ) && str_contains( $files['settings'], "?:'Asia/Tehran'" ),
+	'teacher calendar defaults to persian when empty' => str_contains( $files['bridge'], ": 'persian'" ) && str_contains( $files['bridge'], "?: 'persian'" ),
+	'rejectOverlap is idempotent, adjacency-safe and timezone-normalised' => str_contains( $files['availability_service'], 'recurringWindowConflict' ) && str_contains( $files['availability_service'], '$sameRule' ),
+	'planner owns a pure half-open overlap predicate on one timezone basis' => str_contains( $files['planner'], 'public static function overlaps' ) && str_contains( $files['planner'], 'recurringWindowConflict' ) && str_contains( $files['planner'], 'windowMinutes' ),
 );
 foreach ( $checks as $name => $passed ) if ( ! $passed ) throw new RuntimeException( 'Teacher production blocker contract failed: ' . $name );
 echo 'Teacher onboarding production blocker contracts passed (' . count( $checks ) . ").\n";

@@ -1,8 +1,10 @@
 <?php
 use Delnavazan\Platform\Core\Application\TeacherAvailabilityPlanner;
+use Delnavazan\Platform\Core\Application\AvailabilityLocalTime;
 
 $root = dirname(__DIR__);
 require_once $root . '/src/Core/Application/TeacherAvailabilityPlanner.php';
+require_once $root . '/src/Core/Application/AvailabilityLocalTime.php';
 
 $assert = static function (bool $condition, string $message): void {
 	if (!$condition) throw new RuntimeException($message);
@@ -60,5 +62,23 @@ $assert($overview['golden_minutes'] === 120, 'Golden hours must count the alloca
 
 $clamped = TeacherAvailabilityPlanner::overview($schedules, $golden, 999);
 $assert($clamped['available_minutes'] === 0, 'Available hours must never go below zero.');
+
+// Overlap matrix for the recurring-window save flow (rejectOverlap hardening).
+$assert(TeacherAvailabilityPlanner::overlaps(540, 600, 660, 720) === false, 'Non-overlapping same-weekday windows must not conflict.');
+$assert(TeacherAvailabilityPlanner::overlaps(540, 600, 600, 660) === false, 'Adjacent windows (end == next start) must not conflict.');
+$assert(TeacherAvailabilityPlanner::overlaps(540, 600, 570, 630) === true, 'Genuinely overlapping windows must conflict.');
+$assert(TeacherAvailabilityPlanner::overlaps(600, 540, 600, 660) === false, 'A reversed window must never conflict.');
+$assert(TeacherAvailabilityPlanner::overlaps(540, 540, 600, 660) === false, 'A zero-length window must never conflict.');
+
+$window = static fn(string $start, string $end, string $tz, string $state = 'preferred'): array => array('local_start_time' => $start, 'local_end_time' => $end, 'timezone' => $tz, 'state' => $state);
+$assert(TeacherAvailabilityPlanner::recurringWindowConflict($window('09:00:00', '10:00:00', 'Asia/Tehran'), $window('11:00:00', '12:00:00', 'Asia/Tehran'), false) === false, 'Two non-overlapping windows saved one after another must not conflict.');
+$assert(TeacherAvailabilityPlanner::recurringWindowConflict($window('10:00:00', '11:00:00', 'Asia/Tehran'), $window('09:00:00', '10:00:00', 'Asia/Tehran'), false) === false, 'Adjacent windows (end == next start) saved one after another must not conflict.');
+$assert(TeacherAvailabilityPlanner::recurringWindowConflict($window('09:00:00', '10:00:00', 'Asia/Tehran'), $window('09:00:00', '10:00:00', 'Asia/Tehran'), true) === false, 'Re-saving the exact same window (idempotent) must not create a false overlap.');
+$assert(TeacherAvailabilityPlanner::recurringWindowConflict($window('09:00:00', '10:00:00', 'Asia/Tehran'), $window('09:00:00', '10:00:00', 'Asia/Tehran'), false) === true, 'The same window under a different rule must still conflict.');
+$assert(TeacherAvailabilityPlanner::recurringWindowConflict($window('09:30:00', '10:30:00', 'Asia/Tehran'), $window('09:00:00', '10:00:00', 'Asia/Tehran'), false) === true, 'A genuinely overlapping window must be refused.');
+$assert(TeacherAvailabilityPlanner::recurringWindowConflict($window('11:00:00', '10:00:00', 'Asia/Tehran'), $window('09:00:00', '10:00:00', 'Asia/Tehran'), false) === false, 'A reversed submitted window must not trigger the overlap message.');
+$expectInvalid(static fn() => AvailabilityLocalTime::interval('2026-01-05', '11:00:00', '10:00:00', 'Asia/Tehran'), 'A reversed window must be refused with the range-after-start message.');
+$assert(TeacherAvailabilityPlanner::recurringWindowConflict($window('09:00:00', '10:00:00', 'Asia/Tehran'), $window('09:00:00', '10:00:00', 'UTC'), false) === false, 'A timezone change must not turn the same wall clock (different instants) into a false overlap.');
+$assert(TeacherAvailabilityPlanner::recurringWindowConflict($window('12:00:00', '13:00:00', 'Asia/Tehran'), $window('09:00:00', '10:00:00', 'UTC'), false) === true, 'A genuine cross-timezone overlap must still be refused.');
 
 echo "teacher-availability-planner-unit: OK\n";

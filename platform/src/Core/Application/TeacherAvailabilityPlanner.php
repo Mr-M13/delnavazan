@@ -164,4 +164,63 @@ final class TeacherAvailabilityPlanner {
         foreach (self::mergeIntervals($intervals) as $interval) $out[] = array('start' => self::clock((int) $interval['start']), 'end' => self::clock((int) $interval['end']));
         return $out;
     }
+
+    /**
+     * Half-open interval overlap: two same-weekday windows conflict only when
+     * each starts strictly before the other ends. Adjacent windows (end == next
+     * start) never conflict, and a reversed or zero-length window never does.
+     *
+     * @param int $startA Minutes-from-midnight start of the first window.
+     * @param int $endA   Minutes-from-midnight end of the first window.
+     * @param int $startB Minutes-from-midnight start of the second window.
+     * @param int $endB   Minutes-from-midnight end of the second window.
+     */
+    public static function overlaps(int $startA, int $endA, int $startB, int $endB): bool {
+        if ($endA <= $startA || $endB <= $startB) return false;
+        return $startA < $endB && $startB < $endA;
+    }
+
+    /**
+     * Whether a newly submitted weekly window conflicts with one existing active
+     * window on the same weekday.
+     *
+     * The comparison is idempotent (a window re-submitted against the same
+     * logical rule never conflicts), timezone-normalised (both windows are
+     * projected onto a fixed representative Monday so a timezone change can
+     * never turn two genuinely distinct windows into a false overlap), and
+     * half-open (adjacency is allowed).
+     *
+     * @param array{local_start_time:string,local_end_time:string,timezone:string} $submitted
+     * @param array{local_start_time:string,local_end_time:string,timezone:string,state:string} $existing
+     * @param bool $sameRule Whether $existing is the same logical rule as $submitted.
+     */
+    public static function recurringWindowConflict(array $submitted, array $existing, bool $sameRule): bool {
+        if ($sameRule) return false;
+        $a = self::windowMinutes((string) ($submitted['local_start_time'] ?? ''), (string) ($submitted['local_end_time'] ?? ''), (string) ($submitted['timezone'] ?? ''));
+        $b = self::windowMinutes((string) ($existing['local_start_time'] ?? ''), (string) ($existing['local_end_time'] ?? ''), (string) ($existing['timezone'] ?? ''));
+        // A reversed, zero-length or nonexistent local time is never an overlap;
+        // the submitted window is rejected by the range validator before this point.
+        if ($a === null || $b === null) return false;
+        return self::overlaps($a['start'], $a['end'], $b['start'], $b['end']);
+    }
+
+    /**
+     * Project one recurring weekly window onto a fixed representative Monday and
+     * return its span as minutes since that Monday's UTC midnight. The shared
+     * basis makes windows expressed in different IANA timezones comparable.
+     *
+     * @return array{start:int,end:int}|null
+     */
+    private static function windowMinutes(string $start, string $end, string $timezone): ?array {
+        try {
+            $interval = AvailabilityLocalTime::interval('2026-01-05', $start, $end, $timezone);
+        } catch (\Throwable) {
+            return null;
+        }
+        $origin = (new \DateTimeImmutable('2026-01-05 00:00:00', new \DateTimeZone('UTC')))->getTimestamp();
+        $toMinute = static function (string $utc) use ($origin): int {
+            return (int) (((new \DateTimeImmutable($utc, new \DateTimeZone('UTC')))->getTimestamp() - $origin) / 60);
+        };
+        return array('start' => $toMinute($interval['starts_at_utc']), 'end' => $toMinute($interval['ends_at_utc']));
+    }
 }

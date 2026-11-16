@@ -176,6 +176,13 @@ is optional strict parity. Docker is required only for the runtime suites.
   uploaded as the `booking-stress-evidence` workflow artifact and is never committed. The
   1,000-request measurement is scenario A's request volume, not a 1,000-worker burst; the
   harness spawns at most 100 concurrent processes.
+
+- **Go-live data purge:** the one-shot pre-launch purge is
+  `deployment/qa/purge-test-data.sh` (report, then execute with a pre-state fingerprint and a
+  verified full database export). Its source contract
+  `deployment/qa/purge-test-data-contract.sh` runs in the PR gate and proves every schema table is
+  classified as preserved configuration or purged user activity. It is operator-only: agents
+  prepare and review it, never execute it against production.
 - **Service tests:** `tools/ci/check.sh services` (runs `services/tests/run-all.sh` on PHP 8.3
   with `pdo_sqlite`, `sqlite3`, `curl`, `mbstring`).
 

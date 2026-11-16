@@ -38,3 +38,27 @@ reports effective feature flags and their source, worker hook/schedule presence,
 OAuth readiness, and redacted rows for lessons 22/23 and booking confirmation #9. It does not contain
 tokens, e-mails, client identifiers or provider payloads. See
 `platform/docs/GOOGLE-MEET-RECONCILIATION-2026-11-04.md` for interpretation and safe remediation.
+
+## Go-live test-data purge
+
+`deployment/qa/purge-test-data.sh` is the guarded, operator-only one-shot purge for the pre-launch
+window. It removes all Student/Teacher/booking/class/payment/portal test data, keeps the retained
+administrator (`hamed.moqadasi@yahoo.com`) and the catalogue/settings/integrations, and preserves
+the two dedicated automation identities.
+
+```sh
+export PRODUCTION_SSH_USER=<protected-production-ssh-user>
+MAIN_SHA="$(git rev-parse origin/main)"
+
+# 1. Read-only inventory; prints the pre-state fingerprint. Deletes nothing.
+bash deployment/qa/purge-test-data.sh report "$MAIN_SHA"
+
+# 2. Destructive run, bound to the exact pre-state and a verified DB export.
+bash deployment/qa/purge-test-data.sh execute "$MAIN_SHA" <fingerprint> PURGE_ALL_TEST_DATA
+```
+
+The classification lives in `purge-test-data-tables.php`; `purge-test-data-contract.sh` (run by the
+PR gate) proves every schema table is classified and that the guard rails are present. The payload
+never calls a provider. Follow `docs/GO-LIVE-TEST-DATA-PURGE-RUNBOOK.md` for approvals, maintenance
+mode, verification, provider-side cleanup and rollback. Agents never execute the destructive mode
+against production.

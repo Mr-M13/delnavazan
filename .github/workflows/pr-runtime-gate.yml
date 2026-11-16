@@ -438,6 +438,7 @@ jobs:
           bash deployment/qa/production-calendar-job-recovery-contract.sh
           bash deployment/qa/provision-production-projection-worker-contract.sh
           bash deployment/qa/production-calendar-projection-dispatch-contract.sh
+          bash deployment/qa/purge-test-data-contract.sh
 
   recording-decision-migration-runtime:
     name: Recording decision migration runtime

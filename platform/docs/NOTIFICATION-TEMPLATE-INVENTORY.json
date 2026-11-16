@@ -1,5 +1,5 @@
 {
-    "generated_at": "2026-11-16T20:38:04+00:00",
+    "generated_at": "2026-11-16T20:54:54+00:00",
     "catalogue_version": "2026-11-17.1",
     "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
     "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
@@ -12,7 +12,7 @@
         "invalid_templates": 0,
         "missing_translations": 0,
         "unpublished_canonical_templates": "live_check_required",
-        "missing_provider_mappings": 24,
+        "missing_provider_mappings": 1,
         "unsupported_routes": 122,
         "events_without_registered_producer": 13
     },
@@ -66,30 +66,7 @@
         ]
     },
     "whatsapp_routes_without_registry_mapping": [
-        "account.claim_issued.student",
-        "payment.failed.student",
-        "refund.resolved.student",
-        "refund.review_required.student",
-        "renewal.automatic_charged.student",
-        "renewal.automatic_failed.student",
-        "renewal.guarantee_deadline_approaching.student",
-        "renewal.term_lapsed.student",
-        "reschedule.change.cancelled.student",
-        "reschedule.change.cancelled.teacher",
-        "reschedule.change.failed.student",
-        "reschedule.change.failed.teacher",
-        "reschedule.change.proposed.teacher",
-        "reschedule.change.rejected.teacher",
-        "reschedule.replacement.accepted.student",
-        "reschedule.replacement.accepted.teacher",
-        "reschedule.replacement.cancelled.student",
-        "reschedule.replacement.cancelled.teacher",
-        "reschedule.replacement.failed.student",
-        "reschedule.replacement.failed.teacher",
-        "reschedule.replacement.proposed.student",
-        "reschedule.replacement.proposed.teacher",
-        "reschedule.replacement.rejected.student",
-        "reschedule.replacement.rejected.teacher"
+        "account.claim_issued.student"
     ],
     "whatsapp_registry": [
         {
@@ -245,6 +222,240 @@
                 "course",
                 "teacher",
                 "when"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_payment_failed_student_fa",
+            "event_key": "payment.failed.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "amount",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_refund_resolved_student_fa",
+            "event_key": "refund.resolved.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "amount",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_refund_review_required_student_fa",
+            "event_key": "refund.review_required.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "amount",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_renewal_automatic_charged_student_fa",
+            "event_key": "renewal.automatic_charged.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "amount",
+                "paid_date",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_renewal_automatic_failed_student_fa",
+            "event_key": "renewal.automatic_failed.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "amount",
+                "due_date",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_renewal_guarantee_deadline_approaching_student_fa",
+            "event_key": "renewal.guarantee_deadline_approaching.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "due_date",
+                "amount",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_renewal_term_lapsed_student_fa",
+            "event_key": "renewal.term_lapsed.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_change_cancelled_student_fa",
+            "event_key": "reschedule.change.cancelled.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_change_cancelled_teacher_fa",
+            "event_key": "reschedule.change.cancelled.teacher",
+            "audience": "teacher",
+            "variable_order": [
+                "teacher",
+                "teacher_portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_change_failed_student_fa",
+            "event_key": "reschedule.change.failed.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_change_failed_teacher_fa",
+            "event_key": "reschedule.change.failed.teacher",
+            "audience": "teacher",
+            "variable_order": [
+                "teacher",
+                "teacher_portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_change_proposed_teacher_fa",
+            "event_key": "reschedule.change.proposed.teacher",
+            "audience": "teacher",
+            "variable_order": [
+                "teacher",
+                "when",
+                "timezone",
+                "teacher_portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_change_rejected_teacher_fa",
+            "event_key": "reschedule.change.rejected.teacher",
+            "audience": "teacher",
+            "variable_order": [
+                "teacher",
+                "when",
+                "teacher_portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_replacement_accepted_student_fa",
+            "event_key": "reschedule.replacement.accepted.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "when",
+                "timezone",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_replacement_accepted_teacher_fa",
+            "event_key": "reschedule.replacement.accepted.teacher",
+            "audience": "teacher",
+            "variable_order": [
+                "teacher",
+                "when",
+                "timezone",
+                "teacher_portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_replacement_cancelled_student_fa",
+            "event_key": "reschedule.replacement.cancelled.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_replacement_cancelled_teacher_fa",
+            "event_key": "reschedule.replacement.cancelled.teacher",
+            "audience": "teacher",
+            "variable_order": [
+                "teacher",
+                "teacher_portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_replacement_failed_student_fa",
+            "event_key": "reschedule.replacement.failed.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_replacement_failed_teacher_fa",
+            "event_key": "reschedule.replacement.failed.teacher",
+            "audience": "teacher",
+            "variable_order": [
+                "teacher",
+                "teacher_portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_replacement_proposed_student_fa",
+            "event_key": "reschedule.replacement.proposed.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "when",
+                "timezone",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_replacement_proposed_teacher_fa",
+            "event_key": "reschedule.replacement.proposed.teacher",
+            "audience": "teacher",
+            "variable_order": [
+                "teacher",
+                "when",
+                "timezone",
+                "teacher_portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_replacement_rejected_student_fa",
+            "event_key": "reschedule.replacement.rejected.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "when",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_reschedule_replacement_rejected_teacher_fa",
+            "event_key": "reschedule.replacement.rejected.teacher",
+            "audience": "teacher",
+            "variable_order": [
+                "teacher",
+                "when",
+                "teacher_portal_url"
             ]
         }
     ],
@@ -1680,8 +1891,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_payment_failed_student_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -1977,8 +2188,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_refund_resolved_student_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -2032,8 +2243,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_refund_review_required_student_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -2087,8 +2298,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_renewal_automatic_charged_student_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -2142,8 +2353,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_renewal_automatic_failed_student_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -2252,8 +2463,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_renewal_guarantee_deadline_approaching_student_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -2406,8 +2617,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_renewal_term_lapsed_student_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -2637,8 +2848,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_change_cancelled_student_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -2692,8 +2903,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_change_cancelled_teacher_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -2780,8 +2991,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_change_failed_student_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -2835,8 +3046,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_change_failed_teacher_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -2978,8 +3189,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_change_proposed_teacher_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -3121,8 +3332,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_change_rejected_teacher_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -3209,8 +3420,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_replacement_accepted_student_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -3264,8 +3475,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_replacement_accepted_teacher_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -3352,8 +3563,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_replacement_cancelled_student_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -3407,8 +3618,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_replacement_cancelled_teacher_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -3495,8 +3706,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_replacement_failed_student_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -3550,8 +3761,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_replacement_failed_teacher_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -3638,8 +3849,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_replacement_proposed_student_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -3693,8 +3904,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_replacement_proposed_teacher_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -3781,8 +3992,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_replacement_rejected_student_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -3836,8 +4047,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_reschedule_replacement_rejected_teacher_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },

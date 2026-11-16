@@ -64,8 +64,55 @@ $providerSection=substr($migration,(int)strpos($migration,'install_telnyx_provid
 $fail('no raw provider payload is stored',strpos($providerSection,'payload text')===false&&strpos($providerSection,'phone varchar')===false);
 require_once $root.'/src/Integrations/Notifications/NotificationCatalogue.php';
 require_once $root.'/src/Integrations/Notifications/TelnyxTemplateRegistry.php';
-foreach(\Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry::definitions() as $name=>$definition){
-    $event=\Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::get($definition['event_key']);
+$definitions=\Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry::definitions();
+$registryEvents=array();
+foreach($definitions as $name=>$definition){
+    $eventKey=(string)$definition['event_key'];
+    $event=\Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::get($eventKey);
     if($event===null||!in_array('whatsapp',(array)$event['channels'],true))throw new RuntimeException('Telnyx integration contract failed: mapped event does not permit WhatsApp: '.$name);
+    if(isset($registryEvents[$eventKey]))throw new RuntimeException('Telnyx integration contract failed: duplicate event mapping for '.$eventKey);
+    $registryEvents[$eventKey]=$name;
+    $declared=\Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::variables($eventKey);
+    $order=array_values((array)$definition['variable_order']);
+    if($order===array()||count($order)!==count(array_unique($order)))throw new RuntimeException('Telnyx integration contract failed: invalid variable order for '.$name);
+    if(array_diff($order,$declared)!==array())throw new RuntimeException('Telnyx integration contract failed: undeclared variable in '.$name);
 }
+
+/* WhatsApp provider-template manifest (deployment/notifications/whatsapp-templates.json). The
+ * audited workflow creates templates from this file; discovery maps them through the registry, so
+ * every manifest name must resolve to a registry definition and every variable must be declared. */
+$manifestPath=$repo.'/deployment/notifications/whatsapp-templates.json';
+$fail('WhatsApp template manifest exists',is_file($manifestPath));
+$manifest=json_decode((string)file_get_contents($manifestPath),true);
+$fail('WhatsApp template manifest is valid JSON',is_array($manifest)&&is_array($manifest['templates']??null));
+$fail('WhatsApp template manifest provider is telnyx',(string)($manifest['provider']??'')==='telnyx');
+$fail('WhatsApp template manifest version is 1',(int)($manifest['version']??0)===1);
+$manifestNames=array();
+foreach((array)($manifest['templates']??array()) as $template){
+    $name=(string)($template['name']??'');
+    $eventKey=(string)($template['event_key']??'');
+    if($name===''||$eventKey==='')throw new RuntimeException('Telnyx integration contract failed: manifest template missing name or event key');
+    if(isset($manifestNames[$name]))throw new RuntimeException('Telnyx integration contract failed: duplicate manifest template name '.$name);
+    $manifestNames[$name]=$eventKey;
+    if(!isset($definitions[$name]))throw new RuntimeException('Telnyx integration contract failed: manifest template is not in the registry: '.$name);
+    if($definitions[$name]['event_key']!==$eventKey)throw new RuntimeException('Telnyx integration contract failed: manifest/registry event mismatch for '.$name);
+    if(strtoupper((string)($template['category']??''))!=='UTILITY')throw new RuntimeException('Telnyx integration contract failed: manifest template is not Utility: '.$name);
+    if((string)($template['language']??'')!=='fa')throw new RuntimeException('Telnyx integration contract failed: manifest template is not fa: '.$name);
+    $event=\Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::get($eventKey);
+    if($event===null)throw new RuntimeException('Telnyx integration contract failed: manifest event not in catalogue: '.$eventKey);
+    $variables=array_values((array)($template['variables']??array()));
+    if($variables===array())throw new RuntimeException('Telnyx integration contract failed: manifest template has no variables: '.$name);
+    $declared=\Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::variables($eventKey);
+    if(array_diff($variables,$declared)!==array())throw new RuntimeException('Telnyx integration contract failed: manifest declares an undeclared variable for '.$name);
+    $body=(string)($template['body']??'');
+    if(preg_match('/\{\{([a-z][a-z0-9_]{0,63})\}\}/',$body)===1)throw new RuntimeException('Telnyx integration contract failed: manifest body still has a named placeholder for '.$name);
+    preg_match_all('/\{\{([0-9]+)\}\}/',$body,$matches);
+    $positions=array_map('intval',$matches[1]);
+    if($positions!==range(1,count($variables)))throw new RuntimeException('Telnyx integration contract failed: manifest positional order does not match variables for '.$name);
+    $samples=is_array($template['samples']??null)?(array)$template['samples']:array();
+    $sampleKeys=array_values(array_keys($samples));
+    sort($sampleKeys);$sortedVariables=$variables;sort($sortedVariables);
+    if($sampleKeys!==$sortedVariables)throw new RuntimeException('Telnyx integration contract failed: manifest samples do not match variables for '.$name);
+}
+if(count($manifestNames)!==count($definitions))throw new RuntimeException('Telnyx integration contract failed: manifest and registry disagree on template count');
 echo "Telnyx SMS and WhatsApp integration contract passed\n";

@@ -1,0 +1,724 @@
+{
+    "version": 1,
+    "provider": "telnyx",
+    "templates": [
+        {
+            "name": "delnavazan_intro_confirmed_fa",
+            "event_key": "booking.confirmed.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}}، کلاس آشنایی «{{2}}» با {{3}} در {{4}} تأیید شد. کلاس در محیط کلاس آنلاین دلنوازان برگزار می‌شود — حساب کاربری: {{5}}",
+            "variables": [
+                "name",
+                "course",
+                "teacher",
+                "when",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "teacher": "استاد ندا",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_teacher_new_booking_fa",
+            "event_key": "booking.new.teacher",
+            "audience": "teacher",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، رزرو تازه‌ای برای کلاس {{2}} با هنرجو {{3}} در {{4}} ثبت شد. مهلت پاسخ {{5}} است؛ در غیر این صورت درخواست به مدرس بعدی ارجاع می‌شود. پرتال مدرس: {{6}}",
+            "variables": [
+                "teacher",
+                "course",
+                "student",
+                "when",
+                "response_window",
+                "teacher_portal_url"
+            ],
+            "samples": {
+                "teacher": "استاد ندا",
+                "course": "تار",
+                "student": "باران",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "response_window": "۲۴ ساعت",
+                "teacher_portal_url": "https://example.invalid/teacher-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_booking_confirmation_fa",
+            "event_key": "booking.requested.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، درخواست رزرو کلاس {{2}} شما در زمان {{3}} ثبت شد. پس از تأیید مدرس، اطلاعات نهایی برای شما ارسال می‌شود. حساب: {{4}}",
+            "variables": [
+                "name",
+                "course",
+                "when",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_class_access_fa",
+            "event_key": "lesson.access.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، کلاس {{2}} شما با {{3}} در {{4}} آمادهٔ برگزاری است. برای ورود به کلاس به حساب کاربری بروید: {{5}}",
+            "variables": [
+                "name",
+                "course",
+                "teacher",
+                "when",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "teacher": "استاد ندا",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_class_cancelled_fa",
+            "event_key": "lesson.cancelled.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، کلاس {{2}} شما با {{3}} در زمان {{4}} لغو شد. برای هماهنگی جلسهٔ جبرانی به حساب کاربری مراجعه کنید: {{5}}",
+            "variables": [
+                "name",
+                "course",
+                "teacher",
+                "when",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "teacher": "استاد ندا",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_class_reminder_fa",
+            "event_key": "lesson.reminder.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، کلاس {{2}} شما با {{3}} در {{4}} برگزار می‌شود. برای ورود به کلاس به حساب کاربری بروید: {{5}}",
+            "variables": [
+                "name",
+                "course",
+                "teacher",
+                "when",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "teacher": "استاد ندا",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_payment_failed_student_fa",
+            "event_key": "payment.failed.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، پرداخت ترم «{{2}}» انجام نشد. مبلغ: {{3}}. برای تلاش دوباره از حساب کاربری اقدام کنید: {{4}}",
+            "variables": [
+                "name",
+                "course",
+                "amount",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "amount": "۲٬۵۰۰٬۰۰۰ تومان",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_payment_received_fa",
+            "event_key": "payment.recovered.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، پرداخت ترم «{{2}}» تأیید شد. مبلغ: {{3}}، تاریخ: {{4}}. جزئیات در حساب کاربری: {{5}}",
+            "variables": [
+                "name",
+                "course",
+                "amount",
+                "paid_date",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "amount": "۲٬۵۰۰٬۰۰۰ تومان",
+                "paid_date": "۱۲ آبان ۱۴۰۵",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_enrolment_confirmation_fa",
+            "event_key": "post_intro.activated.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، ثبت‌نام «{{2}}» شما با {{3}} فعال شد. برنامهٔ کلاس‌ها در حساب کاربری در دسترس است: {{4}}",
+            "variables": [
+                "name",
+                "course",
+                "teacher",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "teacher": "استاد ندا",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_refund_resolved_student_fa",
+            "event_key": "refund.resolved.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، بررسی درخواست بازپرداخت شما به پایان رسید. مبلغ درخواستی: {{2}}. نتیجهٔ نهایی در حساب کاربری: {{3}}",
+            "variables": [
+                "name",
+                "amount",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "amount": "۲٬۵۰۰٬۰۰۰ تومان",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_refund_review_required_student_fa",
+            "event_key": "refund.review_required.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، درخواست بازپرداخت شما ثبت شد و در حال بررسی است. مبلغ درخواستی: {{2}}. نتیجه در حساب کاربری اعلام می‌شود: {{3}}",
+            "variables": [
+                "name",
+                "amount",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "amount": "۲٬۵۰۰٬۰۰۰ تومان",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_renewal_automatic_charged_student_fa",
+            "event_key": "renewal.automatic_charged.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، تمدید خودکار ترم «{{2}}» انجام شد. مبلغ: {{3}}، تاریخ پرداخت: {{4}}. جزئیات در حساب کاربری: {{5}}",
+            "variables": [
+                "name",
+                "course",
+                "amount",
+                "paid_date",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "amount": "۲٬۵۰۰٬۰۰۰ تومان",
+                "paid_date": "۱۲ آبان ۱۴۰۵",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_renewal_automatic_failed_student_fa",
+            "event_key": "renewal.automatic_failed.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، تمدید خودکار ترم «{{2}}» انجام نشد. مبلغ: {{3}}، مهلت اقدام: {{4}}. برای حفظ جایگاه از حساب کاربری پرداخت کنید: {{5}}",
+            "variables": [
+                "name",
+                "course",
+                "amount",
+                "due_date",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "amount": "۲٬۵۰۰٬۰۰۰ تومان",
+                "due_date": "۱۵ آبان ۱۴۰۵",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_renewal_reminder_fa",
+            "event_key": "renewal.automatic_upcoming.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، تمدید خودکار ترم «{{2}}» در {{3}} انجام می‌شود. مبلغ تمدید: {{4}}. برای تغییر روش پرداخت یا ادامه‌ندادن، پیش از این تاریخ از حساب کاربری اقدام کنید: {{5}}",
+            "variables": [
+                "name",
+                "course",
+                "due_date",
+                "amount",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "due_date": "۱۵ آبان ۱۴۰۵",
+                "amount": "۲٬۵۰۰٬۰۰۰ تومان",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_renewal_guarantee_deadline_approaching_student_fa",
+            "event_key": "renewal.guarantee_deadline_approaching.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، مهلت نگه‌داشتن جایگاه ترم «{{2}}» در {{3}} پایان می‌یابد. مبلغ تمدید: {{4}}. پرداخت از حساب کاربری: {{5}}",
+            "variables": [
+                "name",
+                "course",
+                "due_date",
+                "amount",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "due_date": "۱۵ آبان ۱۴۰۵",
+                "amount": "۲٬۵۰۰٬۰۰۰ تومان",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_payment_due_fa",
+            "event_key": "renewal.manual_payment_required.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، برای ادامهٔ ترم «{{2}}» پرداخت تمدید لازم است. مبلغ: {{3}}، مهلت: {{4}}. پرداخت از حساب کاربری: {{5}}",
+            "variables": [
+                "name",
+                "course",
+                "amount",
+                "due_date",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "amount": "۲٬۵۰۰٬۰۰۰ تومان",
+                "due_date": "۱۵ آبان ۱۴۰۵",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_renewal_term_lapsed_student_fa",
+            "event_key": "renewal.term_lapsed.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، ترم «{{2}}» به پایان رسید و تمدید آن تکمیل نشد. برای شروع ترم تازه از حساب کاربری اقدام کنید: {{3}}",
+            "variables": [
+                "name",
+                "course",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_class_rescheduled_fa",
+            "event_key": "reschedule.change.accepted.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، زمان پیشنهادی تغییر زمان کلاس تأیید شد. زمان جدید: {{2}} ({{3}}). جزئیات در حساب کاربری: {{4}}",
+            "variables": [
+                "name",
+                "when",
+                "timezone",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "timezone": "Asia/Tehran",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_teacher_schedule_change_fa",
+            "event_key": "reschedule.change.accepted.teacher",
+            "audience": "teacher",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، هنرجو زمان پیشنهادی تغییر زمان کلاس را پذیرفت و {{2}} ({{3}}) قطعی شد. پرتال مدرس: {{4}}",
+            "variables": [
+                "teacher",
+                "when",
+                "timezone",
+                "teacher_portal_url"
+            ],
+            "samples": {
+                "teacher": "استاد ندا",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "timezone": "Asia/Tehran",
+                "teacher_portal_url": "https://example.invalid/teacher-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_change_cancelled_student_fa",
+            "event_key": "reschedule.change.cancelled.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، پیشنهاد زمان تغییر زمان کلاس توسط مدیر لغو شد. زمان فعلی کلاس تغییر نمی‌کند. جزئیات در حساب کاربری: {{2}}",
+            "variables": [
+                "name",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_change_cancelled_teacher_fa",
+            "event_key": "reschedule.change.cancelled.teacher",
+            "audience": "teacher",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، پیشنهاد زمان تغییر زمان کلاس توسط مدیر لغو شد. زمان فعلی کلاس تغییر نمی‌کند. پرتال مدرس: {{2}}",
+            "variables": [
+                "teacher",
+                "teacher_portal_url"
+            ],
+            "samples": {
+                "teacher": "استاد ندا",
+                "teacher_portal_url": "https://example.invalid/teacher-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_change_failed_student_fa",
+            "event_key": "reschedule.change.failed.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، زمان پیشنهادی تغییر زمان کلاس ثبت نشد و بسته شد. زمان فعلی کلاس تغییر نمی‌کند. پیگیری در حساب کاربری: {{2}}",
+            "variables": [
+                "name",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_change_failed_teacher_fa",
+            "event_key": "reschedule.change.failed.teacher",
+            "audience": "teacher",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، پیشنهاد زمان تغییر زمان کلاس ثبت نشد و بسته شد. زمان فعلی کلاس تغییر نمی‌کند. پرتال مدرس: {{2}}",
+            "variables": [
+                "teacher",
+                "teacher_portal_url"
+            ],
+            "samples": {
+                "teacher": "استاد ندا",
+                "teacher_portal_url": "https://example.invalid/teacher-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_request_fa",
+            "event_key": "reschedule.change.proposed.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، برای تغییر زمان کلاس شما زمان {{2}} ({{3}}) پیشنهاد شد. تا پاسخ شما زمان فعلی تغییر نمی‌کند. پذیرش یا رد در حساب کاربری: {{4}}",
+            "variables": [
+                "name",
+                "when",
+                "timezone",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "timezone": "Asia/Tehran",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_change_proposed_teacher_fa",
+            "event_key": "reschedule.change.proposed.teacher",
+            "audience": "teacher",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، درخواست تغییر زمان کلاس برای {{2}} ({{3}}) ثبت شد و تا پاسخ هنرجو قطعی نیست. پرتال مدرس: {{4}}",
+            "variables": [
+                "teacher",
+                "when",
+                "timezone",
+                "teacher_portal_url"
+            ],
+            "samples": {
+                "teacher": "استاد ندا",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "timezone": "Asia/Tehran",
+                "teacher_portal_url": "https://example.invalid/teacher-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_rejected_fa",
+            "event_key": "reschedule.change.rejected.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، زمان پیشنهادی تغییر زمان کلاس رد شد و زمان فعلی {{2}} تغییر نمی‌کند. هماهنگی زمان تازه در حساب کاربری: {{3}}",
+            "variables": [
+                "name",
+                "when",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_change_rejected_teacher_fa",
+            "event_key": "reschedule.change.rejected.teacher",
+            "audience": "teacher",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، هنرجو زمان پیشنهادی تغییر زمان کلاس را رد کرد و زمان فعلی {{2}} تغییر نمی‌کند. لطفاً زمان تازه‌ای پیشنهاد دهید: {{3}}",
+            "variables": [
+                "teacher",
+                "when",
+                "teacher_portal_url"
+            ],
+            "samples": {
+                "teacher": "استاد ندا",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "teacher_portal_url": "https://example.invalid/teacher-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_replacement_accepted_student_fa",
+            "event_key": "reschedule.replacement.accepted.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، زمان پیشنهادی جلسهٔ جبرانی تأیید شد. زمان جدید: {{2}} ({{3}}). جزئیات در حساب کاربری: {{4}}",
+            "variables": [
+                "name",
+                "when",
+                "timezone",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "timezone": "Asia/Tehran",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_replacement_accepted_teacher_fa",
+            "event_key": "reschedule.replacement.accepted.teacher",
+            "audience": "teacher",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، هنرجو زمان پیشنهادی جلسهٔ جبرانی را پذیرفت و {{2}} ({{3}}) قطعی شد. پرتال مدرس: {{4}}",
+            "variables": [
+                "teacher",
+                "when",
+                "timezone",
+                "teacher_portal_url"
+            ],
+            "samples": {
+                "teacher": "استاد ندا",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "timezone": "Asia/Tehran",
+                "teacher_portal_url": "https://example.invalid/teacher-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_replacement_cancelled_student_fa",
+            "event_key": "reschedule.replacement.cancelled.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، پیشنهاد زمان جلسهٔ جبرانی توسط مدیر لغو شد. زمان فعلی کلاس تغییر نمی‌کند. جزئیات در حساب کاربری: {{2}}",
+            "variables": [
+                "name",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_replacement_cancelled_teacher_fa",
+            "event_key": "reschedule.replacement.cancelled.teacher",
+            "audience": "teacher",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، پیشنهاد زمان جلسهٔ جبرانی توسط مدیر لغو شد. زمان فعلی کلاس تغییر نمی‌کند. پرتال مدرس: {{2}}",
+            "variables": [
+                "teacher",
+                "teacher_portal_url"
+            ],
+            "samples": {
+                "teacher": "استاد ندا",
+                "teacher_portal_url": "https://example.invalid/teacher-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_replacement_failed_student_fa",
+            "event_key": "reschedule.replacement.failed.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، زمان پیشنهادی جلسهٔ جبرانی ثبت نشد و بسته شد. زمان فعلی کلاس تغییر نمی‌کند. پیگیری در حساب کاربری: {{2}}",
+            "variables": [
+                "name",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_replacement_failed_teacher_fa",
+            "event_key": "reschedule.replacement.failed.teacher",
+            "audience": "teacher",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، پیشنهاد زمان جلسهٔ جبرانی ثبت نشد و بسته شد. زمان فعلی کلاس تغییر نمی‌کند. پرتال مدرس: {{2}}",
+            "variables": [
+                "teacher",
+                "teacher_portal_url"
+            ],
+            "samples": {
+                "teacher": "استاد ندا",
+                "teacher_portal_url": "https://example.invalid/teacher-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_replacement_proposed_student_fa",
+            "event_key": "reschedule.replacement.proposed.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، برای جلسهٔ جبرانی شما زمان {{2}} ({{3}}) پیشنهاد شد. تا پاسخ شما زمان فعلی تغییر نمی‌کند. پذیرش یا رد در حساب کاربری: {{4}}",
+            "variables": [
+                "name",
+                "when",
+                "timezone",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "timezone": "Asia/Tehran",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_replacement_proposed_teacher_fa",
+            "event_key": "reschedule.replacement.proposed.teacher",
+            "audience": "teacher",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، درخواست جلسهٔ جبرانی برای {{2}} ({{3}}) ثبت شد و تا پاسخ هنرجو قطعی نیست. پرتال مدرس: {{4}}",
+            "variables": [
+                "teacher",
+                "when",
+                "timezone",
+                "teacher_portal_url"
+            ],
+            "samples": {
+                "teacher": "استاد ندا",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "timezone": "Asia/Tehran",
+                "teacher_portal_url": "https://example.invalid/teacher-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_replacement_rejected_student_fa",
+            "event_key": "reschedule.replacement.rejected.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، زمان پیشنهادی جلسهٔ جبرانی رد شد و زمان فعلی {{2}} تغییر نمی‌کند. هماهنگی زمان تازه در حساب کاربری: {{3}}",
+            "variables": [
+                "name",
+                "when",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_reschedule_replacement_rejected_teacher_fa",
+            "event_key": "reschedule.replacement.rejected.teacher",
+            "audience": "teacher",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، هنرجو زمان پیشنهادی جلسهٔ جبرانی را رد کرد و زمان فعلی {{2}} تغییر نمی‌کند. لطفاً زمان تازه‌ای پیشنهاد دهید: {{3}}",
+            "variables": [
+                "teacher",
+                "when",
+                "teacher_portal_url"
+            ],
+            "samples": {
+                "teacher": "استاد ندا",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "teacher_portal_url": "https://example.invalid/teacher-portal/"
+            }
+        }
+    ]
+}

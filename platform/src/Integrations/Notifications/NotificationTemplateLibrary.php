@@ -295,28 +295,41 @@ final class NotificationTemplateLibrary {
         $event=NotificationCatalogue::get($eventKey);
         if($event===null)return self::denied('Unknown notification event.');
         if(!in_array($channel,(array)$event['channels'],true))return self::denied('This event does not offer that delivery channel.');
-        $draft=$this->draft($eventKey,$channel,$locale);
-        if($draft===null)return self::denied('No draft is waiting for publication.');
-        $review=NotificationCatalogue::reviewFor($eventKey);
-        if(in_array('dedicated_authority',$review,true))return self::denied('This message is owned by a dedicated secure delivery authority.');
-        if(in_array('financial',$review,true)||in_array('legal',$review,true))return self::denied('Finance and legal approval is outstanding for this copy.');
-        if(in_array('security',$review,true))return self::denied('Security approval is outstanding for this copy.');
+        if($this->draft($eventKey,$channel,$locale)===null)return self::denied('No draft is waiting for publication.');
+        $gate=$this->draftChannelApproval($eventKey,$channel,$locale);
+        if(!$gate['ok'])return self::denied($gate['reason']);
         // The bulk workflow requires an explicit editorial approval for this exact draft content.
-        $approval=$this->draftApproval($eventKey,$channel,$locale);
-        if($approval===null)return self::denied('The draft has not been approved for publication.');
+        if($this->draftApproval($eventKey,$channel,$locale)===null)return self::denied('The draft has not been approved for publication.');
+        return array('allowed'=>true,'reason'=>'');
+    }
+
+    /**
+     * The approvals that belong to the channel rather than to the editor: the owning reviewer for
+     * sensitive copy and a positively mapped provider template for WhatsApp. This half of the gate can
+     * be satisfied without a draft approval, which is what makes bulk approval possible.
+     *
+     * @return array{ok:bool,reason:string}
+     */
+    public function draftChannelApproval(string $eventKey,string $channel,string $locale):array{
+        $event=NotificationCatalogue::get($eventKey);
+        if($event===null)return array('ok'=>false,'reason'=>'Unknown notification event.');
+        $review=NotificationCatalogue::reviewFor($eventKey);
+        if(in_array('dedicated_authority',$review,true))return array('ok'=>false,'reason'=>'This message is owned by a dedicated secure delivery authority.');
+        if(in_array('security',$review,true))return array('ok'=>false,'reason'=>'Security approval is outstanding for this copy.');
         if($channel==='whatsapp'){
             $status=$this->status($eventKey,$channel,$locale);
             $state=(string)($status['provider_state']??'');
-            if($state!==TelnyxTemplateAuthority::MAPPED)return self::denied(self::providerBlockReason($state));
+            if($state!==TelnyxTemplateAuthority::MAPPED)return array('ok'=>false,'reason'=>self::providerBlockReason($state));
             $mapping=$this->providerMapping(NotificationCatalogue::templateKey($eventKey,$channel,$locale));
+            $draft=$this->draft($eventKey,$channel,$locale);
             if((string)($mapping['source']??'')==='manual'&&(string)($mapping['body_digest']??'')!==''){
                 // A manual mapping is an attestation about one exact body. The recorded digest covers
                 // the body only, so it is compared with the body-only digest of the draft: editing the
                 // copy after the mapping was recorded must not be bulk-published against it.
-                if(!hash_equals((string)$mapping['body_digest'],$this->copyDigest((string)($draft['body']??''))))return self::denied('The draft differs from the copy the provider mapping was recorded against.');
+                if(!hash_equals((string)$mapping['body_digest'],$this->copyDigest((string)($draft['body']??''))))return array('ok'=>false,'reason'=>'The draft differs from the copy the provider mapping was recorded against.');
             }
         }
-        return array('allowed'=>true,'reason'=>'');
+        return array('ok'=>true,'reason'=>'');
     }
 
     /** @return array{allowed:false,reason:string} */
@@ -483,6 +496,72 @@ final class NotificationTemplateLibrary {
             'unmapped_whatsapp'=>array_values(array_unique($unmappedWhatsapp)),
             'unsupported'=>array_values(array_unique($unsupported)),
             'declared_only'=>array_values(array_unique($declaredOnly)),
+        );
+    }
+
+    /**
+     * Approve every draft whose channel approvals are already complete, in one audited action.
+     *
+     * This is the bulk step the workflow was missing: it records an explicit approval for each exact
+     * draft and skips sensitive copy (finance, legal, security, dedicated authority) and every route
+     * whose provider template is not positively mapped. It is deliberately a separate, named action so
+     * that no copy is ever published without an administrator asking for it.
+     *
+     * @return array{approved:int,skipped:array<int,array{template_key:string,reason:string}>}
+     */
+    public function approveOperationalDrafts():array{
+        $approved=0;$skipped=array();
+        foreach($this->drafts() as $key=>$row){
+            if(!is_array($row))continue;
+            $eventKey=(string)($row['event_key']??'');
+            $channel=(string)($row['channel']??'');
+            $locale=NotificationCatalogue::normaliseLocale((string)($row['locale']??''));
+            $gate=$this->draftChannelApproval($eventKey,$channel,$locale);
+            if(!$gate['ok']){$skipped[]=array('template_key'=>(string)$key,'reason'=>(string)$gate['reason']);continue;}
+            try{
+                $this->approveDraft($eventKey,$channel,$locale);
+                $approved++;
+            }catch(\Throwable $error){
+                $skipped[]=array('template_key'=>(string)$key,'reason'=>$error->getMessage());
+            }
+        }
+        $this->audit('approve_operational_drafts','','','',null,'Bulk approval of '.$approved.' operational draft(s)');
+        return array('approved'=>$approved,'skipped'=>$skipped);
+    }
+
+    /**
+     * Live counters for the administration workflow panel. Every draft is classified exactly once:
+     * held back by an external approval, approved and ready to publish, or still awaiting an editor's
+     * approval. This deliberately avoids a full per-template provider resolution — the authoritative
+     * outcome of each bulk action is reported by that action and stored.
+     *
+     * @return array{drafts:int,approved:int,publishable:int,awaiting:int,held:int,held_by_reason:array<string,int>}
+     */
+    public function workflowReport():array{
+        $drafts=0;$approved=0;$publishable=0;$held=0;$byReason=array();
+        foreach($this->drafts() as $row){
+            if(!is_array($row))continue;
+            $drafts++;
+            $eventKey=(string)($row['event_key']??'');
+            $channel=(string)($row['channel']??'');
+            $locale=NotificationCatalogue::normaliseLocale((string)($row['locale']??''));
+            $review=NotificationCatalogue::reviewFor($eventKey);
+            if($review!==array()){
+                $held++;
+                foreach($review as $code)@$byReason[(string)(NotificationCatalogue::REVIEW[$code]??$code)]++;
+                continue;
+            }
+            $isApproved=$this->draftApproval($eventKey,$channel,$locale)!==null;
+            if($channel==='whatsapp'&&(string)($this->providerMapping(NotificationCatalogue::templateKey($eventKey,$channel,$locale))['name']??'')===''){
+                $held++;
+                @$byReason['No approved Meta/Telnyx template is mapped for this route']++;
+                continue;
+            }
+            if($isApproved){$approved++;$publishable++;}
+        }
+        return array(
+            'drafts'=>$drafts,'approved'=>$approved,'publishable'=>$publishable,
+            'awaiting'=>max(0,$drafts-$held-$approved),'held'=>$held,'held_by_reason'=>$byReason,
         );
     }
 

@@ -14,7 +14,7 @@ $fail = static function (string $name, bool $ok): void {
 
 $fail('primary notification tab exists', str_contains($shell, "'notifications' => ['Notifications'"));
 $fail('notifications is not a Settings section', !str_contains($shell, "'notifications' => ['Notifications', ['dzn-notifications'"));
-$fail('single event table columns', str_contains($controller, '<th>Category</th>') && str_contains($controller, '<th>Notification and purpose</th>') && str_contains($controller, '<th>Portal</th>') && str_contains($controller, '<th>Email</th>') && str_contains($controller, '<th>WhatsApp</th>') && str_contains($controller, '<th>SMS</th>'));
+$fail('a single workspace groups notifications by task into cards', str_contains($controller, 'dzn-notif-grid-cards') && str_contains($controller, "array('website','email','whatsapp','sms')") && str_contains($controller, 'NotificationCatalogue::TASKS'));
 $fail('search includes copy', str_contains($controller, '$library->activeCopy') && str_contains($controller, 'name="search"'));
 $fail('compact filters', str_contains($controller, 'name="category"') && str_contains($controller, 'name="recipient"') && str_contains($controller, 'name="channel"') && str_contains($controller, 'name="status"'));
 $fail('effective state fails closed', str_contains($controller, 'effectiveChannelState') && str_contains($controller, 'missing_provider') && str_contains($controller, 'missing_template'));

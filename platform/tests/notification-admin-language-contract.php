@@ -30,7 +30,7 @@ $fail('legacy tabs are aliases, not navigation entries', str_contains($controlle
 $fail('admin wrapper is LTR', str_contains($controller, 'dir="ltr"') && str_contains($controller, '.dzn-notif-admin{direction:ltr}'));
 $fail('no Persian remains in the admin controller', !$persian($controller));
 $fail('no Persian remains in the admin menu', !$persian($menu));
-foreach (array('Save Draft', 'Publish New Version', 'Discard Draft', 'Restore Default', 'Version History', 'Preview', 'Record Mapping', 'Category', 'Notification and purpose', 'Recipient', 'Portal', 'Email', 'WhatsApp', 'SMS') as $label) {
+foreach (array('Save Draft', 'Publish New Version', 'Discard Draft', 'Restore Default', 'Version History', 'Preview', 'Record Mapping', 'Category', 'Notification catalogue', 'Recipient', 'Portal', 'Email', 'WhatsApp', 'SMS') as $label) {
     $fail('English control or status: ' . $label, str_contains($controller, $label));
 }
 

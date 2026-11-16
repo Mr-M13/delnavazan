@@ -5,7 +5,8 @@
  * The send orchestration lives in a WordPress worker, so the source is the executable evidence: the
  * leg must route only through SMS.ir (never a Telnyx fallback), gate on IntegrationSettingsService
  * `verified('sms_ir')`, record its outcome independently of the email outbox terminal state, and never
- * write the rendered body — which contains the one-time code — to a log or audit surface.
+ * write the rendered body — which is notification-only and never carries the one-time code or claim
+ * link — to a log or audit surface.
  */
 $root = dirname(__DIR__);
 $worker = (string) file_get_contents($root . '/src/Core/Application/TeacherInvitationDeliveryWorker.php');
@@ -43,5 +44,11 @@ $check(str_contains($service, "'teacher_id'=>(int)\$parent->teacher_id"), 'prepa
 
 /* 6. The catalogue declares sms for the teacher invitation. */
 $check(str_contains($catalogue, "array('email','sms')"), 'the teacher invitation catalogue entry declares the sms channel');
+
+/* 7. The SMS is notification-only: no code, no link and no placeholder can reach the SMS transport. */
+$check(str_contains($worker, 'public static function smsBody():string'), 'smsBody takes no claim URL or secret');
+$check(!str_contains($worker, "attemptSms((int)(\$payload['teacher_id']??0),(int)\$payload['invitation_id'],(int)\$payload['generation_id'],\$claimUrl,(string)\$payload['secret'],\$repository"), 'attemptSms no longer receives the claim URL or secret');
+$check(str_contains($catalogue, 'your teaching invitation has been issued'), 'the English SMS copy is the brief notification-only wording');
+$check(!str_contains($catalogue, 'your invitation code {{invitation_code}} - claim page: {{claim_url}}'), 'the old English SMS copy carrying the code and link is removed');
 
 echo "teacher-invitation-sms-contract: pass\n";

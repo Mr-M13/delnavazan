@@ -122,6 +122,9 @@ final class NotificationTemplateSanitizer {
         $required=array();
         foreach(array('when','claim_code','claim_url','invitation_code','join_url') as $code){
             if($code==='join_url'&&$channel==='sms')continue;
+            // The invitation SMS is deliberately notification-only: the one-time code and the claim link
+            // are delivered only in the email, so an SMS edit can never be forced to re-add the secret.
+            if($channel==='sms'&&in_array($code,array('claim_url','invitation_code'),true))continue;
             if(in_array($code,$variables,true))$required[]=$code;
         }
         return array_values(array_unique($required));

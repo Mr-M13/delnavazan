@@ -4,6 +4,7 @@ namespace Delnavazan\Platform\Core\Application;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PrincipalInvitationRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\TeacherRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
+use Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer;
 
 /**
  * 2A.0 owns Core-side invitation authority. WordPress account provisioning is
@@ -20,10 +21,16 @@ final class PrincipalInvitationService {
         $this->admin('dzn_issue_teacher_invitations');$recipient=$this->recipient($recipient);$command=$this->key($command??'issue:'.$teacherId.':'.$recipient);$now=current_time('mysql',true);
         $this->repo->begin();try{if($this->repo->eventExists($command)){$this->repo->commit();return['idempotent'=>true];}$result=$this->queueWithinTransaction($teacherId,$recipient,$ttl,$command,$now);$this->repo->commit();return$result;}catch(\Throwable $e){$this->repo->rollback();throw$e;}}
 
-    /** Create a blank canonical Teacher only when no active profile already owns this email. */
-    public function issueForEmail(string $recipient,int $ttl=604800,?string $command=null):array{
-        $this->admin('dzn_issue_teacher_invitations');$recipient=$this->recipient($recipient);$command=$this->key($command??'issue-email:'.$recipient);$now=current_time('mysql',true);
-        $this->repo->begin();try{if($this->repo->eventExists($command)){$this->repo->commit();return['idempotent'=>true];}$teacherId=$this->teacherForEmail($recipient);$created=false;if(!$teacherId){$teacherId=$this->createInvitedTeacher($recipient,$now);$created=true;}$result=$this->queueWithinTransaction($teacherId,$recipient,$ttl,$command,$now);$this->repo->commit();return$result+array('teacher_id'=>$teacherId,'teacher_created'=>$created);}catch(\Throwable $e){$this->repo->rollback();throw$e;}}
+    /**
+     * Create a blank canonical Teacher only when no active profile already owns this email, and persist
+     * the invitation phone on that Teacher record inside the same transaction. The phone is validated
+     * here (E.164) and refused when present but invalid; when omitted the email-only issuance path is
+     * preserved (the invitation form requires the phone at the UI layer). Never creates a second
+     * Teacher row.
+     */
+    public function issueForEmail(string $recipient,int $ttl=604800,?string $command=null,?string $phone=null):array{
+        $this->admin('dzn_issue_teacher_invitations');$recipient=$this->recipient($recipient);$phone=$this->normalizePhone($phone);$command=$this->key($command??'issue-email:'.$recipient);$now=current_time('mysql',true);
+        $this->repo->begin();try{if($this->repo->eventExists($command)){$this->repo->commit();return['idempotent'=>true];}$teacherId=$this->teacherForEmail($recipient);$created=false;if(!$teacherId){$teacherId=$this->createInvitedTeacher($recipient,$now,$phone);$created=true;}elseif($phone!==null){$this->repo->update('teachers',['phone'=>$phone,'updated_at'=>$now,'updated_by'=>get_current_user_id()],['id'=>$teacherId]);}$result=$this->queueWithinTransaction($teacherId,$recipient,$ttl,$command,$now);$this->repo->commit();return$result+array('teacher_id'=>$teacherId,'teacher_created'=>$created);}catch(\Throwable $e){$this->repo->rollback();throw$e;}}
 
     private function queueWithinTransaction(int $teacherId,string $recipient,int $ttl,string $command,string $now):array{
         $teacher=$this->repo->teacherForUpdate($teacherId);if(!$teacher||$teacher->archived_at!==null||$teacher->status!=='active')throw new \InvalidArgumentException('Teacher is not onboarding eligible');$parent=$this->repo->invitationForTeacher($teacherId);if(!$parent){$parentId=$this->repo->insert('teacher_invitations',['teacher_id'=>$teacherId,'recipient_digest'=>hash('sha256',$recipient),'current_generation_number'=>0,'status'=>'active','version'=>1,'created_at'=>$now,'updated_at'=>$now,'created_by'=>get_current_user_id(),'updated_by'=>get_current_user_id()]);$parent=$this->repo->invitationForTeacher($teacherId);}else{$parentId=(int)$parent->id;$this->repo->supersedeUnclaimedGenerations($parentId,$now);$this->repo->cancelPendingDeliveryOutboxes($parentId,$now);}
@@ -38,9 +45,18 @@ final class PrincipalInvitationService {
         return(int)$teacher->id;
     }
 
-    private function createInvitedTeacher(string $recipient,string $now):int{
-        $teachers=new TeacherRepository();$data=array('uid'=>Identifier::uid(),'reference_code'=>null,'status'=>'active','persian_name'=>null,'english_name'=>null,'display_name'=>'مدرس جدید','email'=>$recipient,'phone'=>null,'whatsapp_phone'=>null,'country_code'=>null,'city'=>null,'timezone'=>null,'timezone_source'=>null,'locale'=>null,'calendar_preference'=>null,'wordpress_user_id'=>null);
+    private function createInvitedTeacher(string $recipient,string $now,?string $phone=null):int{
+        $teachers=new TeacherRepository();$data=array('uid'=>Identifier::uid(),'reference_code'=>null,'status'=>'active','persian_name'=>null,'english_name'=>null,'display_name'=>'مدرس جدید','email'=>$recipient,'phone'=>$phone,'whatsapp_phone'=>null,'country_code'=>null,'city'=>null,'timezone'=>null,'timezone_source'=>null,'locale'=>null,'calendar_preference'=>null,'wordpress_user_id'=>null);
         $data=array_replace($data,$teachers->creationAuditValues($now,(int)get_current_user_id()?:null));$id=$teachers->insert($data);try{$teachers->assignReference($id,Identifier::reference('DZN-TCH-',$id));}catch(\Throwable $e){throw new \RuntimeException('Persistence failed: teacher reference assignment',0,$e);}return$id;
+    }
+
+    /** Normalise an invitation phone to E.164; empty input stays empty, an invalid value is refused. */
+    private function normalizePhone(?string $phone):?string{
+        $raw=trim((string)$phone);
+        if($raw==='')return null;
+        $normalized=PhoneNumberNormalizer::toE164($raw);
+        if($normalized==='')throw new \InvalidArgumentException('Valid teacher phone number required');
+        return $normalized;
     }
 
     /**

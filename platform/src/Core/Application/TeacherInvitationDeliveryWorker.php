@@ -12,10 +12,11 @@ use Delnavazan\Platform\Integrations\SmsIrAdapter;
  * Bounded legacy invitation-delivery worker. Invitation delivery deliberately remains outside
  * NotificationService: the one-time secret is created only at this transport boundary.
  *
- * The email leg is primary and terminal for the invitation outbox. Iranian teachers additionally
- * receive the same one-time invitation over SMS.ir, but that leg is deliberately independent: an SMS
- * skip or failure can never change the recorded email outcome or fail the invitation, and the SMS body
- * (which contains the one-time code) is never written to a log or audit surface.
+ * The email leg is primary and terminal for the invitation outbox and is the only leg that carries the
+ * one-time code or the claim URL. Iranian teachers additionally receive a brief, notification-only SMS
+ * over SMS.ir (no code, no link); that leg is deliberately independent: an SMS skip or failure can never
+ * change the recorded email outcome or fail the invitation, and the SMS body is never written to a log
+ * or audit surface.
  */
 final class TeacherInvitationDeliveryWorker {
     public const HOOK='dzn_teacher_invitation_delivery_dispatch';
@@ -65,8 +66,9 @@ final class TeacherInvitationDeliveryWorker {
             unset($message);
             $repository->finishPreparedDelivery($generationId,$sent?'delivered':'failed',$sent?null:'mail_transport_rejected');
             // SMS leg for Iranian teachers. Never throws into the caller and never changes the
-            // email outcome above, so a provider failure cannot fail the invitation.
-            self::attemptSms((int)($payload['teacher_id']??0),(int)$payload['invitation_id'],(int)$payload['generation_id'],$claimUrl,(string)$payload['secret'],$repository);
+            // email outcome above, so a provider failure cannot fail the invitation. It is a brief,
+            // notification-only message: no one-time code and no claim URL reach the SMS transport.
+            self::attemptSms((int)($payload['teacher_id']??0),(int)$payload['invitation_id'],(int)$payload['generation_id'],$repository);
             unset($payload['secret']);
             return $sent?'accepted_by_transport':'failed';
         }catch(\Throwable $e){
@@ -92,21 +94,22 @@ final class TeacherInvitationDeliveryWorker {
         return null;
     }
 
-    /** The rendered SMS body from the single catalogue source. Pure: no WordPress, no transport. */
-    public static function smsBody(string $claimUrl,string $secret):string{
+    /** The rendered SMS body from the single catalogue source. Pure: no WordPress, no transport.
+     * The SMS is notification-only, so the body has no placeholders and never receives the secret. */
+    public static function smsBody():string{
         $copy=NotificationCatalogue::exactCopy(self::SMS_EVENT,'sms',NotificationCatalogue::PRIMARY_LOCALE);
-        return TeacherInvitationPresentation::render((string)($copy['body']??''),$claimUrl,$secret);
+        return (string)($copy['body']??'');
     }
 
     /** The independent SMS.ir leg. Recorded via a dedicated audit event; the body is never logged. */
-    private static function attemptSms(int $teacherId,int $invitationId,int $generationId,string $claimUrl,string $secret,PrincipalInvitationRepository $repository):void{
+    private static function attemptSms(int $teacherId,int $invitationId,int $generationId,PrincipalInvitationRepository $repository):void{
         try{
             $smsIrConfigured=(new IntegrationSettingsService())->verified('sms_ir');
             $teacher=$teacherId>0?$repository->teacherContactForId($teacherId):null;
             $skip=self::smsSkipReason($teacher?(string)$teacher->phone:null,$teacher?(string)$teacher->country_code:null,$smsIrConfigured);
             if($skip!==null){$repository->recordSmsDelivery($invitationId,$generationId,'skipped',$skip);return;}
             $phone=PhoneNumberNormalizer::toE164((string)$teacher->phone);
-            $text=self::smsBody($claimUrl,$secret);
+            $text=self::smsBody();
             if($text===''){$repository->recordSmsDelivery($invitationId,$generationId,'skipped','sms_copy_unavailable');return;}
             $result=(new SmsIrAdapter())->send(array('to'=>$phone,'body'=>$text));
             unset($text);

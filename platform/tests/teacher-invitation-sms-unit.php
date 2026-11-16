@@ -40,13 +40,14 @@ $check(TeacherInvitationDeliveryWorker::smsSkipReason('not-a-number', 'IR', true
 $check(TeacherInvitationDeliveryWorker::smsSkipReason('+989121234567', 'IR', false) === 'sms_ir_not_configured', 'unconfigured SMS.ir must skip with sms_ir_not_configured');
 $check(TeacherInvitationDeliveryWorker::smsSkipReason('+989121234567', '', false) === 'sms_ir_not_configured', 'Iranian number without SMS.ir config must skip');
 
-/* 5. Rendered SMS body contains the code and URL and matches the catalogue copy exactly. */
-$code = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-$url = 'https://example.invalid/teacher-invitation/';
-$rendered = TeacherInvitationDeliveryWorker::smsBody($url, $code);
+/* 5. The SMS body is notification-only: it matches the catalogue copy exactly and carries no secret or URL. */
+$rendered = TeacherInvitationDeliveryWorker::smsBody();
 $catalogueBody = (string) NotificationCatalogue::exactCopy('teacher.invitation_issued.teacher', 'sms', 'fa-IR')['body'];
-$check(str_contains($rendered, $code), 'rendered SMS must contain the one-time code');
-$check(str_contains($rendered, $url), 'rendered SMS must contain the claim URL');
-$check($rendered === strtr($catalogueBody, array('{{invitation_code}}' => $code, '{{claim_url}}' => $url)), 'rendered SMS must equal the catalogue template rendering');
+$check($rendered === $catalogueBody, 'rendered SMS must equal the catalogue copy exactly');
+$check(!str_contains($rendered, '{{') && !str_contains($rendered, '}}'), 'rendered SMS must contain no placeholders');
+$check(!preg_match('~https?://~i', $rendered), 'rendered SMS must contain no claim URL');
+$check(!str_contains($rendered, '0123456789'), 'rendered SMS must contain no one-time code');
+$enBody = (string) NotificationCatalogue::exactCopy('teacher.invitation_issued.teacher', 'sms', 'en')['body'];
+$check(!str_contains($enBody, '{{') && !str_contains($enBody, '}}') && !preg_match('~https?://~i', $enBody), 'English SMS copy is notification-only as well');
 
 echo "teacher-invitation-sms-unit: pass\n";

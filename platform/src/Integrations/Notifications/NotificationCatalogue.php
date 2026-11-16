@@ -23,7 +23,7 @@ namespace Delnavazan\Platform\Integrations\Notifications;
  *   never rendered into a message.
  */
 final class NotificationCatalogue {
-    public const VERSION='2026-11-16.1';
+    public const VERSION='2026-11-17.1';
     public const PRIMARY_LOCALE='fa-IR';
     public const SUPPORTED_LOCALES=array('fa-IR','en');
 
@@ -426,11 +426,11 @@ final class NotificationCatalogue {
         $out[]=self::event('teacher.invitation_issued.teacher','Teacher Invitation','security','teacher','TeacherInvitationDeliveryWorker','dedicated',array('email','sms'),'security',true,array('invitation_code','claim_url'),'teacher.invitation',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دعوت به همکاری با دلنوازان','body'=>"درود،\n\nبرای شما دعوت‌نامهٔ همکاری با آکادمی موسیقی دلنوازان صادر شده است.\n\nبرای شروع، پیوند زیر را باز کنید و کد یک‌بارمصرف را وارد کنید:\n{{claim_url}}\n\nکد دعوت: {{invitation_code}}\n\nاین کد فقط یک‌بار قابل استفاده است و باید محرمانه بماند. اگر این دعوت را انتظار نداشتید، این پیام را نادیده بگیرید.\n\nبا احترام، دلنوازان"),
-                'sms'=>array('body'=>'دلنوازان: کد دعوت شما {{invitation_code}} · صفحهٔ دعوت: {{claim_url}}'),
+                'sms'=>array('body'=>'دلنوازان: دعوت‌نامهٔ همکاری برای شما صادر شد. کد و پیوند در ایمیل شماست.'),
             ),
             'en'=>array(
                 'email'=>array('subject'=>'An invitation to teach with Delnavazan','body'=>"Hello,\n\nYou have been invited to teach with the Delnavazan music academy.\n\nTo begin, open the link below and enter the one-time code:\n{{claim_url}}\n\nInvitation code: {{invitation_code}}\n\nThis code can be used once and must stay confidential. If you did not expect this invitation, ignore this message.\n\nDelnavazan"),
-                'sms'=>array('body'=>'Delnavazan: your invitation code {{invitation_code}} - claim page: {{claim_url}}'),
+                'sms'=>array('body'=>'Delnavazan: your teaching invitation has been issued. The code and link are in your email.'),
             ),
         ),array('security','dedicated_authority'));
         $out[]=self::event('booking.new.teacher','New Booking for Teacher','booking','teacher','BookingTeacherDeliveryService','queue',array('email','website','whatsapp','sms'),'operational',true,array('teacher','course','student','when','teacher_portal_url','response_window','response_deadline'),'booking.new.teacher',array(

@@ -197,7 +197,7 @@ final class TeacherWorkspaceReadService {
         $p = $wpdb->prefix . 'dzn_';
         $marks = implode(',', array_map('intval', $teacherIds));
         $teacherRows = $wpdb->get_results(
-            "SELECT t.id,t.display_name,t.english_name,t.persian_name,t.email,t.timezone,t.status,t.archived_at,
+            "SELECT t.id,t.display_name,t.english_name,t.persian_name,t.email,t.phone,t.timezone,t.status,t.archived_at,
                     o.state onboarding_state,o.readiness_state,o.profile_state,o.availability_state,
                     l.wordpress_user_id linked_user_id,l.status principal_status,
                     ap.timezone availability_timezone,a.state accepting_state,
@@ -239,6 +239,7 @@ final class TeacherWorkspaceReadService {
                 'teacher_id' => $teacherId,
                 'name' => $name,
                 'email' => $email,
+                'phone' => (string) ($teachers[$teacherId]->phone ?? ''),
                 'linked' => $linked,
                 'account_label' => $linked ? 'Linked' : 'Not linked',
                 'account_state' => $linked ? 'complete' : ($validation['state'] === 'not_sent' ? 'pending' : 'warning'),

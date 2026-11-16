@@ -1,19 +1,19 @@
 {
-    "generated_at": "2026-11-16T21:46:09+00:00",
-    "catalogue_version": "2026-11-17.4",
+    "generated_at": "2026-11-16T21:58:10+00:00",
+    "catalogue_version": "2026-11-17.5",
     "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
     "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
     "totals": {
         "events": 77,
-        "supported_event_channel_combinations": 183,
-        "required_templates": 366,
-        "existing_valid_templates": 366,
+        "supported_event_channel_combinations": 186,
+        "required_templates": 372,
+        "existing_valid_templates": 372,
         "missing_templates": 0,
         "invalid_templates": 0,
         "missing_translations": 0,
         "unpublished_canonical_templates": "live_check_required",
         "missing_provider_mappings": 1,
-        "unsupported_routes": 125,
+        "unsupported_routes": 122,
         "events_without_registered_producer": 10
     },
     "by_category": {
@@ -31,7 +31,7 @@
     },
     "events_per_channel": {
         "email": 70,
-        "whatsapp": 38,
+        "whatsapp": 41,
         "sms": 10,
         "website": 65
     },
@@ -94,6 +94,41 @@
                 "course",
                 "teacher",
                 "when"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_intro_cancelled_fa",
+            "event_key": "booking.cancelled.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "teacher",
+                "when",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_intro_declined_fa",
+            "event_key": "booking.declined.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "teacher",
+                "course",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_intro_rescheduled_fa",
+            "event_key": "booking.rescheduled.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "teacher",
+                "when",
+                "portal_url"
             ]
         },
         {
@@ -471,12 +506,10 @@
         "attendance.absence_reported.teacher.sms",
         "attendance.missed_class_claim.teacher.whatsapp",
         "attendance.missed_class_claim.teacher.sms",
-        "booking.cancelled.student.whatsapp",
         "booking.cancelled.student.sms",
         "booking.cancelled.teacher.whatsapp",
         "booking.cancelled.teacher.sms",
         "booking.confirmed.student.sms",
-        "booking.declined.student.whatsapp",
         "booking.declined.student.sms",
         "booking.escalation.admin.email",
         "booking.escalation.admin.whatsapp",
@@ -487,7 +520,6 @@
         "booking.referral.admin.email",
         "booking.referral.admin.whatsapp",
         "booking.referral.admin.sms",
-        "booking.rescheduled.student.whatsapp",
         "booking.rescheduled.student.sms",
         "booking.rescheduled.teacher.whatsapp",
         "booking.rescheduled.teacher.sms",
@@ -752,7 +784,8 @@
             "delivery_authority": "queue",
             "channels": [
                 "email",
-                "website"
+                "website",
+                "whatsapp"
             ],
             "review_outstanding": [],
             "templates": {
@@ -775,11 +808,21 @@
                     "template_key": "booking.cancelled.student.website.en",
                     "status": "present",
                     "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "booking.cancelled.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "booking.cancelled.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "unsupported",
+                "whatsapp_registry_name": "delnavazan_intro_cancelled_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -895,7 +938,8 @@
             "delivery_authority": "queue",
             "channels": [
                 "email",
-                "website"
+                "website",
+                "whatsapp"
             ],
             "review_outstanding": [],
             "templates": {
@@ -918,11 +962,21 @@
                     "template_key": "booking.declined.student.website.en",
                     "status": "present",
                     "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "booking.declined.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "booking.declined.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "unsupported",
+                "whatsapp_registry_name": "delnavazan_intro_declined_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },
@@ -1170,7 +1224,8 @@
             "delivery_authority": "queue",
             "channels": [
                 "email",
-                "website"
+                "website",
+                "whatsapp"
             ],
             "review_outstanding": [],
             "templates": {
@@ -1193,11 +1248,21 @@
                     "template_key": "booking.rescheduled.student.website.en",
                     "status": "present",
                     "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "booking.rescheduled.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "booking.rescheduled.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "unsupported",
+                "whatsapp_registry_name": "delnavazan_intro_rescheduled_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_state": "unsupported"
             }
         },

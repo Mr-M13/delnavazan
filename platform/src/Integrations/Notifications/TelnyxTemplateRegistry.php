@@ -18,6 +18,9 @@ final class TelnyxTemplateRegistry {
         return array(
             'delnavazan_booking_confirmation_fa'=>array('event_key'=>'booking.requested.student','audience'=>'student','variable_order'=>array('name','course','when')),
             'delnavazan_intro_confirmed_fa'=>array('event_key'=>'booking.confirmed.student','audience'=>'student','variable_order'=>array('name','course','teacher','when')),
+            'delnavazan_intro_cancelled_fa'=>array('event_key'=>'booking.cancelled.student','audience'=>'student','variable_order'=>array('name','course','teacher','when','portal_url')),
+            'delnavazan_intro_declined_fa'=>array('event_key'=>'booking.declined.student','audience'=>'student','variable_order'=>array('name','teacher','course','portal_url')),
+            'delnavazan_intro_rescheduled_fa'=>array('event_key'=>'booking.rescheduled.student','audience'=>'student','variable_order'=>array('name','course','teacher','when','portal_url')),
             'delnavazan_class_rescheduled_fa'=>array('event_key'=>'reschedule.change.accepted.student','audience'=>'student','variable_order'=>array('name','course','teacher','previous_when','new_when')),
             'delnavazan_class_reminder_fa'=>array('event_key'=>'lesson.reminder.student','audience'=>'student','variable_order'=>array('name','course','teacher','when')),
             'delnavazan_reschedule_request_fa'=>array('event_key'=>'reschedule.change.proposed.student','audience'=>'student','variable_order'=>array('name','teacher','course','current_when','new_when')),

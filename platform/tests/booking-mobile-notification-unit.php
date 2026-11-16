@@ -125,8 +125,8 @@ namespace {
 
     // 9. An event that does not offer WhatsApp is never sent on the mobile route.
     $dispatcher = new BookingNotificationMobileDispatcher($settings, $configuration, $policy, $notSuppressed, $wa, $noSms);
-    $result = $dispatcher->dispatch($student, 'booking.declined.student', array('name' => 'باران', 'teacher' => 'استاد ندا', 'course' => 'تار', 'portal_url' => 'https://delnavazan.com/student-portal/'));
-    $assert(($result['state'] ?? '') === 'skipped' && ($result['reason'] ?? '') === 'channel_not_offered', 'declined event must not use WhatsApp');
+    $result = $dispatcher->dispatch($student, 'post_intro.survey.student', array('name' => 'باران', 'teacher' => 'استاد ندا', 'course' => 'تار', 'portal_url' => 'https://delnavazan.com/student-portal/'));
+    $assert(($result['state'] ?? '') === 'skipped' && ($result['reason'] ?? '') === 'channel_not_offered', 'an event that does not offer WhatsApp is never sent on the mobile route');
 
     echo "Booking mobile notification unit passed\n";
 }

@@ -11,6 +11,11 @@ namespace Delnavazan\Platform\Core\Application;
  * cannot be presented as requestable and then refused by submission. A Teacher
  * accepting an existing offer is revalidated against the projection buffer
  * only; the response window has already elapsed by then.
+ *
+ * The boundary moves while a request is alive, so a request can pass intake and
+ * still be inside the window when the allocator runs again. That case is
+ * classified by `allStartsInsideMinimumNotice()` and reported as its own
+ * retryable referral reason, never as a request that found no Teacher.
  */
 final class BookingLeadTimePolicy {
     public const POLICY_VERSION = 1;
@@ -29,6 +34,29 @@ final class BookingLeadTimePolicy {
     /** Strictly later than the boundary; exactly 24h+1h remains unavailable. */
     public static function isStartAllowed( string $startUtc, string $nowUtc, bool $includeResponseWindow = true ): bool {
         return $startUtc > self::minimumStartUtc( $nowUtc, $includeResponseWindow );
+    }
+
+    /**
+     * True when no requested start can still be offered at `$nowUtc`.
+     *
+     * Public intake refuses such a request outright, so this condition is only
+     * observable later: a request accepted with just over the minimum notice
+     * crosses the boundary before the allocator next runs. That happens on a
+     * sequential rotation (a Teacher declines or an offer expires) and on an
+     * operator re-run of the recovery path. Deciding it from this predicate — at
+     * the instant the allocator decides — keeps the later outcome on exactly the
+     * same rule and strictness as the day grid and the intake transaction, so
+     * the three surfaces cannot disagree about the boundary.
+     *
+     * An empty list reports false: "no requested time" is a different defect and
+     * must not be reported as a notice-window refusal.
+     *
+     * @param list<string> $startUtcs
+     */
+    public static function allStartsInsideMinimumNotice( array $startUtcs, string $nowUtc, bool $includeResponseWindow = true ): bool {
+        if ( ! $startUtcs ) return false;
+        foreach ( $startUtcs as $startUtc ) if ( self::isStartAllowed( (string) $startUtc, $nowUtc, $includeResponseWindow ) ) return false;
+        return true;
     }
 
     /**

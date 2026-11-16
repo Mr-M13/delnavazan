@@ -396,6 +396,17 @@ function dzn_stress_delivery(int $requestId): ?object {
     )) ?: null;
 }
 
+/** The coordination reason recorded for one referred request, or null. */
+function dzn_stress_referral_reason(int $requestId): ?string {
+    global $wpdb;
+    $p = $wpdb->prefix . 'dzn_';
+    $reason = $wpdb->get_var($wpdb->prepare(
+        "SELECT state_reason_code FROM {$p}coordination_cases WHERE booking_request_id=%d",
+        $requestId
+    ));
+    return $reason === null ? null : (string) $reason;
+}
+
 function dzn_stress_count(string $sql, array $args = array()): int {
     global $wpdb;
     return (int) $wpdb->get_var($args ? $wpdb->prepare($sql, $args) : $sql);

@@ -21,6 +21,7 @@ foreach ( array(
     'return $startUtc > self::minimumStartUtc',
     "'reason_code' => 'lead_time_too_short'",
     "'minimum_start_local'",
+    'allStartsInsideMinimumNotice',
 ) as $needle ) if ( strpos( $leadTime, $needle ) === false ) throw new RuntimeException( 'Minimum-notice authority contract missing: ' . $needle );
 
 if ( strpos( $source, 'BookingLeadTimePolicy::refusal' ) === false || strpos( $source, 'BookingLeadTimeException' ) === false ) throw new RuntimeException( 'Public intake must enforce the shared minimum notice' );
@@ -32,7 +33,7 @@ if ( false === $preview ) throw new RuntimeException( 'Unable to read preview se
 foreach ( array( 'BookingLeadTimePolicy::refusal', "'reason_code'", "'minimum_start_local'", "'lead_time_hours'" ) as $needle ) if ( strpos( $preview, $needle ) === false ) throw new RuntimeException( 'Preview must explain the shared minimum notice: ' . $needle );
 $allocation = file_get_contents( $root . '/src/Core/Application/BookingAllocationService.php' );
 if ( false === $allocation ) throw new RuntimeException( 'Unable to read allocation service' );
-foreach ( array( 'BookingLeadTimePolicy::minimumStartUtc', 'BookingOfferRetirementService', 'BookingContention::capture' ) as $needle ) if ( strpos( $allocation, $needle ) === false ) throw new RuntimeException( 'Allocation must consume shared notice, retirement and contention: ' . $needle );
+foreach ( array( 'BookingLeadTimePolicy::isStartAllowed', 'BookingLeadTimePolicy::allStartsInsideMinimumNotice', 'LEAD_TIME_REFERRAL_REASON', 'BookingOfferRetirementService', 'BookingContention::capture' ) as $needle ) if ( strpos( $allocation, $needle ) === false ) throw new RuntimeException( 'Allocation must consume shared notice, retirement and contention: ' . $needle );
 $allocationRepo = file_get_contents( $root . '/src/Core/Infrastructure/Repository/BookingAllocationRepository.php' );
 if ( false === $allocationRepo ) throw new RuntimeException( 'Unable to read allocation repository' );
 foreach ( array( "o.state='pending' AND o.active_slot=1", "r.privacy_erased_at IS NULL", "FOR UPDATE", "'capacity_lost'", "state IN ('queued','retryable','sending')", 'capacity_retirement_read_failed' ) as $needle ) if ( strpos( $allocationRepo, $needle ) === false ) throw new RuntimeException( 'Capacity-lost retirement contract missing: ' . $needle );

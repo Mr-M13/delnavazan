@@ -7,29 +7,25 @@
  * suite failed for calendar reasons instead of for an application regression.
  *
  * This runs on a plain PHP 8.3 host with no WordPress and no database. It proves
- * that every derived allocation date clears the real lead-time policy, and that
- * the DST cases land on a genuine transition rather than an arbitrary day.
+ * that every derived allocation date clears the real lead-time policy, that the
+ * DST cases land on a genuine transition rather than an arbitrary day, and that
+ * the day grid, the intake transaction and the allocator agree on one boundary
+ * at one instant.
  *
  * php platform/tests/booking-engine-scenario-date-unit.php
  */
-namespace Delnavazan\Platform\Core\Application {
-    final class BookingLeadTimePolicy {
-        public const RESPONSE_WINDOW_SECONDS = 86400;
-        public const PROJECTION_BUFFER_SECONDS = 3600;
-        public const MINIMUM_LEAD_SECONDS = self::RESPONSE_WINDOW_SECONDS + self::PROJECTION_BUFFER_SECONDS;
-        public static function minimumStartUtc(string $nowUtc, bool $includeResponseWindow = true): string {
-            $offset = self::PROJECTION_BUFFER_SECONDS + ($includeResponseWindow ? self::RESPONSE_WINDOW_SECONDS : 0);
-            return (new \DateTimeImmutable($nowUtc, new \DateTimeZone('UTC')))
-                ->modify(($offset >= 0 ? '+' : '') . $offset . ' seconds')->format('Y-m-d H:i:s');
-        }
-        public static function isStartAllowed(string $startUtc, string $nowUtc, bool $includeResponseWindow = true): bool {
-            return $startUtc > self::minimumStartUtc($nowUtc, $includeResponseWindow);
-        }
-    }
-}
-
 namespace {
     require_once __DIR__ . '/booking-engine-stress-fixture.php';
+    require_once dirname(__DIR__) . '/src/Core/Application/BookingLeadTimePolicy.php';
+    require_once dirname(__DIR__) . '/src/Core/Application/BookingLeadTimeException.php';
+    require_once dirname(__DIR__) . '/src/Core/Application/AvailabilityLocalTime.php';
+    require_once dirname(__DIR__) . '/src/Core/Application/Normalizer.php';
+    require_once dirname(__DIR__) . '/src/Core/Application/RequestedTimeNormalizer.php';
+    require_once dirname(__DIR__) . '/src/Core/Application/BookingRequestValidationService.php';
+
+    use Delnavazan\Platform\Core\Application\BookingLeadTimeException;
+    use Delnavazan\Platform\Core\Application\BookingLeadTimePolicy;
+    use Delnavazan\Platform\Core\Application\BookingRequestValidationService;
 
     $failures = 0;
     $check = static function (string $label, bool $ok, string $detail = '') use (&$failures): void {
@@ -117,6 +113,65 @@ namespace {
         $literal = preg_match("/dzn_stress_(?:time|request|confirmation_blocker)\([^;]*'20[0-9]{2}-[0-9]{2}-[0-9]{2} /s", $source) === 1;
         $check("scenario " . strtoupper($scenario) . ' passes no fixed calendar date through allocation', !$literal);
     }
+
+    // 7. The day grid, the intake transaction and the allocator share one
+    //    boundary: the same rule, the same strictness, evaluated at one instant.
+    //    A start exactly 24h+1h ahead is unavailable everywhere; one second later
+    //    it is requestable everywhere.
+    $boundaryNow = (new DateTimeImmutable('today', new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
+    $boundaryStart = static fn(int $seconds): string => (new DateTimeImmutable($boundaryNow, new DateTimeZone('UTC')))
+        ->modify('+' . $seconds . ' seconds')->format('Y-m-d H:i:s');
+    $validator = new BookingRequestValidationService();
+    $instrument = (object) array('id' => 1, 'status' => 'active', 'archived_at' => null);
+    $course = (object) array('id' => 2, 'status' => 'active', 'archived_at' => null, 'course_type' => 'introductory', 'instrument_id' => 1, 'default_duration_minutes' => 30, 'default_buffer_minutes' => 15);
+    $boundaryCases = array(
+        '24h59m59s' => array($boundaryStart(89999), false),
+        'exactly 25h' => array($boundaryStart(90000), false),
+        '25h1s' => array($boundaryStart(90001), true),
+    );
+    foreach ($boundaryCases as $label => $case) {
+        [$startUtc, $expectedAllowed] = $case;
+        $gridAllows = BookingLeadTimePolicy::isStartAllowed($startUtc, $boundaryNow);
+        $intakeAllows = true;
+        try {
+            $intake = array(
+                'course_id' => 2,
+                'contact' => array('timezone' => 'UTC'),
+                'requested_times' => array(array('local_date' => substr($startUtc, 0, 10), 'local_start_time' => substr($startUtc, 11), 'timezone' => 'UTC')),
+            );
+            $validator->resolveLockedCatalogue($intake, $instrument, $course, $boundaryNow);
+        } catch (BookingLeadTimeException $error) {
+            $intakeAllows = false;
+        }
+        $allocationBlocks = BookingLeadTimePolicy::allStartsInsideMinimumNotice(array($startUtc), $boundaryNow);
+        $check("day grid and intake agree at $label", $gridAllows === $intakeAllows && $gridAllows === $expectedAllowed,
+            'grid=' . var_export($gridAllows, true) . ' intake=' . var_export($intakeAllows, true) . ' start=' . $startUtc);
+        $check("the allocator classifies $label exactly as the grid does", $allocationBlocks === !$gridAllows,
+            'blocks=' . var_export($allocationBlocks, true) . ' grid=' . var_export($gridAllows, true));
+    }
+
+    // The crossed-boundary classifier is only true when nothing is still
+    // requestable, so a request with one valid alternative never gets the
+    // retryable lead-time reason.
+    $check('the classifier reports a fully crossed request as inside the notice window',
+        BookingLeadTimePolicy::allStartsInsideMinimumNotice(array($boundaryStart(89999), $boundaryStart(90000)), $boundaryNow));
+    $check('one still-requestable start prevents the crossed-boundary classification',
+        !BookingLeadTimePolicy::allStartsInsideMinimumNotice(array($boundaryStart(89999), $boundaryStart(90001)), $boundaryNow));
+    $check('an empty request is never classified as a notice-window refusal',
+        !BookingLeadTimePolicy::allStartsInsideMinimumNotice(array(), $boundaryNow));
+
+    // The allocator must not re-derive the boundary; it consumes the shared
+    // predicate and turns a fully crossed request into its own retryable reason.
+    $allocationSource = (string) file_get_contents(dirname(__DIR__) . '/src/Core/Application/BookingAllocationService.php');
+    $check('allocation consumes the shared boundary predicate instead of re-deriving it',
+        strpos($allocationSource, 'BookingLeadTimePolicy::isStartAllowed') !== false && strpos($allocationSource, '$minStart') === false);
+    $check('allocation classifies a crossed boundary with the shared predicate',
+        strpos($allocationSource, 'BookingLeadTimePolicy::allStartsInsideMinimumNotice') !== false
+        && strpos($allocationSource, 'LEAD_TIME_REFERRAL_REASON') !== false
+        && strpos($allocationSource, "'requested_time_inside_lead_time'") !== false);
+    $controllerSource = (string) file_get_contents(dirname(__DIR__) . '/src/Admin/Controller/BookingRequestController.php');
+    $check('the coordination queue explains the crossed-boundary referral instead of showing a missing Teacher',
+        strpos($controllerSource, 'BookingAllocationService::LEAD_TIME_REFERRAL_REASON') !== false);
 
     if ($failures > 0) {
         fwrite(STDERR, "Booking scenario date unit failed: $failures assertion(s)\n");

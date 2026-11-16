@@ -94,6 +94,33 @@ allocation transaction rolls back. A workload read never degrades into "every
 Teacher is idle", which would silently disable the policy. This is asserted by
 `booking-allocation-workload-unit.php`.
 
+### 5.1 A request that crosses the minimum notice after intake
+
+The day grid, the intake transaction and `candidates()` share one authority,
+`BookingLeadTimePolicy`: a start must be **strictly later** than
+`now + 24h response window + 1h projection buffer`. The allocator no longer
+re-derives that boundary; it calls `BookingLeadTimePolicy::isStartAllowed()` at
+the instant it decides, which is the same rule and strictness the grid and
+intake apply.
+
+The boundary moves while a request is alive. A request accepted with just over
+25 hours notice is inside the window by the time a Teacher declines, an offer
+expires, or an operator re-runs `recover()`. Previously that produced
+`no_viable_teacher` or `candidates_exhausted` — reasons that say every eligible
+Teacher was considered, which is false: no Teacher could have been asked.
+
+That case is now classified with `BookingLeadTimePolicy::allStartsInsideMinimumNotice()`
+and referred with the reason **`requested_time_inside_lead_time`**. It is
+retryable: the Student chooses later times and the request allocates normally.
+When every requested start is inside the window the lead-time reason takes
+precedence over Teacher-based reasons, because no Teacher decision can change
+the outcome; a genuine coverage/occupancy failure with at least one
+still-requestable start keeps `no_viable_teacher`/`candidates_exhausted`.
+
+Accepting an **existing** offer is unaffected: it revalidates against the
+projection buffer only (`includeResponseWindow = false`), because the response
+window has already elapsed. Only a *new* offer is gated by the full window.
+
 ## 6. Rejected alternatives
 
 - **Instrument-count normalisation** (divide workload by the number of eligible

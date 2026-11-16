@@ -16,6 +16,9 @@ final class AdminShellController {
         'students' => ['Students', [
             ['Directory', 'dzn-student', 'dzn_manage_students'],
         ]],
+        'people' => ['People', [
+            ['People', 'dzn-people', Menu::PEOPLE_DIRECTORY_CAP],
+        ]],
         'enrolment' => ['Enrolment', [
             ['Enrolment', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP],
         ]],
@@ -86,6 +89,7 @@ final class AdminShellController {
         'dzn-platform' => 'overview', 'dzn-academy-dashboard' => 'overview', 'dzn-god-mode' => 'godmode',
         'dzn-teachers-menu' => 'teachers',
         'dzn-student' => 'students', 'dzn-student-identity-authority' => 'students',
+        'dzn-people' => 'people',
         'dzn-lesson' => 'enrolment', 'dzn-attendance-workspace' => 'enrolment',
         'dzn-attendance-review' => 'enrolment', 'dzn-post-intro' => 'enrolment',
         'dzn-enrolment-workspace' => 'enrolment', 'dzn-catalogue-workspace' => 'enrolment',

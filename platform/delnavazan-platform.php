@@ -166,6 +166,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Portals\PostIntroSurveyController::register();
 	Delnavazan\Platform\Portals\PostIntroTeacherOutcomeController::register();
 	Delnavazan\Platform\Admin\Controller\PostIntroAdminController::register();
+	Delnavazan\Platform\Admin\Controller\PeopleDirectoryController::register();
 	if ( defined( 'WP_CLI' ) && WP_CLI ) { Delnavazan\Platform\Admin\Cli\PostIntroRecoveryCommand::register(); Delnavazan\Platform\Admin\Cli\LegalPagesCommand::register(); Delnavazan\Platform\Admin\Cli\MeetMigrationCommand::register(); }
 	Delnavazan\Platform\Portals\PortalOwnerPorts::configureCapability(new Delnavazan\Platform\Core\Application\CanonicalLessonPortalCapabilityOwner());
 	require_once DZN_PLATFORM_DIR . 'src/Core/Application/PortalOwnerReadPorts.php';

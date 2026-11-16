@@ -345,6 +345,9 @@ jobs:
           php platform/tests/admin-navigation-composite-cap-unit.php
           php platform/tests/admin-shell-route-capability-runtime.php
           php platform/tests/admin-read-capability-authority.php
+          php platform/tests/people-directory-status-rules-unit.php
+          php platform/tests/people-directory-import-unit.php
+          php platform/tests/people-directory-read-service-contract.php
           php platform/tests/student-operations-journey-contract.php
           php platform/tests/lesson-operator-workflow-contract.php
           php platform/tests/lesson-reschedule-migration-contract.php

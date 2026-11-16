@@ -13,10 +13,15 @@
  *   php purge-test-data-unit.php bad-confirm <fingerprint> <backup> <sha256>
  *   php purge-test-data-unit.php bad-fingerprint <backup> <sha256>
  *   php purge-test-data-unit.php bad-backup <fingerprint>
+ *   php purge-test-data-unit.php bad-attestation <fingerprint> <backup> <sha256>
+ *   php purge-test-data-unit.php already-purged <fingerprint> <backup> <sha256>
  */
 declare(strict_types=1);
 
 define('WP_CLI', true);
+// The harness supplies a known attestation preimage; the payload keeps the
+// real production hash unless one is already defined.
+define('DZN_PURGE_ATTESTATION_SHA256', hash('sha256', 'unit-test-attestation'));
 
 $root    = dirname(__DIR__, 2);
 $payload = __DIR__ . '/purge-test-data.php';
@@ -72,7 +77,13 @@ function user_can($user, string $cap): bool
 }
 function get_option(string $key, $default = false)
 {
-    return 'dzn_platform_schema_version' === $key ? '74' : $default;
+    if ('dzn_platform_schema_version' === $key) {
+        return '74';
+    }
+    if ('dzn_go_live_purge_receipt' === $key && !empty($GLOBALS['dzn_unit_already_purged'])) {
+        return 'purged:test';
+    }
+    return $default;
 }
 function update_option(string $key, $value, $autoload = null): bool
 {
@@ -109,6 +120,10 @@ function wp_mkdir_p(string $dir): bool
 function wp_cache_flush(): void
 {
 }
+function wp_cache_delete(string $key, string $group = ''): bool
+{
+    return true;
+}
 function delete_user_meta(int $userId, string $key): bool
 {
     return true;
@@ -130,6 +145,7 @@ final class Dzn_Unit_Wpdb
     public string $usermeta   = 'wp_usermeta';
     public string $comments   = 'wp_comments';
     public string $commentmeta = 'wp_commentmeta';
+    public string $options    = 'wp_options';
     public string $last_error = '';
     private array $tables;
     public function __construct(array $tables)
@@ -178,17 +194,23 @@ $fingerprint = (string) ($argv[2] ?? '');
 $backup      = (string) ($argv[3] ?? '');
 $backupSha   = (string) ($argv[4] ?? '');
 $confirm     = 'PURGE_ALL_TEST_DATA';
+$attestation = 'unit-test-attestation';
+if ('already-purged' === $mode) {
+    $GLOBALS['dzn_unit_already_purged'] = true;
+}
 
 // The payload requires a file literally named purge-test-data-tables.php.
 $planCopy = $tmp . '/purge-test-data-tables.php';
 file_put_contents($planCopy, "<?php return " . var_export($plan, true) . ";\n");
 
 $payloadArgs = match ($mode) {
-    'report'          => array('report', 'none', 'none', 'none', 'none', $planCopy),
-    'execute'         => array('execute', $confirm, $fingerprint, $backup, $backupSha, $planCopy),
-    'bad-confirm'     => array('execute', 'WRONG', $fingerprint, $backup, $backupSha, $planCopy),
-    'bad-fingerprint' => array('execute', $confirm, str_repeat('0', 64), $backup, $backupSha, $planCopy),
-    'bad-backup'      => array('execute', $confirm, $fingerprint, '/nonexistent/backup.sql.gz', str_repeat('a', 64), $planCopy),
+    'report'          => array('report', 'none', 'none', 'none', 'none', $planCopy, 'none'),
+    'execute'         => array('execute', $confirm, $fingerprint, $backup, $backupSha, $planCopy, $attestation),
+    'bad-confirm'     => array('execute', 'WRONG', $fingerprint, $backup, $backupSha, $planCopy, $attestation),
+    'bad-fingerprint' => array('execute', $confirm, str_repeat('0', 64), $backup, $backupSha, $planCopy, $attestation),
+    'bad-backup'      => array('execute', $confirm, $fingerprint, '/nonexistent/backup.sql.gz', str_repeat('a', 64), $planCopy, $attestation),
+    'bad-attestation' => array('execute', $confirm, $fingerprint, $backup, $backupSha, $planCopy, 'wrong-token'),
+    'already-purged'  => array('execute', $confirm, $fingerprint, $backup, $backupSha, $planCopy, $attestation),
     default           => array($mode),
 };
 

@@ -180,9 +180,13 @@ is optional strict parity. Docker is required only for the runtime suites.
 - **Go-live data purge:** the one-shot pre-launch purge is
   `deployment/qa/purge-test-data.sh` (report, then execute with a pre-state fingerprint and a
   verified full database export). Its source contract
-  `deployment/qa/purge-test-data-contract.sh` runs in the PR gate and proves every schema table is
-  classified as preserved configuration or purged user activity. It is operator-only: agents
-  prepare and review it, never execute it against production.
+  `deployment/qa/purge-test-data-contract.sh` proves every schema table is classified as preserved
+  configuration or purged user activity. The destructive mode is dispatched only through the
+  protected, workflow-dispatch-only `purge-production-test-data.yml` from `main`, inside its
+  `2026-11-23` window, with the pinned tool source SHA, the deployed build SHA, the report
+  fingerprint and the confirm token. It requires the production-only
+  `PURGE_ATTESTATION_TOKEN` secret and refuses a second run after the durable one-shot marker
+  exists. A session never runs the execute mode directly.
 - **Service tests:** `tools/ci/check.sh services` (runs `services/tests/run-all.sh` on PHP 8.3
   with `pdo_sqlite`, `sqlite3`, `curl`, `mbstring`).
 

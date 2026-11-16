@@ -41,6 +41,7 @@ $dzn_expected    = strtolower( $dzn_purge_arg( 2 ) );
 $dzn_backup      = $dzn_purge_arg( 3 );
 $dzn_backup_sha  = strtolower( $dzn_purge_arg( 4 ) );
 $dzn_plan_file   = $dzn_purge_arg( 5 );
+$dzn_attestation = $dzn_purge_arg( 6 );
 
 $dzn_purge_confirm_token = 'PURGE_ALL_TEST_DATA';
 $dzn_admin_email         = 'hamed.moqadasi@yahoo.com';
@@ -56,15 +57,24 @@ $dzn_system_user_options = array(
 	'dzn_provider_evidence_system_user_id',
 );
 $dzn_research_post_type  = 'dzn_research_name';
+// SHA-256 of the workflow-only attestation token held as the
+// PURGE_ATTESTATION_TOKEN secret in the protected production environment.
+// The preimage is never stored in the repository.
+$dzn_attestation_sha256  = 'b74053a74d5419f2bb026036e1dd05ca233b7ccef2df5949acd4ef1303041102';
 
 // eval-file runs inside a closure, so named helpers cannot rely on the
 // enclosing scope's locals. Publish the fixed policy values as constants.
-if ( ! defined( 'DZN_PURGE_CONFIRM_TOKEN' ) ) {
-	define( 'DZN_PURGE_CONFIRM_TOKEN', $dzn_purge_confirm_token );
-	define( 'DZN_PURGE_ADMIN_EMAIL', $dzn_admin_email );
-	define( 'DZN_PURGE_SERVICE_LOGINS', $dzn_service_logins );
-	define( 'DZN_PURGE_SYSTEM_USER_OPTIONS', $dzn_system_user_options );
-	define( 'DZN_PURGE_RESEARCH_POST_TYPE', $dzn_research_post_type );
+foreach ( array(
+	'DZN_PURGE_CONFIRM_TOKEN'       => $dzn_purge_confirm_token,
+	'DZN_PURGE_ADMIN_EMAIL'         => $dzn_admin_email,
+	'DZN_PURGE_SERVICE_LOGINS'      => $dzn_service_logins,
+	'DZN_PURGE_SYSTEM_USER_OPTIONS' => $dzn_system_user_options,
+	'DZN_PURGE_RESEARCH_POST_TYPE'  => $dzn_research_post_type,
+	'DZN_PURGE_ATTESTATION_SHA256'  => $dzn_attestation_sha256,
+) as $dzn_constant => $dzn_value ) {
+	if ( ! defined( $dzn_constant ) ) {
+		define( $dzn_constant, $dzn_value );
+	}
 }
 
 global $wpdb;
@@ -160,11 +170,12 @@ function dzn_purge_state( array $plan ): array {
 	$environment    = function_exists( 'wp_get_environment_type' ) ? wp_get_environment_type() : 'unknown';
 
 	$fingerprint_material = array(
-		'schema'   => $schema,
-		'tables'   => $counts,
-		'users'    => count( (array) $users ),
-		'roles'    => $role_counts,
-		'research' => $research_posts,
+		'schema'        => $schema,
+		'plan_revision' => (string) ( $plan['schema_revision'] ?? '' ),
+		'tables'        => $counts,
+		'users'         => count( (array) $users ),
+		'roles'         => $role_counts,
+		'research'      => $research_posts,
 	);
 
 	return array(
@@ -341,6 +352,12 @@ if ( filesize( $dzn_backup ) < 1048576 ) {
 if ( ! hash_equals( $dzn_backup_sha, (string) hash_file( 'sha256', $dzn_backup ) ) ) {
 	dzn_purge_fail( 'backup_checksum_mismatch', 'execute' );
 }
+if ( '' === $dzn_attestation || ! hash_equals( DZN_PURGE_ATTESTATION_SHA256, (string) hash( 'sha256', $dzn_attestation ) ) ) {
+	dzn_purge_fail( 'workflow_attestation_invalid', 'execute' );
+}
+if ( '' !== (string) get_option( 'dzn_go_live_purge_receipt', '' ) ) {
+	dzn_purge_fail( 'already_purged', 'execute' );
+}
 
 $dzn_keep_ids = dzn_purge_kept_user_ids( (int) $dzn_admin->ID );
 $dzn_existing = array_flip( $state['discovered'] );
@@ -440,11 +457,23 @@ try {
 		throw new RuntimeException( 'retained_admin_lost' );
 	}
 
+	// One-shot marker written inside the transaction: a later dispatch can
+	// never delete post-launch data even if the receipt file write fails.
+	$wpdb->query(
+		$wpdb->prepare(
+			"INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s,%s,'no') ON DUPLICATE KEY UPDATE option_value=VALUES(option_value)",
+			'dzn_go_live_purge_receipt',
+			'purged:' . $state['fingerprint']
+		)
+	);
+
 	$wpdb->query( 'COMMIT' );
 	$wpdb->query( 'SET FOREIGN_KEY_CHECKS=1' );
+	wp_cache_delete( 'dzn_go_live_purge_receipt', 'options' );
 } catch ( Throwable $e ) {
 	$wpdb->query( 'ROLLBACK' );
 	$wpdb->query( 'SET FOREIGN_KEY_CHECKS=1' );
+	wp_cache_delete( 'dzn_go_live_purge_receipt', 'options' );
 	dzn_purge_fail( $e->getMessage(), 'execute' );
 }
 

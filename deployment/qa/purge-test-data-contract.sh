@@ -25,6 +25,7 @@ need "$sh" 'gzip -t'
 need "$sh" 'sha256sum'
 need "$sh" 'backups/go-live-purge'
 need "$sh" 'prestate-fingerprint'
+need "$sh" 'DZN_PURGE_ATTESTATION'
 
 need "$php_file" 'PURGE_ALL_TEST_DATA'
 need "$php_file" 'hamed.moqadasi@yahoo.com'
@@ -42,6 +43,9 @@ need "$php_file" 'manage_options'
 need "$php_file" 'unclassified_platform_tables'
 need "$php_file" 'prestate_fingerprint_mismatch'
 need "$php_file" 'preserve_table_changed'
+need "$php_file" 'workflow_attestation_invalid'
+need "$php_file" 'already_purged'
+need "$php_file" 'DZN_PURGE_ATTESTATION_SHA256'
 need "$php_file" 'receipt_digest'
 need "$php_file" "'deletions_performed'"
 
@@ -166,6 +170,8 @@ expect_refusal(){
 expect_refusal 'bad-confirm' 'confirm_token_invalid' bad-confirm "$fingerprint" "$backup" "$backup_sha"
 expect_refusal 'bad-fingerprint' 'prestate_fingerprint_mismatch' bad-fingerprint "$backup" "$backup_sha"
 expect_refusal 'bad-backup' 'backup_file_unavailable' bad-backup "$fingerprint"
+expect_refusal 'bad-attestation' 'workflow_attestation_invalid' bad-attestation "$fingerprint" "$backup" "$backup_sha"
+expect_refusal 'already-purged' 'already_purged' already-purged "$fingerprint" "$backup" "$backup_sha"
 rm -f "$backup"
 
 echo 'PASS guarded go-live purge source contract'

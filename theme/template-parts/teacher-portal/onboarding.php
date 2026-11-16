@@ -11,7 +11,17 @@ $state_labels = array(
 	'returned' => 'نیازمند اصلاح', 'rejected' => 'پذیرفته نشد', 'active' => 'تأییدشده و فعال', 'offboarded' => 'غیرفعال شده',
 );
 $missing = array();
-if ( ! $profile_complete ) { $missing[] = 'اطلاعات و منطقهٔ زمانی'; }
+if ( ! $profile_complete ) {
+	$profile_fields = (array) ( $onboarding['profile'] ?? array() );
+	$profile_missing = array();
+	if ( trim( (string) ( $profile_fields['display_name'] ?? '' ) ) === '' ) { $profile_missing[] = 'نام نمایشی'; }
+	if ( ! is_email( (string) ( $profile_fields['email'] ?? '' ) ) ) { $profile_missing[] = 'ایمیل'; }
+	if ( ! preg_match( '/^[A-Z]{2}$/', (string) ( $profile_fields['country_code'] ?? '' ) ) ) { $profile_missing[] = 'کشور'; }
+	if ( ! in_array( (string) ( $profile_fields['timezone'] ?? '' ), timezone_identifiers_list(), true ) ) { $profile_missing[] = 'منطقهٔ زمانی'; }
+	if ( trim( (string) ( $profile_fields['locale'] ?? '' ) ) === '' ) { $profile_missing[] = 'زبان'; }
+	if ( ! in_array( (string) ( $profile_fields['calendar_preference'] ?? '' ), array( 'auto', 'gregorian', 'persian' ), true ) ) { $profile_missing[] = 'تقویم'; }
+	$missing[] = $profile_missing ? 'اطلاعات حساب: ' . implode( '، ', $profile_missing ) : 'اطلاعات و منطقهٔ زمانی';
+}
 if ( ! $availability_complete ) { $missing[] = 'دست‌کم یک زمان واقعی برای تدریس'; }
 $consent_accepted = ! empty( $model['recording_terms']['mandatory_accepted'] ) || ! empty( $model['recording_terms']['unified']['mandatory_accepted'] );
 if ( ! $consent_accepted ) { $missing[] = 'رضایت ضبط کلاس، پژوهش و حریم خصوصی (الزامی)'; }

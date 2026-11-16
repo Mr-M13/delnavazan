@@ -323,6 +323,29 @@ function dzn_theme_platform_country_label( $code ) {
 	return $code;
 }
 
+/**
+ * Ordered country options (ISO-2 code => Persian name) for the teacher and
+ * booking country selects. Iran is first because it is the default for a new
+ * Teacher; the academy's served regions follow, then the wider diaspora the
+ * portal accepts. Every value is a valid ISO-2 code the server accepts.
+ *
+ * @return array<string,string>
+ */
+function dzn_theme_platform_country_options() {
+	return array(
+		'IR' => 'ایران', 'AU' => 'استرالیا', 'NZ' => 'نیوزیلند', 'US' => 'ایالات متحده', 'CA' => 'کانادا',
+		'GB' => 'بریتانیا', 'DE' => 'آلمان', 'FR' => 'فرانسه', 'SE' => 'سوئد', 'TR' => 'ترکیه',
+		'AE' => 'امارات متحدهٔ عربی', 'BR' => 'برزیل', 'NL' => 'هلند', 'ES' => 'اسپانیا', 'IT' => 'ایتالیا',
+		'AT' => 'اتریش', 'BE' => 'بلژیک', 'PT' => 'پرتغال', 'FI' => 'فنلاند', 'GR' => 'یونان',
+		'IE' => 'ایرلند', 'NO' => 'نروژ', 'DK' => 'دانمارک', 'CH' => 'سوئیس', 'SA' => 'عربستان سعودی',
+		'QA' => 'قطر', 'KW' => 'کویت', 'BH' => 'بحرین', 'OM' => 'عمان', 'IQ' => 'عراق',
+		'AF' => 'افغانستان', 'PK' => 'پاکستان', 'IN' => 'هند', 'LB' => 'لبنان', 'JO' => 'اردن',
+		'EG' => 'مصر', 'ZA' => 'آفریقای جنوبی', 'AR' => 'آرژانتین', 'MX' => 'مکزیک', 'JP' => 'ژاپن',
+		'KR' => 'کرهٔ جنوبی', 'CN' => 'چین', 'SG' => 'سنگاپور', 'MY' => 'مالزی', 'ID' => 'اندونزی',
+		'TH' => 'تایلند',
+	);
+}
+
 /** Full deadline sentence in the Teacher's selected timezone and calendar. */
 function dzn_theme_platform_teacher_deadline_sentence( $utc, $timezone, $calendar, $locale = '' ) {
 	$date = dzn_theme_platform_calendar_time( (string) $utc, $timezone, $calendar, $locale, 'date' );
@@ -2309,10 +2332,11 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$requested_step = isset($_GET['onboarding-step']) ? absint(wp_unslash($_GET['onboarding-step'])) : 0;
 		$server_step = dzn_theme_platform_teacher_onboarding_step( $onboarding, 0 );
 		$step = dzn_theme_platform_teacher_onboarding_step( $onboarding, $requested_step );
-		$onboarding_timezone = (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' );
-		if ( ! in_array( $onboarding_timezone, timezone_identifiers_list(), true ) ) { $onboarding_timezone = wp_timezone_string() ?: 'UTC'; }
+		$onboarding_timezone = (string) ( $onboarding['profile']['timezone'] ?? '' );
+		if ( ! in_array( $onboarding_timezone, timezone_identifiers_list(), true ) ) { $onboarding_timezone = 'Asia/Tehran'; }
 		$onboarding_locale = (string) ( $onboarding['profile']['locale'] ?? 'fa_IR' );
-		$onboarding_calendar = dzn_theme_platform_calendar_preference( $onboarding['profile']['calendar_preference'] ?? '', $onboarding_locale );
+		$stored_calendar_preference = (string) ( $onboarding['profile']['calendar_preference'] ?? '' );
+		$onboarding_calendar = '' !== $stored_calendar_preference ? dzn_theme_platform_calendar_preference( $stored_calendar_preference, $onboarding_locale ) : 'persian';
 		$onboarding_golden = dzn_theme_platform_teacher_golden_bonus( $onboarding_timezone, $onboarding_calendar, $onboarding_locale );
 		$onboarding_catalogue = dzn_theme_platform_teacher_catalogue();
 		$onboarding_instrument_availability = dzn_theme_platform_teacher_instrument_availability( (int) ( $onboarding['teacher_id'] ?? 0 ), $onboarding_catalogue );
@@ -2355,9 +2379,9 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				'name' => (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] ), 'persian_name' => (string) ( $onboarding['profile']['persian_name'] ?? '' ),
 				'english_name' => (string) ( $onboarding['profile']['english_name'] ?? '' ), 'email' => (string) ( $onboarding['profile']['email'] ?? $identity['email'] ),
 				'mobile' => (string) ( $onboarding['profile']['phone'] ?? '' ), 'whatsapp_phone' => (string) ( $onboarding['profile']['whatsapp_phone'] ?? '' ),
-				'country_code' => (string) ( $onboarding['profile']['country_code'] ?? '' ), 'city' => (string) ( $onboarding['profile']['city'] ?? '' ),
+				'country_code' => (string) ( $onboarding['profile']['country_code'] ?? '' ) ?: 'IR', 'city' => (string) ( $onboarding['profile']['city'] ?? '' ),
 				'locale' => $onboarding_locale, 'timezone' => $onboarding_timezone, 'timezone_label' => dzn_theme_platform_timezone_label( $onboarding_timezone ),
-				'calendar' => $onboarding_calendar,
+				'calendar' => $onboarding_calendar, 'calendar_preference' => $stored_calendar_preference ?: 'persian',
 			),
 			'profile_edit_action' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
 			'google_state' => 'managed_centrally',

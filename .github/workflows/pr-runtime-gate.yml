@@ -449,6 +449,8 @@ jobs:
           bash deployment/qa/install-host-tooling-contract.sh
           bash -n deployment/notifications/whatsapp-template-create-contract.sh
           bash deployment/notifications/whatsapp-template-create-contract.sh
+          bash -n deployment/qa/publish-articles-contract.sh
+          bash deployment/qa/publish-articles-contract.sh
 
   recording-decision-migration-runtime:
     name: Recording decision migration runtime

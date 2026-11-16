@@ -1,0 +1,311 @@
+name: Publish articles
+
+# Applies the reviewed article bodies and Rank Math SEO meta (docs/articles/improved,
+# 58 files merged at #658) to the live WordPress posts they describe, from a GitHub
+# Actions runner, over SSH + WP-CLI. It updates content that is already published,
+# so no operator workstation and no local copy of the repository are needed.
+#
+# It is deliberately narrow:
+#   - workflow_dispatch only, from main;
+#   - runs in the protected `production` environment;
+#   - bound to the exact current origin/main SHA and an explicit confirm token,
+#     and it checks out only its own run commit, proven equal to that SHA, so no
+#     dispatch input ever selects a ref;
+#   - default mode is dry_run (locate + report only, change nothing); publish
+#     first writes a per-article pre-image backup, then updates.
+#
+# What it can do, in full, per selected article:
+#   1. locate the existing post BY SLUG (the exact URL path segment, percent-encoded
+#      Persian slugs preserved byte-for-byte); refuse when not found or ambiguous;
+#   2. in dry_run, print a table (slug, post id, old/new content bytes, SEO-title
+#      change) and change nothing;
+#   3. in publish, write a per-article pre-image backup (post_content + the Rank Math
+#      meta + tags, UTC-stamped) to a host backup directory, then update post_content,
+#      the Rank Math meta (rank_math_title, rank_math_description, rank_math_focus_keyword)
+#      and the post_tag terms;
+#   4. read the post back and prove the new content hash matches; stop the whole run
+#      on the first mismatch.
+#
+# It cannot create a post, change a slug, change a post status, delete anything,
+# deploy, migrate, purge or read a credential other than the three documented
+# production SSH secrets, which are read from the protected environment, never
+# printed, and fail the job closed when missing. Restore from a pre-image is an
+# operator action (the pre-image files live in the host backup directory).
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact full 40-char SHA of the current origin/main commit
+        type: string
+        required: true
+      confirm:
+        description: Type PUBLISH_ARTICLES to authorise the run
+        type: string
+        required: true
+      mode:
+        description: dry_run locates and reports only; publish writes the content and SEO meta
+        type: choice
+        options: [dry_run, publish]
+        default: dry_run
+        required: true
+      slugs:
+        description: Optional comma-separated slugs to publish (empty = all 58)
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+# One publish run at a time; never overlapped with itself. It deliberately does
+# not reuse the deploy concurrency group, so an article publish never serializes
+# with a release and never blocks one.
+concurrency:
+  group: delnavazan-publish-articles
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify commit and contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Require dispatch from main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this workflow from main only.' >&2; exit 1; }
+
+      - name: Check out the run commit
+        uses: actions/checkout@v5
+        with:
+          # The run's own commit, not the dispatch input: the gate below proves
+          # it equals the requested SHA, and a privileged job must never check
+          # out a ref chosen by a workflow input.
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require exact current origin/main and the confirm token
+        shell: bash
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character commit SHA.' >&2; exit 1; }
+          [[ "$CONFIRM" == 'PUBLISH_ARTICLES' ]] || { echo 'Type PUBLISH_ARTICLES to confirm.' >&2; exit 1; }
+          [[ "$GITHUB_SHA" == "$COMMIT_SHA" ]] || { echo "This run is at $GITHUB_SHA, not the requested $COMMIT_SHA." >&2; exit 1; }
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          origin_main="$(git rev-parse origin/main)"
+          [[ "$origin_main" == "$COMMIT_SHA" ]] || { echo "Requested SHA must still be current origin/main (origin/main=$origin_main requested=$COMMIT_SHA)." >&2; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$COMMIT_SHA" ]] || { echo 'The checkout is not the requested commit.' >&2; exit 1; }
+
+      - name: Validate the parser, host processor and run the source contract
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          php -l deployment/articles/publish-articles-plan.php
+          php -l deployment/articles/publish-articles-host.php
+          bash -n deployment/qa/publish-articles-contract.sh
+          php deployment/articles/publish-articles-plan.php
+          bash deployment/qa/publish-articles-contract.sh
+
+  run:
+    name: Locate and publish articles
+    runs-on: ubuntu-24.04
+    environment: production
+    needs: verify
+    timeout-minutes: 30
+    steps:
+      - name: Require dispatch from main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this workflow from main only.' >&2; exit 1; }
+
+      - name: Check out the run commit
+        uses: actions/checkout@v5
+        with:
+          # Same reasoning as the verify job: check out the run commit and
+          # re-prove it is the requested SHA and still current origin/main.
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Re-verify the exact main SHA, confirmation and mode
+        shell: bash
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          CONFIRM: ${{ inputs.confirm }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character commit SHA.' >&2; exit 1; }
+          [[ "$CONFIRM" == 'PUBLISH_ARTICLES' ]] || { echo 'Type PUBLISH_ARTICLES to confirm.' >&2; exit 1; }
+          [[ "$MODE" == 'dry_run' || "$MODE" == 'publish' ]] || { echo 'Mode must be dry_run or publish.' >&2; exit 1; }
+          [[ "$GITHUB_SHA" == "$COMMIT_SHA" ]] || { echo "This run is at $GITHUB_SHA, not the requested $COMMIT_SHA." >&2; exit 1; }
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          origin_main="$(git rev-parse origin/main)"
+          [[ "$origin_main" == "$COMMIT_SHA" ]] || { echo "Requested SHA must still be current origin/main (origin/main=$origin_main requested=$COMMIT_SHA)." >&2; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$COMMIT_SHA" ]] || { echo 'The checkout is not the requested commit.' >&2; exit 1; }
+
+      - name: Re-validate the parser, host processor and source contract
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          php -l deployment/articles/publish-articles-plan.php
+          php -l deployment/articles/publish-articles-host.php
+          bash -n deployment/qa/publish-articles-contract.sh
+          php deployment/articles/publish-articles-plan.php
+          bash deployment/qa/publish-articles-contract.sh
+
+      - name: Generate the selected article payloads
+        shell: bash
+        env:
+          SLUGS: ${{ inputs.slugs }}
+        run: |
+          set -Eeuo pipefail
+          php deployment/articles/publish-articles-plan.php --slugs "$SLUGS" --out "$RUNNER_TEMP/payloads.json"
+          php -r '
+            $p = json_decode(file_get_contents($argv[1]), true);
+            if (!is_array($p) || count($p) === 0) { fwrite(STDERR, "no payloads generated\n"); exit(1); }
+            echo "PAYLOADS=" . count($p) . "\n";
+          ' "$RUNNER_TEMP/payloads.json"
+
+      - name: Configure pinned production SSH access
+        shell: bash
+        env:
+          PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          PRODUCTION_KNOWN_HOSTS: ${{ secrets.PRODUCTION_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_PRIVATE_KEY" && -n "$PRODUCTION_KNOWN_HOSTS" ]] || { echo 'Production SSH secrets are not configured in the protected environment.' >&2; exit 1; }
+          grep -Eq '^cp119\.hosting-cloud\.net[[:space:]]+ssh-(ed25519|rsa|ecdsa)' <<<"$PRODUCTION_KNOWN_HOSTS" || { echo 'Known-hosts secret must pin cp119.hosting-cloud.net.' >&2; exit 1; }
+          # The key is auto-masked by the runner; register the mask again so it
+          # stays redacted on any failure path. The value is never echoed.
+          echo "::add-mask::$PRODUCTION_SSH_PRIVATE_KEY"
+          install -m 700 -d "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_production" >/dev/null
+          cat >> "$HOME/.ssh/config" <<'EOF'
+          Host cp119.hosting-cloud.net
+            UserKnownHostsFile ~/.ssh/known_hosts
+            StrictHostKeyChecking yes
+            IdentityFile ~/.ssh/id_production
+            IdentitiesOnly yes
+            BatchMode yes
+          EOF
+          chmod 600 "$HOME/.ssh/config"
+
+      - name: Create the publish working directory on the host
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
+          [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Production SSH username contains unsupported characters.' >&2; exit 1; }
+          target="${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net"
+          ssh -T "$target" bash -s <<'REMOTE'
+          set -Eeuo pipefail
+          mkdir -p "$HOME/publish-articles" "$HOME/backups/article-preimages"
+          chmod 700 "$HOME/publish-articles" "$HOME/backups/article-preimages"
+          command -v wp >/dev/null 2>&1 || { echo 'WP-CLI is required on the production host.' >&2; exit 1; }
+          [[ -f "$HOME/domains/delnavazan.com/public_html/wp-load.php" && -f "$HOME/domains/delnavazan.com/public_html/wp-config.php" ]] || { echo 'expected WordPress root is unavailable.' >&2; exit 1; }
+          printf 'WORKDIR=ready\n'
+          REMOTE
+
+      - name: Upload the payloads and the host processor to the host
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
+          [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Production SSH username contains unsupported characters.' >&2; exit 1; }
+          target="${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net"
+          # Each file is written to a sibling temporary path and moved into place,
+          # so the host can never observe a half-transferred file. The byte counts
+          # prove the transfer is complete, not merely attempted.
+          for pair in \
+            'payloads.json:payloads.json' \
+            'deployment/articles/publish-articles-host.php:publish-articles-host.php'; do
+            source_file="${pair%%:*}"
+            installed_name="${pair##*:}"
+            if [[ "$installed_name" == 'payloads.json' ]]; then
+              source_file="$RUNNER_TEMP/payloads.json"
+            fi
+            local_bytes="$(wc -c < "$source_file" | tr -d ' ')"
+            ssh -T "$target" "cat > ~/publish-articles/.${installed_name}.new" < "$source_file"
+            ssh -T "$target" bash -s -- "$installed_name" <<'REMOTE' | tee "$RUNNER_TEMP/${installed_name}.upload"
+            set -Eeuo pipefail
+            name="$1"
+            chmod 600 "$HOME/publish-articles/.$name.new"
+            mv -f "$HOME/publish-articles/.$name.new" "$HOME/publish-articles/$name"
+            chmod 600 "$HOME/publish-articles/$name"
+            printf 'UPLOADED=%s BYTES=%s\n' "$name" "$(wc -c < "$HOME/publish-articles/$name" | tr -d ' ')"
+            REMOTE
+            remote_bytes="$(sed -n 's/^UPLOADED=[^ ]* BYTES=\([0-9][0-9]*\)$/\1/p' "$RUNNER_TEMP/${installed_name}.upload")"
+            [[ -n "$remote_bytes" && "$remote_bytes" == "$local_bytes" ]] || {
+              echo "Uploaded $installed_name reports ${remote_bytes:-no} bytes, expected $local_bytes." >&2
+              exit 1
+            }
+            printf 'HOST_FILE=%s bytes=%s\n' "$installed_name" "$local_bytes"
+          done
+
+      - name: Run the host processor (locate, and dry-run or publish)
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
+          [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Production SSH username contains unsupported characters.' >&2; exit 1; }
+          target="${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net"
+          ssh -T "$target" "php ~/publish-articles/publish-articles-host.php --payloads ~/publish-articles/payloads.json --mode $MODE --result ~/publish-articles/result.json" \
+            | tee "$RUNNER_TEMP/host-run.txt"
+
+      - name: Pull the machine-readable result and fail on any mismatch
+        if: always()
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
+          [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Production SSH username contains unsupported characters.' >&2; exit 1; }
+          target="${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net"
+          ssh -T "$target" 'cat ~/publish-articles/result.json' > "$RUNNER_TEMP/result.json"
+          php -r '
+            $r = json_decode(file_get_contents($argv[1]), true);
+            if (!is_array($r)) { fwrite(STDERR, "result is not JSON\n"); exit(1); }
+            $failed = (int) ($r["summary"]["failed"] ?? 0);
+            foreach (($r["articles"] ?? []) as $a) {
+              if (($a["status"] ?? "error") !== "ok") {
+                fwrite(STDERR, "article not ok: " . ($a["slug"] ?? "?") . " -> " . ($a["status"] ?? "?") . "\n");
+              }
+              if (($a["action"] ?? "") === "published" && ($a["content_verified"] ?? false) !== true) {
+                fwrite(STDERR, "published article failed content verification: " . ($a["slug"] ?? "?") . "\n");
+                $failed = max($failed, 1);
+              }
+            }
+            if ($failed !== 0) { fwrite(STDERR, "result reports $failed failure(s)\n"); exit(1); }
+            echo "RESULT_OK failed=0\n";
+          ' "$RUNNER_TEMP/result.json"
+
+      - name: Preserve the publish result and host log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-articles-${{ inputs.commit_sha }}
+          path: |
+            ${{ runner.temp }}/result.json
+            ${{ runner.temp }}/payloads.json
+            ${{ runner.temp }}/host-run.txt
+          if-no-files-found: warn
+          retention-days: 90

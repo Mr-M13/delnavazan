@@ -25,6 +25,70 @@
             }
         },
         {
+            "name": "delnavazan_intro_cancelled_fa",
+            "event_key": "booking.cancelled.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، کلاس آشنایی «{{2}}» با {{3}} در {{4}} لغو شد. جزئیات در حساب کاربری: {{5}}",
+            "variables": [
+                "name",
+                "course",
+                "teacher",
+                "when",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "teacher": "استاد ندا",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_intro_declined_fa",
+            "event_key": "booking.declined.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، متأسفانه {{2}} در این زمان نمی‌تواند کلاس آشنایی «{{3}}» را بپذیرد. می‌توانید زمان تازه‌ای از حساب کاربری انتخاب کنید: {{4}}",
+            "variables": [
+                "name",
+                "teacher",
+                "course",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "teacher": "استاد ندا",
+                "course": "تار",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
+            "name": "delnavazan_intro_rescheduled_fa",
+            "event_key": "booking.rescheduled.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}} عزیز، زمان کلاس آشنایی «{{2}}» با {{3}} به {{4}} تغییر کرد. جزئیات در حساب کاربری: {{5}}",
+            "variables": [
+                "name",
+                "course",
+                "teacher",
+                "when",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "teacher": "استاد ندا",
+                "when": "شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
             "name": "delnavazan_teacher_new_booking_fa",
             "event_key": "booking.new.teacher",
             "audience": "teacher",

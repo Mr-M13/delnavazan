@@ -7,7 +7,7 @@ manifest it references.
 ## Source of truth
 
 The machine-readable manifest is `deployment/notifications/whatsapp-templates.json`
-(37 templates). Every entry is `language: fa`, `category: UTILITY` (transactional only),
+(40 templates). Every entry is `language: fa`, `category: UTILITY` (transactional only),
 with a positional `{{1}}…{{n}}` body derived from the catalogue's reviewed Persian WhatsApp copy and a
 synthetic Persian `samples` object. The `TelnyxTemplateRegistry` mirrors the same `variables` order as
 `variable_order`, so a template the workflow creates maps through discovery unchanged.
@@ -28,6 +28,9 @@ Do not add credentials to the repository; the workflow reads them only from the 
 | Template name | Event key | Audience | Positional variables |
 |---|---|---|---|
 | `delnavazan_intro_confirmed_fa` | `booking.confirmed.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=teacher, `{{4}}`=when, `{{5}}`=portal_url |
+| `delnavazan_intro_cancelled_fa` | `booking.cancelled.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=teacher, `{{4}}`=when, `{{5}}`=portal_url |
+| `delnavazan_intro_declined_fa` | `booking.declined.student` | student | `{{1}}`=name, `{{2}}`=teacher, `{{3}}`=course, `{{4}}`=portal_url |
+| `delnavazan_intro_rescheduled_fa` | `booking.rescheduled.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=teacher, `{{4}}`=when, `{{5}}`=portal_url |
 | `delnavazan_teacher_new_booking_fa` | `booking.new.teacher` | teacher | `{{1}}`=teacher, `{{2}}`=course, `{{3}}`=student, `{{4}}`=when, `{{5}}`=response_window, `{{6}}`=teacher_portal_url |
 | `delnavazan_booking_confirmation_fa` | `booking.requested.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=when, `{{4}}`=portal_url |
 | `delnavazan_class_access_fa` | `lesson.access.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=teacher, `{{4}}`=when, `{{5}}`=portal_url |

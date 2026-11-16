@@ -23,7 +23,7 @@ namespace Delnavazan\Platform\Integrations\Notifications;
  *   never rendered into a message.
  */
 final class NotificationCatalogue {
-    public const VERSION='2026-11-17.4';
+    public const VERSION='2026-11-17.5';
     public const PRIMARY_LOCALE='fa-IR';
     public const SUPPORTED_LOCALES=array('fa-IR','en');
 
@@ -237,34 +237,40 @@ final class NotificationCatalogue {
                 'whatsapp'=>array('body'=>'Hello {{name}}, your orientation {{course}} class with {{teacher}} is confirmed for {{when}}. The class takes place in the Delnavazan online classroom — account: {{portal_url}}'),
             ),
         ));
-        $out[]=self::event('booking.declined.student','Intro Lesson Declined','booking','student','BookingTeacherResponseService','queue',array('email','website'),'operational',true,array('name','teacher','course','portal_url'),'booking.declined',array(
+        $out[]=self::event('booking.declined.student','Intro Lesson Declined','booking','student','BookingTeacherResponseService','queue',array('email','website','whatsapp'),'operational',true,array('name','teacher','course','portal_url'),'booking.declined',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · درخواست کلاس آشنایی پذیرفته نشد','body'=>"درود {{name}}،\n\nمتأسفانه {{teacher}} در این زمان نمی‌تواند کلاس آشنایی «{{course}}» را بپذیرد. درخواست شما تأیید نشد و هیچ رویداد تقویم یا لینک جلسه‌ای ساخته نشد.\n\nمی‌توانید زمان دیگری را در حساب کاربری انتخاب کنید:\n{{portal_url}}\n\nاگر نیاز به کمک دارید، از راه‌های ارتباطی حساب کاربری با ما در تماس باشید.\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'درخواست کلاس آشنایی پذیرفته نشد','body'=>'{{teacher}} در این زمان نمی‌تواند کلاس «{{course}}» را بپذیرد. می‌توانید زمان تازه‌ای انتخاب کنید.'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، متأسفانه {{teacher}} در این زمان نمی‌تواند کلاس آشنایی «{{course}}» را بپذیرد. می‌توانید زمان تازه‌ای از حساب کاربری انتخاب کنید: {{portal_url}}'),
             ),
             'en'=>array(
                 'email'=>array('subject'=>'Delnavazan · introductory lesson request update','body'=>"Hello {{name}},\n\n{{teacher}} is unable to accept your introductory {{course}} lesson at this time. The request was not confirmed and no calendar event or meeting link was created.\n\nChoose another time in your account:\n{{portal_url}}\n\nDelnavazan"),
                 'website'=>array('subject'=>'Introductory lesson request not accepted','body'=>'{{teacher}} is unable to accept the {{course}} lesson at this time. You can choose another time.'),
+                'whatsapp'=>array('body'=>'Hello {{name}}, unfortunately {{teacher}} cannot accept your introductory {{course}} lesson at this time. Choose another time in your account: {{portal_url}}'),
             ),
         ));
-        $out[]=self::event('booking.cancelled.student','Intro Lesson Cancelled','booking','student','IntroLessonLifecycleService','queue',array('email','website'),'operational',true,array('name','teacher','course','when','portal_url'),'booking.cancelled',array(
+        $out[]=self::event('booking.cancelled.student','Intro Lesson Cancelled','booking','student','IntroLessonLifecycleService','queue',array('email','website','whatsapp'),'operational',true,array('name','teacher','course','when','portal_url'),'booking.cancelled',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · کلاس آشنایی لغو شد','body'=>"درود {{name}}،\n\nکلاس آشنایی «{{course}}» با {{teacher}} در {{when}} لغو شد. این لغو به معنی ثبت حضور یا پرداخت نیست.\n\nجزئیات در حساب کاربری:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'کلاس آشنایی لغو شد','body'=>'کلاس آشنایی «{{course}}» با {{teacher}} در {{when}} لغو شد.'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، کلاس آشنایی «{{course}}» با {{teacher}} در {{when}} لغو شد. جزئیات در حساب کاربری: {{portal_url}}'),
             ),
             'en'=>array(
                 'email'=>array('subject'=>'Delnavazan · introductory lesson cancelled','body'=>"Hello {{name}},\n\nYour introductory {{course}} lesson with {{teacher}} for {{when}} has been cancelled. No attendance or payment decision was inferred.\n\nOpen your account:\n{{portal_url}}\n\nDelnavazan"),
                 'website'=>array('subject'=>'Introductory lesson cancelled','body'=>'Your {{course}} lesson with {{teacher}} for {{when}} was cancelled.'),
+                'whatsapp'=>array('body'=>'Hello {{name}}, your introductory {{course}} lesson with {{teacher}} for {{when}} has been cancelled. Details in your account: {{portal_url}}'),
             ),
         ));
-        $out[]=self::event('booking.rescheduled.student','Intro Lesson Rescheduled','booking','student','IntroLessonLifecycleService','queue',array('email','website'),'operational',true,array('name','teacher','course','when','portal_url'),'booking.rescheduled',array(
+        $out[]=self::event('booking.rescheduled.student','Intro Lesson Rescheduled','booking','student','IntroLessonLifecycleService','queue',array('email','website','whatsapp'),'operational',true,array('name','teacher','course','when','portal_url'),'booking.rescheduled',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · زمان کلاس آشنایی تغییر کرد','body'=>"درود {{name}}،\n\nزمان کلاس آشنایی «{{course}}» با {{teacher}} به {{when}} تغییر کرد.\n\nجزئیات در حساب کاربری:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'زمان کلاس آشنایی تغییر کرد','body'=>'زمان کلاس آشنایی «{{course}}» با {{teacher}} به {{when}} تغییر کرد.'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، زمان کلاس آشنایی «{{course}}» با {{teacher}} به {{when}} تغییر کرد. جزئیات در حساب کاربری: {{portal_url}}'),
             ),
             'en'=>array(
                 'email'=>array('subject'=>'Delnavazan · introductory lesson rescheduled','body'=>"Hello {{name}},\n\nYour introductory {{course}} lesson with {{teacher}} has been rescheduled to {{when}}.\n\nOpen your account:\n{{portal_url}}\n\nDelnavazan"),
                 'website'=>array('subject'=>'Introductory lesson rescheduled','body'=>'Your {{course}} lesson with {{teacher}} is now at {{when}}.'),
+                'whatsapp'=>array('body'=>'Hello {{name}}, your introductory {{course}} lesson with {{teacher}} has been rescheduled to {{when}}. Details in your account: {{portal_url}}'),
             ),
         ));
         $out[]=self::event('post_intro.invitation.student','Enrolment Ready','booking','student','PostIntroPreparationService','queue',array('email','website'),'operational',true,array('name','teacher','course','portal_url'),'post_intro.invitation',array(

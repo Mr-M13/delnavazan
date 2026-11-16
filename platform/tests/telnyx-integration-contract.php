@@ -78,6 +78,30 @@ foreach($definitions as $name=>$definition){
     if(array_diff($order,$declared)!==array())throw new RuntimeException('Telnyx integration contract failed: undeclared variable in '.$name);
 }
 
+/* The three booking intro events ship a WhatsApp channel whose registry order is exactly the
+ * first-appearance order of the Persian WhatsApp body placeholders. */
+$bookingWhatsApp=array(
+    'booking.cancelled.student'=>'delnavazan_intro_cancelled_fa',
+    'booking.declined.student'=>'delnavazan_intro_declined_fa',
+    'booking.rescheduled.student'=>'delnavazan_intro_rescheduled_fa',
+);
+$firstAppearance=static function(string $text):array{
+    $order=array();
+    if(preg_match_all('/\{\{([a-z][a-z0-9_]{0,63})\}\}/',$text,$m)){
+        foreach($m[1] as $code)if(!in_array($code,$order,true))$order[]=$code;
+    }
+    return $order;
+};
+foreach($bookingWhatsApp as $eventKey=>$name){
+    $event=\Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::get($eventKey);
+    $fail('booking WhatsApp event declares the channel: '.$eventKey,$event!==null&&in_array('whatsapp',(array)$event['channels'],true));
+    $fail('booking WhatsApp event is registered: '.$eventKey,isset($definitions[$name])&&$definitions[$name]['event_key']===$eventKey);
+    $fa=\Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::exactCopy($eventKey,'whatsapp','fa-IR');
+    $en=\Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::exactCopy($eventKey,'whatsapp','en');
+    $fail('booking WhatsApp event has Persian and English copy: '.$eventKey,is_array($fa)&&is_array($en));
+    $fail('booking WhatsApp registry order equals the Persian body first-appearance order: '.$eventKey,array_values((array)$definitions[$name]['variable_order'])===$firstAppearance((string)$fa['body']));
+}
+
 /* WhatsApp provider-template manifest (deployment/notifications/whatsapp-templates.json). The
  * audited workflow creates templates from this file; discovery maps them through the registry, so
  * every manifest name must resolve to a registry definition and every variable must be declared. */

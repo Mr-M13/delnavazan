@@ -15,9 +15,11 @@ $root = dirname(__DIR__);
 require_once $root . '/src/Integrations/Notifications/NotificationTemplateValidationException.php';
 require_once $root . '/src/Integrations/Notifications/NotificationCatalogue.php';
 require_once $root . '/src/Integrations/Notifications/NotificationTemplateSanitizer.php';
+require_once $root . '/src/Integrations/Notifications/TelnyxTemplateRegistry.php';
 
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateSanitizer;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry;
 
 $fail = static function (string $name, bool $ok): void {
     if (!$ok) throw new RuntimeException('Notification template readiness contract failed: ' . $name);
@@ -166,5 +168,35 @@ $fail('the inventory lists the producer gaps', count((array) $inventory['events_
 $fail('the inventory lists the unmapped WhatsApp routes', count((array) $inventory['whatsapp_routes_without_registry_mapping']) > 0);
 $fail('the inventory separates outstanding work from delivered functionality', str_contains((string) file_get_contents($root . '/docs/NOTIFICATION-TEMPLATE-INVENTORY.md'), 'Outstanding implementation work (not delivered functionality)'));
 $fail('the catalogue declares producer registration per event', str_contains((string) file_get_contents($root . '/src/Integrations/Notifications/NotificationCatalogue.php'), "'producer_registered'=>"));
+
+/* 8. The three booking intro events carry a WhatsApp channel whose copy exists in both locales and
+ *    whose registry variable order is the exact first-appearance order of the body placeholders. */
+$firstAppearance = static function (string $text): array {
+    $order = array();
+    if (preg_match_all('/\{\{([a-z][a-z0-9_]{0,63})\}\}/', $text, $m)) {
+        foreach ($m[1] as $code) if (!in_array($code, $order, true)) $order[] = $code;
+    }
+    return $order;
+};
+foreach (array(
+    'booking.cancelled.student' => 'delnavazan_intro_cancelled_fa',
+    'booking.declined.student' => 'delnavazan_intro_declined_fa',
+    'booking.rescheduled.student' => 'delnavazan_intro_rescheduled_fa',
+) as $eventKey => $templateName) {
+    $event = NotificationCatalogue::get($eventKey);
+    $fail('the booking event declares the WhatsApp channel: ' . $eventKey, $event !== null && in_array('whatsapp', (array) $event['channels'], true));
+    $fa = NotificationCatalogue::exactCopy($eventKey, 'whatsapp', 'fa-IR');
+    $en = NotificationCatalogue::exactCopy($eventKey, 'whatsapp', 'en');
+    $fail('the booking event has Persian and English WhatsApp copy: ' . $eventKey, is_array($fa) && is_array($en) && trim((string) $fa['body']) !== '' && trim((string) $en['body']) !== '');
+    $declared = NotificationCatalogue::variables($eventKey);
+    foreach (array($fa, $en) as $copy) {
+        $order = $firstAppearance((string) $copy['body']);
+        $fail('the booking WhatsApp copy only uses declared placeholders: ' . $eventKey, array_diff($order, $declared) === array());
+    }
+    $fail('the booking WhatsApp translation keeps the same placeholders: ' . $eventKey, $placeholders((string) $fa['body']) === $placeholders((string) $en['body']));
+    $definition = TelnyxTemplateRegistry::definitionForName($templateName);
+    $fail('the booking WhatsApp template is registered: ' . $templateName, $definition !== null && $definition['event_key'] === $eventKey);
+    $fail('the booking WhatsApp registry order equals the Persian body first-appearance order: ' . $eventKey, array_values((array) $definition['variable_order']) === $firstAppearance((string) $fa['body']));
+}
 
 echo "Notification template readiness contract passed\n";

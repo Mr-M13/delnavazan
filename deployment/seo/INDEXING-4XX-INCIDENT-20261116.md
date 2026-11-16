@@ -127,6 +127,8 @@ curl -s -o /dev/null -w '%{http_code}\n' https://delnavazan.com/articles/
 curl -s -o /dev/null -w '%{http_code}\n' https://delnavazan.com/enrol/
 curl -s -o /dev/null -w '%{http_code}\n' https://delnavazan.com/terms/          # 301, unchanged owner
 curl -s -o /dev/null -w '%{http_code}\n' https://delnavazan.com/learning-guide/80/   # 200, numeric rule inert
+curl -s https://delnavazan.com/enrol/ | grep -o '<link rel="canonical"[^>]*>'   # self canonical
+curl -s https://delnavazan.com/recording-and-research/ | grep -o '<link rel="canonical"[^>]*>'
 ```
 
 Then, in Search Console (owner action, not an agent action):
@@ -160,9 +162,13 @@ page's title, description and canonical: the response carries the theme title, n
 **no canonical link**. Rank Math's page metadata for that URL is retained on production but unused.
 
 `/login/`, `/admin-operations/` and the other protected routes are already covered: they send
-`X-Robots-Tag: noindex, nofollow` with `no-store`, which outranks their `index` meta tag. Restoring the
-`/enrol/` canonical is the crawl-hygiene change tracked as its own PR; the full Rank Math ownership of
-that page is audit decision R4 in `SEO-MIGRATION-AUDIT.md`.
+`X-Robots-Tag: noindex, nofollow` with `no-store`, which outranks their `index` meta tag.
+
+**Implemented in `fix/seo-enrol-canonical-20261116`:** an allowlisted route-level canonical, so
+`/enrol/` and `/recording-and-research/` publish a self-referencing canonical while every other
+virtual route (protected, transactional, pending policy) stays silent. Remaining gap: the meta
+description and keyword-bearing title for `/enrol/`, which needs Rank Math ownership of that page
+(audit decision R4 in `SEO-MIGRATION-AUDIT.md`).
 
 ### 6.3 Magazine hub pagination
 

@@ -59,6 +59,49 @@ function dzn_theme_virtual_route_document_title( $title ) {
 }
 add_filter( 'pre_get_document_title', 'dzn_theme_virtual_route_document_title' );
 
+/**
+ * Canonical address of an indexable virtual route.
+ *
+ * A virtual route has no WordPress post object, so no page-level SEO metadata
+ * applies to it and the response would be indexable without a canonical. Only
+ * routes that are meant to rank are returned, so a canonical can never
+ * contradict the `noindex` contract of a protected or pending-policy route.
+ *
+ * @return string Empty when the route owns no canonical.
+ */
+function dzn_theme_virtual_route_canonical() {
+	$route = dzn_theme_route();
+	if ( '' === $route || str_starts_with( $route, 'legal:' ) ) {
+		return '';
+	}
+	// /booking/ is a 302 alias of /enrol/; the canonical address is /enrol/.
+	$indexable = array(
+		'booking'                 => '/enrol/',
+		'recording-and-research'  => '/recording-and-research/',
+	);
+	if ( ! isset( $indexable[ $route ] ) ) {
+		return '';
+	}
+
+	return home_url( $indexable[ $route ] );
+}
+
+/**
+ * Print the canonical for a virtual route that owns one.
+ *
+ * The WordPress page object owns the canonical everywhere else, so this stays
+ * silent for a resolved page, a protected route and a pending policy.
+ */
+function dzn_theme_virtual_route_canonical_tag() {
+	$canonical = dzn_theme_virtual_route_canonical();
+	if ( '' === $canonical ) {
+		return;
+	}
+
+	echo '<link rel="canonical" href="' . esc_url( $canonical ) . '" />' . "\n";
+}
+add_action( 'wp_head', 'dzn_theme_virtual_route_canonical_tag', 1 );
+
 function dzn_theme_render_route_state( $title, $message, $action_label = '', $action_url = '', $secondary_label = '', $secondary_url = '' ) {
 	?>
 	<main id="main-content" class="site-main dzn-container dzn-route" tabindex="-1">

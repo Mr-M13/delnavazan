@@ -659,7 +659,7 @@ namespace {
     $fail('the coverage report accounts for every supported template', $coverage['required'] === $coverage['copy_present'] && $coverage['copy_missing'] === 0);
     $fail('the coverage report tracks prepared and approved drafts separately', isset($coverage['drafts'], $coverage['drafts_approved']) && $coverage['drafts'] > $coverage['drafts_approved']);
     $fail('the coverage report keeps canonical gaps visible', in_array('payment.failed.student', $coverage['unpublished_canonical'], true));
-    $fail('the coverage report keeps producer gaps visible', in_array('lesson.reminder.student', $coverage['declared_only'], true) && in_array('payment.failed.student', $coverage['declared_only'], true));
+    $fail('the coverage report keeps producer gaps visible', in_array('payment.failed.student', $coverage['declared_only'], true) && in_array('renewal.automatic_upcoming.student', $coverage['declared_only'], true));
     $fail('the coverage report classifies unsupported routes separately', in_array('booking.confirmed.student.sms', $coverage['unsupported'], true));
     $fail('the coverage report keeps unmapped WhatsApp routes visible', in_array('lesson.reminder.student', $coverage['unmapped_whatsapp'], true));
 
@@ -790,7 +790,7 @@ namespace {
     $fail('complete copy is reported as complete, not as readiness to send', $publishedEvent['Catalogue copy']['text'] === 'Complete in both languages');
     $fail('publication is reported independently of copy', str_contains($publishedEvent['Publication']['text'], 'published'));
     $fail('a registered producer is reported separately from copy', $publishedEvent['Producer']['text'] === 'Registered');
-    $noProducerEvent = $lifecycleMethod->invoke(null, $library, 'lesson.reminder.student', array('email', 'website', 'whatsapp', 'sms'));
+    $noProducerEvent = $lifecycleMethod->invoke(null, $library, 'renewal.automatic_upcoming.student', array('email', 'website', 'whatsapp'));
     $fail('a producer gap is never presented as delivered functionality', $noProducerEvent['Producer']['text'] === 'None registered — cannot fire yet' && $noProducerEvent['Producer']['class'] === 'is-warn');
     $financialEvent = $lifecycleMethod->invoke(null, $library, 'payment.failed.student', array('email', 'website', 'whatsapp'));
     $fail('financial copy shows no finance/legal hold, only provider readiness', !str_contains($financialEvent['Approvals']['text'], 'Finance') && !str_contains($financialEvent['Approvals']['text'], 'Legal'));

@@ -1,5 +1,5 @@
 <?php
-/** Teacher lesson-lifecycle notifications: catalogue declaration, idempotency, lifecycle gating, recipient resolution and the SMS leg. */
+/** Teacher and Student lesson-lifecycle notifications: catalogue declaration, idempotency, lifecycle gating, recipient resolution, the SMS leg and the student WhatsApp leg. */
 namespace {
     define('ABSPATH', dirname(__DIR__, 2) . '/');
     function wp_date(string $format, ?int $timestamp = null, ?DateTimeZone $timezone = null): string {
@@ -54,14 +54,38 @@ namespace {
         $fail($key . ' email names the class time', str_contains($fa['body'], '{{when}}') && str_contains($en['body'], '{{when}}'));
     }
 
-    /* The student lesson events stay declared-only in this phase. */
-    foreach (array('lesson.access.student', 'lesson.reminder.student', 'lesson.cancelled.student') as $student) {
-        $event = NotificationCatalogue::get($student);
-        $fail($student . ' remains declared-only', $event['implementation'] === 'declared' && $event['producer_registered'] === false);
+    /* (i-student) Each student lesson event is declared with the expected channels, copy and producer. */
+    foreach (array(
+        'lesson.access.student' => 'Class Access Ready',
+        'lesson.reminder.student' => 'Class Reminder',
+        'lesson.cancelled.student' => 'Class Cancelled',
+    ) as $key => $label) {
+        $event = NotificationCatalogue::get($key);
+        $fail($key . ' is declared', is_array($event));
+        $fail($key . ' targets the student', $event['audience'] === 'student');
+        $fail($key . ' is a lesson event', $event['category'] === 'lesson');
+        $fail($key . ' offers email, website, whatsapp and sms', $event['channels'] === array('email', 'website', 'whatsapp', 'sms'));
+        $fail($key . ' is operational and mandatory', $event['consent'] === 'operational' && $event['mandatory'] === true);
+        $fail($key . ' has a registered producer', $event['implementation'] === 'implemented' && $event['producer_registered'] === true);
+        $fail($key . ' is produced by the shared lifecycle service', $event['producer'] === 'LessonLifecycleNotificationService');
+        $fail($key . ' declares the producer-supplyable variables', $event['variables'] === array('name', 'course', 'teacher', 'when', 'portal_url'));
+        $fail($key . ' labels the notice', $event['label'] === $label);
+        foreach (array('email', 'website', 'whatsapp', 'sms') as $channel) {
+            foreach (NotificationCatalogue::SUPPORTED_LOCALES as $locale) {
+                $copy = NotificationCatalogue::exactCopy($key, $channel, $locale);
+                $fail($key . '/' . $channel . '/' . $locale . ' has copy', is_array($copy) && trim((string) ($copy['body'] ?? '')) !== '');
+            }
+        }
+        $fa = NotificationCatalogue::exactCopy($key, 'email', 'fa-IR');
+        $en = NotificationCatalogue::exactCopy($key, 'email', 'en');
+        $fail($key . ' Persian email greets with درود', str_contains($fa['body'], 'درود') && !str_contains($fa['body'], 'سلام'));
+        $fail($key . ' English email greets with Hello', str_contains($en['body'], 'Hello'));
+        $fail($key . ' email links the student portal', str_contains($fa['body'], '{{portal_url}}') && str_contains($en['body'], '{{portal_url}}'));
+        $fail($key . ' email names the class time', str_contains($fa['body'], '{{when}}') && str_contains($en['body'], '{{when}}'));
     }
 
-    $makeRow = static function (string $state = 'authorised', int $teacherId = 42, string $email = 'teacher@example.invalid', string $phone = '09123456789', string $country = 'IR'): array {
-        return array(
+    $makeRow = static function (string $state = 'authorised', int $teacherId = 42, string $email = 'teacher@example.invalid', string $phone = '09123456789', string $country = 'IR', array $overrides = array()): array {
+        return array_merge(array(
             'teacher_id' => $teacherId,
             'student_id' => 7,
             'lifecycle_state' => $state,
@@ -75,23 +99,32 @@ namespace {
             'teacher_timezone' => 'Asia/Tehran',
             'schedule_timezone' => 'Asia/Tehran',
             'teacher_portal_url' => 'https://example.invalid/teacher-portal/',
-        );
+            'student_email' => 'student@example.invalid',
+            'student_phone' => '09123456789',
+            'student_whatsapp' => '09123456789',
+            'student_country_code' => 'IR',
+            'student_timezone' => 'Asia/Tehran',
+            'student_portal_url' => 'https://example.invalid/student-portal/',
+        ), $overrides);
     };
 
-    /* A scenario builder with injectable SMS collaborators and a shared durable inbox state. */
+    /* A scenario builder with injectable SMS and WhatsApp collaborators and a shared durable inbox state. */
     $make = static function (array $row, array $opts = array()): array {
         $state = new \stdClass();
         $state->recorded = array();
         $state->sent = array();
         $state->sms = array();
+        $state->whatsapp = array();
         $state->portal = array();
-        $seen = static function (string $eventKey, int $lessonId) use ($state): bool { return isset($state->portal[$eventKey . ':' . $lessonId]); };
-        $record = static function (int $teacherId, string $eventKey, string $sourceKind, int $sourceId, array $variables, ?string $linkUrl) use ($state): ?int {
-            $key = $eventKey . ':' . $sourceId;
+        $seen = static function (string $eventKey, int $lessonId, string $audience = 'teacher') use ($state): bool { return isset($state->portal[$eventKey . ':' . $lessonId . ':' . $audience]); };
+        $record = static function (int $recipientId, string $eventKey, string $sourceKind, int $sourceId, array $variables, ?string $linkUrl, string $audience = 'teacher') use ($state): ?int {
+            $key = $eventKey . ':' . $sourceId . ':' . $audience;
             if (isset($state->portal[$key])) return $state->portal[$key];
             $id = count($state->portal) + 1;
             $state->portal[$key] = $id;
-            $state->recorded[] = array('teacher_id' => $teacherId, 'event_key' => $eventKey, 'source_id' => $sourceId, 'variables' => $variables);
+            $entry = array('recipient_id' => $recipientId, 'audience' => $audience, 'event_key' => $eventKey, 'source_id' => $sourceId, 'variables' => $variables);
+            if ($audience === 'student') $entry['student_id'] = $recipientId; else $entry['teacher_id'] = $recipientId;
+            $state->recorded[] = $entry;
             return $id;
         };
         $transport = static function (string $email, string $subject, string $body, string $audience = '') use ($state): bool {
@@ -108,7 +141,18 @@ namespace {
         };
         $smsAllowed = $opts['sms_allowed'] ?? static fn(string $eventKey): bool => true;
         $smsProviderReady = $opts['sms_ready'] ?? static fn(string $provider): bool => true;
-        $service = new LessonLifecycleNotificationService($transport, static fn(int $id): array => $row, $record, $seen, $smsSender, $smsAllowed, $smsProviderReady);
+        $whatsappSender = $opts['whatsapp_sender'] ?? static function (string $to, int $notificationId, string $eventKey, array $parameters) use ($state, $opts): array {
+            $state->whatsapp[] = array('to' => $to, 'notificationId' => $notificationId, 'event_key' => $eventKey, 'parameters' => $parameters);
+            $behaviour = $opts['whatsapp_behaviour'] ?? 'accepted';
+            if ($behaviour === 'throw') throw new RuntimeException('whatsapp transport down');
+            if ($behaviour === 'template_not_mapped') return array('acknowledged' => false, 'permanent_failure' => 'send_refused', 'reason' => 'template_not_mapped');
+            if ($behaviour === 'sender_not_configured') return array('acknowledged' => false, 'permanent_failure' => 'send_refused', 'reason' => 'sender_not_configured');
+            if ($behaviour === 'refused') return array('acknowledged' => false, 'permanent_failure' => 'send_refused');
+            return array('acknowledged' => true, 'permanent_failure' => null);
+        };
+        $whatsappAllowed = $opts['whatsapp_allowed'] ?? static fn(string $eventKey): bool => true;
+        $whatsappProviderReady = $opts['whatsapp_ready'] ?? static fn(): bool => true;
+        $service = new LessonLifecycleNotificationService($transport, static fn(int $id): array => $row, $record, $seen, $smsSender, $smsAllowed, $smsProviderReady, $whatsappSender, $whatsappAllowed, $whatsappProviderReady);
         return array($service, $state);
     };
 
@@ -202,15 +246,135 @@ namespace {
     $service->notifyAccessReady(101);
     $fail('idempotent re-run never duplicates SMS', count($state->sms) === 1 && count($state->sent) === 1 && count($state->recorded) === 1);
 
-    /* Production wiring: hooks, deferral, recipient resolution and the SMS route. */
+    /* ---------------------------------------------------------------------- student leg */
+
+    /* (ii-student) Access-ready resolves the enrolled student and is idempotent per lesson+event+audience. */
+    [$service, $state] = $make($makeRow('authorised'));
+    $first = $service->notifyStudentAccessReady(101);
+    $fail('student access-ready queues for the enrolled student', $first['produced'] === true && count($state->recorded) === 1 && count($state->sent) === 1);
+    $fail('student access-ready records the student audience', $state->recorded[0]['audience'] === 'student' && $state->recorded[0]['student_id'] === 7);
+    $fail('student access-ready emails the student address', $state->sent[0]['email'] === 'student@example.invalid' && $state->sent[0]['audience'] === 'student');
+    $fail('student access-ready renders the student portal link', str_contains($state->sent[0]['body'], '/student-portal/'));
+    $fail('student access-ready names the teacher', str_contains($state->sent[0]['body'], 'استاد ندا'));
+    $second = $service->notifyStudentAccessReady(101);
+    $fail('student access-ready is idempotent on re-run', $second['produced'] === false && $second['sms']['state'] === 'skipped' && $second['sms']['reason'] === 'already_recorded' && count($state->recorded) === 1 && count($state->sent) === 1);
+
+    /* (ii-student) Student reminder and cancellation queue exactly once each. */
+    [$service, $state] = $make($makeRow('authorised'));
+    $service->notifyStudentReminder(101);
+    $service->notifyStudentReminder(101);
+    $fail('student reminder queues exactly once per lesson+event', count($state->recorded) === 1 && count($state->sent) === 1 && count($state->sms) === 1 && count($state->whatsapp) === 1);
+
+    [$service, $state] = $make($makeRow('cancelled'));
+    $service->notifyStudentCancelled(101);
+    $service->notifyStudentCancelled(101);
+    $fail('student cancellation queues exactly once on a cancelled lesson', count($state->recorded) === 1 && count($state->sent) === 1 && count($state->sms) === 1 && count($state->whatsapp) === 1);
+
+    /* (iii-student) Lifecycle gating is identical for the student audience. */
+    [$service, $state] = $make($makeRow('cancelled'));
+    $r = $service->notifyStudentAccessReady(101);
+    $fail('student access-ready is refused on a cancelled lesson', $r['produced'] === false && $r['sms']['reason'] === 'lifecycle_not_applicable' && count($state->recorded) === 0 && count($state->whatsapp) === 0);
+    [$service, $state] = $make($makeRow('authorised'));
+    $r = $service->notifyStudentCancelled(101);
+    $fail('student cancellation is refused on an authorised lesson', $r['produced'] === false && count($state->recorded) === 0 && count($state->whatsapp) === 0);
+    [$service, $state] = $make($makeRow('completed'));
+    $fail('student reminder is refused on a completed lesson', $service->notifyStudentReminder(101)['produced'] === false && count($state->recorded) === 0);
+
+    /* (iv-student) The student recipient resolves to the lesson's enrolled student only. */
+    [$service, $state] = $make($makeRow('authorised', 42, 'teacher@example.invalid', '09123456789', 'IR', array('student_id' => 9, 'student_email' => 'other-student@example.invalid')));
+    $service->notifyStudentAccessReady(101);
+    $fail('the student notice reaches exactly the enrolled student', count($state->recorded) === 1 && $state->recorded[0]['student_id'] === 9 && $state->sent[0]['email'] === 'other-student@example.invalid');
+    $fail('the student notice never reaches the teacher', $state->sent[0]['email'] !== 'teacher@example.invalid');
+
+    [$service, $state] = $make($makeRow('authorised', 42, 'teacher@example.invalid', '09123456789', 'IR', array('student_id' => 0)));
+    $r = $service->notifyStudentAccessReady(101);
+    $fail('an unresolved student never queues', $r['produced'] === false && $r['sms']['reason'] === 'recipient_unresolved' && count($state->recorded) === 0);
+
+    /* (v-student) Student SMS uses the same routing policy and skip reasons as the teacher leg. */
+    [$service, $state] = $make($makeRow('authorised', 42, 'teacher@example.invalid', '09123456789', 'IR', array('student_phone' => '09123456789', 'student_country_code' => 'IR')));
+    $service->notifyStudentAccessReady(101);
+    $fail('student Iranian number routes to SMS.ir', count($state->sms) === 1 && $state->sms[0]['provider'] === 'sms_ir' && $state->sms[0]['to'] === '+989123456789');
+
+    [$service, $state] = $make($makeRow('authorised', 42, 'teacher@example.invalid', '09123456789', 'IR', array('student_phone' => '+61412345678', 'student_country_code' => 'AU')));
+    $service->notifyStudentAccessReady(101);
+    $fail('student non-Iranian number routes to Telnyx', count($state->sms) === 1 && $state->sms[0]['provider'] === 'telnyx' && $state->sms[0]['to'] === '+61412345678');
+
+    [$service, $state] = $make($makeRow('authorised', 42, 'teacher@example.invalid', '09123456789', 'IR', array('student_phone' => '')));
+    $r = $service->notifyStudentAccessReady(101);
+    $fail('student no phone skips SMS with a stable reason', $r['sms']['state'] === 'skipped' && $r['sms']['reason'] === 'no_phone' && count($state->sms) === 0 && $r['produced'] === true);
+
+    [$service, $state] = $make($makeRow('authorised', 42, 'teacher@example.invalid', '09123456789', 'IR', array('student_phone' => 'not-a-number')));
+    $r = $service->notifyStudentAccessReady(101);
+    $fail('student invalid phone skips SMS with a stable reason', $r['sms']['state'] === 'skipped' && $r['sms']['reason'] === 'phone_invalid' && count($state->sms) === 0);
+
+    [$service, $state] = $make($makeRow('authorised', 42, 'teacher@example.invalid', '09123456789', 'IR', array('student_phone' => '09123456789')), array('sms_ready' => static fn(string $p): bool => false));
+    $r = $service->notifyStudentAccessReady(101);
+    $fail('student unconfigured provider skips SMS with a stable reason', $r['sms']['state'] === 'skipped' && $r['sms']['reason'] === 'provider_not_configured' && $r['sms']['provider'] === 'sms_ir' && count($state->sms) === 0);
+
+    /* (vi) Teacher and student notices are independent: both audiences produce, and neither re-run
+     *      crosses the other's durable record. */
+    [$service, $state] = $make($makeRow('authorised'));
+    $teacher = $service->notifyReminder(101);
+    $student = $service->notifyStudentReminder(101);
+    $fail('teacher and student reminders are produced independently', $teacher['produced'] === true && $student['produced'] === true && count($state->recorded) === 2);
+    $audiences = array_map(static fn(array $e): string => $e['audience'], $state->recorded);
+    sort($audiences);
+    $fail('each audience records exactly one row', $audiences === array('student', 'teacher'));
+    $again = $service->notifyReminder(101);
+    $fail('re-running the teacher reminder does not duplicate the student row', $again['produced'] === false && count($state->recorded) === 2);
+    $againStudent = $service->notifyStudentReminder(101);
+    $fail('re-running the student reminder does not duplicate the teacher row', $againStudent['produced'] === false && count($state->recorded) === 2);
+
+    /* WhatsApp skip reasons: no WhatsApp number, admin-disabled channel, unconfigured provider,
+     * unmapped template, and the accepted path. */
+    [$service, $state] = $make($makeRow('authorised', 42, 'teacher@example.invalid', '09123456789', 'IR', array('student_whatsapp' => '')));
+    $r = $service->notifyStudentAccessReady(101);
+    $fail('no WhatsApp number skips with a stable reason', $r['whatsapp']['state'] === 'skipped' && $r['whatsapp']['reason'] === 'no_whatsapp_phone' && count($state->whatsapp) === 0 && $r['produced'] === true);
+
+    [$service, $state] = $make($makeRow('authorised'), array('whatsapp_allowed' => static fn(string $e): bool => false));
+    $r = $service->notifyStudentAccessReady(101);
+    $fail('admin-disabled WhatsApp skips with a stable reason', $r['whatsapp']['state'] === 'skipped' && $r['whatsapp']['reason'] === 'channel_disabled' && count($state->whatsapp) === 0);
+
+    [$service, $state] = $make($makeRow('authorised'), array('whatsapp_ready' => static fn(): bool => false));
+    $r = $service->notifyStudentAccessReady(101);
+    $fail('unconfigured WhatsApp provider skips with a stable reason', $r['whatsapp']['state'] === 'skipped' && $r['whatsapp']['reason'] === 'provider_not_configured' && count($state->whatsapp) === 0);
+
+    [$service, $state] = $make($makeRow('authorised'), array('whatsapp_behaviour' => 'template_not_mapped'));
+    $r = $service->notifyStudentAccessReady(101);
+    $fail('an unmapped WhatsApp template skips with a stable reason', $r['whatsapp']['state'] === 'skipped' && $r['whatsapp']['reason'] === 'provider_template_not_mapped' && count($state->whatsapp) === 1);
+
+    [$service, $state] = $make($makeRow('authorised'));
+    $r = $service->notifyStudentAccessReady(101);
+    $fail('a mapped WhatsApp template is accepted through the provider machinery', $r['whatsapp']['state'] === 'accepted' && count($state->whatsapp) === 1 && $state->whatsapp[0]['to'] === '+989123456789');
+    $fail('WhatsApp carries only the approved template parameters, never free-form text', is_array($state->whatsapp[0]['parameters']) && $state->whatsapp[0]['parameters']['name'] === 'باران' && $state->whatsapp[0]['parameters']['course'] === 'تار' && array_key_exists('when', $state->whatsapp[0]['parameters']));
+    $fail('WhatsApp is correlated to the portal inbox row', $state->whatsapp[0]['notificationId'] === 1);
+
+    /* WhatsApp failure never changes the email, SMS or inbox outcome. */
+    [$service, $state] = $make($makeRow('authorised'), array('whatsapp_behaviour' => 'throw'));
+    $r = $service->notifyStudentAccessReady(101);
+    $fail('WhatsApp exception is reported without breaking email/SMS/inbox', $r['produced'] === true && $r['email']['state'] === 'sent' && $r['whatsapp']['state'] === 'failed' && $r['whatsapp']['reason'] === 'whatsapp_exception' && count($state->recorded) === 1 && count($state->sent) === 1);
+
+    /* The teacher leg never attempts WhatsApp. */
+    [$service, $state] = $make($makeRow('authorised'));
+    $r = $service->notifyAccessReady(101);
+    $fail('the teacher leg never offers WhatsApp', $r['whatsapp']['state'] === 'skipped' && $r['whatsapp']['reason'] === 'not_offered' && count($state->whatsapp) === 0);
+
+    /* Production wiring: hooks, deferral, recipient resolution, the SMS route and the WhatsApp route. */
     $source = (string) file_get_contents(dirname(__DIR__, 2) . '/platform/src/Core/Application/LessonLifecycleNotificationService.php');
-    $fail('access-ready hooks schedule creation', str_contains($source, "dzn_phase_2a2n_after_command_insert") && str_contains($source, "schedule_initial"));
-    $fail('cancellation hooks the lifecycle transition', str_contains($source, "dzn_phase_2a2m_after_lesson_transition") && str_contains($source, "'cancel'"));
+    $fail('access-ready hooks schedule creation for both audiences', str_contains($source, "dzn_phase_2a2n_after_command_insert") && str_contains($source, "schedule_initial") && str_contains($source, "STUDENT_ACCESS_EVENT"));
+    $fail('cancellation hooks the lifecycle transition for both audiences', str_contains($source, "dzn_phase_2a2m_after_lesson_transition") && str_contains($source, "'cancel'") && str_contains($source, "STUDENT_CANCELLED_EVENT"));
     $fail('recipient resolution joins the assigned teacher only', str_contains($source, 't.id=l.teacher_id') && str_contains($source, "t.status='active'") && str_contains($source, 't.archived_at IS NULL'));
+    $fail('recipient resolution joins the enrolled student only', str_contains($source, 's.id=l.student_id') && str_contains($source, 's.email student_email') && str_contains($source, 's.whatsapp_phone student_whatsapp'));
     $fail('recipient resolution carries the phone and country', str_contains($source, 't.phone') && str_contains($source, 't.country_code'));
     $fail('the producer defers out of band and re-verifies state', str_contains($source, 'wp_schedule_single_event') && str_contains($source, 'lifecycle_state'));
     $fail('SMS uses the existing destination policy and E.164 normaliser', str_contains($source, 'SmsProviderRoutingPolicy::select') && str_contains($source, 'PhoneNumberNormalizer::toE164'));
     $fail('SMS passes the body only to the provider and never records or logs it', str_contains($source, 'never recorded or logged'));
+    $fail('WhatsApp is delivered only through the existing provider-template adapter', str_contains($source, 'TelnyxWhatsAppAdapter') && str_contains($source, 'sendBookingNotification'));
+    $fail('WhatsApp skips with a stable unmapped-template reason', str_contains($source, 'provider_template_not_mapped'));
+    $fail('WhatsApp skips with a stable unconfigured-provider reason', str_contains($source, 'provider_not_configured'));
+
+    $worker = (string) file_get_contents(dirname(__DIR__, 2) . '/platform/src/Integrations/LessonReminderWorker.php');
+    $fail('the reminder worker produces for both audiences without a duplicate send', str_contains($worker, 'notifyReminder(') && str_contains($worker, 'notifyStudentReminder('));
 
     echo "Lesson lifecycle notification unit passed\n";
 }

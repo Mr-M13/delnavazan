@@ -1,6 +1,6 @@
 {
-    "generated_at": "2026-11-16T21:08:06+00:00",
-    "catalogue_version": "2026-11-17.3",
+    "generated_at": "2026-11-16T21:46:09+00:00",
+    "catalogue_version": "2026-11-17.4",
     "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
     "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
     "totals": {
@@ -14,7 +14,7 @@
         "unpublished_canonical_templates": "live_check_required",
         "missing_provider_mappings": 1,
         "unsupported_routes": 125,
-        "events_without_registered_producer": 13
+        "events_without_registered_producer": 10
     },
     "by_category": {
         "security": 2,
@@ -36,14 +36,11 @@
         "website": 65
     },
     "implementation": {
-        "implemented": 54,
+        "implemented": 57,
         "partial": 20,
-        "declared": 3
+        "declared": 0
     },
     "events_without_registered_producer": [
-        "lesson.access.student",
-        "lesson.cancelled.student",
-        "lesson.reminder.student",
         "payment.failed.student",
         "payment.recovered.student",
         "refund.resolved.student",
@@ -1661,10 +1658,10 @@
             "category": "lesson",
             "task": "classes_scheduling",
             "recipient": "student",
-            "producer": "ClassAccessService",
-            "producer_registered": false,
-            "producer_class_found": false,
-            "implementation": "declared",
+            "producer": "LessonLifecycleNotificationService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
                 "email",
@@ -1784,10 +1781,10 @@
             "category": "lesson",
             "task": "classes_scheduling",
             "recipient": "student",
-            "producer": "LessonCancellationService",
-            "producer_registered": false,
-            "producer_class_found": false,
-            "implementation": "declared",
+            "producer": "LessonLifecycleNotificationService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
                 "email",
@@ -1907,10 +1904,10 @@
             "category": "lesson",
             "task": "classes_scheduling",
             "recipient": "student",
-            "producer": "LessonReminderService",
-            "producer_registered": false,
-            "producer_class_found": false,
-            "implementation": "declared",
+            "producer": "LessonLifecycleNotificationService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
             "delivery_authority": "queue",
             "channels": [
                 "email",

@@ -16,6 +16,15 @@ final class BookingAllocationService {
     // A response must finish before the lesson begins; leave an hour for
     // confirmation and provider projection after the complete response window.
     public const PROJECTION_BUFFER_SECONDS=BookingLeadTimePolicy::PROJECTION_BUFFER_SECONDS;
+    /**
+     * A request that crossed the minimum notice before it could be (re)offered.
+     *
+     * Distinct from `no_viable_teacher`/`candidates_exhausted`, which both mean
+     * every eligible Teacher was actually considered. Here no Teacher could have
+     * been asked, and no Teacher decision can change the outcome, so the referral
+     * is retryable: the Student chooses later times and allocation succeeds.
+     */
+    public const LEAD_TIME_REFERRAL_REASON='requested_time_inside_lead_time';
     private BookingTeacherOccupancyReadService $occupancy;
     private BookingTeacherWorkloadService $workload;
     public function __construct(
@@ -38,7 +47,7 @@ final class BookingAllocationService {
         if($this->repo->delivery($requestId))throw new \RuntimeException('Allocation already started');
         $this->lockEligibleTeacherRoots($courseId,$now);
         $candidates=$this->candidates($courseId,$times,$now);
-        if(!$candidates){$this->repo->referral($requestId,'no_viable_teacher',$now);return null;}
+        if(!$candidates){$this->repo->referral($requestId,$this->emptyCandidatesReason($times,$now,true,'no_viable_teacher'),$now);return null;}
         $last=$this->repo->cursor($courseId,$now);
         $chosen=$this->next($candidates,$last,array(),$now);
         $this->repo->advanceCursor($courseId,$chosen['teacher_id'],$now);
@@ -60,12 +69,13 @@ final class BookingAllocationService {
         if(!$request||$request->lifecycle_status!=='submitted'||$request->resolution_state!=='unresolved'||$request->privacy_erased_at!==null)return null;
         $history=$this->repo->history($requestId);
         $offered=array_map(static fn(object $row):int=>(int)$row->teacher_id,$history);
+        $times=$this->repo->times($requestId);
         $this->lockEligibleTeacherRoots((int)$request->selected_intro_course_id,$now);
-        $candidates=$this->candidates((int)$request->selected_intro_course_id,$this->repo->times($requestId),$now);
+        $candidates=$this->candidates((int)$request->selected_intro_course_id,$times,$now);
         $next=$this->next($candidates,(int)$offer->teacher_id,$offered,$now);
         if(!$next){
             $this->deliveries->transitionForAllocation((int)$delivery->id,'pending_request',$outcome,$now);
-            $this->repo->referral($requestId,'candidates_exhausted',$now);
+            $this->repo->referral($requestId,$this->emptyCandidatesReason($times,$now,true,'candidates_exhausted'),$now);
             return null;
         }
         $deliveryId=$this->repo->rotateDelivery($delivery,$next,$now);
@@ -184,12 +194,15 @@ final class BookingAllocationService {
     private function candidates(int $courseId,array $times,string $now,bool $fullResponseWindow=true,int $excludeBookingRequestId=0,bool $includePendingOffers=true,bool $allowOutsideAvailability=false):array{
         if($courseId<1)return array();
         $teachers=$this->matches->eligibleTeachers($courseId,$now);
-        $minStart=BookingLeadTimePolicy::minimumStartUtc($now,$fullResponseWindow);
         $result=array();
         foreach($teachers as $teacher)foreach($times as $time){
             $start=(string)(is_array($time)?$time['starts_at_utc']:$time->starts_at_utc);
             $end=(string)(is_array($time)?$time['occupied_ends_at_utc']:$time->occupied_ends_at_utc);
-            if($start<=$minStart)continue;
+            // One boundary authority: the shared policy predicate, the decision
+            // instant and the strictness used by the day grid and intake. Never
+            // re-derive the boundary here, or a time can be requestable on the
+            // public grid and unofferable in allocation.
+            if(!BookingLeadTimePolicy::isStartAllowed($start,$now,$fullResponseWindow))continue;
             $teacherId=(int)$teacher->teacher_id;
             $coverage=$this->coverage($teacherId,$start,$end,$this->availability->instrumentIdForCourse($courseId));
             $outside=$coverage===null;
@@ -246,6 +259,28 @@ final class BookingAllocationService {
             if($cursor===$end)return $state;
         }
         return null;
+    }
+    /**
+     * Explain an empty candidate set without inventing a Teacher decision.
+     *
+     * `no_viable_teacher` and `candidates_exhausted` both state that every
+     * eligible Teacher was considered and none could take the time. A request
+     * that has crossed the minimum notice is different: no Teacher could have
+     * been asked, because its requested starts are no longer requestable at this
+     * instant. Reporting that as "no Teacher" sends the Student and the
+     * coordinator looking for a Teacher who cannot exist. The crossed-boundary
+     * case therefore gets its own retryable reason: choose later times and the
+     * request can be allocated normally.
+     *
+     * Precedence is deliberate. When every requested start is inside the window,
+     * no Teacher decision can change the outcome, so the lead-time reason wins
+     * even if the eligible set was also empty. The predicate is the shared policy
+     * one, evaluated at the same instant as the candidate filter above.
+     */
+    private function emptyCandidatesReason(array $times,string $now,bool $fullResponseWindow,string $fallback):string{
+        $starts=array();
+        foreach($times as $time)$starts[]=(string)(is_array($time)?$time['starts_at_utc']:$time->starts_at_utc);
+        return BookingLeadTimePolicy::allStartsInsideMinimumNotice($starts,$now,$fullResponseWindow)?self::LEAD_TIME_REFERRAL_REASON:$fallback;
     }
     /** Lock in a global Teacher-id order before allocating across instruments. */
     private function lockEligibleTeacherRoots(int $courseId,string $now):void{

@@ -11,6 +11,7 @@ require_once __DIR__ . '/booking-engine-stress-fixture.php';
 dzn_stress_guard();
 
 use Delnavazan\Platform\Core\Application\AvailabilityLocalTime;
+use Delnavazan\Platform\Core\Application\BookingLeadTimePolicy;
 use Delnavazan\Platform\Core\Application\TeacherAvailabilityService;
 use Delnavazan\Platform\Core\Support\PersianCalendar;
 
@@ -176,10 +177,54 @@ foreach (array('24 hours 30 minutes', '25 hours', '26 hours') as $offset) {
     $time = dzn_stress_time($start->format('Y-m-d H:i:s'), 30, 15);
     $request = dzn_stress_request($student, $leadCourse['instrument_id'], $leadCourse['course_id'], array($time), $suffix, 'E17-' . md5($offset));
     $offer = dzn_stress_allocate($request['request_id'], $leadCourse['course_id'], dzn_stress_times_for_allocation($request['request_id']));
-    $leadTimes[$offset] = array('start_utc' => $time['starts_at_utc'], 'offered' => $offer !== null);
+    $leadTimes[$offset] = array('start_utc' => $time['starts_at_utc'], 'offered' => $offer !== null, 'referral_reason' => dzn_stress_referral_reason($request['request_id']));
 }
 dzn_stress_assert($leadTimes['24 hours 30 minutes']['offered'] === false, 'E17 a request inside the 25-hour lead time was offered');
 dzn_stress_assert($leadTimes['25 hours']['offered'] === false, 'E17 a request exactly at the 25-hour boundary was offered');
 dzn_stress_assert($leadTimes['26 hours']['offered'] === true, 'E17 a request beyond the lead time was not offered');
+// A refusal that is purely about notice must say so, not claim every Teacher was tried.
+dzn_stress_assert($leadTimes['24 hours 30 minutes']['referral_reason'] === 'requested_time_inside_lead_time', 'E17 24.5h must be referred for the notice window, got ' . var_export($leadTimes['24 hours 30 minutes']['referral_reason'], true));
+dzn_stress_assert($leadTimes['25 hours']['referral_reason'] === 'requested_time_inside_lead_time', 'E17 exactly 25h must be referred for the notice window, got ' . var_export($leadTimes['25 hours']['referral_reason'], true));
+
+// 18. A request that passes intake can cross the boundary before the allocator
+// runs (a decline/expiry rotation or an operator re-run). The outcome must be
+// the same shared-policy classification: retryable lead time, never "no viable
+// Teacher", because no Teacher could have been asked.
+$crossCourse = dzn_stress_course($suffix, 'e18-crossed', 'E18 Crossed boundary');
+$crossTeacher = dzn_stress_teacher($suffix, 'E18 crossed boundary', array($crossCourse['course_id']), array('timezone' => 'UTC'));
+$intakeNow = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+$crossStart = $intakeNow->modify('+26 hours');
+$crossTime = dzn_stress_time($crossStart->format('Y-m-d H:i:s'), 30, 15);
+dzn_stress_assert(BookingLeadTimePolicy::isStartAllowed($crossTime['starts_at_utc'], $intakeNow->format('Y-m-d H:i:s')), 'E18 the fixture start must pass intake at submission time');
+$crossRequest = dzn_stress_request($student, $crossCourse['instrument_id'], $crossCourse['course_id'], array($crossTime), $suffix, 'E18-crossed');
+$lateNow = $intakeNow->modify('+2 hours')->format('Y-m-d H:i:s');
+$crossOffer = dzn_stress_allocate($crossRequest['request_id'], $crossCourse['course_id'], dzn_stress_times_for_allocation($crossRequest['request_id']), $lateNow);
+$crossReason = dzn_stress_referral_reason($crossRequest['request_id']);
+dzn_stress_assert($crossOffer === null, 'E18 a start inside the notice window was offered');
+dzn_stress_assert($crossReason === 'requested_time_inside_lead_time', 'E18 the crossed-boundary refusal must name the lead time, got ' . var_export($crossReason, true));
+// The same instant is still requestable at the intake moment: the difference is
+// only that the boundary moved, so the refusal is retryable with later times.
+$openRequest = dzn_stress_request($student, $crossCourse['instrument_id'], $crossCourse['course_id'], array($crossTime), $suffix, 'E18-open');
+$openOffer = dzn_stress_allocate($openRequest['request_id'], $crossCourse['course_id'], dzn_stress_times_for_allocation($openRequest['request_id']), $intakeNow->format('Y-m-d H:i:s'));
+dzn_stress_assert($openOffer !== null, 'E18 the same start must be offerable at the intake instant');
+echo 'AUDIT_RESULT ' . wp_json_encode(array('scenario' => 'E18_crossed_lead_time_boundary', 'pass' => true, 'teacher_id' => $crossTeacher['teacher_id'], 'intake_now' => $intakeNow->format('Y-m-d H:i:s'), 'allocation_now' => $lateNow, 'crossed_offer' => $crossOffer !== null, 'crossed_referral_reason' => $crossReason, 'open_offer' => $openOffer !== null)) . "\n";
+
+// 18b. A re-referral must reclassify the OPEN coordination case: a request first
+// referred for a Teacher-based reason, then re-run after its start crossed the
+// notice boundary, must show the lead-time reason in the case row itself, not
+// only in the alert.
+$reclassCourse = dzn_stress_course($suffix, 'e18b-reclass', 'E18b Reclassify');
+$reclassTeacher = dzn_stress_teacher($suffix, 'E18b reclassify', array($reclassCourse['course_id']), array('timezone' => 'UTC', 'leave' => true));
+$reclassStart = $intakeNow->modify('+24 hours 30 minutes');
+$reclassTime = dzn_stress_time($reclassStart->format('Y-m-d H:i:s'), 30, 15);
+$reclassRequest = dzn_stress_request($student, $reclassCourse['instrument_id'], $reclassCourse['course_id'], array($reclassTime), $suffix, 'E18b-reclass');
+$earlyNow = $intakeNow->modify('-2 hours')->format('Y-m-d H:i:s');
+$firstOutcome = dzn_stress_allocate($reclassRequest['request_id'], $reclassCourse['course_id'], dzn_stress_times_for_allocation($reclassRequest['request_id']), $earlyNow);
+$firstReason = dzn_stress_referral_reason($reclassRequest['request_id']);
+dzn_stress_assert($firstOutcome === null && $firstReason === 'no_viable_teacher', 'E18b the first referral must be a Teacher-based reason, got ' . var_export($firstReason, true));
+$secondOutcome = dzn_stress_allocate($reclassRequest['request_id'], $reclassCourse['course_id'], dzn_stress_times_for_allocation($reclassRequest['request_id']), $intakeNow->format('Y-m-d H:i:s'));
+$secondReason = dzn_stress_referral_reason($reclassRequest['request_id']);
+dzn_stress_assert($secondOutcome === null && $secondReason === 'requested_time_inside_lead_time', 'E18b the re-referral must reclassify the open case to the lead-time reason, got ' . var_export($secondReason, true));
+echo 'AUDIT_RESULT ' . wp_json_encode(array('scenario' => 'E18b_referral_reclassification', 'pass' => true, 'first_reason' => $firstReason, 'second_reason' => $secondReason)) . "\n";
 
 echo 'AUDIT_RESULT ' . wp_json_encode(array('scenario' => 'E15_E17_leave_limited_leadtime', 'pass' => true, 'leave_excluded' => $leaveCoverage === null, 'limited_offer' => $limitedOffer['match_strength'] ?? null, 'lead_times' => $leadTimes)) . "\n";

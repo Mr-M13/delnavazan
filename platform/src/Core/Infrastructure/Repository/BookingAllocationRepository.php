@@ -100,6 +100,13 @@ final class BookingAllocationRepository {
             if($wpdb->insert($this->p.'coordination_cases',array('uid'=>Identifier::uid(),'reference_code'=>null,'booking_request_id'=>$requestId,'state'=>'open','state_reason_code'=>$reason,'version'=>1,'created_at'=>$now,'updated_at'=>$now,'created_by'=>null,'updated_by'=>null,'closed_at'=>null,'closed_by'=>null))===false)throw new \RuntimeException('Allocation coordination referral failed');
             $case=(int)$wpdb->insert_id;
             if($wpdb->update($this->p.'coordination_cases',array('reference_code'=>Identifier::reference('CCS',(int)$case)),array('id'=>(int)$case))!==1)throw new \RuntimeException('Allocation coordination reference failed');
+        }else{
+            // A re-referral reclassifies the open case: coordinators must see the
+            // latest reason (e.g. the notice window) instead of a stale
+            // Teacher-based explanation. Closed cases are preserved verbatim; the
+            // version bump keeps the change append-style auditable. Zero affected
+            // rows (no open case) is not an error.
+            if($wpdb->query($wpdb->prepare("UPDATE {$this->p}coordination_cases SET state_reason_code=%s,version=version+1,updated_at=%s WHERE id=%d AND state='open'",$reason,$now,(int)$case))===false)throw new \RuntimeException('Allocation coordination reclassification failed');
         }
     }
     public function alert(int $requestId,string $kind,string $reason,string $priority,string $now):void{

@@ -10,6 +10,8 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public static array $pendingExpirations = array();
         public array $lockedTeacherRoots = array();
         public int $cursorId = 0;
+        /** Optional requested-time rows; the default is a start far beyond the notice window. */
+        public ?array $timeRows = null;
         public function begin(): void {}
         public function commit(): void {}
         public function rollback(): void {}
@@ -17,7 +19,7 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function delivery(int $requestId, bool $lock = false): ?object { return $this->deliveryRow; }
         public function request(int $requestId, bool $lock = false): ?object { return (object) array('id'=>$requestId,'selected_intro_course_id'=>4,'lifecycle_status'=>'submitted','resolution_state'=>'unresolved','privacy_erased_at'=>null,'created_at'=>'2026-11-02 00:00:00'); }
         public function confirmationExists(int $requestId): bool { return false; }
-        public function times(int $requestId): array { return array((object) array('id'=>101,'sequence_number'=>1,'starts_at_utc'=>'2026-11-10 09:00:00','occupied_ends_at_utc'=>'2026-11-10 10:00:00')); }
+        public function times(int $requestId): array { return $this->timeRows ?? array((object) array('id'=>101,'sequence_number'=>1,'starts_at_utc'=>'2026-11-10 09:00:00','occupied_ends_at_utc'=>'2026-11-10 10:00:00')); }
         public function cursor(int $courseId, string $now): int { return $this->cursorId; }
         public function advanceCursor(int $courseId, int $teacherId, string $now): void { $this->cursorId=$teacherId; }
         public function addOffer(int $requestId, int $deliveryId, array $candidate, int $sequence, string $now, string $deadline): void {
@@ -143,6 +145,34 @@ namespace {
     $refusal=\Delnavazan\Platform\Core\Application\BookingLeadTimePolicy::refusal('2026-11-02 10:00:00',$now,'Asia/Tehran');
     $assert(is_array($refusal)&&$refusal['reason_code']==='lead_time_too_short'&&$refusal['timezone']==='Asia/Tehran'&&$refusal['minimum_start_local']==='2026-11-03 04:30','A short-notice refusal must explain the boundary in the Student timezone.');
     $assert(\Delnavazan\Platform\Core\Application\BookingLeadTimePolicy::isStartAllowed('2026-11-02 02:00:01',$now,false),'An existing offer acceptance only needs the projection buffer.');
+
+    // A request that passes intake can cross the boundary before allocation runs.
+    // The outcome must name that cause (retryable: choose later times) instead of
+    // claiming every Teacher was considered, and it must use the same instant and
+    // strictness as the grid and intake (see booking-engine-scenario-date-unit).
+    $boundaryService=static function(\Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository $repo): \Delnavazan\Platform\Core\Application\BookingAllocationService {
+        return new \Delnavazan\Platform\Core\Application\BookingAllocationService($repo,new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestMatchAssessmentRepository(),new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherDeliveryRepository($repo));
+    };
+    \Delnavazan\Platform\Core\Application\BookingTeacherOccupancyReadService::$blockedTeachers=array();
+    $crossedRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository();
+    $crossedRepo->timeRows=array((object) array('id'=>201,'sequence_number'=>1,'starts_at_utc'=>'2026-11-03 01:00:00','occupied_ends_at_utc'=>'2026-11-03 02:00:00'));
+    $crossed=$boundaryService($crossedRepo)->startWithinTransaction(31,4,$crossedRepo->times(31),$now);
+    $assert($crossed===null&&$crossedRepo->referrals===array(\Delnavazan\Platform\Core\Application\BookingAllocationService::LEAD_TIME_REFERRAL_REASON),'A request that crossed the boundary before allocation must be referred with the retryable lead-time reason.');
+    $assert(in_array('referral',$crossedRepo->alerts,true)&&$crossedRepo->offers===array(),'The crossed-boundary referral must alert coordination without creating an offer.');
+    $openRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository();
+    $openRepo->timeRows=array((object) array('id'=>202,'sequence_number'=>1,'starts_at_utc'=>'2026-11-03 01:00:01','occupied_ends_at_utc'=>'2026-11-03 02:00:01'));
+    $open=$boundaryService($openRepo)->startWithinTransaction(32,4,$openRepo->times(32),$now);
+    $assert($open!==null&&$open['teacher_id']===11,'One second past the boundary must still be offered at the same instant.');
+    \Delnavazan\Platform\Core\Application\BookingTeacherOccupancyReadService::$blockedTeachers=array(11,22);
+    $unavailableRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository();
+    $unavailable=$boundaryService($unavailableRepo)->startWithinTransaction(33,4,$unavailableRepo->times(33),$now);
+    \Delnavazan\Platform\Core\Application\BookingTeacherOccupancyReadService::$blockedTeachers=array();
+    $assert($unavailable===null&&$unavailableRepo->referrals===array('no_viable_teacher'),'A genuine availability failure must keep the existing no_viable_teacher reason.');
+    $rotationRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository();
+    $rotationService=$boundaryService($rotationRepo);
+    $rotationFirst=$rotationService->startWithinTransaction(34,4,$rotationRepo->times(34),$now);
+    $rotation=$rotationService->advanceLocked($rotationRepo->deliveryRow,'expired','2026-11-09 09:00:00');
+    $assert($rotationFirst!==null&&$rotation===null&&$rotationRepo->referrals===array(\Delnavazan\Platform\Core\Application\BookingAllocationService::LEAD_TIME_REFERRAL_REASON),'A rotation whose requested time crossed the boundary must explain the lead time instead of reporting an exhausted candidate set.');
 
     // Transient InnoDB contention is retryable, never an authorization refusal.
     $assert(\Delnavazan\Platform\Core\Application\BookingContention::isLockFailure('Lock wait timeout exceeded; try restarting transaction'),'A lock-wait timeout must be classified as contention.');

@@ -5,7 +5,7 @@
  * Covers: fresh Schema 32, the 31→32 rehearsal, repeat-run safety, retained-032 fail-closed, the additive
  * `platform_outbox` extension (a duplicate `notification_id` insert rejected while unlimited NULLs are
  * accepted), the nullable `deferral_count` mirror, the absence of `updated_at` on append-only S storage,
- * the twenty declared tables, the durable tier-F instant columns and the retained Phase-1/R2 rows.
+ * the eighteen declared tables, the durable tier-F instant columns and the retained Phase-1/R2 rows.
  */
 if(getenv('DZN_PHASE_2A2S_RUNTIME_TEST')!=='migration'||!defined('WP_CLI')||!WP_CLI||!in_array(wp_get_environment_type(),array('local','development'),true)){fwrite(STDERR,"Phase 2A.2-S migration runtime refused.\n");exit(1);}
 global $wpdb;$p=$wpdb->prefix.'dzn_';
@@ -19,11 +19,11 @@ $completed=(array)get_option('dzn_platform_completed_migrations',array());
 $assert(in_array('032_notification_communications_authority',$completed,true),'the S migration must be recorded as completed');
 $assert(in_array('026_renewal_recurring_enrolment_authority',$completed,true),'the R2 migration must stay recorded');
 
-// 2. Exactly the twenty declared S tables exist, each InnoDB, and no extra notification storage does.
-$expected=array('notification_workflows','notification_workflow_versions','notification_workflow_rules','notification_workflow_commands','notification_templates','notification_template_versions','notification_template_commands','notification_rendered_snapshots','notifications','notification_events','notification_commands','notification_attempts','notification_attempt_events','notification_deliveries','notification_suppressions','notification_suppression_events','notification_suppression_commands','notification_privacy_tombstones','notification_manual_send_batches','notification_manual_send_recipients');
+// 2. Exactly the eighteen declared S tables exist, each InnoDB, and no extra notification storage does.
+$expected=array('notification_workflows','notification_workflow_versions','notification_workflow_rules','notification_workflow_commands','notification_templates','notification_template_versions','notification_template_commands','notification_rendered_snapshots','notifications','notification_events','notification_commands','notification_attempts','notification_attempt_events','notification_deliveries','notification_suppressions','notification_suppression_events','notification_suppression_commands','notification_privacy_tombstones');
 $existing=$wpdb->get_col($wpdb->prepare('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE %s',$p.'notification%'))?:array();
 sort($existing);$declared=array_map(static fn(string $table):string=>$p.$table,$expected);sort($declared);
-$assert($existing===$declared,'the S storage must be exactly the twenty declared tables');
+$assert($existing===$declared,'the S storage must be exactly the eighteen declared tables');
 foreach($expected as $table){
     $physical=$p.$table;
     $assert(strcasecmp((string)$wpdb->get_var($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s',$physical)),'InnoDB')===0,'the table must use InnoDB: '.$table);

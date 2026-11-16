@@ -423,7 +423,7 @@ final class NotificationRule {
     /** The status superset §12 requires: the new vocabulary plus the existing Phase-1 `prepared`. */
     public const OUTBOX_STATUS_VOCABULARY=array('pending','scheduled','queued','leased','dispatched','delivered','failed','cancelled','expired','suppressed','prepared');
 
-    /** §7.2 — the twenty S-owned tables migration 032 declares, each exactly once. */
+    /** §7.2 — the eighteen S-owned tables migration 032 declares, each exactly once. */
     public const OWNED_TABLES=array(
         'notification_workflows','notification_workflow_versions','notification_workflow_rules',
         'notification_workflow_commands','notification_templates','notification_template_versions',

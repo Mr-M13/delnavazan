@@ -1,0 +1,188 @@
+name: Create WhatsApp templates
+
+# Creates the reviewed Delnavazan WhatsApp Utility templates in the owner's
+# Telnyx WABA, so the platform can later discover and map them via
+# Integrations -> WhatsApp -> "Refresh approved templates".
+#
+# It is deliberately narrow:
+#   - workflow_dispatch only, from main;
+#   - runs in the protected `production` environment;
+#   - bound to the exact current origin/main SHA and an explicit confirm token,
+#     and it checks out only its own run commit, proven equal to that SHA, so no
+#     dispatch input ever selects a ref;
+#   - default mode is dry_run (list + report only); apply creates only the
+#     missing templates and never updates or deletes anything.
+#
+# What it can do, in full:
+#   1. validate the reviewed manifest offline (provider/category/language/
+#      placeholder shape, duplicate names, missing samples) and fail closed;
+#   2. list the WABA's existing templates (GET, paginated);
+#   3. in dry_run, print a create/skip table and write it to the job artifact,
+#      creating nothing;
+#   4. in apply, POST only the missing templates with ~2s pacing, treating 409
+#      (duplicate) as a skip and refusing (without creating) on any other error.
+#
+# It cannot update, delete, send a message, deploy, migrate, purge or read any
+# credential other than TELNYX_API_KEY / TELNYX_WABA_ID, which are read from the
+# protected environment, never printed, and fail the job closed when missing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact full 40-char SHA of the current origin/main commit
+        type: string
+        required: true
+      confirm:
+        description: Type CREATE_WA_TEMPLATES to authorise template creation
+        type: string
+        required: true
+      mode:
+        description: dry_run lists and reports only; apply creates missing templates
+        type: choice
+        options: [dry_run, apply]
+        default: dry_run
+        required: true
+
+permissions:
+  contents: read
+
+# Independent of the deploy group: template creation must never be serialized
+# with a release, but it also must not reuse the deploy group and block one.
+concurrency:
+  group: delnavazan-whatsapp-templates
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify commit and contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Require dispatch from main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this workflow from main only.' >&2; exit 1; }
+
+      - name: Check out the run commit
+        uses: actions/checkout@v5
+        with:
+          # The run's own commit, not the dispatch input: the gate below proves
+          # it equals the requested SHA, and a privileged job must never check
+          # out a ref chosen by a workflow input.
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require exact current origin/main and the confirm token
+        shell: bash
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character commit SHA.' >&2; exit 1; }
+          [[ "$CONFIRM" == 'CREATE_WA_TEMPLATES' ]] || { echo 'Type CREATE_WA_TEMPLATES to confirm.' >&2; exit 1; }
+          [[ "$GITHUB_SHA" == "$COMMIT_SHA" ]] || { echo "This run is at $GITHUB_SHA, not the requested $COMMIT_SHA." >&2; exit 1; }
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          origin_main="$(git rev-parse origin/main)"
+          [[ "$origin_main" == "$COMMIT_SHA" ]] || { echo "Requested SHA must still be current origin/main (origin/main=$origin_main requested=$COMMIT_SHA)." >&2; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$COMMIT_SHA" ]] || { echo 'The checkout is not the requested commit.' >&2; exit 1; }
+
+      - name: Validate the manifest offline and run the source contract
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n deployment/notifications/whatsapp-template-create-contract.sh
+          python3 -m py_compile deployment/notifications/whatsapp-template-plan.py
+          python3 deployment/notifications/whatsapp-template-plan.py \
+            --manifest deployment/notifications/whatsapp-templates.json \
+            --mode validate-only
+          bash deployment/notifications/whatsapp-template-create-contract.sh
+
+  run:
+    name: List and create templates
+    runs-on: ubuntu-24.04
+    environment: production
+    needs: verify
+    timeout-minutes: 30
+    steps:
+      - name: Require dispatch from main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this workflow from main only.' >&2; exit 1; }
+
+      - name: Check out the run commit
+        uses: actions/checkout@v5
+        with:
+          # Same reasoning as the verify job: check out the run commit and
+          # re-prove it is the requested SHA and still current origin/main.
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Re-verify the exact main SHA, confirmation and mode
+        shell: bash
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          CONFIRM: ${{ inputs.confirm }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character commit SHA.' >&2; exit 1; }
+          [[ "$CONFIRM" == 'CREATE_WA_TEMPLATES' ]] || { echo 'Type CREATE_WA_TEMPLATES to confirm.' >&2; exit 1; }
+          [[ "$MODE" == 'dry_run' || "$MODE" == 'apply' ]] || { echo 'Mode must be dry_run or apply.' >&2; exit 1; }
+          [[ "$GITHUB_SHA" == "$COMMIT_SHA" ]] || { echo "This run is at $GITHUB_SHA, not the requested $COMMIT_SHA." >&2; exit 1; }
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          origin_main="$(git rev-parse origin/main)"
+          [[ "$origin_main" == "$COMMIT_SHA" ]] || { echo "Requested SHA must still be current origin/main (origin/main=$origin_main requested=$COMMIT_SHA)." >&2; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$COMMIT_SHA" ]] || { echo 'The checkout is not the requested commit.' >&2; exit 1; }
+
+      - name: Re-validate the manifest and re-run the source contract
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n deployment/notifications/whatsapp-template-create-contract.sh
+          python3 deployment/notifications/whatsapp-template-plan.py \
+            --manifest deployment/notifications/whatsapp-templates.json \
+            --mode validate-only
+          bash deployment/notifications/whatsapp-template-create-contract.sh
+
+      - name: Mask provider credentials and fail closed when missing
+        shell: bash
+        env:
+          TELNYX_API_KEY: ${{ secrets.TELNYX_API_KEY }}
+          TELNYX_WABA_ID: ${{ secrets.TELNYX_WABA_ID }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$TELNYX_API_KEY" && -n "$TELNYX_WABA_ID" ]] || { echo 'TELNYX_API_KEY and TELNYX_WABA_ID must be configured in the production environment.' >&2; exit 1; }
+          # Values from the protected environment are already auto-masked by the
+          # runner; register the masks again so they stay redacted on any failure
+          # path. Neither value is ever echoed.
+          echo "::add-mask::$TELNYX_API_KEY"
+          echo "::add-mask::$TELNYX_WABA_ID"
+
+      - name: List existing templates and dry-run or create missing
+        shell: bash
+        env:
+          TELNYX_API_KEY: ${{ secrets.TELNYX_API_KEY }}
+          TELNYX_WABA_ID: ${{ secrets.TELNYX_WABA_ID }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$TELNYX_API_KEY" && -n "$TELNYX_WABA_ID" ]] || { echo 'TELNYX_API_KEY and TELNYX_WABA_ID must be configured in the production environment.' >&2; exit 1; }
+          python3 deployment/notifications/whatsapp-template-plan.py \
+            --manifest deployment/notifications/whatsapp-templates.json \
+            --mode "$MODE" \
+            --result "$RUNNER_TEMP/whatsapp-template-result.json"
+
+      - name: Preserve the per-template result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatsapp-templates-${{ inputs.commit_sha }}
+          path: ${{ runner.temp }}/whatsapp-template-result.json
+          if-no-files-found: warn
+          retention-days: 90

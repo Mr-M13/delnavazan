@@ -78,6 +78,7 @@ $check( 'student portal sheet is enqueued with the theme dependency', str_contai
 $check( 'teacher portal sheet is enqueued with the theme dependency', str_contains( $enqueues, "'delnavazan-teacher-portal'" ) && str_contains( $enqueues, "array( 'delnavazan-theme' )" ) );
 $check( 'booking sheet is enqueued with the theme dependency', str_contains( $enqueues, "'delnavazan-booking'" ) && str_contains( $enqueues, "array( 'delnavazan-theme' )" ) );
 $check( 'operations sheet is enqueued with the theme dependency', str_contains( $enqueues, "'delnavazan-operations'" ) && str_contains( $enqueues, "array( 'delnavazan-theme' )" ) );
+$check( 'editorial document sheet is enqueued with the theme dependency', str_contains( $enqueues, "'delnavazan-editorial'" ) && str_contains( $enqueues, "array( 'delnavazan-theme' )" ) );
 $check( 'portal assets are route-gated', str_contains( $read( $theme . '/inc/portal.php' ), 'if ( ! dzn_theme_is_portal_template() )' ) );
 $check( 'teacher assets are route-gated', str_contains( $read( $theme . '/inc/teacher-portal.php' ), 'if ( ! dzn_theme_is_teacher_portal_template() )' ) );
 $check( 'operations assets are route-gated', str_contains( $read( $theme . '/inc/operations.php' ), "if ( ! dzn_theme_is_route( 'admin-operations' ) )" ) );

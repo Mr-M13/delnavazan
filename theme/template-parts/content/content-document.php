@@ -4,7 +4,8 @@
  *
  * One template renders every content-page mode; the mode selects metadata, media treatment, related
  * content and the print posture. The body is rendered through `the_content()`, and the table of
- * contents is derived from the exact same anchored outline.
+ * contents is derived from the exact same anchored outline. Articles carry the outline in the
+ * reading rail; policy and general documents keep a wide outline above the body.
  *
  * @package DelnavazanTheme
  *
@@ -23,24 +24,46 @@ $dzn_document_modified     = get_the_modified_date( DATE_W3C );
 <article id="post-<?php the_ID(); ?>" <?php post_class( 'entry entry--document ' . $dzn_document_presentation['document_class'] ); ?>>
 	<div class="dzn-document" data-dzn-document-mode="<?php echo esc_attr( $dzn_document_presentation['mode'] ); ?>">
 		<header class="entry-header dzn-document__header">
+			<?php if ( $dzn_document_is_article ) : ?>
+				<nav class="dzn-document__breadcrumb" aria-label="<?php esc_attr_e( 'مسیر صفحه', 'delnavazan-theme' ); ?>">
+					<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'خانه', 'delnavazan-theme' ); ?></a>
+					<span aria-hidden="true">/</span>
+					<a href="<?php echo esc_url( home_url( '/articles/' ) ); ?>"><?php esc_html_e( 'مقالات', 'delnavazan-theme' ); ?></a>
+				</nav>
+			<?php endif; ?>
 			<?php if ( $dzn_document_presentation['show_publication'] ) : ?>
 				<p class="entry-meta dzn-document__meta">
 					<?php if ( $dzn_document_presentation['show_categories'] && has_category() ) : ?>
 						<span class="dzn-document__categories"><?php the_category( '، ' ); ?></span>
 					<?php endif; ?>
-					<?php dzn_theme_posted_on(); ?>
-					<?php if ( $dzn_document_presentation['show_reading_time'] && (int) $dzn_document_data['minutes'] > 0 ) : ?>
+					<?php if ( $dzn_document_is_article && $dzn_document_presentation['show_reading_time'] && (int) $dzn_document_data['minutes'] > 0 ) : ?>
 						<span class="dzn-document__reading-time">
 							<?php
 							echo esc_html(
 								sprintf(
 									/* translators: %s: reading time in whole minutes. */
-									__( '٪s دقیقه مطالعه', 'delnavazan-theme' ),
-									number_format_i18n( (int) $dzn_document_data['minutes'] )
+									__( '%s دقیقه مطالعه', 'delnavazan-theme' ),
+									strtr(
+										(string) (int) $dzn_document_data['minutes'],
+										array(
+											'0' => '۰',
+											'1' => '۱',
+											'2' => '۲',
+											'3' => '۳',
+											'4' => '۴',
+											'5' => '۵',
+											'6' => '۶',
+											'7' => '۷',
+											'8' => '۸',
+											'9' => '۹',
+										)
+									)
 								)
 							);
 							?>
 						</span>
+					<?php elseif ( ! $dzn_document_is_article ) : ?>
+						<?php dzn_theme_posted_on(); ?>
 					<?php endif; ?>
 				</p>
 			<?php endif; ?>
@@ -65,18 +88,18 @@ $dzn_document_modified     = get_the_modified_date( DATE_W3C );
 			<figure class="entry-featured-image dzn-document__featured-image"><?php the_post_thumbnail( 'large' ); ?></figure>
 		<?php endif; ?>
 		<div class="dzn-document__body">
-			<?php if ( $dzn_document_data['requires_toc'] ) : ?>
-				<div class="dzn-document__outline">
-					<?php
-					get_template_part(
-						'template-parts/content/table-of-contents',
-						null,
-						array( 'sections' => $dzn_document_sections, 'variant' => 'desktop' )
-					);
-					?>
-				</div>
-			<?php endif; ?>
 			<div class="dzn-document__content">
+				<?php if ( ! $dzn_document_is_article && $dzn_document_data['requires_toc'] ) : ?>
+					<div class="dzn-document__general-outline">
+						<?php
+						get_template_part(
+							'template-parts/content/table-of-contents',
+							null,
+							array( 'sections' => $dzn_document_sections, 'variant' => 'desktop' )
+						);
+						?>
+					</div>
+				<?php endif; ?>
 				<?php if ( $dzn_document_data['requires_toc'] ) : ?>
 					<?php
 					get_template_part(
@@ -121,6 +144,26 @@ $dzn_document_modified     = get_the_modified_date( DATE_W3C );
 					</p>
 				<?php endif; ?>
 			</div>
+			<?php if ( $dzn_document_is_article ) : ?>
+				<aside class="dzn-document__rail" aria-label="<?php esc_attr_e( 'دربارهٔ دلنوازان', 'delnavazan-theme' ); ?>">
+					<?php if ( $dzn_document_data['requires_toc'] ) : ?>
+						<?php
+						get_template_part(
+							'template-parts/content/table-of-contents',
+							null,
+							array( 'sections' => $dzn_document_sections, 'variant' => 'desktop' )
+						);
+						?>
+					<?php endif; ?>
+					<div class="dzn-document__invitation">
+						<span class="dzn-document__invitation-kicker"><?php esc_html_e( 'با دلنوازان', 'delnavazan-theme' ); ?></span>
+						<h2><?php esc_html_e( 'موسیقی را از خواندن به نواختن ببرید', 'delnavazan-theme' ); ?></h2>
+						<p><?php esc_html_e( 'با کلاس‌های آنلاین موسیقی ایرانی، از هر کجای دنیا کنار استادان دلنوازان یاد بگیرید.', 'delnavazan-theme' ); ?></p>
+						<a href="<?php echo esc_url( home_url( '/enrol/' ) ); ?>"><?php esc_html_e( 'آشنایی با کلاس‌ها', 'delnavazan-theme' ); ?> <span aria-hidden="true">←</span></a>
+					</div>
+					<a class="dzn-document__home-link" href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'دلنوازان را بیشتر بشناسید', 'delnavazan-theme' ); ?> <span aria-hidden="true">←</span></a>
+				</aside>
+			<?php endif; ?>
 		</div>
 		<?php if ( $dzn_document_presentation['show_related'] ) : ?>
 			<?php get_template_part( 'template-parts/content/related-content' ); ?>

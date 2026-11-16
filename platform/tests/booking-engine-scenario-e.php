@@ -209,4 +209,22 @@ $openOffer = dzn_stress_allocate($openRequest['request_id'], $crossCourse['cours
 dzn_stress_assert($openOffer !== null, 'E18 the same start must be offerable at the intake instant');
 echo 'AUDIT_RESULT ' . wp_json_encode(array('scenario' => 'E18_crossed_lead_time_boundary', 'pass' => true, 'teacher_id' => $crossTeacher['teacher_id'], 'intake_now' => $intakeNow->format('Y-m-d H:i:s'), 'allocation_now' => $lateNow, 'crossed_offer' => $crossOffer !== null, 'crossed_referral_reason' => $crossReason, 'open_offer' => $openOffer !== null)) . "\n";
 
+// 18b. A re-referral must reclassify the OPEN coordination case: a request first
+// referred for a Teacher-based reason, then re-run after its start crossed the
+// notice boundary, must show the lead-time reason in the case row itself, not
+// only in the alert.
+$reclassCourse = dzn_stress_course($suffix, 'e18b-reclass', 'E18b Reclassify');
+$reclassTeacher = dzn_stress_teacher($suffix, 'E18b reclassify', array($reclassCourse['course_id']), array('timezone' => 'UTC', 'leave' => true));
+$reclassStart = $intakeNow->modify('+24 hours 30 minutes');
+$reclassTime = dzn_stress_time($reclassStart->format('Y-m-d H:i:s'), 30, 15);
+$reclassRequest = dzn_stress_request($student, $reclassCourse['instrument_id'], $reclassCourse['course_id'], array($reclassTime), $suffix, 'E18b-reclass');
+$earlyNow = $intakeNow->modify('-2 hours')->format('Y-m-d H:i:s');
+$firstOutcome = dzn_stress_allocate($reclassRequest['request_id'], $reclassCourse['course_id'], dzn_stress_times_for_allocation($reclassRequest['request_id']), $earlyNow);
+$firstReason = dzn_stress_referral_reason($reclassRequest['request_id']);
+dzn_stress_assert($firstOutcome === null && $firstReason === 'no_viable_teacher', 'E18b the first referral must be a Teacher-based reason, got ' . var_export($firstReason, true));
+$secondOutcome = dzn_stress_allocate($reclassRequest['request_id'], $reclassCourse['course_id'], dzn_stress_times_for_allocation($reclassRequest['request_id']), $intakeNow->format('Y-m-d H:i:s'));
+$secondReason = dzn_stress_referral_reason($reclassRequest['request_id']);
+dzn_stress_assert($secondOutcome === null && $secondReason === 'requested_time_inside_lead_time', 'E18b the re-referral must reclassify the open case to the lead-time reason, got ' . var_export($secondReason, true));
+echo 'AUDIT_RESULT ' . wp_json_encode(array('scenario' => 'E18b_referral_reclassification', 'pass' => true, 'first_reason' => $firstReason, 'second_reason' => $secondReason)) . "\n";
+
 echo 'AUDIT_RESULT ' . wp_json_encode(array('scenario' => 'E15_E17_leave_limited_leadtime', 'pass' => true, 'leave_excluded' => $leaveCoverage === null, 'limited_offer' => $limitedOffer['match_strength'] ?? null, 'lead_times' => $leadTimes)) . "\n";

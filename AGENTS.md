@@ -247,7 +247,8 @@ is optional strict parity. Docker is required only for the runtime suites.
   posts selected by slug and take pre-image backups; it cannot create a post, change a slug or a
   post status, delete anything, deploy, migrate or touch finance. Its source contract,
   `bash deployment/qa/publish-articles-contract.sh`, runs in the PR gate's production-tooling step
-  and is offline; it also proves all 58 articles parse to a complete payload.
+  and is offline; it also proves all 58 articles parse to a complete payload and that every
+  workflow `run:` block parses with `bash -n`.
 - **Service tests:** `tools/ci/check.sh services` (runs `services/tests/run-all.sh` on PHP 8.3
   with `pdo_sqlite`, `sqlite3`, `curl`, `mbstring`).
 

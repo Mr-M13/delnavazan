@@ -23,7 +23,7 @@ namespace Delnavazan\Platform\Integrations\Notifications;
  *   never rendered into a message.
  */
 final class NotificationCatalogue {
-    public const VERSION='2026-11-17.1';
+    public const VERSION='2026-11-17.3';
     public const PRIMARY_LOCALE='fa-IR';
     public const SUPPORTED_LOCALES=array('fa-IR','en');
 
@@ -471,6 +471,42 @@ final class NotificationCatalogue {
                 'website'=>array('subject'=>'Introductory lesson rescheduled','body'=>'The introductory {{course}} lesson with {{student}} is now at {{when}}.'),
             ),
         ));
+        $out[]=self::event('lesson.access.teacher','Class Access Ready','lesson','teacher','LessonLifecycleNotificationService','dedicated',array('email','website','sms'),'operational',true,array('teacher','course','student','when','teacher_portal_url'),'lesson.access.teacher',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · کلاس شما آمادهٔ برگزاری است','body'=>"درود {{teacher}}،\n\nکلاس «{{course}}» شما با هنرجو {{student}} در {{when}} آمادهٔ برگزاری است.\n\nبرای ورود به کلاس به پرتال مدرس بروید و پیوند جلسه را در اختیار دیگران قرار ندهید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'کلاس آمادهٔ برگزاری است','body'=>'کلاس «{{course}}» با هنرجو {{student}} در {{when}} آمادهٔ برگزاری است.'),
+                'sms'=>array('body'=>'دلنوازان: کلاس {{course}} با {{student}} در {{when}} آماده است. پرتال مدرس: {{teacher_portal_url}}'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · your class is ready to start','body'=>"Hello {{teacher}},\n\nYour {{course}} class with the student {{student}} on {{when}} is ready to start.\n\nOpen the Teacher Portal to join, and please do not share the class link with anyone else:\n{{teacher_portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Class ready to start','body'=>'Your {{course}} class with {{student}} on {{when}} is ready to start.'),
+                'sms'=>array('body'=>'Delnavazan: class {{course}} with {{student}} on {{when}} is ready. Teacher Portal: {{teacher_portal_url}}'),
+            ),
+        ),array('dedicated_authority'));
+        $out[]=self::event('lesson.reminder.teacher','Class Reminder','lesson','teacher','LessonLifecycleNotificationService','dedicated',array('email','website','sms'),'operational',true,array('teacher','course','student','when','teacher_portal_url'),'lesson.reminder.teacher',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · یادآوری کلاس','body'=>"درود {{teacher}}،\n\nیادآوری می‌کنیم که کلاس «{{course}}» شما با هنرجو {{student}} در {{when}} برگزار می‌شود.\n\nبرای مشاهدهٔ جزئیات و ورود به کلاس به پرتال مدرس بروید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'یادآوری کلاس','body'=>'کلاس «{{course}}» شما با هنرجو {{student}} در {{when}} برگزار می‌شود.'),
+                'sms'=>array('body'=>'دلنوازان: یادآوری کلاس {{course}} با {{student}} در {{when}}. پرتال مدرس: {{teacher_portal_url}}'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · class reminder','body'=>"Hello {{teacher}},\n\nThis is a reminder that your {{course}} class with the student {{student}} takes place on {{when}}.\n\nOpen the Teacher Portal for the details and to join the class:\n{{teacher_portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Class reminder','body'=>'Your {{course}} class with {{student}} takes place on {{when}}.'),
+                'sms'=>array('body'=>'Delnavazan: class reminder {{course}} with {{student}} on {{when}}. Teacher Portal: {{teacher_portal_url}}'),
+            ),
+        ),array('dedicated_authority'));
+        $out[]=self::event('lesson.cancelled.teacher','Class Cancelled','lesson','teacher','LessonLifecycleNotificationService','dedicated',array('email','website','sms'),'operational',true,array('teacher','course','student','when','teacher_portal_url'),'lesson.cancelled.teacher',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · کلاس لغو شد','body'=>"درود {{teacher}}،\n\nکلاس «{{course}}» شما با هنرجو {{student}} در {{when}} لغو شد.\n\nاگر برای هماهنگی جلسهٔ جبرانی به کمک نیاز دارید، از پرتال مدرس اقدام کنید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'کلاس لغو شد','body'=>'کلاس «{{course}}» با هنرجو {{student}} در {{when}} لغو شد.'),
+                'sms'=>array('body'=>'دلنوازان: کلاس {{course}} با {{student}} در {{when}} لغو شد. پرتال مدرس: {{teacher_portal_url}}'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · class cancelled','body'=>"Hello {{teacher}},\n\nYour {{course}} class with the student {{student}} on {{when}} has been cancelled.\n\nIf you need help arranging a replacement session, act from the Teacher Portal:\n{{teacher_portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Class cancelled','body'=>'Your {{course}} class with {{student}} on {{when}} was cancelled.'),
+                'sms'=>array('body'=>'Delnavazan: class {{course}} with {{student}} on {{when}} was cancelled. Teacher Portal: {{teacher_portal_url}}'),
+            ),
+        ),array('dedicated_authority'));
         self::appendRescheduleTeacher($out);
         return $out;
     }
@@ -1000,9 +1036,9 @@ final class NotificationCatalogue {
         if(str_starts_with($key,'booking.expired.'))return 'Tells the Teacher that the response window closed and the request moved on, so no further action is expected.';
         if(str_starts_with($key,'booking.referral.'))return 'Tells the operations team that a booking needs a human allocation decision.';
         if(str_starts_with($key,'booking.escalation.'))return 'Escalates a booking that has stayed unconfirmed beyond the operating threshold.';
-        if(str_starts_with($key,'lesson.access.'))return 'Provides the authorised class access link and the essential lesson details for joining.';
-        if(str_starts_with($key,'lesson.reminder.'))return 'Reminds the student that the class is about to start and where to join it.';
-        if(str_starts_with($key,'lesson.cancelled.'))return 'Explains that the class was cancelled and how a replacement session is arranged.';
+        if(str_starts_with($key,'lesson.access.'))return $audience==='teacher'?'Tells the Teacher that their class access is ready and where to join it.':'Provides the authorised class access link and the essential lesson details for joining.';
+        if(str_starts_with($key,'lesson.reminder.'))return $audience==='teacher'?'Reminds the Teacher that the class is about to start and where to join it.':'Reminds the student that the class is about to start and where to join it.';
+        if(str_starts_with($key,'lesson.cancelled.'))return $audience==='teacher'?'Tells the Teacher that their class was cancelled and how a replacement session is arranged.':'Explains that the class was cancelled and how a replacement session is arranged.';
         if(str_starts_with($key,'attendance.'))return 'Records an attendance outcome and tells the recipient whether a follow-up or replacement action is required.';
         if(str_starts_with($key,'consent.'))return str_contains($key,'required')?'Requests the specific consent decision needed before the related recording or research action can proceed.':'Confirms a consent decision or policy change and points to its durable history.';
         if(str_starts_with($key,'renewal.automatic_upcoming'))return 'Warns the student that an automatic renewal will be processed and how to change or stop it.';

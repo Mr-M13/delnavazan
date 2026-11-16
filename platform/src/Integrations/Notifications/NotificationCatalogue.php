@@ -23,7 +23,7 @@ namespace Delnavazan\Platform\Integrations\Notifications;
  *   never rendered into a message.
  */
 final class NotificationCatalogue {
-    public const VERSION='2026-11-17.5';
+    public const VERSION='2026-11-17.6';
     public const PRIMARY_LOCALE='fa-IR';
     public const SUPPORTED_LOCALES=array('fa-IR','en');
 
@@ -78,6 +78,7 @@ final class NotificationCatalogue {
         foreach(self::teacherEvents() as $event)$events[$event['key']]=$event;
         foreach(self::adminEvents() as $event)$events[$event['key']]=$event;
         foreach(self::declaredFinancialEvents() as $event)$events[$event['key']]=$event;
+        foreach(self::paymentRefundEvents() as $event)$events[$event['key']]=$event;
         foreach(self::consentEvents() as $event)$events[$event['key']]=$event;
         ksort($events,SORT_STRING);
         return $events;
@@ -762,42 +763,6 @@ final class NotificationCatalogue {
                 'en_email'=>"Hello {{name}},\n\nYour {{course}} term has ended and the renewal was not completed. Your class place is no longer reserved and has been made available to other students.\n\nTo start a new term, act in your account:\n{{portal_url}}\n\nIf you already made a payment and its status is not reflected in your account, contact us through your account.\n\nDelnavazan",
                 'en_portal'=>'Your {{course}} term has ended and the renewal was not completed. Start a new term from your account.',
                 'en_whatsapp'=>"Hello {{name}}, your {{course}} term has ended and the renewal was not completed. Start a new term from your account: {{portal_url}}"),
-            'payment.failed.student'=>array('label'=>'Payment Failed','intent'=>'PAYMENT_FAILED',
-                'fa_subject'=>'پرداخت انجام نشد',
-                'fa_email'=>"درود {{name}}،\n\nپرداخت شما در ترم «{{course}}» انجام نشد.\n\nمبلغ: {{amount}}\n\nمی‌توانید پرداخت را دوباره از بخش پرداخت حساب کاربری انجام دهید:\n{{portal_url}}\n\nاگر مبلغی از حساب شما کسر شده باشد، وضعیت آن بر اساس نتیجهٔ بانک در حساب کاربری پیگیری و نمایش داده می‌شود. کلاس یا جلسهٔ شما با این پیام لغو نمی‌شود.\n\nبا احترام، دلنوازان",
-                'fa_portal'=>'پرداخت ترم «{{course}}» انجام نشد. برای تلاش دوباره به بخش پرداخت حساب کاربری بروید.',
-                'fa_whatsapp'=>"درود {{name}} عزیز، پرداخت ترم «{{course}}» انجام نشد. مبلغ: {{amount}}. برای تلاش دوباره از حساب کاربری اقدام کنید: {{portal_url}}",
-                'en_subject'=>'Your payment did not complete',
-                'en_email'=>"Hello {{name}},\n\nYour payment for the {{course}} term did not complete.\n\nAmount: {{amount}}\n\nYou can try again from the payments section of your account:\n{{portal_url}}\n\nIf an amount was deducted from your account, its status is tracked and shown in your account based on the bank result. This message does not cancel your class or session.\n\nDelnavazan",
-                'en_portal'=>'Your {{course}} payment did not complete. Try again from the payments section of your account.',
-                'en_whatsapp'=>"Hello {{name}}, your payment for the {{course}} term did not complete. Amount: {{amount}}. Try again from your account: {{portal_url}}"),
-            'payment.recovered.student'=>array('label'=>'Payment Recovered','intent'=>'PAYMENT_RECOVERED',
-                'fa_subject'=>'پرداخت شما تأیید شد',
-                'fa_email'=>"درود {{name}}،\n\nپرداخت شما برای ترم «{{course}}» تأیید شد.\n\nمبلغ: {{amount}}\nتاریخ: {{paid_date}}\n\nرسید و جزئیات پرداخت در حساب کاربری در دسترس است:\n{{portal_url}}\n\nبا احترام، دلنوازان",
-                'fa_portal'=>'پرداخت ترم «{{course}}» با مبلغ {{amount}} در {{paid_date}} تأیید شد.',
-                'fa_whatsapp'=>"درود {{name}} عزیز، پرداخت ترم «{{course}}» تأیید شد. مبلغ: {{amount}}، تاریخ: {{paid_date}}. جزئیات در حساب کاربری: {{portal_url}}",
-                'en_subject'=>'Your payment was confirmed',
-                'en_email'=>"Hello {{name}},\n\nYour payment for the {{course}} term was confirmed.\n\nAmount: {{amount}}\nDate: {{paid_date}}\n\nThe receipt and payment details are available in your account:\n{{portal_url}}\n\nDelnavazan",
-                'en_portal'=>'Your {{course}} payment of {{amount}} was confirmed on {{paid_date}}.',
-                'en_whatsapp'=>"Hello {{name}}, your {{course}} payment was confirmed. Amount: {{amount}}, date: {{paid_date}}. Details in your account: {{portal_url}}"),
-            'refund.review_required.student'=>array('label'=>'Refund Under Review','intent'=>'REFUND_REVIEW_REQUIRED',
-                'fa_subject'=>'درخواست بازپرداخت در حال بررسی است',
-                'fa_email'=>"درود {{name}}،\n\nدرخواست بازپرداخت شما برای ترم «{{course}}» ثبت شد و در حال بررسی است.\n\nمبلغ درخواستی: {{amount}}\n\nنتیجهٔ بررسی، همراه با مبلغ نهایی و هر توضیح لازم، در حساب کاربری نمایش داده می‌شود:\n{{portal_url}}\n\nتا زمان اعلام نتیجه، وضعیت کلاس و پرداخت‌های شما تغییری نمی‌کند.\n\nبا احترام، دلنوازان",
-                'fa_portal'=>'درخواست بازپرداخت شما ثبت شد و در حال بررسی است. مبلغ درخواستی: {{amount}}.',
-                'fa_whatsapp'=>"درود {{name}} عزیز، درخواست بازپرداخت شما ثبت شد و در حال بررسی است. مبلغ درخواستی: {{amount}}. نتیجه در حساب کاربری اعلام می‌شود: {{portal_url}}",
-                'en_subject'=>'Your refund request is under review',
-                'en_email'=>"Hello {{name}},\n\nYour refund request for the {{course}} term was recorded and is under review.\n\nRequested amount: {{amount}}\n\nThe review outcome, the final amount and any explanation are shown in your account:\n{{portal_url}}\n\nUntil the outcome is announced, your class and payment status are unchanged.\n\nDelnavazan",
-                'en_portal'=>'Your refund request was recorded and is under review. Requested amount: {{amount}}.',
-                'en_whatsapp'=>"Hello {{name}}, your refund request was recorded and is under review. Requested amount: {{amount}}. The outcome is announced in your account: {{portal_url}}"),
-            'refund.resolved.student'=>array('label'=>'Refund Resolved','intent'=>'REFUND_RESOLVED',
-                'fa_subject'=>'نتیجهٔ درخواست بازپرداخت',
-                'fa_email'=>"درود {{name}}،\n\nبررسی درخواست بازپرداخت شما برای ترم «{{course}}» به پایان رسید.\n\nمبلغ درخواستی: {{amount}}\n\nنتیجهٔ نهایی و جزئیات مبلغ در حساب کاربری قابل مشاهده است:\n{{portal_url}}\n\nاگر پرسشی دارید، از راه‌های ارتباطی حساب کاربری با ما در تماس باشید.\n\nبا احترام، دلنوازان",
-                'fa_portal'=>'بررسی درخواست بازپرداخت شما به پایان رسید. نتیجهٔ نهایی در حساب کاربری قابل مشاهده است.',
-                'fa_whatsapp'=>"درود {{name}} عزیز، بررسی درخواست بازپرداخت شما به پایان رسید. مبلغ درخواستی: {{amount}}. نتیجهٔ نهایی در حساب کاربری: {{portal_url}}",
-                'en_subject'=>'The outcome of your refund request',
-                'en_email'=>"Hello {{name}},\n\nThe review of your refund request for the {{course}} term is complete.\n\nRequested amount: {{amount}}\n\nThe final outcome and amount details are available in your account:\n{{portal_url}}\n\nIf you have a question, contact us through your account.\n\nDelnavazan",
-                'en_portal'=>'The review of your refund request is complete. The final outcome is available in your account.',
-                'en_whatsapp'=>"Hello {{name}}, the review of your refund request is complete. Requested amount: {{amount}}. The final outcome is in your account: {{portal_url}}"),
         );
         $out=array();
         foreach($definitions as $key=>$definition){
@@ -816,6 +781,65 @@ final class NotificationCatalogue {
             $event['implementation']='partial';
             $out[]=$event;
         }
+        return $out;
+    }
+
+    /**
+     * The four payment/refund notices the dedicated PaymentRefundNotificationService produces after
+     * the authoritative R2 finance aggregate fact commits. Each is a student, financial, mandatory
+     * event delivered over email, website and WhatsApp; the WhatsApp leg is bound to the closed
+     * provider-template registry (verified at dispatch, never free-form).
+     */
+    private static function paymentRefundEvents():array{
+        $out=array();
+        $out[]=self::event('payment.failed.student','Payment Failed','payment','student','PaymentRefundNotificationService','queue',array('email','website','whatsapp'),'financial',true,array('name','course','amount','portal_url'),'payment.failed',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · پرداخت انجام نشد','body'=>"درود {{name}}،\n\nپرداخت شما در ترم «{{course}}» انجام نشد.\n\nمبلغ: {{amount}}\n\nمی‌توانید پرداخت را دوباره از بخش پرداخت حساب کاربری انجام دهید:\n{{portal_url}}\n\nاگر مبلغی از حساب شما کسر شده باشد، وضعیت آن بر اساس نتیجهٔ بانک در حساب کاربری پیگیری و نمایش داده می‌شود. کلاس یا جلسهٔ شما با این پیام لغو نمی‌شود.\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'پرداخت انجام نشد','body'=>'پرداخت ترم «{{course}}» انجام نشد. برای تلاش دوباره به بخش پرداخت حساب کاربری بروید.'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، پرداخت ترم «{{course}}» انجام نشد. مبلغ: {{amount}}. برای تلاش دوباره از حساب کاربری اقدام کنید: {{portal_url}}'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Your payment did not complete','body'=>"Hello {{name}},\n\nYour payment for the {{course}} term did not complete.\n\nAmount: {{amount}}\n\nYou can try again from the payments section of your account:\n{{portal_url}}\n\nIf an amount was deducted from your account, its status is tracked and shown in your account based on the bank result. This message does not cancel your class or session.\n\nDelnavazan"),
+                'website'=>array('subject'=>'Your payment did not complete','body'=>'Your {{course}} payment did not complete. Try again from the payments section of your account.'),
+                'whatsapp'=>array('body'=>'Hello {{name}}, your payment for the {{course}} term did not complete. Amount: {{amount}}. Try again from your account: {{portal_url}}'),
+            ),
+        ));
+        $out[]=self::event('payment.recovered.student','Payment Recovered','payment','student','PaymentRefundNotificationService','queue',array('email','website','whatsapp'),'financial',true,array('name','course','amount','paid_date','portal_url'),'payment.recovered',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · پرداخت شما تأیید شد','body'=>"درود {{name}}،\n\nپرداخت شما برای ترم «{{course}}» تأیید شد.\n\nمبلغ: {{amount}}\nتاریخ: {{paid_date}}\n\nرسید و جزئیات پرداخت در حساب کاربری در دسترس است:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'پرداخت شما تأیید شد','body'=>'پرداخت ترم «{{course}}» با مبلغ {{amount}} در {{paid_date}} تأیید شد.'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، پرداخت ترم «{{course}}» تأیید شد. مبلغ: {{amount}}، تاریخ: {{paid_date}}. جزئیات در حساب کاربری: {{portal_url}}'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Your payment was confirmed','body'=>"Hello {{name}},\n\nYour payment for the {{course}} term was confirmed.\n\nAmount: {{amount}}\nDate: {{paid_date}}\n\nThe receipt and payment details are available in your account:\n{{portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Your payment was confirmed','body'=>'Your {{course}} payment of {{amount}} was confirmed on {{paid_date}}.'),
+                'whatsapp'=>array('body'=>'Hello {{name}}, your {{course}} payment was confirmed. Amount: {{amount}}, date: {{paid_date}}. Details in your account: {{portal_url}}'),
+            ),
+        ));
+        $out[]=self::event('refund.review_required.student','Refund Under Review','payment','student','PaymentRefundNotificationService','queue',array('email','website','whatsapp'),'financial',true,array('name','course','amount','portal_url'),'refund.review_required',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · درخواست بازپرداخت در حال بررسی است','body'=>"درود {{name}}،\n\nدرخواست بازپرداخت شما برای ترم «{{course}}» ثبت شد و در حال بررسی است.\n\nمبلغ درخواستی: {{amount}}\n\nنتیجهٔ بررسی، همراه با مبلغ نهایی و هر توضیح لازم، در حساب کاربری نمایش داده می‌شود:\n{{portal_url}}\n\nتا زمان اعلام نتیجه، وضعیت کلاس و پرداخت‌های شما تغییری نمی‌کند.\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'درخواست بازپرداخت در حال بررسی است','body'=>'درخواست بازپرداخت شما ثبت شد و در حال بررسی است. مبلغ درخواستی: {{amount}}.'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، درخواست بازپرداخت شما ثبت شد و در حال بررسی است. مبلغ درخواستی: {{amount}}. نتیجه در حساب کاربری اعلام می‌شود: {{portal_url}}'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Your refund request is under review','body'=>"Hello {{name}},\n\nYour refund request for the {{course}} term was recorded and is under review.\n\nRequested amount: {{amount}}\n\nThe review outcome, the final amount and any explanation are shown in your account:\n{{portal_url}}\n\nUntil the outcome is announced, your class and payment status are unchanged.\n\nDelnavazan"),
+                'website'=>array('subject'=>'Your refund request is under review','body'=>'Your refund request was recorded and is under review. Requested amount: {{amount}}.'),
+                'whatsapp'=>array('body'=>'Hello {{name}}, your refund request was recorded and is under review. Requested amount: {{amount}}. The outcome is announced in your account: {{portal_url}}'),
+            ),
+        ));
+        $out[]=self::event('refund.resolved.student','Refund Resolved','payment','student','PaymentRefundNotificationService','queue',array('email','website','whatsapp'),'financial',true,array('name','course','amount','portal_url'),'refund.resolved',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · نتیجهٔ درخواست بازپرداخت','body'=>"درود {{name}}،\n\nبررسی درخواست بازپرداخت شما برای ترم «{{course}}» به پایان رسید.\n\nمبلغ درخواستی: {{amount}}\n\nنتیجهٔ نهایی و جزئیات مبلغ در حساب کاربری قابل مشاهده است:\n{{portal_url}}\n\nاگر پرسشی دارید، از راه‌های ارتباطی حساب کاربری با ما در تماس باشید.\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'نتیجهٔ درخواست بازپرداخت','body'=>'بررسی درخواست بازپرداخت شما به پایان رسید. نتیجهٔ نهایی در حساب کاربری قابل مشاهده است.'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، بررسی درخواست بازپرداخت شما به پایان رسید. مبلغ درخواستی: {{amount}}. نتیجهٔ نهایی در حساب کاربری: {{portal_url}}'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'The outcome of your refund request','body'=>"Hello {{name}},\n\nThe review of your refund request for the {{course}} term is complete.\n\nRequested amount: {{amount}}\n\nThe final outcome and amount details are available in your account:\n{{portal_url}}\n\nIf you have a question, contact us through your account.\n\nDelnavazan"),
+                'website'=>array('subject'=>'The outcome of your refund request','body'=>'The review of your refund request is complete. The final outcome is available in your account.'),
+                'whatsapp'=>array('body'=>'Hello {{name}}, the review of your refund request is complete. Requested amount: {{amount}}. The final outcome is in your account: {{portal_url}}'),
+            ),
+        ));
         return $out;
     }
 

@@ -1,6 +1,6 @@
 {
-    "generated_at": "2026-11-16T21:58:10+00:00",
-    "catalogue_version": "2026-11-17.5",
+    "generated_at": "2026-11-16T22:18:20+00:00",
+    "catalogue_version": "2026-11-17.6",
     "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
     "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
     "totals": {
@@ -14,7 +14,7 @@
         "unpublished_canonical_templates": "live_check_required",
         "missing_provider_mappings": 1,
         "unsupported_routes": 122,
-        "events_without_registered_producer": 10
+        "events_without_registered_producer": 6
     },
     "by_category": {
         "security": 2,
@@ -36,15 +36,11 @@
         "website": 65
     },
     "implementation": {
-        "implemented": 57,
-        "partial": 20,
+        "implemented": 61,
+        "partial": 16,
         "declared": 0
     },
     "events_without_registered_producer": [
-        "payment.failed.student",
-        "payment.recovered.student",
-        "refund.resolved.student",
-        "refund.review_required.student",
         "renewal.automatic_charged.student",
         "renewal.automatic_failed.student",
         "renewal.automatic_upcoming.student",
@@ -2092,11 +2088,11 @@
             "category": "payment",
             "task": "finance_payments",
             "recipient": "student",
-            "producer": "canonical:PAYMENT_FAILED",
-            "producer_registered": false,
-            "producer_class_found": false,
-            "implementation": "partial",
-            "delivery_authority": "canonical",
+            "producer": "PaymentRefundNotificationService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
             "channels": [
                 "email",
                 "website",
@@ -2147,11 +2143,11 @@
             "category": "payment",
             "task": "finance_payments",
             "recipient": "student",
-            "producer": "canonical:PAYMENT_RECOVERED",
-            "producer_registered": false,
-            "producer_class_found": false,
-            "implementation": "partial",
-            "delivery_authority": "canonical",
+            "producer": "PaymentRefundNotificationService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
             "channels": [
                 "email",
                 "website",
@@ -2389,11 +2385,11 @@
             "category": "payment",
             "task": "support",
             "recipient": "student",
-            "producer": "canonical:REFUND_RESOLVED",
-            "producer_registered": false,
-            "producer_class_found": false,
-            "implementation": "partial",
-            "delivery_authority": "canonical",
+            "producer": "PaymentRefundNotificationService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
             "channels": [
                 "email",
                 "website",
@@ -2444,11 +2440,11 @@
             "category": "payment",
             "task": "support",
             "recipient": "student",
-            "producer": "canonical:REFUND_REVIEW_REQUIRED",
-            "producer_registered": false,
-            "producer_class_found": false,
-            "implementation": "partial",
-            "delivery_authority": "canonical",
+            "producer": "PaymentRefundNotificationService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
             "channels": [
                 "email",
                 "website",

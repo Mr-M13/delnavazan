@@ -7,8 +7,9 @@ use Delnavazan\Platform\Core\Application\LessonLifecycleNotificationService;
  * Lesson reminder scheduler.
  *
  * Finds canonical lessons whose schedule starts inside the reminder window and produces the Teacher
- * reminder. Idempotency lives in the producer: the portal inbox row is the durable per-lesson record,
- * so a repeated worker run never duplicates a reminder. The worker never changes a lesson, schedule,
+ * reminder and the enrolled Student reminder. Idempotency lives in the producer: the portal inbox row
+ * is the durable per-lesson + audience record, so a repeated worker run never duplicates a reminder and
+ * the two audiences never double-notify the same recipient. The worker never changes a lesson, schedule,
  * obligation or delivery decision.
  */
 final class LessonReminderWorker {
@@ -51,13 +52,15 @@ final class LessonReminderWorker {
         $service=new LessonLifecycleNotificationService();
         foreach($rows as $row){
             $result['examined']++;
+            $lessonId=(int)$row->lesson_id;
             try{
-                $outcome=$service->notifyReminder((int)$row->lesson_id);
-                if(!empty($outcome['produced']))$result['queued']++;
+                $teacher=$service->notifyReminder($lessonId);
+                $student=$service->notifyStudentReminder($lessonId);
+                if(!empty($teacher['produced'])||!empty($student['produced']))$result['queued']++;
                 else $result['skipped']++;
             }catch(\Throwable $error){
                 $result['errors']++;
-                do_action('dzn_lesson_reminder_failed',(int)$row->lesson_id,get_class($error),(string)$error->getMessage());
+                do_action('dzn_lesson_reminder_failed',$lessonId,get_class($error),(string)$error->getMessage());
             }
         }
         return $result;

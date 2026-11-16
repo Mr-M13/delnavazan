@@ -23,7 +23,7 @@ namespace Delnavazan\Platform\Integrations\Notifications;
  *   never rendered into a message.
  */
 final class NotificationCatalogue {
-    public const VERSION='2026-11-17.3';
+    public const VERSION='2026-11-17.4';
     public const PRIMARY_LOCALE='fa-IR';
     public const SUPPORTED_LOCALES=array('fa-IR','en');
 
@@ -323,7 +323,7 @@ final class NotificationCatalogue {
                 'sms'=>array('body'=>'Delnavazan: your {{course}} lesson request for {{when}} was received. Account: {{portal_url}}'),
             ),
         ));
-        $out[]=self::event('lesson.reminder.student','Class Reminder','lesson','student','LessonReminderService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','teacher','when','portal_url'),'lesson.reminder',array(
+        $out[]=self::event('lesson.reminder.student','Class Reminder','lesson','student','LessonLifecycleNotificationService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','teacher','when','portal_url'),'lesson.reminder',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · یادآوری کلاس','body'=>"درود {{name}}،\n\nیادآوری می‌کنیم که کلاس «{{course}}» شما با {{teacher}} در {{when}} برگزار می‌شود.\n\nبرای مشاهدهٔ جزئیات و ورود به کلاس به حساب کاربری بروید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'یادآوری کلاس','body'=>'کلاس «{{course}}» شما با {{teacher}} در {{when}} برگزار می‌شود.'),
@@ -337,7 +337,7 @@ final class NotificationCatalogue {
                 'sms'=>array('body'=>'Delnavazan: class reminder {{course}} with {{teacher}} on {{when}}. Account: {{portal_url}}'),
             ),
         ));
-        $out[]=self::event('lesson.cancelled.student','Class Cancelled','lesson','student','LessonCancellationService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','teacher','when','portal_url'),'lesson.cancelled',array(
+        $out[]=self::event('lesson.cancelled.student','Class Cancelled','lesson','student','LessonLifecycleNotificationService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','teacher','when','portal_url'),'lesson.cancelled',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · کلاس لغو شد','body'=>"درود {{name}}،\n\nکلاس «{{course}}» شما با {{teacher}} در {{when}} لغو شد.\n\nاگر برای هماهنگی جلسهٔ جبرانی به کمک نیاز دارید، از حساب کاربری با ما در تماس باشید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'کلاس لغو شد','body'=>'کلاس «{{course}}» با {{teacher}} در {{when}} لغو شد.'),
@@ -351,7 +351,7 @@ final class NotificationCatalogue {
                 'sms'=>array('body'=>'Delnavazan: class {{course}} with {{teacher}} on {{when}} was cancelled. Account: {{portal_url}}'),
             ),
         ));
-        $out[]=self::event('lesson.access.student','Class Access Ready','lesson','student','ClassAccessService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','teacher','when','portal_url'),'lesson.access',array(
+        $out[]=self::event('lesson.access.student','Class Access Ready','lesson','student','LessonLifecycleNotificationService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','teacher','when','portal_url'),'lesson.access',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · کلاس شما آمادهٔ برگزاری است','body'=>"درود {{name}}،\n\nکلاس «{{course}}» شما با {{teacher}} در {{when}} آمادهٔ برگزاری است.\n\nبرای ورود به کلاس به حساب کاربری بروید و پیوند جلسه را در اختیار دیگران قرار ندهید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'کلاس آمادهٔ برگزاری است','body'=>'کلاس «{{course}}» با {{teacher}} در {{when}} آمادهٔ برگزاری است.'),
@@ -365,12 +365,6 @@ final class NotificationCatalogue {
                 'sms'=>array('body'=>'Delnavazan: class {{course}} with {{teacher}} on {{when}} is ready. Account: {{portal_url}}'),
             ),
         ));
-        // These three events name a producer that does not exist in this repository. The copy and the
-        // provider mapping are ready, but nothing dispatches the event yet, so it must not be reported
-        // as implemented. A future scheduling worker can switch it on without touching this catalogue.
-        foreach(array('lesson.reminder.student','lesson.cancelled.student','lesson.access.student') as $declaredOnly){
-            foreach($out as $index=>$candidate)if($candidate['key']===$declaredOnly){$out[$index]['implementation']='declared';$out[$index]['producer_registered']=false;}
-        }
         self::appendRescheduleStudent($out);
         $out[]=self::event('account.claim_issued.student','Student Account Invitation','security','student','StudentAccountClaimNotificationService','canonical',array('email','whatsapp','sms'),'security',true,array('claim_code'),'account.claim_issued',array(
             self::PRIMARY_LOCALE=>array(

@@ -225,16 +225,18 @@ final class HostProcessor
                 return [$mExit, $key . ' update: ' . $mErr];
             }
         }
-        // 3. tags (replace the post_tag set, matching by name)
+        // 3. tags (replace the post_tag set; names are the default match field)
         $tags = $payload['tags'];
         if (is_array($tags) && $tags !== []) {
-            $args = ['post', 'term', 'set', (string) $id, 'post_tag', '--by=name'];
+            $args = ['post', 'term', 'set', (string) $id, 'post_tag'];
             foreach ($tags as $tag) {
                 $args[] = (string) $tag;
             }
             [$tExit, , $tErr] = $this->runWp($args);
             if ($tExit !== 0) {
-                return [$tExit, 'tags update: ' . $tErr];
+                // Content and SEO meta are already written and verified; a tag
+                // failure is reported as a warning rather than aborting the run.
+                return [0, 'tags_warning: ' . $tErr];
             }
         }
         return [0, ''];

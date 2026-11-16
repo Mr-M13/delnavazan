@@ -68,7 +68,7 @@ final class NotificationManagementController {
         $tab=self::LEGACY_TABS[$requested]??$requested;
         if($tab!=='events')$tab='events';
         $templateKey=isset($_GET['template'])?self::eventKey(wp_unslash((string)$_GET['template'])):'';
-        echo '<div class="wrap dzn-notif-admin" dir="ltr"><style>.dzn-notif-admin{direction:ltr}.dzn-notif-admin .nav-tab-wrapper{margin-block-end:16px}.dzn-notif-lede{max-width:78ch;color:#50575e}.dzn-notif-panel{background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:18px 20px}.dzn-notif-panel h2{margin-block-start:6px}.dzn-notif-meta{color:#646970;font-size:12px;line-height:1.9}.dzn-notif-note{color:#50575e;font-size:12px;line-height:1.9;background:#f6f7f7;border-inline-start:3px solid #0E8C8C;padding:8px 12px;border-radius:3px}.dzn-notif-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-block:14px}.dzn-notif-card{border:1px solid #dcdcde;border-radius:6px;padding:14px}.dzn-notif-card h3{margin-block-start:0}.dzn-notif-list{margin:0;padding-inline-start:18px;line-height:2}.dzn-notif-table td,.dzn-notif-table th{vertical-align:top}.dzn-notif-table details{margin-block:4px}.dzn-notif-table details pre{white-space:pre-wrap;font-family:Tahoma,Arial,sans-serif;line-height:1.9;margin:6px 0;max-height:180px;overflow:auto}.dzn-notif-preview{background:#FBF7EE;border:1px solid #e6dfd2;border-radius:8px;padding:10px}.dzn-notif-preview pre{white-space:pre-wrap;font-family:Tahoma,Arial,sans-serif;direction:rtl;margin:0;line-height:2}.dzn-notif-preview--text{background:#fff}.dzn-notif-editor textarea{font-family:Tahoma,Arial,sans-serif;line-height:2;direction:rtl}.dzn-notif-actions{display:flex;gap:8px;flex-wrap:wrap}.dzn-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#f0f0f1;color:#3c434a}.dzn-badge.is-ok{background:#edfaef;color:#1e6b2f}.dzn-badge.is-warn{background:#fcf3e6;color:#8a4b00}.dzn-badge.is-locked{background:#fbeaea;color:#8a1f1f}.dzn-notif-inline-form{display:flex;gap:4px;align-items:center;flex-wrap:wrap}.dzn-notif-admin code{direction:ltr;unicode-bidi:embed}.dzn-notif-admin details pre{max-height:220px;overflow:auto;white-space:pre-wrap}.dzn-notif-record-status{border:1px solid #dcdcde;border-radius:6px;padding:12px 14px;margin-block:18px}.dzn-notif-record-status h2{margin-block-start:0}.dzn-channel-strip{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.dzn-channel-strip a{text-decoration:none}.dzn-notif-dialog{width:min(1080px,94vw);max-width:1080px;max-height:90vh;padding:0;border:0;border-radius:10px;box-shadow:0 24px 60px rgba(15,23,42,.35);direction:ltr;background:#fff}.dzn-notif-dialog::backdrop{background:rgba(15,23,42,.55)}.dzn-notif-dialog-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;background:#fff;border-block-end:1px solid #dcdcde}.dzn-notif-dialog-bar h2{margin:0;font-size:16px}.dzn-notif-dialog-body{max-height:calc(90vh - 56px);overflow:auto;padding:4px 20px 20px}.dzn-notif-lifecycle{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;margin:8px 0 0;font-size:11px;line-height:1.7}.dzn-notif-lifecycle dt{color:#646970;white-space:nowrap}.dzn-notif-lifecycle dd{margin:0}.dzn-notif-toolbar{position:sticky;top:32px;z-index:30;background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:10px 12px;margin-block:12px}.dzn-notif-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;border-top:1px solid #f0f0f1;padding-top:10px}.dzn-notif-chip{display:inline-block;padding:3px 12px;border:1px solid #dcdcde;border-radius:999px;font-size:12px;text-decoration:none;color:#1d2327;background:#fff}.dzn-notif-chip.is-active{background:#0E8C8C;border-color:#0E8C8C;color:#fff}.dzn-notif-task{margin-block:22px}.dzn-notif-task h3{margin:0 0 10px}.dzn-notif-grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}.dzn-notif-cardrow{border:1px solid #dcdcde;border-radius:8px;padding:12px 14px;background:#fff;display:flex;flex-direction:column;gap:8px}.dzn-notif-cardrow:hover{border-color:#0E8C8C;box-shadow:0 2px 8px rgba(15,23,42,.08)}.dzn-notif-cardhead{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}.dzn-notif-cardhead strong{font-size:14px}.dzn-notif-cardrow-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px}.dzn-notif-channel-chips{display:flex;gap:6px;flex-wrap:wrap}.dzn-notif-channel-chip{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700}.chip-ok{background:#edfaef;color:#1e6b2f}.chip-warn{background:#fcf3e6;color:#8a4b00}.chip-off{background:#f0f0f1;color:#646970}.chip-locked{background:#fbeaea;color:#8a1f1f}.dzn-notif-drawer-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9990}.dzn-notif-drawer{position:fixed;top:32px;right:0;bottom:0;width:min(680px,96vw);background:#fff;border-inline-start:1px solid #dcdcde;box-shadow:-24px 0 60px rgba(15,23,42,.28);z-index:9991;overflow-y:auto;padding:20px}.dzn-notif-drawer-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.dzn-notif-drawer-bar h2{margin:0}@media(max-width:782px){.dzn-notif-drawer{top:46px;width:100vw}}</style><h1>Notifications</h1>';
+        echo '<div class="wrap dzn-notif-admin" dir="ltr"><style>.dzn-notif-admin{direction:ltr}.dzn-notif-admin .nav-tab-wrapper{margin-block-end:16px}.dzn-notif-lede{max-width:78ch;color:#50575e}.dzn-notif-panel{background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:18px 20px}.dzn-notif-panel h2{margin-block-start:6px}.dzn-notif-meta{color:#646970;font-size:12px;line-height:1.9}.dzn-notif-note{color:#50575e;font-size:12px;line-height:1.9;background:#f6f7f7;border-inline-start:3px solid #0E8C8C;padding:8px 12px;border-radius:3px}.dzn-notif-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-block:14px}.dzn-notif-card{border:1px solid #dcdcde;border-radius:6px;padding:14px}.dzn-notif-card h3{margin-block-start:0}.dzn-notif-list{margin:0;padding-inline-start:18px;line-height:2}.dzn-notif-table td,.dzn-notif-table th{vertical-align:top}.dzn-notif-table details{margin-block:4px}.dzn-notif-table details pre{white-space:pre-wrap;font-family:Tahoma,Arial,sans-serif;line-height:1.9;margin:6px 0;max-height:180px;overflow:auto}.dzn-notif-preview{background:#FBF7EE;border:1px solid #e6dfd2;border-radius:8px;padding:10px}.dzn-notif-preview pre{white-space:pre-wrap;font-family:Tahoma,Arial,sans-serif;direction:rtl;margin:0;line-height:2}.dzn-notif-preview--text{background:#fff}.dzn-notif-editor textarea{font-family:Tahoma,Arial,sans-serif;line-height:2;direction:rtl}.dzn-notif-actions{display:flex;gap:8px;flex-wrap:wrap}.dzn-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#f0f0f1;color:#3c434a}.dzn-badge.is-ok{background:#edfaef;color:#1e6b2f}.dzn-badge.is-warn{background:#fcf3e6;color:#8a4b00}.dzn-badge.is-locked{background:#fbeaea;color:#8a1f1f}.dzn-notif-inline-form{display:flex;gap:4px;align-items:center;flex-wrap:wrap}.dzn-notif-admin code{direction:ltr;unicode-bidi:embed}.dzn-notif-admin details pre{max-height:220px;overflow:auto;white-space:pre-wrap}.dzn-notif-record-status{border:1px solid #dcdcde;border-radius:6px;padding:12px 14px;margin-block:18px}.dzn-notif-record-status h2{margin-block-start:0}.dzn-channel-strip{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.dzn-channel-strip a{text-decoration:none}.dzn-notif-dialog{width:min(1080px,94vw);max-width:1080px;max-height:90vh;padding:0;border:0;border-radius:10px;box-shadow:0 24px 60px rgba(15,23,42,.35);direction:ltr;background:#fff}.dzn-notif-dialog::backdrop{background:rgba(15,23,42,.55)}.dzn-notif-dialog-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;background:#fff;border-block-end:1px solid #dcdcde}.dzn-notif-dialog-bar h2{margin:0;font-size:16px}.dzn-notif-dialog-body{max-height:calc(90vh - 56px);overflow:auto;padding:4px 20px 20px}.dzn-notif-lifecycle{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;margin:8px 0 0;font-size:11px;line-height:1.7}.dzn-notif-lifecycle dt{color:#646970;white-space:nowrap}.dzn-notif-lifecycle dd{margin:0}.dzn-notif-toolbar{position:sticky;top:32px;z-index:30;background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:10px 12px;margin-block:12px}.dzn-notif-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;border-top:1px solid #f0f0f1;padding-top:10px}.dzn-notif-chip{display:inline-block;padding:3px 12px;border:1px solid #dcdcde;border-radius:999px;font-size:12px;text-decoration:none;color:#1d2327;background:#fff}.dzn-notif-chip.is-active{background:#0E8C8C;border-color:#0E8C8C;color:#fff}.dzn-notif-task{margin-block:22px}.dzn-notif-task h3{margin:0 0 10px}.dzn-notif-grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}.dzn-notif-cardrow{border:1px solid #dcdcde;border-radius:8px;padding:12px 14px;background:#fff;display:flex;flex-direction:column;gap:8px;scroll-margin-top:150px}.dzn-notif-cardrow:hover{border-color:#0E8C8C;box-shadow:0 2px 8px rgba(15,23,42,.08)}.dzn-notif-cardhead{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}.dzn-notif-cardhead strong{font-size:14px}.dzn-notif-cardrow-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px}.dzn-notif-channel-chips{display:flex;gap:6px;flex-wrap:wrap}.dzn-notif-channel-chip{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700}.chip-ok{background:#edfaef;color:#1e6b2f}.chip-warn{background:#fcf3e6;color:#8a4b00}.chip-off{background:#f0f0f1;color:#646970}.chip-locked{background:#fbeaea;color:#8a1f1f}.dzn-notif-drawer-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(15,23,42,.45);z-index:9990}.dzn-notif-drawer{position:fixed;top:32px;right:0;bottom:0;width:min(680px,96vw);background:#fff;border-inline-start:1px solid #dcdcde;box-shadow:-24px 0 60px rgba(15,23,42,.28);z-index:9991;overflow-y:auto;padding:20px}.dzn-notif-drawer-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.dzn-notif-drawer-bar h2{margin:0}@media(max-width:782px){.dzn-notif-drawer{top:46px;width:100vw}}</style><h1>Notifications</h1>';
         echo '<p class="dzn-notif-lede">Choose which notifications are sent and edit their copy. Provider configuration is under Integrations; detailed delivery evidence is under Diagnostics. This workspace never changes a recipient, authorises a payment, alters a lesson or bypasses the business authority that produced the notification.</p>';
         self::renderFlash();
         if($requested!==$tab){
@@ -89,7 +89,7 @@ final class NotificationManagementController {
                 echo '<aside class="dzn-notif-drawer" id="dzn-notif-drawer" aria-label="Notification editor"><div class="dzn-notif-drawer-bar"><h2 id="dzn-notif-editor-title">Edit notification</h2><button type="button" class="button button-small dzn-notif-drawer-close">Close</button></div><section>';
                 self::renderEditor(new NotificationTemplateLibrary(),$templateKey,$channel,$locale);
                 echo '</section></aside>';
-                echo '<script>(function(){function close(){var b=document.querySelector(".dzn-notif-drawer-backdrop"),d=document.getElementById("dzn-notif-drawer");if(b)b.remove();if(d)d.remove();try{var u=new URL(window.location.href);["template","template_channel","locale"].forEach(function(k){u.searchParams.delete(k);});window.history.replaceState({},"",u.toString());}catch(e){}}var c=document.querySelector(".dzn-notif-drawer-close");if(c)c.addEventListener("click",close);var b=document.querySelector(".dzn-notif-drawer-backdrop");if(b)b.addEventListener("click",close);try{var y=sessionStorage.getItem("dzn-notif-scroll");if(y!==null){window.scrollTo(0,parseInt(y,10)||0);sessionStorage.removeItem("dzn-notif-scroll");}}catch(e){}document.querySelectorAll(".dzn-notif-open").forEach(function(el){el.addEventListener("click",function(){try{sessionStorage.setItem("dzn-notif-scroll",String(window.scrollY));}catch(e){}});});})();</script>';
+                echo '<script>(function(){function close(){var b=document.querySelector(".dzn-notif-drawer-backdrop"),d=document.getElementById("dzn-notif-drawer");if(b)b.remove();if(d)d.remove();try{var u=new URL(window.location.href);["template","template_channel","locale"].forEach(function(k){u.searchParams.delete(k);});window.history.replaceState({},"",u.toString());}catch(e){}}var c=document.querySelector(".dzn-notif-drawer-close");if(c)c.addEventListener("click",close);var b=document.querySelector(".dzn-notif-drawer-backdrop");if(b)b.addEventListener("click",close);document.addEventListener("keydown",function(e){if(e.key==="Escape")close();});})();</script>';
             }
         }
         echo '</div></div>';
@@ -202,7 +202,7 @@ final class NotificationManagementController {
         }else{
             echo '<span class="dzn-badge '.($eventEnabled?'is-ok':'is-warn').'">'.($eventEnabled?'Enabled':'Disabled').'</span>';
         }
-        echo '<a class="button button-small dzn-notif-open" href="'.esc_url(self::editorUrl($eventKey,$primaryChannel,NotificationCatalogue::PRIMARY_LOCALE)).'">Open</a></div>';
+        echo '<a class="button button-small dzn-notif-open" href="'.esc_url(self::editorUrl($eventKey,$primaryChannel,NotificationCatalogue::PRIMARY_LOCALE)).'#event-'.esc_attr($eventKey).'">Open</a></div>';
         if(NotificationCatalogue::isMandatory($eventKey))echo '<div class="dzn-notif-meta">Sensitive notification — disabling delivery may prevent important account, security or payment messages. Core rules are unchanged.</div>';
         echo '</article>';
     }
@@ -229,6 +229,47 @@ final class NotificationManagementController {
             'missing_template','missing_provider','awaiting_approval','policy_disabled'=>'chip-locked',
             default=>'chip-warn',
         };
+    }
+
+    /**
+     * The master switch and the per-channel delivery toggles, restored into the editor so an
+     * administrator can enable or disable every offered channel in one place. A genuinely blocked
+     * route (missing copy, unapproved provider, secure-only) cannot be switched on.
+     */
+    private static function renderDeliveryControls(NotificationTemplateLibrary $library,string $eventKey):void{
+        $eventEnabled=$library->eventEnabled($eventKey);
+        echo '<section class="dzn-notif-card"><h3>Delivery</h3>';
+        if(self::canEdit()){
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="enabled" value="'.($eventEnabled?'0':'1').'">';
+            foreach(self::tableContext() as $contextKey=>$contextValue)echo '<input type="hidden" name="filter_'.esc_attr($contextKey).'" value="'.esc_attr((string)$contextValue).'">';
+            wp_nonce_field('dzn_notification_event_toggle');
+            echo '<strong>Notification:</strong> <span class="dzn-badge '.($eventEnabled?'is-ok':'is-warn').'">'.($eventEnabled?'Enabled':'Disabled').'</span> ';
+            echo '<button class="button button-small" type="submit">'.($eventEnabled?'Disable notification':'Enable notification').'</button></form>';
+        }else{
+            echo '<strong>Notification:</strong> <span class="dzn-badge '.($eventEnabled?'is-ok':'is-warn').'">'.($eventEnabled?'Enabled':'Disabled').'</span>';
+        }
+        if(NotificationCatalogue::isMandatory($eventKey))echo '<p class="dzn-notif-meta">Sensitive notification — disabling delivery may prevent important account, security or payment messages. Core rules are unchanged.</p>';
+        echo '<ul class="dzn-notif-list">';
+        foreach(array('website','email','whatsapp','sms') as $channel){
+            if(!$library->channelOffered($eventKey,$channel))continue;
+            $active=$library->eventChannelEnabled($eventKey,$channel);
+            $state=self::effectiveChannelState($library,$eventKey,$channel);
+            $locked=in_array($state['state'],array('missing_template','awaiting_approval','missing_provider','policy_disabled'),true);
+            $blocked=!empty($state['enable_blocked']);
+            echo '<li><strong>'.esc_html(self::channelLabel($channel)).':</strong> <span class="dzn-badge '.($state['state']==='enabled'?'is-ok':'is-warn').'">'.esc_html((string)$state['label']).'</span> ';
+            if(self::canEdit()){
+                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_channel_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="enabled" value="'.($active?'0':'1').'">';
+                foreach(self::tableContext() as $contextKey=>$contextValue)echo '<input type="hidden" name="filter_'.esc_attr($contextKey).'" value="'.esc_attr((string)$contextValue).'">';
+                wp_nonce_field('dzn_notification_event_channel_toggle');
+                if($active)echo '<button class="button button-small" type="submit">Turn off</button>';
+                elseif(!$locked&&!$blocked)echo '<button class="button button-small" type="submit">Turn on</button>';
+                else echo '<button class="button button-small" disabled title="'.esc_attr((string)$state['reason']).'">Turn on</button>';
+                echo '</form>';
+            }
+            if($state['reason']!=='')echo '<span class="dzn-notif-meta">'.esc_html((string)$state['reason']).'</span>';
+            echo '</li>';
+        }
+        echo '</ul></section>';
     }
 
     // ------------------------------------------------------------------ manual send
@@ -508,8 +549,9 @@ final class NotificationManagementController {
         foreach(NotificationCatalogue::SUPPORTED_LOCALES as $availableLocale)echo '<a class="button button-small'.($availableLocale===$locale?' button-primary':'').'" href="'.esc_url(self::editorUrl($eventKey,$channel,$availableLocale)).'">'.esc_html($availableLocale).'</a> ';
         echo '</p>';
         if(!$offered)echo '<div class="notice notice-warning inline"><p>This channel is not supported by this event and cannot be edited or sent.</p></div>';
-        elseif(!$enabled)echo '<div class="notice notice-info inline"><p>This channel is currently disabled for this notification. You may prepare and publish its copy, but it cannot send until it is enabled from the catalogue.</p></div>';
+        elseif(!$enabled)echo '<div class="notice notice-info inline"><p>This channel is currently disabled for this notification. You may prepare and publish its copy, but it cannot send until it is enabled.</p></div>';
         echo '<div class="dzn-notif-grid">';
+        self::renderDeliveryControls($library,$eventKey);
         echo '<section class="dzn-notif-card"><h3>Variable Contract</h3><p>Allowed placeholders:</p><p>';
         foreach(NotificationCatalogue::variables($eventKey) as $variable)echo '<code>{{'.esc_html($variable).'}}</code> ';
         echo '</p><p>Required placeholders for this channel:</p><p>';
@@ -818,7 +860,7 @@ final class NotificationManagementController {
             (new NotificationTemplateLibrary())->saveEventEnabled($eventKey,$enabled);
             self::flash('success',$enabled?'Notification enabled; previous channel preferences retained.':'Notification disabled across all channels; preferences retained.');
         }catch(\Throwable $error){self::flash('error',self::eventToggleError($error->getMessage()));}
-        self::redirectBack('events',self::postTableContext());
+        self::redirectBack('events',self::postTableContext(),$eventKey);
     }
 
     public static function toggleEventChannel():never{
@@ -836,7 +878,7 @@ final class NotificationManagementController {
             $library->saveEventChannel($eventKey,$channel,$enabled);
             self::flash('success',self::channelLabel($channel).' delivery '.($enabled?'enabled.':'disabled.'));
         }catch(\Throwable $error){self::flash('error',$error->getMessage()==='notification_channel_unavailable'?'This channel cannot be enabled until its template, provider approval and selected route are ready.':'This delivery channel is not available for this event.');}
-        self::redirectBack('events',self::postTableContext());
+        self::redirectBack('events',array('template'=>$eventKey,'template_channel'=>$channel)+self::postTableContext(),$eventKey);
     }
 
     public static function pruneInbox():never{self::handle(function(NotificationTemplateLibrary $library,array $input):array{
@@ -1174,7 +1216,12 @@ final class NotificationManagementController {
         foreach(self::tableContext() as $key=>$value)$args['filter_'.$key]=$value;
         return self::url($args);
     }
-    private static function redirectBack(string $tab,array $extra=array()):never{wp_safe_redirect(self::url(array_merge(array('tab'=>$tab),$extra)));exit;}
+    private static function redirectBack(string $tab,array $extra=array(),string $anchor=''):never{
+        if($anchor===''&&isset($extra['template'])&&$extra['template']!=='')$anchor=(string)$extra['template'];
+        $url=self::url(array_merge(array('tab'=>$tab),$extra));
+        if($anchor!=='')$url.='#event-'.$anchor;
+        wp_safe_redirect($url);exit;
+    }
     private static function flash(string $type,string $message):void{
         if(function_exists('set_transient'))set_transient(self::FLASH.get_current_user_id(),array('type'=>$type,'message'=>$message),120);
     }

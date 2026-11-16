@@ -106,6 +106,7 @@ jobs:
             platform/tests/phase-2a2q-contract.php
             platform/tests/phase-2a2n-contract.php
             platform/tests/seo-legacy-redirects-contract.php
+            platform/tests/seo-virtual-route-canonical-contract.php
             platform/tests/livekit-attendance-contract.php
           )
           for contract in "${contracts[@]}"; do
@@ -115,6 +116,7 @@ jobs:
           php platform/tests/recording-archive-policy-unit.php
           php platform/tests/recording-archive-contract.php
           php platform/tests/seo-legacy-redirects-unit.php
+          php platform/tests/seo-virtual-route-canonical-unit.php
           php platform/tests/quiet-hours-advisory-unit.php
           php platform/tests/quiet-hours-advisory-contract.php
           php platform/tests/phase-2a3-day-availability-contract.php

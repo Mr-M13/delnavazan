@@ -168,7 +168,9 @@ is optional strict parity. Docker is required only for the runtime suites.
   `php platform/tests/seo-legacy-redirects-contract.php` and
   `php platform/tests/seo-legacy-redirects-unit.php`: every URL in
   `deployment/seo/production-seo-baseline.csv` must stay mapped to a live target, and a retired path
-  must never be redirected while WordPress still serves it.
+  must never be redirected while WordPress still serves it. The virtual-route canonical is covered by
+  `php platform/tests/seo-virtual-route-canonical-contract.php` and
+  `php platform/tests/seo-virtual-route-canonical-unit.php`.
 - **Runtime suites:** `platform/runtime/bin/run-<suite>-runtime.sh`. These already drive Docker
   with the CI images `mariadb:11.4`, `wordpress:php8.3-apache` and `wordpress:cli-php8.3`.
   The booking slot conflict suite also proves that two valid reschedules send Calendar revisions

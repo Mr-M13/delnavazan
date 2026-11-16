@@ -49,6 +49,12 @@ need "$backup_sh" 'gzip -t'
 need "$backup_sh" 'tar -tzf'
 need "$backup_sh" 'FILES_TAR_WARN=changed-during-read'
 need "$backup_sh" 'tar_rc >= 2'
+# The production host has no /dev/fd, so process substitution would fail there.
+for host_script in "$backup_sh" "$restore_sh"; do
+  if grep -q '<(' "$host_script"; then
+    fail "process substitution is not portable to the production host: $host_script"
+  fi
+done
 need "$backup_sh" 'sha256sum'
 need "$backup_sh" 'wp-content/cache'
 need "$backup_sh" "not 'production'"

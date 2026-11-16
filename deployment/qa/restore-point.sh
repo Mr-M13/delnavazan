@@ -166,11 +166,12 @@ dzn_prune_files(){
   [[ "$keep" =~ ^[0-9]+$ ]] || return 1
   tmp="$(mktemp -d)" || return 1
   : > "$tmp/all"
+  if ! ( cd "$dir" && ls -1 ) > "$tmp/list"; then rm -rf "$tmp"; return 1; fi
   while IFS= read -r name; do
     [[ -f "$dir/$name" ]] || continue
     [[ "$name" =~ ^[0-9]{8}T[0-9]{6}Z(-[0-9]+)?\.sql\.gz$ ]] || continue
     printf '%s\n' "$name" >> "$tmp/all"
-  done < <( cd "$dir" && ls -1 )
+  done < "$tmp/list"
   LC_ALL=C sort -r -o "$tmp/all" "$tmp/all"
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
@@ -278,6 +279,11 @@ main(){
   [[ -d "$DZN_BACKUP_ROOT/points" ]] || fail "no rollback points under $DZN_BACKUP_ROOT/points"
 
   if [[ "$point_name" == 'latest' ]]; then
+    point_list="$(mktemp)" || fail 'temporary file is unavailable'
+    if ! ( cd "$DZN_BACKUP_ROOT/points" && ls -1 | LC_ALL=C sort -r ) > "$point_list"; then
+      rm -f "$point_list"
+      fail 'rollback point listing failed'
+    fi
     while IFS= read -r name; do
       [[ -n "$name" ]] || continue
       [[ -d "$DZN_BACKUP_ROOT/points/$name" ]] || continue
@@ -286,7 +292,8 @@ main(){
         point_dir="$DZN_BACKUP_ROOT/points/$name"
         break
       fi
-    done < <( cd "$DZN_BACKUP_ROOT/points" && ls -1 | LC_ALL=C sort -r )
+    done < "$point_list"
+    rm -f "$point_list"
     [[ -n "$point_dir" ]] || fail 'no complete rollback point is available'
     point_name="$(basename "$point_dir")"
   else

@@ -1,7 +1,8 @@
 # Production backup and rollback runbook
 
-**Status: tooling only. Installing this runbook's host cron and rclone remote is an operator
-action; nothing here deploys, migrates or changes production by itself.**
+**Status: installable through one audited dispatch. `install-production-host-tooling.yml` installs
+the host tooling and takes the first rollback point; the rclone remote and every restore remain owner
+actions. Nothing here deploys, migrates or changes site data by itself.**
 
 Owner decision recorded for 2026-11-16 (no staging environment exists):
 
@@ -14,9 +15,11 @@ Owner decision recorded for 2026-11-16 (no staging environment exists):
 - Rollback is one operator command with an exact confirmation token; it is never automatic and
   never runs from CI.
 
-Agents prepare and review this tooling. Agents never take a point, restore one, or run the drill
-against production (`AGENTS.md` §3). The source contract
-`deployment/qa/backup-rollback-contract.sh` proves the guards in the PR gate and runs offline.
+Agents prepare and review this tooling. The guarded install is a release-coordinator dispatch, never
+an agent-side production write, and no agent restores a point or runs the drill against production
+(`AGENTS.md` §2, §3). Two offline source contracts prove the guards in the PR gate:
+`deployment/qa/backup-rollback-contract.sh` for the tools and
+`deployment/qa/install-host-tooling-contract.sh` for the install workflow.
 
 ## 1. What the tooling is
 
@@ -24,7 +27,9 @@ against production (`AGENTS.md` §3). The source contract
 | --- | --- | --- |
 | `deployment/qa/backup-point.sh` | production host (cron or SSH) | take one verified rollback point, prune to the newest two |
 | `deployment/qa/restore-point.sh` | production host (operator) | restore the newest or a named point, fail closed |
+| `.github/workflows/install-production-host-tooling.yml` | GitHub Actions (`production`) | install both host scripts, install the nightly cron, take the first point |
 | `deployment/qa/backup-rollback-contract.sh` | CI and any workstation | source contract: no network, no real WP-CLI |
+| `deployment/qa/install-host-tooling-contract.sh` | CI and any workstation | source contract for the install workflow: no network |
 | `docs/BACKUP-ROLLBACK-RUNBOOK.md` | — | this document |
 
 A point is a directory under `$DZN_BACKUP_ROOT/points/<UTC-of-take>/`:
@@ -67,31 +72,68 @@ changes constantly. Uploads and everything else are inside the archive.
 
 ## 3. Install on the host
 
-From an approved checkout at current `origin/main`:
+Installing is an audited workflow dispatch, so it needs no operator workstation and no local
+checkout. From `main`, with the exact current `main` SHA:
 
 ```sh
-export PRODUCTION_SSH_USER=<protected-production-ssh-user>
-scp deployment/qa/backup-point.sh deployment/qa/restore-point.sh \
-  "${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net:~/"
-ssh "${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net" '
-  mkdir -p "$HOME/bin" && chmod 700 "$HOME/bin" &&
-  mv "$HOME/backup-point.sh" "$HOME/bin/dzn-backup-point.sh" &&
-  mv "$HOME/restore-point.sh" "$HOME/bin/dzn-restore-point.sh" &&
-  chmod 700 "$HOME/bin/dzn-backup-point.sh" "$HOME/bin/dzn-restore-point.sh"'
+gh workflow run install-production-host-tooling.yml \
+  --ref main \
+  -f commit_sha="$(git rev-parse origin/main)" \
+  -f confirm=INSTALL_HOST_TOOLING
+gh run watch
 ```
 
+The workflow refuses to run unless all of these hold:
+
+- it is dispatched from `main` and runs in the protected `production` environment;
+- `commit_sha` is one full 40-character SHA that is still the exact current `origin/main`;
+- `confirm` is the literal `INSTALL_HOST_TOOLING`;
+- the checkout is that exact SHA — no rolling branch ref is used.
+
+It then installs, over SSH with only the three protected production secrets, and nothing else:
+
+1. `~/bin` and the default rollback-point root, both `0700`;
+2. `deployment/qa/backup-point.sh` as `~/bin/dzn-backup-point.sh` and
+   `deployment/qa/restore-point.sh` as `~/bin/dzn-restore-point.sh`, both `0700`, each written to a
+   sibling temporary file and moved into place so host cron never sees a partial script, then
+   proven complete (byte count) and syntactically whole (`bash -n`);
+3. the daily 03:07 UTC cron line below — **appended only when its marker `dzn-backup-point.sh` is
+   absent from `crontab -l`**, so a re-run never duplicates it and never drops or rewrites an
+   existing line, and the run then proves exactly one such line exists;
+4. one rollback point with the tool it just installed.
+
 Host cron, one line, daily at 03:07 UTC (the existing `prune-production-backups` host cron runs at
-03:17 and only touches `$HOME/backups/delnavazan-production-cutover`):
+03:17 and only touches `$HOME/backups/delnavazan-production-cutover`). The workflow installs exactly
+this line:
 
 ```cron
-DZN_BACKUP_REMOTE=rclone-crypt:delnavazan-rollback-points
 7 3 * * * /bin/bash "$HOME/bin/dzn-backup-point.sh" >> "$HOME/backups/delnavazan-rollback-points/cron.log" 2>&1
 ```
 
-Leave the `DZN_BACKUP_REMOTE` line out to stay local-only; the script then prints
-`OFFSITE=skipped` and exits 0. With it set, a failed push prints `OFFSITE=failed`, exits non-zero
-and therefore mails cron, because a silent off-site gap defeats the copy. The local point is
-valid either way and is named in the output.
+The first point is taken with `DZN_BACKUP_REMOTE` deliberately empty, so the script prints
+`OFFSITE=skipped` and exits 0 and no off-site credential is needed. Add the off-site copy in §4 to
+the host crontab as its own environment line when rclone is configured:
+
+```cron
+DZN_BACKUP_REMOTE=rclone-crypt:delnavazan-rollback-points
+```
+
+Leave that line out to stay local-only. With it set, a failed push prints `OFFSITE=failed`, exits
+non-zero and therefore mails cron, because a silent off-site gap defeats the copy. The local point is
+valid either way and is named in the output. Setting up rclone stays an **owner action**: neither
+the workflow nor an agent configures a remote or stores a crypt password.
+
+Re-dispatching the workflow is safe by design: the script copies are rewritten from the pinned SHA,
+the cron line is left alone because its marker is present, and the run simply takes another point
+(retention keeps the newest two). Do not dispatch it while a deploy is running — both share the
+`delnavazan-production-deploy` concurrency group, so GitHub serializes them, but a queued deploy is a
+reason to wait.
+
+**Restore remains operator-only and never runs from CI.** The workflow copies
+`restore-point.sh` to the host so the operator can use it by hand; it never invokes it, never opens a
+second maintenance window, and never imports a database. A workflow run can only copy two reviewed
+scripts, append one cron line and take a point — it cannot restore, delete, deploy, migrate, purge or
+read a credential.
 
 Every run appends one PII-free line to `$HOME/backups/delnavazan-rollback-points/backup-point.log`
 and, on restore, `restore.log`.

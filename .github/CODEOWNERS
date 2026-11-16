@@ -1,8 +1,11 @@
 # Delnavazan code ownership.
 #
-# The repository ruleset "Protect main" requires code-owner review, so a pull
-# request opened by any identity other than the owner below needs an explicit
-# approval from that owner before it can merge.
+# This file is a routing map, not an approval gate. The repository has a single
+# write identity, so the ruleset does not require code-owner approval; review
+# evidence lives in the pull request self-review record (see AGENTS.md §1.1).
+#
+# Agent identities (Codex, Copilot, ChatGPT, any other external tool) never own
+# code and never hold write access; they are advisory only (AGENTS.md §1.2).
 
 * @Mr-M13
 

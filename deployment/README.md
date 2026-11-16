@@ -38,11 +38,11 @@ Use this path for every release:
 
 1. Start a feature branch from current `main`.
 2. Run the relevant PHP/source-contract checks locally and open a pull request.
-3. Merge only after review and the required PR runtime gate passes.
+3. Merge only after the recorded self-review and the required PR runtime gate passes.
 4. From `main`, run **Deploy production** manually with the full SHA that is still the current `origin/main` commit.
 5. Review the deployment record and read-only production smoke result before closing the release.
 
-`.github/workflows/pr-runtime-gate.yml` runs on pull requests. It covers the Platform source contracts and production deployment tooling. Production deploys are manual-only, serialized, pinned to current `main`, and use a protected GitHub Actions environment named `production`. The environment is restricted to the `main` branch and its required reviewer must approve each run before the deploy job starts; see `AGENTS.md` §1.3 for the enforced review and ruleset settings. Add these environment secrets:
+`.github/workflows/pr-runtime-gate.yml` runs on pull requests. It covers the Platform source contracts and production deployment tooling. Production deploys are manual-only, serialized, pinned to current `main`, and use a protected GitHub Actions environment named `production`. The environment is restricted to `main` by branch policy and cannot be bypassed by administrators; it no longer requires a manual reviewer, because OpenCode is the sole write identity and records its self-review in the pull request. See `AGENTS.md` §1.1 and §1.3 for the review record and the enforced ruleset settings. Add these environment secrets:
 
 - `PRODUCTION_SSH_USER` — restricted DirectAdmin account name.
 - `PRODUCTION_SSH_PRIVATE_KEY` — deploy key scoped to the hosting account.

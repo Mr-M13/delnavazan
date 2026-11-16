@@ -21,7 +21,7 @@
 > that merge. No notification activation or delivery is authorised by this documentation update.
 
 **Continuity snapshot:** 19 September 2026
-**Purpose:** Durable handover for a new CD/ChatGPT session or implementation agent. Source, migrations and locked domain contracts remain authoritative; this record supplies the current state, boundaries and next action without relying on chat history.
+**Purpose:** Durable handover for a new OpenCode session. Source, migrations and locked domain contracts remain authoritative; this record supplies the current state, boundaries and next action without relying on chat history.
 
 ## 1. Current state
 
@@ -733,15 +733,15 @@ The future authority flow is: location signal → suggested region → visitor s
 
 ## 8. Execution posture
 
-CD / ChatGPT is the architect, orchestrator, dependency manager and handoff coordinator: it controls sequencing, dependencies, collision avoidance and review routing.
+OpenCode (DeepSeek) is the sole execution agent: architecture, sequencing, dependencies, implementation, review, merge and release. It may run several sessions in parallel, and those sessions coordinate through branches, worktrees and pull requests rather than shared working trees (`AGENTS.md` §1.4).
 
-Ina / Codex Local and Hamed / Codex Cloud operate under a dual-owner, reciprocal-review model. Either may own a complete bounded slice and perform reconnaissance, implementation, tests and self-review. Ownership alternates according to dependency, quota/capacity, task shape, context and efficiency; neither identity is permanently restricted to developer or reviewer work.
+Codex, ChatGPT, Copilot, Claude and other external agents are advisory. They may read the repository, plan, audit and comment on pull requests, and their findings are welcome as evidence, but they never push, merge, approve or deploy. OpenCode re-verifies any accepted finding in the working tree and in CI before acting on it.
 
-For consequential migrations, authority transitions, concurrency/idempotency, identity/privacy, payments, external side effects, destructive operations and consequential merge candidates, the non-owner performs independent cross-review. Routine deterministic/documentation work does not automatically require independent review. After an independent PASS, the implementation owner may perform deterministic merge/closeout only when the exact reviewed candidate is preserved.
+For consequential migrations, authority transitions, concurrency/idempotency, identity/privacy, payments, external side effects, destructive operations and consequential releases, the executing session performs and records an explicit self-review: full diff, scope, checks, failure modes, rollback. Advisory review may be requested in addition, but the recorded self-review is the minimum and the release gate is green required checks on the exact head SHA (`AGENTS.md` §1.1).
 
-Parallelise genuinely dependency-independent work. Do not parallelise sequential authority work where that would create speculative implementation, collisions or rework. Avoid duplicate expensive reconnaissance and runtime work.
+Parallelise genuinely dependency-independent work across sessions. Do not parallelise sequential authority work where that would create speculative implementation, collisions or rework. Avoid duplicate expensive reconnaissance and runtime work, and never run two production deployments at once.
 
-Delivery cadence should reuse established patterns rather than automatically splitting every capability into tiny phases. Prefer a larger bounded increment when authority boundaries are established, rollback is clear, validation remains tractable, concurrency risk is controlled and independent review can inspect one coherent candidate. Retain smaller increments when migration or authority risk genuinely requires them.
+Delivery cadence should reuse established patterns rather than automatically splitting every capability into tiny phases. Prefer a larger bounded increment when authority boundaries are established, rollback is clear, validation remains tractable, concurrency risk is controlled and one session can self-review a coherent candidate. Retain smaller increments when migration or authority risk genuinely requires them.
 
 Delivery posture: **CONTROLLED MOMENTUM**. For bounded, reversible work: IMPLEMENT → TEST → INSPECT → CORRECT. Remain strict around production, real-user/private data, security/privacy, destructive migrations, payments, external communications, Amelia/calendar, identity/guardian authority, acceptance/conversion authority and consequential deployment.
 

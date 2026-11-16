@@ -779,8 +779,19 @@
       });
       const dashboardLink = root.querySelector('[data-dashboard-link]');
       if (dashboardLink && result.dashboard_url) dashboardLink.href = result.dashboard_url;
+      const consentResult = root.querySelector('[data-consent-result]');
+      if (consentResult) {
+        const status = result.consent_status;
+        consentResult.hidden = false;
+        consentResult.textContent = status === 'saved'
+          ? 'درخواست شما ثبت شد و رضایت‌های انتخاب‌شده نیز ذخیره شدند.'
+          : status === 'not_requested'
+            ? 'درخواست شما ثبت شد. رضایت اختیاری ضبط و پژوهش ثبت نشده است.'
+            : 'درخواست شما ثبت شد، اما ذخیرهٔ کامل رضایت تأیید نشد. برای بررسی و ثبت دوبارهٔ رضایت به پرتال هنرجو بروید.';
+      }
       goTo('success');
-      if (result.dashboard_url) location.assign(result.dashboard_url);
+      // Do not redirect automatically: the independent consent outcome must be visible.
+
     } catch (error) {
       const messages = {
         invalid_request: 'بعضی از اطلاعات درخواست معتبر نیست. زمان پیشنهادی، منطقهٔ زمانی و اطلاعات تماس را بررسی کنید.',

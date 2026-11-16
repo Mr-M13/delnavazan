@@ -20,6 +20,7 @@ final class RecordingDecisionController {
     public const UNIFIED_TEACHER_ACTION='dzn_unified_teacher_consent';
     public const UNIFIED_STUDENT_ACTION='dzn_unified_student_consent';
     public const UNIFIED_WITHDRAW_ACTION='dzn_unified_student_withdraw';
+    public const ADULT_RECOVERY_ACTION='dzn_student_adult_attestation';
 
     public static function register():void{
         add_action('admin_post_'.self::STUDENT_ACTION,array(__CLASS__,'studentChoice'));
@@ -28,6 +29,25 @@ final class RecordingDecisionController {
         add_action('admin_post_'.self::UNIFIED_TEACHER_ACTION,array(__CLASS__,'teacherUnified'));
         add_action('admin_post_'.self::UNIFIED_STUDENT_ACTION,array(__CLASS__,'studentUnified'));
         add_action('admin_post_'.self::UNIFIED_WITHDRAW_ACTION,array(__CLASS__,'studentWithdrawAll'));
+        add_action('admin_post_'.self::ADULT_RECOVERY_ACTION,array(__CLASS__,'recoverAdultAttestation'));
+    }
+
+    public static function recoverAdultAttestation():never{
+        self::requirePost();
+        self::studentGuardFor(self::ADULT_RECOVERY_ACTION);
+        $returnTo=self::returnTo($_POST['return_to']??'account');
+        try{
+            if((string)($_POST['adult_attested']??'')!=='1')throw new \RuntimeException('capacity_attestation_required');
+            (new \Delnavazan\Platform\Core\Application\StudentAdultAttestationRecoveryService())->recover();
+            self::rememberStatus('student','capacity_saved');
+        }catch(\Throwable){self::rememberStatus('student','capacity_unavailable');}
+        self::redirectStudent($returnTo);
+    }
+
+    private static function studentGuardFor(string $action):void{
+        if(!is_user_logged_in())auth_redirect();
+        if(!current_user_can('read'))wp_die('Access denied.','Delnavazan',array('response'=>403));
+        check_admin_referer($action);
     }
 
     public static function studentChoice():never{
@@ -117,7 +137,7 @@ final class RecordingDecisionController {
             $locale=function_exists('get_user_locale')?(string)get_user_locale():'en';
             $language=str_starts_with(strtolower($locale),'fa')?'fa':'en';
             $key=sanitize_text_field((string)wp_unslash($_POST['idempotency_key']??''));
-            (new UnifiedConsentService())->acceptTeacherUnified($key,$language,'portal_unified','teacher_unified');
+            (new UnifiedConsentService())->acceptTeacherUnified($key,$language,'portal_unified','teacher_unified',(string)($_POST['research_opt_in']??'')==='1');
             self::rememberStatus('teacher','unified_saved');
             self::redirectTeacher($returnTo);
         }catch(\Throwable){

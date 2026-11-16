@@ -206,6 +206,7 @@ jobs:
           php platform/tests/notification-management-navigation-unit.php
           php platform/tests/notification-management-unit.php
           php platform/tests/notification-template-readiness-contract.php
+          php platform/tests/notification-manual-send-unit.php
           php platform/tests/notification-admin-language-contract.php
           php platform/tests/communications-brand-contract.php
           php platform/tests/notification-preview-unit.php

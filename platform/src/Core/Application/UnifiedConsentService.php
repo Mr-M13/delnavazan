@@ -15,7 +15,6 @@ final class UnifiedConsentService {
     public const TEACHER_PURPOSES=array(
         ConsentPurposeRegistry::TEACHER_TERMS=>'accepted',
         ConsentPurposeRegistry::TEACHER_RECORDING=>'allow',
-        ConsentPurposeRegistry::TEACHER_RESEARCH=>'opt_in',
         ConsentPurposeRegistry::PRIVACY_TERMS=>'accepted',
     );
     public const STUDENT_PURPOSES=array(
@@ -32,30 +31,76 @@ final class UnifiedConsentService {
         $this->withdrawals=$withdrawals??new ConsentWithdrawalService($this->authority);
     }
 
-    public function acceptTeacherUnified(string $baseKey,string $preferredLanguage='en',string $channel='portal_unified',string $workflow='teacher_unified'):array{
+    public function acceptTeacherUnified(string $baseKey,string $preferredLanguage='en',string $channel='portal_unified',string $workflow='teacher_unified',bool $researchOptIn=false):array{
         $language=$this->language($preferredLanguage);
-        $notices=$this->resolveNotices(array_keys(self::TEACHER_PURPOSES),$language);
-        $out=array();
-        foreach(self::TEACHER_PURPOSES as $purpose=>$choice){
-            $notice=$notices[$purpose];
-            if($purpose===ConsentPurposeRegistry::TEACHER_TERMS){
-                $out[$purpose]=$this->authority->recordTeacherChoice($purpose,$choice,$notice['uid'],$notice['language'],$this->key($baseKey,$purpose),$channel,$workflow);
-            }else{
-                $out[$purpose]=$this->authority->recordTeacherChoice($purpose,$choice,$notice['uid'],$notice['language'],$this->key($baseKey,$purpose),$channel,$workflow);
-            }
-        }
-        return $out;
+        $purposes=self::TEACHER_PURPOSES;
+        // Research requires a separate, unchecked opt-in. Missing research notice
+        // cannot block compulsory teaching terms, recording or privacy.
+        if($researchOptIn)$purposes[ConsentPurposeRegistry::TEACHER_RESEARCH]='opt_in';
+        $notices=$this->resolveNotices(array_keys($purposes),$language);
+        return $this->recordBundle($purposes,$notices,$baseKey,$channel,$workflow,true);
     }
 
     public function acceptStudentUnified(string $baseKey,string $preferredLanguage='en',string $channel='portal_unified',string $workflow='student_unified'):array{
         $language=$this->language($preferredLanguage);
         $notices=$this->resolveNotices(array_keys(self::STUDENT_PURPOSES),$language);
+        return $this->recordBundle(self::STUDENT_PURPOSES,$notices,$baseKey,$channel,$workflow,false);
+    }
+
+    /**
+     * Each authority call owns its own database transaction. Do not wrap these in an
+     * outer START TRANSACTION: that would be implicitly committed by the inner call.
+     * Stable per-purpose keys make retries replay committed decisions without duplication.
+     * On failure, report exactly which purposes committed, which failed, and which
+     * were not attempted. The caller must not claim the entire bundle succeeded.
+     */
+    private function recordBundle(array $purposes,array $notices,string $baseKey,string $channel,string $workflow,bool $teacher):array{
         $out=array();
-        foreach(self::STUDENT_PURPOSES as $purpose=>$choice){
+        foreach($purposes as $purpose=>$choice){
             $notice=$notices[$purpose];
-            $out[$purpose]=$this->authority->recordOwnStudentChoice($purpose,$choice,$notice['uid'],$notice['language'],$this->key($baseKey,$purpose),$channel,$workflow);
+            try{
+                // A new form render uses a new key. Reuse an already-current positive
+                // decision instead of appending duplicate evidence on a human retry.
+                $current=$this->currentChoice($teacher,$purpose);
+                if(!empty($current['positive']) && (string)($current['notice_uid']??'')===(string)$notice['uid']){
+                    $out[$purpose]=array('decision_id'=>(int)$current['decision_id'],'state'=>$choice,
+                        'decided_at'=>$current['decided_at'],'idempotent'=>true);
+                    continue;
+                }
+                $out[$purpose]=$teacher
+                    ?$this->authority->recordTeacherChoice($purpose,$choice,$notice['uid'],$notice['language'],$this->key($baseKey,$purpose),$channel,$workflow)
+                    :$this->authority->recordOwnStudentChoice($purpose,$choice,$notice['uid'],$notice['language'],$this->key($baseKey,$purpose),$channel,$workflow);
+            }catch(\Throwable $error){
+                $outcomes=array();
+                foreach($purposes as $name=>$_choice){
+                    $outcomes[$name]=isset($out[$name])?'recorded':($name===$purpose?'failed':'not_attempted');
+                }
+                throw new UnifiedConsentPartialFailure($outcomes,$purpose,$error);
+            }
+        }
+        // A stale idempotency replay must never claim a withdrawn decision was
+        // restored. Re-read the canonical latest decisions before reporting success.
+        foreach($purposes as $purpose=>$choice){
+            $current=$this->currentChoice($teacher,$purpose);
+            if(empty($current['positive']) || (string)($current['notice_uid']??'')!==(string)$notices[$purpose]['uid']){
+                $outcomes=array_fill_keys(array_keys($purposes),'recorded');
+                $outcomes[$purpose]='failed';
+                throw new UnifiedConsentPartialFailure($outcomes,$purpose,new \RuntimeException('unified_consent_final_state_unavailable'));
+            }
         }
         return $out;
+    }
+
+    private function currentChoice(bool $teacher,string $purpose):array{
+        $state=$teacher?$this->authority->teacherConsentState():$this->authority->studentDecisionState();
+        $slot=match($purpose){
+            ConsentPurposeRegistry::TEACHER_TERMS=>'terms',
+            ConsentPurposeRegistry::TEACHER_RECORDING,ConsentPurposeRegistry::STUDENT_RECORDING=>'recording',
+            ConsentPurposeRegistry::TEACHER_RESEARCH,ConsentPurposeRegistry::STUDENT_RESEARCH=>'research',
+            ConsentPurposeRegistry::PRIVACY_TERMS=>'privacy',
+            default=>throw new \InvalidArgumentException('consent_purpose_invalid'),
+        };
+        return (array)($state[$slot]??array());
     }
 
     /** Withdraw every withdrawable student purpose. Privacy acknowledgement is not withdrawable. */
@@ -81,7 +126,7 @@ final class UnifiedConsentService {
     public function studentConsentActive():bool{
         try{$state=$this->authority->studentDecisionState();}
         catch(\Throwable){return false;}
-        return !empty($state['recording']['positive'])&&!empty($state['research']['positive']);
+        return !empty($state['recording']['positive'])&&!empty($state['research']['positive'])&&!empty($state['privacy']['positive']);
     }
 
     private function resolveNotices(array $purposes,string $language):array{

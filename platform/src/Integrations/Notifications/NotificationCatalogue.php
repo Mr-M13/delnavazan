@@ -33,7 +33,7 @@ final class NotificationCatalogue {
         'account'=>array('label'=>'Account','description'=>'Essential account messages a student or teacher needs in order to continue.','policy'=>'essential'),
         'booking'=>array('label'=>'Intro Lessons','description'=>'Intro lesson requests, confirmations, declines and enrolment follow-up.','policy'=>'operational'),
         'lesson'=>array('label'=>'Classes & Sessions','description'=>'Lesson changes, replacement sessions, absence and operational class notices.','policy'=>'operational'),
-        'payment'=>array('label'=>'Payments & Renewals','description'=>'Financial and renewal messages; require legal review before activation.','policy'=>'financial'),
+        'payment'=>array('label'=>'Payments & Renewals','description'=>'Financial and renewal messages; editorially approved like any other operational message.','policy'=>'financial'),
         'optional'=>array('label'=>'Optional Announcements','description'=>'Non-essential news and offers; marketing consent only.','policy'=>'marketing'),
     );
 
@@ -64,8 +64,6 @@ final class NotificationCatalogue {
 
     /** Outstanding approvals that keep a template review-only. Administration metadata, never copy. */
     public const REVIEW=array(
-        'financial'=>'Finance approval required',
-        'legal'=>'Legal review required',
         'security'=>'Security review required',
         'dedicated_authority'=>'Owned by a dedicated secure authority',
         'provider_approval'=>'Provider template approval required',
@@ -774,7 +772,7 @@ final class NotificationCatalogue {
                     'whatsapp'=>array('body'=>(string)$definition[$prefix.'whatsapp']),
                 );
             }
-            $event=self::event($key,(string)$definition['label'],'payment','student','canonical:'.$definition['intent'],'canonical',array('email','website','whatsapp'),'financial',true,array('name','amount','due_date','portal_url','course','paid_date'),strtolower(str_replace('.student','',$key)),$defaults,array('financial','legal'));
+            $event=self::event($key,(string)$definition['label'],'payment','student','canonical:'.$definition['intent'],'canonical',array('email','website','whatsapp'),'financial',true,array('name','amount','due_date','portal_url','course','paid_date'),strtolower(str_replace('.student','',$key)),$defaults);
             // The owning finance service publishes the intent, but no workflow/template is registered,
             // so the message is produced and not yet dispatchable: partial, never "implemented".
             $event['implementation']='partial';

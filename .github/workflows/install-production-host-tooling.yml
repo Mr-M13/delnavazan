@@ -1,0 +1,289 @@
+name: Install production host tooling
+
+# Installs the reviewed rollback-point tooling on the production host and takes
+# the first rollback point, from a GitHub Actions runner, so installing it needs
+# no operator workstation and no local copy of the repository.
+#
+# It is deliberately narrow:
+#   - workflow_dispatch only, from main;
+#   - runs in the protected `production` environment;
+#   - serialized with the deploy workflow, so a point is never taken while a
+#     release is cutting over the live tree;
+#   - bound to the exact current origin/main SHA and an explicit confirm token;
+#   - it checks out only its own run commit, proven equal to that SHA, so no
+#     dispatch input ever selects a ref.
+#
+# What it can do, in full:
+#   1. create ~/bin (0700) and the default rollback-point root (0700);
+#   2. copy the two reviewed scripts from the pinned checkout to
+#      ~/bin/dzn-backup-point.sh and ~/bin/dzn-restore-point.sh (0700), proving
+#      the installed bytes and the installed syntax match the checkout;
+#   3. append one 03:07 UTC cron line, and only when that marker is absent, so
+#      re-running never duplicates it and never drops an existing crontab line;
+#   4. take one rollback point with the tool it just installed.
+#
+# Restore is operator-only and never runs from CI. This workflow copies
+# deployment/qa/restore-point.sh to the host so the operator can use it by hand;
+# it never invokes it, never restores, and never writes to the site.
+# It cannot deploy, migrate, purge, delete a backup or read a credential: it
+# passes an empty DZN_BACKUP_REMOTE, so the point stays local and the script
+# reports OFFSITE=skipped. Encrypted off-site rclone setup stays an owner action
+# (docs/BACKUP-ROLLBACK-RUNBOOK.md section 4).
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact full 40-char SHA of the current origin/main commit
+        type: string
+        required: true
+      confirm:
+        description: Type INSTALL_HOST_TOOLING to authorise the install
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+# Shared with the deploy workflow and the go-live data control: taking a
+# rollback point must never overlap a release or a data operation.
+concurrency:
+  group: delnavazan-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify commit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Require dispatch from main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this install from main only.' >&2; exit 1; }
+
+      - name: Check out the run commit
+        uses: actions/checkout@v5
+        with:
+          # The run's own commit, not the dispatch input: the gate below proves
+          # it equals the requested SHA, and a privileged job must never check
+          # out a ref chosen by a workflow input.
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require exact current origin/main and the confirm token
+        shell: bash
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character commit SHA.' >&2; exit 1; }
+          [[ "$CONFIRM" == 'INSTALL_HOST_TOOLING' ]] || { echo 'Type INSTALL_HOST_TOOLING to confirm.' >&2; exit 1; }
+          [[ "$GITHUB_SHA" == "$COMMIT_SHA" ]] || { echo "This run is at $GITHUB_SHA, not the requested $COMMIT_SHA." >&2; exit 1; }
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          origin_main="$(git rev-parse origin/main)"
+          [[ "$origin_main" == "$COMMIT_SHA" ]] || { echo "Requested SHA must still be current origin/main (origin/main=$origin_main requested=$COMMIT_SHA)." >&2; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$COMMIT_SHA" ]] || { echo 'The checkout is not the requested commit.' >&2; exit 1; }
+          bash -n deployment/qa/backup-point.sh
+          bash -n deployment/qa/restore-point.sh
+          bash deployment/qa/install-host-tooling-contract.sh
+          bash deployment/qa/backup-rollback-contract.sh
+
+  install:
+    name: Install and take first point
+    runs-on: ubuntu-24.04
+    environment: production
+    needs: verify
+    timeout-minutes: 45
+    steps:
+      - name: Require dispatch from main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this install from main only.' >&2; exit 1; }
+
+      - name: Check out the run commit
+        uses: actions/checkout@v5
+        with:
+          # Same reasoning as the gate job: the privileged job checks out its own
+          # run commit, and the re-verification below proves that commit is the
+          # requested SHA and still the exact current origin/main.
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Re-verify the exact main SHA and confirmation
+        shell: bash
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character commit SHA.' >&2; exit 1; }
+          [[ "$CONFIRM" == 'INSTALL_HOST_TOOLING' ]] || { echo 'Type INSTALL_HOST_TOOLING to confirm.' >&2; exit 1; }
+          [[ "$GITHUB_SHA" == "$COMMIT_SHA" ]] || { echo "This run is at $GITHUB_SHA, not the requested $COMMIT_SHA." >&2; exit 1; }
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          origin_main="$(git rev-parse origin/main)"
+          [[ "$origin_main" == "$COMMIT_SHA" ]] || { echo "Requested SHA must still be current origin/main (origin/main=$origin_main requested=$COMMIT_SHA)." >&2; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$COMMIT_SHA" ]] || { echo 'The checkout is not the requested commit.' >&2; exit 1; }
+          bash -n deployment/qa/backup-point.sh
+          bash -n deployment/qa/restore-point.sh
+
+      - name: Configure pinned production SSH access
+        shell: bash
+        env:
+          PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          PRODUCTION_KNOWN_HOSTS: ${{ secrets.PRODUCTION_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_PRIVATE_KEY" && -n "$PRODUCTION_KNOWN_HOSTS" ]] || { echo 'Production SSH secrets are not configured in the protected environment.' >&2; exit 1; }
+          grep -Eq '^cp119\.hosting-cloud\.net[[:space:]]+ssh-(ed25519|rsa|ecdsa)' <<<"$PRODUCTION_KNOWN_HOSTS" || { echo 'Known-hosts secret must pin cp119.hosting-cloud.net.' >&2; exit 1; }
+          install -m 700 -d "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_production" >/dev/null
+          cat >> "$HOME/.ssh/config" <<'EOF'
+          Host cp119.hosting-cloud.net
+            UserKnownHostsFile ~/.ssh/known_hosts
+            StrictHostKeyChecking yes
+            IdentityFile ~/.ssh/id_production
+            IdentitiesOnly yes
+            BatchMode yes
+          EOF
+          chmod 600 "$HOME/.ssh/config"
+
+      - name: Create the private tooling directories on the host
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
+          [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Production SSH username contains unsupported characters.' >&2; exit 1; }
+          target="${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net"
+          ssh -T "$target" bash -s <<'REMOTE'
+          set -Eeuo pipefail
+          mkdir -p "$HOME/bin" "$HOME/backups/delnavazan-rollback-points"
+          chmod 700 "$HOME/bin" "$HOME/backups/delnavazan-rollback-points"
+          if [[ -f "$HOME/bin/dzn-backup-point.sh" ]]; then
+            printf 'BIN_SCRIPT=existing\n'
+          else
+            printf 'BIN_SCRIPT=absent\n'
+          fi
+          printf 'BIN=ready\n'
+          REMOTE
+
+      - name: Install the reviewed tooling scripts on the host
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
+          [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Production SSH username contains unsupported characters.' >&2; exit 1; }
+          target="${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net"
+          # Each script is written to a sibling temporary file and moved into
+          # place, so host cron can never observe a half-transferred script. The
+          # byte count and `bash -n` of the installed file prove the transfer is
+          # complete and syntactically whole, not merely attempted.
+          for pair in 'deployment/qa/backup-point.sh:dzn-backup-point.sh' 'deployment/qa/restore-point.sh:dzn-restore-point.sh'; do
+            source_file="${pair%%:*}"
+            installed_name="${pair##*:}"
+            local_bytes="$(wc -c < "$source_file" | tr -d ' ')"
+            # `cat >` only: this upload must work under any login shell.
+            ssh -T "$target" "cat > ~/bin/.${installed_name}.new" < "$source_file"
+            ssh -T "$target" bash -s -- "$installed_name" <<'REMOTE' | tee "$RUNNER_TEMP/${installed_name}.install"
+          set -Eeuo pipefail
+          name="$1"
+          chmod 700 "$HOME/bin/.$name.new"
+          mv -f "$HOME/bin/.$name.new" "$HOME/bin/$name"
+          chmod 700 "$HOME/bin/$name"
+          bash -n "$HOME/bin/$name"
+          printf 'INSTALLED=%s BYTES=%s\n' "$name" "$(wc -c < "$HOME/bin/$name" | tr -d ' ')"
+          REMOTE
+            remote_bytes="$(sed -n 's/^INSTALLED=[^ ]* BYTES=\([0-9][0-9]*\)$/\1/p' "$RUNNER_TEMP/${installed_name}.install")"
+            [[ -n "$remote_bytes" && "$remote_bytes" == "$local_bytes" ]] || {
+              echo "Installed $installed_name reports ${remote_bytes:-no} bytes, expected $local_bytes." >&2
+              exit 1
+            }
+            printf 'HOST_TOOL=%s bytes=%s syntax=ok\n' "$installed_name" "$local_bytes"
+          done
+
+      - name: Install the nightly host cron idempotently
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
+          [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Production SSH username contains unsupported characters.' >&2; exit 1; }
+          target="${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net"
+          # Append-only: the existing crontab is read, and the one line is
+          # appended only when its marker is absent. An existing line is never
+          # rewritten or removed, so a re-run cannot duplicate it or clobber an
+          # unrelated host job. DZN_BACKUP_REMOTE is deliberately not set here.
+          ssh -T "$target" bash -s <<'REMOTE'
+          set -Eeuo pipefail
+          readonly CRON_MARKER='dzn-backup-point.sh'
+          readonly CRON_LINE='7 3 * * * /bin/bash "$HOME/bin/dzn-backup-point.sh" >> "$HOME/backups/delnavazan-rollback-points/cron.log" 2>&1'
+          [[ -x "$HOME/bin/dzn-backup-point.sh" ]] || { printf 'FAIL  ~/bin/dzn-backup-point.sh is missing or not executable\n' >&2; exit 1; }
+          current="$(crontab -l 2>/dev/null || true)"
+          if printf '%s\n' "$current" | grep -Fq -- "$CRON_MARKER"; then
+            printf 'CRON=existing-left-untouched\n'
+          else
+            if [[ -n "$current" ]]; then
+              printf '%s\n%s\n' "$current" "$CRON_LINE" | crontab -
+            else
+              printf '%s\n' "$CRON_LINE" | crontab -
+            fi
+            printf 'CRON=installed\n'
+          fi
+          count="$(crontab -l 2>/dev/null | grep -Fc -- "$CRON_MARKER" || true)"
+          [[ "$count" == '1' ]] || { printf 'FAIL  expected exactly one rollback-point cron line, found %s\n' "${count:-0}" >&2; exit 1; }
+          if crontab -l 2>/dev/null | grep -Fxq -- "$CRON_LINE"; then
+            printf 'CRON_SCHEDULE=expected-0307-utc\n'
+          else
+            printf 'CRON_SCHEDULE=pre-existing-line-differs-left-untouched\n'
+          fi
+          printf 'CRON_LINES=%s\n' "$count"
+          REMOTE
+
+      - name: Take the first rollback point
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
+          [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Production SSH username contains unsupported characters.' >&2; exit 1; }
+          target="${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net"
+          # DZN_BACKUP_REMOTE is pinned empty on purpose: the first point stays
+          # local, the script prints OFFSITE=skipped and exits 0, and no off-site
+          # credential is required. The encrypted rclone remote stays an owner
+          # action in docs/BACKUP-ROLLBACK-RUNBOOK.md section 4.
+          ssh -T "$target" 'DZN_BACKUP_REMOTE= bash "$HOME/bin/dzn-backup-point.sh"' \
+            | tee "$RUNNER_TEMP/rollback-point.txt"
+          grep -qx 'ROLLBACK_POINT=ok' "$RUNNER_TEMP/rollback-point.txt" \
+            || { echo 'The rollback-point run did not report ROLLBACK_POINT=ok.' >&2; exit 1; }
+          grep -qx 'OFFSITE=skipped' "$RUNNER_TEMP/rollback-point.txt" \
+            || { echo 'Expected OFFSITE=skipped for a local-only first point.' >&2; exit 1; }
+          grep -Eq '^BUILD=main-[0-9a-f]{12}$' "$RUNNER_TEMP/rollback-point.txt" \
+            || { echo 'The rollback point did not record a deployed main-<12 SHA> build identity.' >&2; exit 1; }
+          grep -Eq '^SCHEMA=[0-9]+$' "$RUNNER_TEMP/rollback-point.txt" \
+            || { echo 'The rollback point did not record a numeric schema version.' >&2; exit 1; }
+
+      - name: Preserve install and rollback-point evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-host-tooling-${{ inputs.commit_sha }}
+          path: |
+            ${{ runner.temp }}/dzn-backup-point.sh.install
+            ${{ runner.temp }}/dzn-restore-point.sh.install
+            ${{ runner.temp }}/rollback-point.txt
+          if-no-files-found: warn
+          retention-days: 90

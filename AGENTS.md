@@ -63,6 +63,11 @@ how OpenCode must use them.
 - Dispatch only the canonical Deploy production workflow from `main` with the full current `main`
   SHA, and verify the exact SHA, run result, production smoke and deployment record before
   reporting success.
+- Dispatch the host-tooling install only through
+  `.github/workflows/install-production-host-tooling.yml`, from `main`, with the exact `main` SHA
+  and the `INSTALL_HOST_TOOLING` token. It installs the reviewed backup/restore scripts and the
+  nightly host cron and takes one rollback point; it cannot restore, and restore stays an operator
+  action (§2).
 - Do not dispatch a second production deployment while one is queued or running. On failure,
   diagnose and use the documented guarded retry or rollback procedure.
 - Do not access or disclose deployment secrets, and do not run direct production deploy scripts or
@@ -201,9 +206,19 @@ is optional strict parity. Docker is required only for the runtime suites.
   maintenance mode, refuses a corrupt archive, a missing token or a schema that does not pair with
   the deployed code, and prints the point's build identity to redeploy. Its source contract is
   `bash deployment/qa/backup-rollback-contract.sh`, which runs in the PR gate's production
-  tooling step and is offline. Both scripts are operator-only host tools: agents prepare and
-  review them, never run them against production. The procedure is
-  `docs/BACKUP-ROLLBACK-RUNBOOK.md`.
+  tooling step and is offline.
+  Installing the tooling on the host and taking the first point is dispatched only through the
+  protected, workflow-dispatch-only `.github/workflows/install-production-host-tooling.yml` from
+  `main`, with the exact current `main` SHA, the literal `INSTALL_HOST_TOOLING` confirm token and
+  the `production` environment. It creates `~/bin` (0700), copies the two reviewed scripts as
+  `~/bin/dzn-backup-point.sh` and `~/bin/dzn-restore-point.sh` (0700), appends the single 03:07 UTC
+  cron line only when its marker is absent, then takes one point with `DZN_BACKUP_REMOTE` empty
+  (`OFFSITE=skipped`). Its source contract,
+  `bash deployment/qa/install-host-tooling-contract.sh`, runs in the same PR gate step and is
+  offline. A dispatch can copy two reviewed scripts, append one cron line and take a point; it
+  cannot restore, delete, deploy, migrate, purge or read a credential. The nightly cron then runs on
+  the host, and the encrypted rclone remote stays an owner action. **Restore remains operator-only
+  and never runs from CI.** The procedure is `docs/BACKUP-ROLLBACK-RUNBOOK.md`.
 - **Service tests:** `tools/ci/check.sh services` (runs `services/tests/run-all.sh` on PHP 8.3
   with `pdo_sqlite`, `sqlite3`, `curl`, `mbstring`).
 

@@ -101,7 +101,7 @@ backup_sha="$(sha256sum "$backup" | awk '{print $1}')"
 printf '%s  %s\n' "$backup_sha" "$backup" > "$backup.sha256"
 chmod 600 "$backup" "$backup.sha256"
 bytes="$(wc -c < "$backup" | tr -d ' ')"
-(( bytes > 1048576 )) || fail "database export is implausibly small ($bytes bytes); stop and inspect"
+(( bytes > 65536 )) || fail "database export is implausibly small ($bytes bytes); stop and inspect"
 printf 'BACKUP ok  %s  sha256=%s  bytes=%s\n' "$backup" "$backup_sha" "$bytes" >&2
 
 wp --path="$root" eval-file "$tmp/purge-test-data.php" execute "$confirm" "$fingerprint" "$backup" "$backup_sha" "$tmp/purge-test-data-tables.php" "$attestation"

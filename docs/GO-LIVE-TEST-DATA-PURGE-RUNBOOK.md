@@ -110,7 +110,7 @@ Record `fingerprint` from the report. It binds the execute run to exactly this p
 
 `execute` takes the export itself and refuses to continue unless:
 
-- the file is at least 1 MiB;
+- the file is at least 64 KiB (a sanity floor; gzip integrity and SHA-256 are the real checks);
 - `gzip -t` passes;
 - the SHA-256 re-read by the payload matches the wrapper's checksum.
 

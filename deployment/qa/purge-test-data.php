@@ -346,7 +346,7 @@ if ( '' === $dzn_backup || ! is_file( $dzn_backup ) || ! is_readable( $dzn_backu
 	dzn_purge_fail( 'backup_file_unavailable', 'execute', array( 'backup' => $dzn_backup ) );
 }
 clearstatcache( true, $dzn_backup );
-if ( filesize( $dzn_backup ) < 1048576 ) {
+if ( filesize( $dzn_backup ) < 65536 ) {
 	dzn_purge_fail( 'backup_file_too_small', 'execute', array( 'bytes' => filesize( $dzn_backup ) ) );
 }
 if ( ! hash_equals( $dzn_backup_sha, (string) hash_file( 'sha256', $dzn_backup ) ) ) {

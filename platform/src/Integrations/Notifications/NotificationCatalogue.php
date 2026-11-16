@@ -23,7 +23,7 @@ namespace Delnavazan\Platform\Integrations\Notifications;
  *   never rendered into a message.
  */
 final class NotificationCatalogue {
-    public const VERSION='2026-11-17.6';
+    public const VERSION='2026-11-17.7';
     public const PRIMARY_LOCALE='fa-IR';
     public const SUPPORTED_LOCALES=array('fa-IR','en');
 
@@ -77,7 +77,7 @@ final class NotificationCatalogue {
         foreach(self::studentEvents() as $event)$events[$event['key']]=$event;
         foreach(self::teacherEvents() as $event)$events[$event['key']]=$event;
         foreach(self::adminEvents() as $event)$events[$event['key']]=$event;
-        foreach(self::declaredFinancialEvents() as $event)$events[$event['key']]=$event;
+        foreach(self::renewalAutomationEvents() as $event)$events[$event['key']]=$event;
         foreach(self::paymentRefundEvents() as $event)$events[$event['key']]=$event;
         foreach(self::consentEvents() as $event)$events[$event['key']]=$event;
         ksort($events,SORT_STRING);
@@ -699,15 +699,16 @@ final class NotificationCatalogue {
         return $out;
     }
 
-    // ------------------------------------------------------------------ declared financial intents
+    // ------------------------------------------------------------------ renewal automation events
 
     /**
-     * Financial intents. The wording is event-specific and deliberately states only what the academy
-     * can verify; no template promises a refund decision, a bank outcome or a fixed processing time.
-     * Every entry is flagged for finance and legal approval and stays review-only until an
-     * administrator publishes it individually.
+     * The six renewal notices the dedicated RenewalAutomationNotificationService produces: the three
+     * event-driven notices after the authoritative R2 aggregate fact commits and the three
+     * clock-driven notices through the bounded RenewalAutomationWorker scheduler. Each is a student,
+     * financial, mandatory event delivered over email, website and WhatsApp; the WhatsApp leg is
+     * bound to the closed provider-template registry (verified at dispatch, never free-form).
      */
-    private static function declaredFinancialEvents():array{
+    private static function renewalAutomationEvents():array{
         $definitions=array(
             'renewal.automatic_upcoming.student'=>array('label'=>'Automatic Renewal Upcoming','intent'=>'AUTOMATIC_RENEWAL_UPCOMING',
                 'fa_subject'=>'تمدید خودکار ترم در پیش است',
@@ -764,6 +765,14 @@ final class NotificationCatalogue {
                 'en_portal'=>'Your {{course}} term has ended and the renewal was not completed. Start a new term from your account.',
                 'en_whatsapp'=>"Hello {{name}}, your {{course}} term has ended and the renewal was not completed. Start a new term from your account: {{portal_url}}"),
         );
+        $variables=array(
+            'renewal.automatic_upcoming.student'=>array('name','course','due_date','amount','portal_url'),
+            'renewal.automatic_charged.student'=>array('name','course','amount','paid_date','portal_url'),
+            'renewal.automatic_failed.student'=>array('name','course','amount','due_date','portal_url'),
+            'renewal.manual_payment_required.student'=>array('name','course','amount','due_date','portal_url'),
+            'renewal.guarantee_deadline_approaching.student'=>array('name','course','due_date','amount','portal_url'),
+            'renewal.term_lapsed.student'=>array('name','course','portal_url'),
+        );
         $out=array();
         foreach($definitions as $key=>$definition){
             $defaults=array();
@@ -775,11 +784,7 @@ final class NotificationCatalogue {
                     'whatsapp'=>array('body'=>(string)$definition[$prefix.'whatsapp']),
                 );
             }
-            $event=self::event($key,(string)$definition['label'],'payment','student','canonical:'.$definition['intent'],'canonical',array('email','website','whatsapp'),'financial',true,array('name','amount','due_date','portal_url','course','paid_date'),strtolower(str_replace('.student','',$key)),$defaults);
-            // The owning finance service publishes the intent, but no workflow/template is registered,
-            // so the message is produced and not yet dispatchable: partial, never "implemented".
-            $event['implementation']='partial';
-            $out[]=$event;
+            $out[]=self::event($key,(string)$definition['label'],'payment','student','RenewalAutomationNotificationService','queue',array('email','website','whatsapp'),'financial',true,$variables[$key],strtolower(str_replace('.student','',$key)),$defaults);
         }
         return $out;
     }

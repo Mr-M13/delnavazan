@@ -88,7 +88,8 @@ The workflow refuses to run unless all of these hold:
 - it is dispatched from `main` and runs in the protected `production` environment;
 - `commit_sha` is one full 40-character SHA that is still the exact current `origin/main`;
 - `confirm` is the literal `INSTALL_HOST_TOOLING`;
-- the checkout is that exact SHA — no rolling branch ref is used.
+- the checkout is the run's own commit, proven equal to `commit_sha` and still the exact current
+  `origin/main` — no rolling branch ref and no dispatch input selects a ref.
 
 It then installs, over SSH with only the three protected production secrets, and nothing else:
 

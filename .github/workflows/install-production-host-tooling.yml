@@ -9,7 +9,9 @@ name: Install production host tooling
 #   - runs in the protected `production` environment;
 #   - serialized with the deploy workflow, so a point is never taken while a
 #     release is cutting over the live tree;
-#   - bound to the exact current origin/main SHA and an explicit confirm token.
+#   - bound to the exact current origin/main SHA and an explicit confirm token;
+#   - it checks out only its own run commit, proven equal to that SHA, so no
+#     dispatch input ever selects a ref.
 #
 # What it can do, in full:
 #   1. create ~/bin (0700) and the default rollback-point root (0700);
@@ -61,10 +63,13 @@ jobs:
           set -Eeuo pipefail
           [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this install from main only.' >&2; exit 1; }
 
-      - name: Check out the requested commit
+      - name: Check out the run commit
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.commit_sha }}
+          # The run's own commit, not the dispatch input: the gate below proves
+          # it equals the requested SHA, and a privileged job must never check
+          # out a ref chosen by a workflow input.
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -77,6 +82,7 @@ jobs:
           set -Eeuo pipefail
           [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character commit SHA.' >&2; exit 1; }
           [[ "$CONFIRM" == 'INSTALL_HOST_TOOLING' ]] || { echo 'Type INSTALL_HOST_TOOLING to confirm.' >&2; exit 1; }
+          [[ "$GITHUB_SHA" == "$COMMIT_SHA" ]] || { echo "This run is at $GITHUB_SHA, not the requested $COMMIT_SHA." >&2; exit 1; }
           git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
           origin_main="$(git rev-parse origin/main)"
           [[ "$origin_main" == "$COMMIT_SHA" ]] || { echo "Requested SHA must still be current origin/main (origin/main=$origin_main requested=$COMMIT_SHA)." >&2; exit 1; }
@@ -99,10 +105,13 @@ jobs:
           set -Eeuo pipefail
           [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this install from main only.' >&2; exit 1; }
 
-      - name: Check out the verified commit
+      - name: Check out the run commit
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.commit_sha }}
+          # Same reasoning as the gate job: the privileged job checks out its own
+          # run commit, and the re-verification below proves that commit is the
+          # requested SHA and still the exact current origin/main.
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -115,6 +124,7 @@ jobs:
           set -Eeuo pipefail
           [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character commit SHA.' >&2; exit 1; }
           [[ "$CONFIRM" == 'INSTALL_HOST_TOOLING' ]] || { echo 'Type INSTALL_HOST_TOOLING to confirm.' >&2; exit 1; }
+          [[ "$GITHUB_SHA" == "$COMMIT_SHA" ]] || { echo "This run is at $GITHUB_SHA, not the requested $COMMIT_SHA." >&2; exit 1; }
           git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
           origin_main="$(git rev-parse origin/main)"
           [[ "$origin_main" == "$COMMIT_SHA" ]] || { echo "Requested SHA must still be current origin/main (origin/main=$origin_main requested=$COMMIT_SHA)." >&2; exit 1; }

@@ -69,12 +69,16 @@ need "$workflow" 'origin_main="$(git rev-parse origin/main)"'
 need "$workflow" '[[ "$origin_main" == "$COMMIT_SHA" ]]'
 need "$workflow" 'must still be current origin/main'
 need "$workflow" '[[ "$(git rev-parse HEAD)" == "$COMMIT_SHA" ]]'
-need "$workflow" 'ref: ${{ inputs.commit_sha }}'
+need "$workflow" '[[ "$GITHUB_SHA" == "$COMMIT_SHA" ]]'
+need "$workflow" 'ref: ${{ github.sha }}'
 need "$workflow" 'persist-credentials: false'
 need "$workflow" 'needs: verify'
-# No rolling ref may be checked out: only the dispatched, verified SHA.
+# No rolling ref may be checked out, and no privileged job may check out a ref
+# chosen by a dispatch input (the untrusted-checkout rule): the run commit is
+# checked out and proven equal to the requested SHA instead.
 forbid "$workflow" 'ref: main'
 forbid "$workflow" 'ref: ${{ github.ref }}'
+forbid "$workflow" 'ref: ${{ inputs.commit_sha }}'
 pass 'the workflow refuses anything but the exact current origin/main SHA'
 
 # ----------------------------------------------------------- confirm token ---

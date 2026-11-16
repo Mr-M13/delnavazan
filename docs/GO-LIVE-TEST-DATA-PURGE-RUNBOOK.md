@@ -85,6 +85,11 @@ migration cannot silently leave user data behind or silently wipe configuration.
 export PRODUCTION_SSH_USER=<protected-production-ssh-user>
 MAIN_SHA="$(git rev-parse origin/main)"
 
+# The wrapper pins the deployed build to main-<first 12 SHA characters>.
+# Read it first; if it differs from MAIN_SHA, finish or wait for the deploy.
+ssh "${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net" \
+  'wp --path="$HOME/domains/delnavazan.com/public_html" eval "echo DZN_PLATFORM_BUILD_ID, PHP_EOL;"'
+
 bash deployment/qa/purge-test-data.sh report "$MAIN_SHA" | tee /secure/backups/go-live-purge/report.json
 ```
 

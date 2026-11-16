@@ -55,6 +55,7 @@ return array(
         'telnyx_templates',
     ),
     'purge' => array(
+        'academy_directory_contacts',
         'accepted_service_arrangements',
         'account_claim_attempts',
         'booking_allocation_alerts',

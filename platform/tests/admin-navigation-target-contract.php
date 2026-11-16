@@ -8,14 +8,15 @@ $menu = $read('Menu.php');
 $general = $read('GeneralSettingsController.php');
 $finance = $read('FinanceAdminController.php');
 
-foreach (array('overview' => 'Overview', 'teachers' => 'Teachers', 'students' => 'Students', 'enrolment' => 'Enrolment', 'finance' => 'Finance', 'settings' => 'Settings') as $key => $label) {
+foreach (array('overview' => 'Overview', 'teachers' => 'Teachers', 'students' => 'Students', 'people' => 'People', 'enrolment' => 'Enrolment', 'finance' => 'Finance', 'settings' => 'Settings') as $key => $label) {
     $require(str_contains($shell, "'{$key}' => ['{$label}'"), "Missing primary area {$label}");
 }
-$require(6 === preg_match_all("/\\n        '([a-z]+)' => \\['(?:Overview|Teachers|Students|Enrolment|Finance|Settings)'/", $shell), 'Exactly six primary areas are required');
+$require(7 === preg_match_all("/\\n        '([a-z]+)' => \\['(?:Overview|Teachers|Students|People|Enrolment|Finance|Settings)'/", $shell), 'Exactly seven primary areas are required');
 foreach (array(
     "['Overview', 'dzn-academy-dashboard', 'dzn_view_booking_requests']",
     "['Teachers', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP]",
     "['Directory', 'dzn-student', 'dzn_manage_students']",
+    "['People', 'dzn-people', Menu::PEOPLE_DIRECTORY_CAP]",
     "['Enrolment', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
     "['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']]",
     "'general' => ['General'", "'access' => ['Administration & Delegated Access'",

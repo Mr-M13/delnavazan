@@ -32,6 +32,8 @@ final class Menu {
     public const NOTIFICATION_MANAGEMENT_CAP = 'dzn_access_notification_management';
     /** Policy read or manage authority; write commands still require the manage capability. */
     public const POLICY_ACCESS_CAP = 'dzn_access_policy';
+    /** Read-only People directory (Students, Teachers, Leads), administrator-only. */
+    public const PEOPLE_DIRECTORY_CAP = 'dzn_view_people_directory';
     private const INTEGRATIONS_OVERVIEW_CAP = 'dzn_access_integrations_overview';
     private const INTEGRATION_SETTINGS_CAP = 'dzn_access_provider_integration_settings';
     private const SYSTEM_HEALTH_CAP = 'dzn_access_system_health';
@@ -178,6 +180,7 @@ final class Menu {
             ['Class admin', 'dzn_manage_booking_request_coordination', 'dzn-booking-request-coordination', [CoordinationCaseController::class, 'screen'], [CoordinationCaseController::class, 'handlePost']],
 
             ['Students', 'dzn_manage_students', 'dzn-student', static fn() => ScreenController::screen('student'), static fn() => ScreenController::handlePost('student')],
+            ['People', self::PEOPLE_DIRECTORY_CAP, 'dzn-people', [PeopleDirectoryController::class, 'screen'], null],
             ['Identity & authentication', 'dzn_view_student_acceptance_eligibility', 'dzn-student-identity-authority', [StudentIdentityAuthorityController::class, 'screen'], [StudentIdentityAuthorityController::class, 'handlePost']],
             ['Enrolments', 'dzn_manage_enrolments', 'dzn-enrolment', static fn() => ScreenController::screen('enrolment'), static fn() => ScreenController::handlePost('enrolment')],
 

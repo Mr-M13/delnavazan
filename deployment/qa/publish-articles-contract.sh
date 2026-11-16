@@ -14,6 +14,9 @@
 #   - it can update post_content + the Rank Math meta + tags of an EXISTING post
 #     located by slug, and nothing else: no post creation, no slug change, no
 #     post-status change, no delete/update HTTP verb, no hardcoded credential;
+#   - every `run:` block-scalar script in the workflow is extracted and proven to
+#     parse with `bash -n`, so a YAML/heredoc indentation break fails this gate
+#     rather than a production dispatch;
 #   - every article under docs/articles/improved parses to a complete payload
 #     (slug + SEO block present, honesty note and SEO block excluded).
 set -Eeuo pipefail
@@ -24,6 +27,8 @@ host="$ROOT/deployment/articles/publish-articles-host.php"
 articles_dir="$ROOT/docs/articles/improved"
 pr_gate="$ROOT/.github/workflows/pr-runtime-gate.yml"
 agents="$ROOT/AGENTS.md"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
 
 pass(){ printf 'PASS  %s\n' "$1"; }
 fail(){ printf 'FAIL  %s\n' "$1" >&2; exit 1; }
@@ -42,6 +47,55 @@ forbid_re(){ if grep -Eqi -- "$2" "$1"; then fail "$(basename "$1") must not con
 php -l "$plan" >/dev/null || fail 'publish-articles-plan.php is not valid PHP'
 php -l "$host" >/dev/null || fail 'publish-articles-host.php is not valid PHP'
 pass 'the workflow, the parser, the host processor and the documents are present and parse'
+
+# --------------------------------------------- every run: block parses --------
+# Extract every `run:` block-scalar script from the workflow and prove each one
+# parses with `bash -n`. A YAML/heredoc indentation break must fail this gate, not
+# a production dispatch. The block content is the literal `|` scalar: lines more
+# indented than the `run:` key, with the block's own indentation stripped, so a
+# heredoc terminator written at the block's base column is restored to column 0.
+run_count="$(grep -cE '^[[:space:]]*run:[[:space:]]*\|' "$workflow" || true)"
+[[ "$run_count" =~ ^[0-9]+$ && "$run_count" -ge 8 ]] \
+  || fail "expected at least 8 run: blocks in the workflow, found ${run_count:-0}"
+mkdir -p "$tmp/blocks"
+awk -v out="$tmp/blocks" '
+  function emit() {
+    if (n == 0) return
+    c++
+    f = sprintf("%s/block-%03d.sh", out, c)
+    for (i = 1; i <= n; i++) print lines[i] > f
+    close(f)
+    n = 0
+  }
+  in_block {
+    if ($0 ~ /^[[:space:]]*$/) { if (n > 0) { n++; lines[n] = "" } next }
+    match($0, /^[[:space:]]*/)
+    if (RLENGTH > run_indent) {
+      if (content_indent == 0) content_indent = RLENGTH
+      n++
+      lines[n] = substr($0, content_indent + 1)
+      next
+    }
+    in_block = 0
+    emit()
+  }
+  /^[[:space:]]*run:[[:space:]]*\|/ {
+    match($0, /^[[:space:]]*/)
+    run_indent = RLENGTH
+    in_block = 1
+    n = 0
+    content_indent = 0
+    next
+  }
+  END { if (in_block) emit() }
+' "$workflow"
+block_n="$(find "$tmp/blocks" -name 'block-*.sh' | wc -l | tr -d ' ')"
+[[ "$block_n" == "$run_count" ]] || fail "extracted $block_n run: blocks but the workflow declares $run_count"
+for f in "$tmp/blocks"/block-*.sh; do
+  [[ -f "$f" ]] || continue
+  bash -n "$f" || fail "a workflow run: block does not parse with bash -n: $(basename "$f")"
+done
+pass "all $block_n workflow run: blocks parse with bash -n"
 
 # ------------------------------------------------------- dispatch surface ---
 need "$workflow" 'workflow_dispatch:'

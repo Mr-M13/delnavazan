@@ -228,34 +228,27 @@ jobs:
           [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
           [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Production SSH username contains unsupported characters.' >&2; exit 1; }
           target="${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net"
-          # Each file is written to a sibling temporary path and moved into place,
-          # so the host can never observe a half-transferred file. The byte counts
-          # prove the transfer is complete, not merely attempted.
-          for pair in \
-            'payloads.json:payloads.json' \
-            'deployment/articles/publish-articles-host.php:publish-articles-host.php'; do
-            source_file="${pair%%:*}"
-            installed_name="${pair##*:}"
-            if [[ "$installed_name" == 'payloads.json' ]]; then
-              source_file="$RUNNER_TEMP/payloads.json"
-            fi
-            local_bytes="$(wc -c < "$source_file" | tr -d ' ')"
-            ssh -T "$target" "cat > ~/publish-articles/.${installed_name}.new" < "$source_file"
-            ssh -T "$target" bash -s -- "$installed_name" <<'REMOTE' | tee "$RUNNER_TEMP/${installed_name}.upload"
-            set -Eeuo pipefail
-            name="$1"
-            chmod 600 "$HOME/publish-articles/.$name.new"
-            mv -f "$HOME/publish-articles/.$name.new" "$HOME/publish-articles/$name"
-            chmod 600 "$HOME/publish-articles/$name"
-            printf 'UPLOADED=%s BYTES=%s\n' "$name" "$(wc -c < "$HOME/publish-articles/$name" | tr -d ' ')"
-            REMOTE
-            remote_bytes="$(sed -n 's/^UPLOADED=[^ ]* BYTES=\([0-9][0-9]*\)$/\1/p' "$RUNNER_TEMP/${installed_name}.upload")"
-            [[ -n "$remote_bytes" && "$remote_bytes" == "$local_bytes" ]] || {
-              echo "Uploaded $installed_name reports ${remote_bytes:-no} bytes, expected $local_bytes." >&2
-              exit 1
-            }
-            printf 'HOST_FILE=%s bytes=%s\n' "$installed_name" "$local_bytes"
-          done
+          # Each file is transferred with `cat >` and its remote byte count is read
+          # back and compared, so the host processor is never run against a
+          # half-transferred file. No heredoc is used here, so this step cannot
+          # break on YAML block-scalar indentation.
+          local_bytes="$(wc -c < "$RUNNER_TEMP/payloads.json" | tr -d ' ')"
+          ssh -T "$target" "cat > ~/publish-articles/payloads.json" < "$RUNNER_TEMP/payloads.json"
+          remote_bytes="$(ssh -T "$target" 'wc -c < ~/publish-articles/payloads.json' | tr -d ' ')"
+          [[ -n "$remote_bytes" && "$remote_bytes" == "$local_bytes" ]] || {
+            echo "Uploaded payloads.json reports ${remote_bytes:-no} bytes, expected $local_bytes." >&2
+            exit 1
+          }
+          printf 'HOST_FILE=payloads.json bytes=%s\n' "$local_bytes"
+
+          local_bytes="$(wc -c < deployment/articles/publish-articles-host.php | tr -d ' ')"
+          ssh -T "$target" "cat > ~/publish-articles/publish-articles-host.php" < deployment/articles/publish-articles-host.php
+          remote_bytes="$(ssh -T "$target" 'wc -c < ~/publish-articles/publish-articles-host.php' | tr -d ' ')"
+          [[ -n "$remote_bytes" && "$remote_bytes" == "$local_bytes" ]] || {
+            echo "Uploaded publish-articles-host.php reports ${remote_bytes:-no} bytes, expected $local_bytes." >&2
+            exit 1
+          }
+          printf 'HOST_FILE=publish-articles-host.php bytes=%s\n' "$local_bytes"
 
       - name: Run the host processor (locate, and dry-run or publish)
         shell: bash

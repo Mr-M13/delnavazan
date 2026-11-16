@@ -12,6 +12,7 @@ namespace Delnavazan\Platform\Core\Application;
 final class TeacherInvitationIssuanceFailure {
     private const CATEGORIES = array(
         'invalid_recipient',
+        'invalid_phone',
         'duplicate_active_teacher_profiles',
         'teacher_already_linked',
         'teacher_not_onboarding_eligible',
@@ -28,6 +29,7 @@ final class TeacherInvitationIssuanceFailure {
             // a server-side invalid value does not fall through to the generic
             // "no change" path after the browser's required/email checks.
             'Invalid email address', 'Valid recipient email required' => 'invalid_recipient',
+            'Valid teacher phone number required' => 'invalid_phone',
             'Multiple active teacher profiles match this email' => 'duplicate_active_teacher_profiles',
             'Teacher already has a linked account' => 'teacher_already_linked',
             'Teacher is not onboarding eligible' => 'teacher_not_onboarding_eligible',
@@ -38,6 +40,7 @@ final class TeacherInvitationIssuanceFailure {
     public static function notice(string $category): string {
         return match ($category) {
             'invalid_recipient' => 'Invitation was not created: enter a valid email address.',
+            'invalid_phone' => 'Invitation was not created: enter a valid phone number (for example 0912… or +98…).',
             'duplicate_active_teacher_profiles' => 'Invitation was not created: more than one active Teacher profile matches this email. Resolve the duplicate profiles before retrying.',
             'teacher_already_linked' => 'Invitation was not created: this Teacher already has a linked account.',
             'teacher_not_onboarding_eligible' => 'Invitation was not created: the matching Teacher is not eligible for onboarding.',

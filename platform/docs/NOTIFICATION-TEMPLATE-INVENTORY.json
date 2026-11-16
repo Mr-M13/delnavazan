@@ -1,6 +1,6 @@
 {
-    "generated_at": "2026-11-16T11:27:03+00:00",
-    "catalogue_version": "2026-11-16.1",
+    "generated_at": "2026-11-16T20:38:04+00:00",
+    "catalogue_version": "2026-11-17.1",
     "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
     "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
     "totals": {

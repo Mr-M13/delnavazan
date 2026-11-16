@@ -384,7 +384,8 @@ final class ScreenController {
         $formId=sanitize_text_field($post['invitation_form_id']??'');
         if(!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i',$formId))throw new \InvalidArgumentException('invitation_form_expired');
         $service=new \Delnavazan\Platform\Core\Application\PrincipalInvitationService();
-        $result=$service->issueForEmail(sanitize_email($post['recipient']??''),604800,hash('sha256','dzn_teacher_invitation_form:'.$formId));
+        $phone=sanitize_text_field((string)($post['phone']??''));
+        $result=$service->issueForEmail(sanitize_email($post['recipient']??''),604800,hash('sha256','dzn_teacher_invitation_form:'.$formId),$phone);
         $generation=(int)($result['generation_id']??0);
         if($generation>0&&\Delnavazan\Platform\Core\Application\TeacherInvitationDeliveryWorker::dispatchNow($generation)==='failed')throw new \RuntimeException('invitation_dispatch_failed');
         return (int)($result['teacher_id']??0);

@@ -160,6 +160,8 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Core\Application\Finance\Statements\TeacherStatementScheduleService::register();
 	Delnavazan\Platform\Core\Application\Finance\FinanceNotificationService::register();
 	Delnavazan\Platform\Core\Application\PaymentRefundNotificationService::register();
+	Delnavazan\Platform\Core\Application\RenewalAutomationNotificationService::register();
+	Delnavazan\Platform\Integrations\RenewalAutomationWorker::register();
 	Delnavazan\Platform\Portals\PostIntroContinuationController::register();
 	Delnavazan\Platform\Portals\PostIntroSurveyController::register();
 	Delnavazan\Platform\Portals\PostIntroTeacherOutcomeController::register();

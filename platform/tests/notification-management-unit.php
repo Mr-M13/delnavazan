@@ -566,8 +566,8 @@ namespace {
     $fail('the toggle handler receives the same unavailable blocker', is_array($unmappedBlocker) && $unmappedBlocker['state'] === 'missing_provider');
     $canonicalBlocker = $blockerMethod->invoke(null, $library, 'account.claim_issued.student', 'whatsapp');
     $fail('a sensitive canonical event without a version reports the outstanding approval, not missing copy', is_array($canonicalBlocker) && $canonicalBlocker['state'] === 'awaiting_approval' && str_contains((string) $canonicalBlocker['reason'], 'Security review required'));
-    $operationalCanonicalBlocker = $blockerMethod->invoke(null, $library, 'renewal.automatic_charged.student', 'email');
-    $fail('a finance canonical event without a version needs publication, not an approval hold', is_array($operationalCanonicalBlocker) && $operationalCanonicalBlocker['state'] === 'missing_template');
+    $operationalFinanceBlocker = $blockerMethod->invoke(null, $library, 'renewal.automatic_charged.student', 'email');
+    $fail('a wired finance event is never held for editorial approval', is_array($operationalFinanceBlocker) && $operationalFinanceBlocker['state'] !== 'awaiting_approval');
     $fail('an unsupported channel is not described as a fault', (static function () use ($stateMethod, $library): bool {
         $unsupported = $stateMethod->invoke(null, $library, 'account.claim_issued.student', 'website');
         return $unsupported['state'] === 'unsupported' && $unsupported['label'] === 'Not offered';
@@ -658,8 +658,8 @@ namespace {
     $coverage = $library->coverageReport();
     $fail('the coverage report accounts for every supported template', $coverage['required'] === $coverage['copy_present'] && $coverage['copy_missing'] === 0);
     $fail('the coverage report tracks prepared and approved drafts separately', isset($coverage['drafts'], $coverage['drafts_approved']) && $coverage['drafts'] > $coverage['drafts_approved']);
-    $fail('the coverage report keeps canonical gaps visible', in_array('renewal.automatic_upcoming.student', $coverage['unpublished_canonical'], true));
-    $fail('the coverage report keeps producer gaps visible', in_array('renewal.automatic_upcoming.student', $coverage['declared_only'], true) && in_array('renewal.automatic_failed.student', $coverage['declared_only'], true));
+    $fail('the coverage report keeps canonical gaps visible', in_array('account.claim_issued.student', $coverage['unpublished_canonical'], true));
+    $fail('the coverage report no longer marks wired renewal producers declared-only', $coverage['declared_only'] === array());
     $fail('the coverage report classifies unsupported routes separately', in_array('booking.confirmed.student.sms', $coverage['unsupported'], true));
     $fail('the coverage report keeps unmapped WhatsApp routes visible', in_array('lesson.reminder.student', $coverage['unmapped_whatsapp'], true));
 
@@ -790,12 +790,13 @@ namespace {
     $fail('complete copy is reported as complete, not as readiness to send', $publishedEvent['Catalogue copy']['text'] === 'Complete in both languages');
     $fail('publication is reported independently of copy', str_contains($publishedEvent['Publication']['text'], 'published'));
     $fail('a registered producer is reported separately from copy', $publishedEvent['Producer']['text'] === 'Registered');
-    $noProducerEvent = $lifecycleMethod->invoke(null, $library, 'renewal.automatic_upcoming.student', array('email', 'website', 'whatsapp'));
-    $fail('a producer gap is never presented as delivered functionality', $noProducerEvent['Producer']['text'] === 'None registered — cannot fire yet' && $noProducerEvent['Producer']['class'] === 'is-warn');
+    $renewalEvent = $lifecycleMethod->invoke(null, $library, 'renewal.automatic_upcoming.student', array('email', 'website', 'whatsapp'));
+    $fail('a wired renewal event reports its producer', $renewalEvent['Producer']['text'] === 'Registered' && $renewalEvent['Producer']['class'] === 'is-ok');
     $financialEvent = $lifecycleMethod->invoke(null, $library, 'payment.failed.student', array('email', 'website', 'whatsapp'));
     $fail('financial copy shows no finance/legal hold, only provider readiness', !str_contains($financialEvent['Approvals']['text'], 'Finance') && !str_contains($financialEvent['Approvals']['text'], 'Legal'));
     $fail('a wired financial event reports its producer separately from copy', $financialEvent['Producer']['text'] === 'Registered');
-    $fail('a canonical event without a published version says so', str_contains($noProducerEvent['Publication']['text'], 'Required'));
+    $canonicalEvent = $lifecycleMethod->invoke(null, $library, 'account.claim_issued.student', array('email', 'whatsapp', 'sms'));
+    $fail('a canonical event without a published version says so', str_contains($canonicalEvent['Publication']['text'], 'Required'));
 
     /* 16. The three-step workflow actually reaches a published state. This is the regression the
      *     production report described: Prepare succeeded, Publish published nothing, and the

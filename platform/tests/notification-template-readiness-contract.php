@@ -164,7 +164,7 @@ $fail('the action link is a choice, not one fixed placeholder', str_contains((st
 
 /* 7. Producer gaps and unmapped provider routes are reported as outstanding implementation work. */
 $inventory = json_decode((string) file_get_contents($root . '/docs/NOTIFICATION-TEMPLATE-INVENTORY.json'), true);
-$fail('the inventory lists the producer gaps', count((array) $inventory['events_without_registered_producer']) > 0);
+$fail('the inventory lists no producer gaps once every finance event is wired', count((array) $inventory['events_without_registered_producer']) === 0);
 $fail('the inventory lists the unmapped WhatsApp routes', count((array) $inventory['whatsapp_routes_without_registry_mapping']) > 0);
 $fail('the inventory separates outstanding work from delivered functionality', str_contains((string) file_get_contents($root . '/docs/NOTIFICATION-TEMPLATE-INVENTORY.md'), 'Outstanding implementation work (not delivered functionality)'));
 $fail('the catalogue declares producer registration per event', str_contains((string) file_get_contents($root . '/src/Integrations/Notifications/NotificationCatalogue.php'), "'producer_registered'=>"));

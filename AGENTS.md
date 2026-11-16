@@ -230,6 +230,24 @@ is optional strict parity. Docker is required only for the runtime suites.
   ones (POST); it cannot update, delete, send a message, deploy, migrate or purge. Its source
   contract, `bash deployment/notifications/whatsapp-template-create-contract.sh`, runs in the PR
   gate's production-tooling step and is offline.
+- **Article publishing:** `.github/workflows/publish-articles.yml` applies the reviewed article
+  bodies and Rank Math SEO meta from `docs/articles/improved/*.md` (58 files, merged at #658) to
+  the live WordPress posts they describe, from a runner over SSH + WP-CLI. It is
+  workflow_dispatch-only, runs in the protected `production` environment from `main`, and is
+  bound to the exact current origin/main SHA plus the `PUBLISH_ARTICLES` confirm token; the
+  default mode is `dry_run` (locate + report only), and `publish` updates after writing a
+  per-article pre-image backup. The runner-side parser
+  `deployment/articles/publish-articles-plan.php` turns each article into a payload (slug from
+  the exact URL path segment, SEO title/meta/focus keyword, tags, and the Markdown body converted
+  to HTML with the honesty note, SEO block and header metadata excluded); the host-side processor
+  `deployment/articles/publish-articles-host.php` locates each post BY SLUG (refusing when absent
+  or ambiguous), and can update post_content, the Rank Math meta (`rank_math_title`,
+  `rank_math_description`, `rank_math_focus_keyword`) and the post_tag terms of an existing post,
+  then reads it back and proves the content hash. It can update the content + SEO meta of existing
+  posts selected by slug and take pre-image backups; it cannot create a post, change a slug or a
+  post status, delete anything, deploy, migrate or touch finance. Its source contract,
+  `bash deployment/qa/publish-articles-contract.sh`, runs in the PR gate's production-tooling step
+  and is offline; it also proves all 58 articles parse to a complete payload.
 - **Service tests:** `tools/ci/check.sh services` (runs `services/tests/run-all.sh` on PHP 8.3
   with `pdo_sqlite`, `sqlite3`, `curl`, `mbstring`).
 

@@ -95,11 +95,12 @@ pointed at the repository to plan, review or audit, and may comment on pull requ
 These controls live in repository settings, so they hold even when a session misbehaves:
 
 - **Ruleset `Protect main`** (active): blocks deletion and non-fast-forward pushes, requires a pull
-  request, requires the four mandatory status checks (`PHP source contracts`, `Stripe runtime E2E`,
-  `Post-intro runtime lifecycle`, `OAuth scope MariaDB regression`) on a strict up-to-date head, and
-  requires review threads to be resolved. Approval and code-owner requirements are off: the
-  repository has one write identity, so an approval gate could only be satisfied through an
-  administrator bypass, which enforces nothing. The review record is the PR self-review instead.
+  request, requires the five mandatory status checks (`PHP source contracts`, `Stripe runtime E2E`,
+  `Post-intro runtime lifecycle`, `OAuth scope MariaDB regression`, `Booking stress runtime and
+  fairness`) on a strict up-to-date head, and requires review threads to be resolved. Approval and
+  code-owner requirements are off: the repository has one write identity, so an approval gate could
+  only be satisfied through an administrator bypass, which enforces nothing. The review record is
+  the PR self-review instead.
 - **`production` environment**: deploys are restricted to `main` by an explicit branch policy, and
   administrators cannot bypass the environment. Required reviewers are off for the same reason as
   above; the dispatched SHA and the deployment record are the release evidence.

@@ -12,8 +12,10 @@ Owner decision recorded for the 2026-11-16 go-live window:
 - Cleanup of Google Calendar/Meet events, LiveKit rooms and Stripe objects is **DB-only**; those
   provider-side objects are reconciled separately after the purge.
 
-The purge is executed by an authorised operator on the protected production SSH account. Agents
-prepare and review it; `AGENTS.md` §3 keeps production read-only for agents.
+The destructive mode is dispatched only through the protected
+`purge-production-test-data.yml` workflow; the payload then runs over the protected production SSH
+account inside the `production` environment. A session never runs the execute mode directly
+(`AGENTS.md` §3). The read-only `report` may be run from an approved workstation or by the workflow.
 
 ## 1. What the tool does
 
@@ -122,12 +124,25 @@ shasum -a 256 -c pre-purge-<UTC>.sql.gz.sha256
 
 ## 5. Execute
 
+Execution is dispatched only through the protected, audited workflow. It runs the read-only
+`report` first, aborts if the fingerprint differs from the approved value, then runs `execute`.
+
 ```sh
-bash deployment/qa/purge-test-data.sh execute "$MAIN_SHA" <fingerprint-from-report> PURGE_ALL_TEST_DATA
+gh workflow run purge-production-test-data.yml --ref main \
+  -f commit_sha=<full-sha-of-the-deployed-build> \
+  -f fingerprint=<fingerprint-from-the-approved-report> \
+  -f confirm=PURGE_ALL_TEST_DATA
+
+gh run watch <run-id> --exit-status
 ```
 
+The workflow is `workflow_dispatch`-only, runs in the `production` environment, shares the
+`delnavazan-production-deploy` concurrency group so it cannot overlap a release, and refuses after
+2026-11-23.
+
 The run aborts without deleting anything if the fingerprint no longer matches (any intervening
-write), if the backup is missing or corrupt, or if the confirm token is not exact.
+write), if the deployed build SHA does not match, if the backup is missing or corrupt, or if the
+confirm token is not exact. The report and execute JSON are retained as a 90-day workflow artifact.
 
 ## 6. Verify
 

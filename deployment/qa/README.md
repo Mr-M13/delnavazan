@@ -41,24 +41,28 @@ tokens, e-mails, client identifiers or provider payloads. See
 
 ## Go-live test-data purge
 
-`deployment/qa/purge-test-data.sh` is the guarded, operator-only one-shot purge for the pre-launch
-window. It removes all Student/Teacher/booking/class/payment/portal test data, keeps the retained
+`deployment/qa/purge-test-data.sh` is the guarded one-shot purge for the pre-launch window. It
+removes all Student/Teacher/booking/class/payment/portal test data, keeps the retained
 administrator (`hamed.moqadasi@yahoo.com`) and the catalogue/settings/integrations, and preserves
-the two dedicated automation identities.
+the dedicated worker principals.
+
+The destructive mode is dispatched only through the protected
+`.github/workflows/purge-production-test-data.yml`:
 
 ```sh
-export PRODUCTION_SSH_USER=<protected-production-ssh-user>
-MAIN_SHA="$(git rev-parse origin/main)"
-
 # 1. Read-only inventory; prints the pre-state fingerprint. Deletes nothing.
-bash deployment/qa/purge-test-data.sh report "$MAIN_SHA"
+PRODUCTION_SSH_USER=<protected-production-ssh-user> \
+  bash deployment/qa/purge-test-data.sh report <deployed-full-main-sha>
 
 # 2. Destructive run, bound to the exact pre-state and a verified DB export.
-bash deployment/qa/purge-test-data.sh execute "$MAIN_SHA" <fingerprint> PURGE_ALL_TEST_DATA
+gh workflow run purge-production-test-data.yml --ref main \
+  -f commit_sha=<deployed-full-main-sha> \
+  -f fingerprint=<fingerprint> \
+  -f confirm=PURGE_ALL_TEST_DATA
 ```
 
-The classification lives in `purge-test-data-tables.php`; `purge-test-data-contract.sh` (run by the
-PR gate) proves every schema table is classified and that the guard rails are present. The payload
-never calls a provider. Follow `docs/GO-LIVE-TEST-DATA-PURGE-RUNBOOK.md` for approvals, maintenance
-mode, verification, provider-side cleanup and rollback. Agents never execute the destructive mode
-against production.
+The classification lives in `purge-test-data-tables.php`; `purge-test-data-contract.sh` and
+`purge-production-test-data-contract.sh` (run by the PR gate) prove every schema table is classified
+and that the guard rails and workflow boundaries are present. The payload never calls a provider.
+Follow `docs/GO-LIVE-TEST-DATA-PURGE-RUNBOOK.md` for approvals, maintenance mode, verification,
+provider-side cleanup and rollback. Sessions never execute the destructive mode directly.

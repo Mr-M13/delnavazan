@@ -1,0 +1,145 @@
+name: Purge production test data
+
+# One-shot, audited go-live control. Removes every pre-launch Student, Teacher,
+# booking, class, payment and portal test row while keeping the retained
+# administrator and the catalogue/settings/integrations.
+#
+# It is deliberately narrow:
+#   - workflow_dispatch only, from main, inside a fixed go-live window;
+#   - runs in the protected `production` environment;
+#   - serialized with the deploy workflow so a purge cannot overlap a release;
+#   - bound to the exact deployed build SHA and a fresh read-only fingerprint;
+#   - the payload takes and verifies a full database export before deleting.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Full 40-char SHA of the build currently deployed to production
+        type: string
+        required: true
+      fingerprint:
+        description: Pre-state fingerprint printed by `purge-test-data.sh report`
+        type: string
+        required: true
+      confirm:
+        description: Type PURGE_ALL_TEST_DATA to authorise the deletion
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+# Shared with deploy-production.yml: a purge must never overlap a release.
+concurrency:
+  group: delnavazan-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  purge:
+    name: Purge pre-launch test data
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - name: Require dispatch from main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this purge from main only.' >&2; exit 1; }
+
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate window, deployed SHA, fingerprint and confirmation
+        shell: bash
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          FINGERPRINT: ${{ inputs.fingerprint }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -Eeuo pipefail
+          readonly PURGE_WINDOW_END=20261123
+          [[ "$(date -u +%Y%m%d)" -le "$PURGE_WINDOW_END" ]] \
+            || { echo 'The go-live purge window has closed.' >&2; exit 1; }
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character deployed SHA.' >&2; exit 1; }
+          [[ "$FINGERPRINT" =~ ^[0-9a-f]{64}$ ]] || { echo 'Provide the 64-character pre-state fingerprint from report mode.' >&2; exit 1; }
+          [[ "$CONFIRM" == 'PURGE_ALL_TEST_DATA' ]] || { echo 'Type PURGE_ALL_TEST_DATA to confirm.' >&2; exit 1; }
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git merge-base --is-ancestor "$COMMIT_SHA" origin/main \
+            || { echo 'The deployed SHA must be a commit on main.' >&2; exit 1; }
+          bash deployment/qa/purge-production-test-data-contract.sh
+          bash deployment/qa/purge-test-data-contract.sh
+
+      - name: Configure pinned production SSH access
+        shell: bash
+        env:
+          PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          PRODUCTION_KNOWN_HOSTS: ${{ secrets.PRODUCTION_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_PRIVATE_KEY" && -n "$PRODUCTION_KNOWN_HOSTS" ]] || { echo 'Production SSH secrets are not configured in the protected environment.' >&2; exit 1; }
+          grep -Eq '^cp119\.hosting-cloud\.net[[:space:]]+ssh-(ed25519|rsa|ecdsa)' <<<"$PRODUCTION_KNOWN_HOSTS" || { echo 'Known-hosts secret must pin cp119.hosting-cloud.net.' >&2; exit 1; }
+          install -m 700 -d "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_production" >/dev/null
+          cat >> "$HOME/.ssh/config" <<'EOF'
+          Host cp119.hosting-cloud.net
+            UserKnownHostsFile ~/.ssh/known_hosts
+            StrictHostKeyChecking yes
+            IdentityFile ~/.ssh/id_production
+            IdentitiesOnly yes
+            BatchMode yes
+          EOF
+          chmod 600 "$HOME/.ssh/config"
+
+      - name: Verify the pre-state fingerprint (read-only)
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          FINGERPRINT: ${{ inputs.fingerprint }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
+          bash deployment/qa/purge-test-data.sh report "$COMMIT_SHA" \
+            | tee "$RUNNER_TEMP/purge-report.json"
+          observed="$(jq -r '.fingerprint // empty' "$RUNNER_TEMP/purge-report.json")"
+          [[ "$observed" == "$FINGERPRINT" ]] || {
+            echo "Pre-state changed: report fingerprint $observed does not match the approved $FINGERPRINT. Re-run report and review again." >&2
+            exit 1
+          }
+          jq -e '.ok == true and .deletions_performed == false' "$RUNNER_TEMP/purge-report.json" >/dev/null
+
+      - name: Execute the purge
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          FINGERPRINT: ${{ inputs.fingerprint }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -Eeuo pipefail
+          bash deployment/qa/purge-test-data.sh execute "$COMMIT_SHA" "$FINGERPRINT" "$CONFIRM" \
+            | tee "$RUNNER_TEMP/purge-execute.json"
+          jq -e '.ok == true and .deletions_performed == true' "$RUNNER_TEMP/purge-execute.json" >/dev/null
+          jq -e '.post_verification.purge_rows_remaining == 0' "$RUNNER_TEMP/purge-execute.json" >/dev/null
+          jq -e '.post_verification.admin_manage_options == true' "$RUNNER_TEMP/purge-execute.json" >/dev/null
+          jq -e '.post_verification.catalogue_unchanged == true' "$RUNNER_TEMP/purge-execute.json" >/dev/null
+
+      - name: Preserve purge evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-test-data-purge-${{ inputs.commit_sha }}
+          path: |
+            ${{ runner.temp }}/purge-report.json
+            ${{ runner.temp }}/purge-execute.json
+          if-no-files-found: warn
+          retention-days: 90

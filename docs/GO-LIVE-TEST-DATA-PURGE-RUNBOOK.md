@@ -129,6 +129,7 @@ Execution is dispatched only through the protected, audited workflow. It runs th
 
 ```sh
 gh workflow run purge-production-test-data.yml --ref main \
+  -f source_sha=<full-sha-of-the-reviewed-tool-source-on-main> \
   -f commit_sha=<full-sha-of-the-deployed-build> \
   -f fingerprint=<fingerprint-from-the-approved-report> \
   -f confirm=PURGE_ALL_TEST_DATA
@@ -138,7 +139,13 @@ gh run watch <run-id> --exit-status
 
 The workflow is `workflow_dispatch`-only, runs in the `production` environment, shares the
 `delnavazan-production-deploy` concurrency group so it cannot overlap a release, and refuses after
-2026-11-23.
+2026-11-23. It checks out the pinned `source_sha`, not a moving `main`, so the approved payload and
+classification cannot change under a queued run.
+
+The destructive path also requires the `PURGE_ATTESTATION_TOKEN` secret held only in the
+`production` environment; `execute` without that preimage is refused. The first successful purge
+writes `dzn_go_live_purge_receipt` inside the same transaction, so a second dispatch is refused even
+if it presents a fresh report.
 
 The run aborts without deleting anything if the fingerprint no longer matches (any intervening
 write), if the deployed build SHA does not match, if the backup is missing or corrupt, or if the

@@ -56,6 +56,7 @@ PRODUCTION_SSH_USER=<protected-production-ssh-user> \
 
 # 2. Destructive run, bound to the exact pre-state and a verified DB export.
 gh workflow run purge-production-test-data.yml --ref main \
+  -f source_sha=<reviewed-tool-source-sha> \
   -f commit_sha=<deployed-full-main-sha> \
   -f fingerprint=<fingerprint> \
   -f confirm=PURGE_ALL_TEST_DATA

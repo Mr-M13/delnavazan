@@ -40,6 +40,7 @@ case "${1:-}" in
     mode='execute'; sha="$2"; fingerprint="$3"; confirm="$4"
     [[ "$fingerprint" =~ $FINGERPRINT_RE ]] || fail 'pre-state fingerprint must be a 64-character hex digest from report mode'
     [[ "$confirm" == "$CONFIRM_VALUE" ]] || fail "execute requires the exact confirm token $CONFIRM_VALUE"
+    : "${DZN_PURGE_ATTESTATION:?Set the protected workflow attestation token; direct execute is refused}"
     ;;
   *) usage ;;
 esac
@@ -55,10 +56,12 @@ esac
 bundle="$(tar -czf - -C "$QA_DIR" purge-test-data.php purge-test-data-tables.php | base64 | tr -d '\n')"
 [[ -n "$bundle" ]] || fail 'payload bundle is empty'
 
+attestation="${DZN_PURGE_ATTESTATION:-none}"
+
 ssh -T "${PRODUCTION_SSH_USER}@${HOST}" bash -s -- \
-  "$ROOT_REL" "$bundle" "$mode" "$sha" "$fingerprint" "$confirm" <<'REMOTE'
+  "$ROOT_REL" "$bundle" "$mode" "$sha" "$fingerprint" "$confirm" "$attestation" <<'REMOTE'
 set -Eeuo pipefail
-root_rel="$1"; bundle="$2"; mode="$3"; sha="$4"; fingerprint="$5"; confirm="$6"
+root_rel="$1"; bundle="$2"; mode="$3"; sha="$4"; fingerprint="$5"; confirm="$6"; attestation="$7"
 
 fail(){ printf 'FAIL  %s\n' "$1" >&2; exit 1; }
 
@@ -78,7 +81,7 @@ printf '%s' "$bundle" | base64 -d | tar -xzf - -C "$tmp"
 [[ -f "$tmp/purge-test-data.php" && -f "$tmp/purge-test-data-tables.php" ]] || fail 'payload extraction failed'
 
 if [[ "$mode" == 'report' ]]; then
-  wp --path="$root" eval-file "$tmp/purge-test-data.php" report none none none none "$tmp/purge-test-data-tables.php"
+  wp --path="$root" eval-file "$tmp/purge-test-data.php" report none none none none "$tmp/purge-test-data-tables.php" none
   exit 0
 fi
 
@@ -101,5 +104,5 @@ bytes="$(wc -c < "$backup" | tr -d ' ')"
 (( bytes > 1048576 )) || fail "database export is implausibly small ($bytes bytes); stop and inspect"
 printf 'BACKUP ok  %s  sha256=%s  bytes=%s\n' "$backup" "$backup_sha" "$bytes" >&2
 
-wp --path="$root" eval-file "$tmp/purge-test-data.php" execute "$confirm" "$fingerprint" "$backup" "$backup_sha" "$tmp/purge-test-data-tables.php"
+wp --path="$root" eval-file "$tmp/purge-test-data.php" execute "$confirm" "$fingerprint" "$backup" "$backup_sha" "$tmp/purge-test-data-tables.php" "$attestation"
 REMOTE

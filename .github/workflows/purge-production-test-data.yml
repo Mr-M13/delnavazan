@@ -14,6 +14,10 @@ name: Purge production test data
 on:
   workflow_dispatch:
     inputs:
+      source_sha:
+        description: Full 40-char SHA of the reviewed purge source on main
+        type: string
+        required: true
       commit_sha:
         description: Full 40-char SHA of the build currently deployed to production
         type: string
@@ -48,16 +52,17 @@ jobs:
           set -Eeuo pipefail
           [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this purge from main only.' >&2; exit 1; }
 
-      - name: Check out source
+      - name: Check out the reviewed purge source
         uses: actions/checkout@v5
         with:
-          ref: main
+          ref: ${{ inputs.source_sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Validate window, deployed SHA, fingerprint and confirmation
         shell: bash
         env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
           COMMIT_SHA: ${{ inputs.commit_sha }}
           FINGERPRINT: ${{ inputs.fingerprint }}
           CONFIRM: ${{ inputs.confirm }}
@@ -66,10 +71,13 @@ jobs:
           readonly PURGE_WINDOW_END=20261123
           [[ "$(date -u +%Y%m%d)" -le "$PURGE_WINDOW_END" ]] \
             || { echo 'The go-live purge window has closed.' >&2; exit 1; }
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character reviewed source SHA.' >&2; exit 1; }
           [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character deployed SHA.' >&2; exit 1; }
           [[ "$FINGERPRINT" =~ ^[0-9a-f]{64}$ ]] || { echo 'Provide the 64-character pre-state fingerprint from report mode.' >&2; exit 1; }
           [[ "$CONFIRM" == 'PURGE_ALL_TEST_DATA' ]] || { echo 'Type PURGE_ALL_TEST_DATA to confirm.' >&2; exit 1; }
           git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/main \
+            || { echo 'The reviewed source SHA must be a commit on main.' >&2; exit 1; }
           git merge-base --is-ancestor "$COMMIT_SHA" origin/main \
             || { echo 'The deployed SHA must be a commit on main.' >&2; exit 1; }
           bash deployment/qa/purge-production-test-data-contract.sh
@@ -99,6 +107,17 @@ jobs:
           EOF
           chmod 600 "$HOME/.ssh/config"
 
+      - name: Refuse a repeat purge
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
+          marker="$(ssh -T "${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net" \
+            'wp --path="$HOME/domains/delnavazan.com/public_html" option get dzn_go_live_purge_receipt --quiet 2>/dev/null || true')"
+          [[ -z "$marker" ]] || { echo 'This database already records a completed go-live purge; refusing a second run.' >&2; exit 1; }
+
       - name: Verify the pre-state fingerprint (read-only)
         shell: bash
         env:
@@ -121,11 +140,13 @@ jobs:
         shell: bash
         env:
           PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          DZN_PURGE_ATTESTATION: ${{ secrets.PURGE_ATTESTATION_TOKEN }}
           COMMIT_SHA: ${{ inputs.commit_sha }}
           FINGERPRINT: ${{ inputs.fingerprint }}
           CONFIRM: ${{ inputs.confirm }}
         run: |
           set -Eeuo pipefail
+          [[ -n "$DZN_PURGE_ATTESTATION" ]] || { echo 'The workflow attestation secret is not configured.' >&2; exit 1; }
           bash deployment/qa/purge-test-data.sh execute "$COMMIT_SHA" "$FINGERPRINT" "$CONFIRM" \
             | tee "$RUNNER_TEMP/purge-execute.json"
           jq -e '.ok == true and .deletions_performed == true' "$RUNNER_TEMP/purge-execute.json" >/dev/null

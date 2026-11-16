@@ -124,6 +124,7 @@ def validate_manifest(manifest):
             )
             continue
 
+
         samples = template.get("samples")
         if not isinstance(samples, dict):
             errors.append("%s 'samples' must be an object" % label)
@@ -234,6 +235,11 @@ def create_template(api_key, waba_id, template):
     """POST one missing template. Returns (result, status, detail)."""
     variables = template["variables"]
     samples = template["samples"]
+    # Meta refuses a body that begins or ends with a parameter (2388299), so a
+    # new template is refused locally with a clear detail instead of a provider 503.
+    body_text = template["body"]
+    if re.match(r"^\s*\{\{\d+\}\}", body_text) or re.search(r"\{\{\d+\}\}\s*$", body_text):
+        return "refused", None, "leading_or_trailing_parameter"
     # Meta/Telnyx expect example.body_text as a list of example ROWS; one row
     # carrying one value per positional placeholder ([[v1, v2, ...]]).
     example_body_text = [[samples[var] for var in variables]]

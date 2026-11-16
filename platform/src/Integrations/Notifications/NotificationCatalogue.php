@@ -241,7 +241,7 @@ final class NotificationCatalogue {
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · درخواست کلاس آشنایی پذیرفته نشد','body'=>"درود {{name}}،\n\nمتأسفانه {{teacher}} در این زمان نمی‌تواند کلاس آشنایی «{{course}}» را بپذیرد. درخواست شما تأیید نشد و هیچ رویداد تقویم یا لینک جلسه‌ای ساخته نشد.\n\nمی‌توانید زمان دیگری را در حساب کاربری انتخاب کنید:\n{{portal_url}}\n\nاگر نیاز به کمک دارید، از راه‌های ارتباطی حساب کاربری با ما در تماس باشید.\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'درخواست کلاس آشنایی پذیرفته نشد','body'=>'{{teacher}} در این زمان نمی‌تواند کلاس «{{course}}» را بپذیرد. می‌توانید زمان تازه‌ای انتخاب کنید.'),
-                'whatsapp'=>array('body'=>'درود {{name}} عزیز، متأسفانه {{teacher}} در این زمان نمی‌تواند کلاس آشنایی «{{course}}» را بپذیرد. می‌توانید زمان تازه‌ای از حساب کاربری انتخاب کنید: {{portal_url}}'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، متأسفانه {{teacher}} در این زمان نمی‌تواند کلاس آشنایی «{{course}}» را بپذیرد. می‌توانید از حساب کاربری زمان تازه‌ای انتخاب کنید: {{portal_url}} — دلنوازان'),
             ),
             'en'=>array(
                 'email'=>array('subject'=>'Delnavazan · introductory lesson request update','body'=>"Hello {{name}},\n\n{{teacher}} is unable to accept your introductory {{course}} lesson at this time. The request was not confirmed and no calendar event or meeting link was created.\n\nChoose another time in your account:\n{{portal_url}}\n\nDelnavazan"),
@@ -253,7 +253,7 @@ final class NotificationCatalogue {
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · کلاس آشنایی لغو شد','body'=>"درود {{name}}،\n\nکلاس آشنایی «{{course}}» با {{teacher}} در {{when}} لغو شد. این لغو به معنی ثبت حضور یا پرداخت نیست.\n\nجزئیات در حساب کاربری:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'کلاس آشنایی لغو شد','body'=>'کلاس آشنایی «{{course}}» با {{teacher}} در {{when}} لغو شد.'),
-                'whatsapp'=>array('body'=>'درود {{name}} عزیز، کلاس آشنایی «{{course}}» با {{teacher}} در {{when}} لغو شد. جزئیات در حساب کاربری: {{portal_url}}'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، کلاس آشنایی «{{course}}» با {{teacher}} در {{when}} لغو شد. جزئیات در حساب کاربری شماست: {{portal_url}} — دلنوازان'),
             ),
             'en'=>array(
                 'email'=>array('subject'=>'Delnavazan · introductory lesson cancelled','body'=>"Hello {{name}},\n\nYour introductory {{course}} lesson with {{teacher}} for {{when}} has been cancelled. No attendance or payment decision was inferred.\n\nOpen your account:\n{{portal_url}}\n\nDelnavazan"),
@@ -265,7 +265,7 @@ final class NotificationCatalogue {
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · زمان کلاس آشنایی تغییر کرد','body'=>"درود {{name}}،\n\nزمان کلاس آشنایی «{{course}}» با {{teacher}} به {{when}} تغییر کرد.\n\nجزئیات در حساب کاربری:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'زمان کلاس آشنایی تغییر کرد','body'=>'زمان کلاس آشنایی «{{course}}» با {{teacher}} به {{when}} تغییر کرد.'),
-                'whatsapp'=>array('body'=>'درود {{name}} عزیز، زمان کلاس آشنایی «{{course}}» با {{teacher}} به {{when}} تغییر کرد. جزئیات در حساب کاربری: {{portal_url}}'),
+                'whatsapp'=>array('body'=>'درود {{name}} عزیز، زمان کلاس آشنایی «{{course}}» با {{teacher}} به {{when}} تغییر کرد. جزئیات در حساب کاربری شماست: {{portal_url}} — دلنوازان'),
             ),
             'en'=>array(
                 'email'=>array('subject'=>'Delnavazan · introductory lesson rescheduled','body'=>"Hello {{name}},\n\nYour introductory {{course}} lesson with {{teacher}} has been rescheduled to {{when}}.\n\nOpen your account:\n{{portal_url}}\n\nDelnavazan"),

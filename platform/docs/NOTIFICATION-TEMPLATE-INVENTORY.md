@@ -19,7 +19,7 @@ the live site before any delivery channel is switched on.
 | Templates invalid | 0 |
 | Missing translations | 0 |
 | Unpublished canonical templates | live check |
-| Events offering WhatsApp without a registry mapping | 24 |
+| Events offering WhatsApp without a registry mapping | 1 |
 | Unsupported event/channel routes | 122 |
 | Events with no registered producer class | 13 |
 
@@ -75,51 +75,51 @@ the live site before any delivery channel is switched on.
 | `lesson.access.student` | Class Access Ready | student | lesson | queue | declared (no producer) | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: event-owned route; Email: shell provider | — |
 | `lesson.cancelled.student` | Class Cancelled | student | lesson | queue | declared (no producer) | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: event-owned route; Email: shell provider | — |
 | `lesson.reminder.student` | Class Reminder | student | lesson | queue | declared (no producer) | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: event-owned route; Email: shell provider | — |
-| `payment.failed.student` | Payment Failed | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `payment.failed.student` | Payment Failed | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `payment.recovered.student` | Payment Recovered | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `post_intro.activated.student` | Enrolment Activated | student | account | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `post_intro.activated.teacher` | New Student Class Activated | teacher | account | queue | implemented | email, website | complete (fa + en) | Email: shell provider | — |
 | `post_intro.invitation.student` | Enrolment Ready | student | booking | queue | implemented | email, website | complete (fa + en) | Email: shell provider | — |
 | `post_intro.survey.student` | Enrolment Follow-up | student | booking | queue | implemented | email, website | complete (fa + en) | Email: shell provider | — |
-| `refund.resolved.student` | Refund Resolved | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
-| `refund.review_required.student` | Refund Under Review | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
-| `renewal.automatic_charged.student` | Automatic Renewal Charged | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
-| `renewal.automatic_failed.student` | Automatic Renewal Failed | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `refund.resolved.student` | Refund Resolved | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
+| `refund.review_required.student` | Refund Under Review | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
+| `renewal.automatic_charged.student` | Automatic Renewal Charged | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
+| `renewal.automatic_failed.student` | Automatic Renewal Failed | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `renewal.automatic_upcoming.student` | Automatic Renewal Upcoming | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
-| `renewal.guarantee_deadline_approaching.student` | Renewal Deadline Approaching | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `renewal.guarantee_deadline_approaching.student` | Renewal Deadline Approaching | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `renewal.manual_payment_required.student` | Renewal Payment Required | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `renewal.reminder.student` | Term Renewal Reminder | student | payment | queue | implemented | email, website | complete (fa + en) | Email: shell provider | — |
-| `renewal.term_lapsed.student` | Term Lapsed | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `renewal.term_lapsed.student` | Term Lapsed | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `reschedule.change.accepted.admin` | Admin · Lesson Change · Proposal Accepted | admin | lesson | queue | implemented | email | complete (fa + en) | Email: shell provider | — |
 | `reschedule.change.accepted.student` | Lesson Change · Accepted · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `reschedule.change.accepted.teacher` | Lesson Change · Accepted · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `reschedule.change.cancelled.admin` | Admin · Lesson Change · Proposal Cancelled | admin | lesson | queue | implemented | email | complete (fa + en) | Email: shell provider | — |
-| `reschedule.change.cancelled.student` | Lesson Change · Cancelled · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
-| `reschedule.change.cancelled.teacher` | Lesson Change · Cancelled · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `reschedule.change.cancelled.student` | Lesson Change · Cancelled · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
+| `reschedule.change.cancelled.teacher` | Lesson Change · Cancelled · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `reschedule.change.failed.admin` | Admin · Lesson Change · Proposal Closed | admin | lesson | queue | implemented | email | complete (fa + en) | Email: shell provider | — |
-| `reschedule.change.failed.student` | Lesson Change · Failed · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
-| `reschedule.change.failed.teacher` | Lesson Change · Failed · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `reschedule.change.failed.student` | Lesson Change · Failed · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
+| `reschedule.change.failed.teacher` | Lesson Change · Failed · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `reschedule.change.proposed.admin` | Admin · Lesson Change · Proposal Created | admin | lesson | queue | implemented | email | complete (fa + en) | Email: shell provider | — |
 | `reschedule.change.proposed.student` | Lesson Change · Proposed · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
-| `reschedule.change.proposed.teacher` | Lesson Change · Proposed · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `reschedule.change.proposed.teacher` | Lesson Change · Proposed · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `reschedule.change.rejected.admin` | Admin · Lesson Change · Proposal Rejected | admin | lesson | queue | implemented | email | complete (fa + en) | Email: shell provider | — |
 | `reschedule.change.rejected.student` | Lesson Change · Rejected · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
-| `reschedule.change.rejected.teacher` | Lesson Change · Rejected · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `reschedule.change.rejected.teacher` | Lesson Change · Rejected · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `reschedule.replacement.accepted.admin` | Admin · Replacement Session · Proposal Accepted | admin | lesson | queue | implemented | email | complete (fa + en) | Email: shell provider | — |
-| `reschedule.replacement.accepted.student` | Replacement Session · Accepted · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
-| `reschedule.replacement.accepted.teacher` | Replacement Session · Accepted · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `reschedule.replacement.accepted.student` | Replacement Session · Accepted · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
+| `reschedule.replacement.accepted.teacher` | Replacement Session · Accepted · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `reschedule.replacement.cancelled.admin` | Admin · Replacement Session · Proposal Cancelled | admin | lesson | queue | implemented | email | complete (fa + en) | Email: shell provider | — |
-| `reschedule.replacement.cancelled.student` | Replacement Session · Cancelled · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
-| `reschedule.replacement.cancelled.teacher` | Replacement Session · Cancelled · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `reschedule.replacement.cancelled.student` | Replacement Session · Cancelled · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
+| `reschedule.replacement.cancelled.teacher` | Replacement Session · Cancelled · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `reschedule.replacement.failed.admin` | Admin · Replacement Session · Proposal Closed | admin | lesson | queue | implemented | email | complete (fa + en) | Email: shell provider | — |
-| `reschedule.replacement.failed.student` | Replacement Session · Failed · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
-| `reschedule.replacement.failed.teacher` | Replacement Session · Failed · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `reschedule.replacement.failed.student` | Replacement Session · Failed · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
+| `reschedule.replacement.failed.teacher` | Replacement Session · Failed · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `reschedule.replacement.proposed.admin` | Admin · Replacement Session · Proposal Created | admin | lesson | queue | implemented | email | complete (fa + en) | Email: shell provider | — |
-| `reschedule.replacement.proposed.student` | Replacement Session · Proposed · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
-| `reschedule.replacement.proposed.teacher` | Replacement Session · Proposed · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `reschedule.replacement.proposed.student` | Replacement Session · Proposed · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
+| `reschedule.replacement.proposed.teacher` | Replacement Session · Proposed · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `reschedule.replacement.rejected.admin` | Admin · Replacement Session · Proposal Rejected | admin | lesson | queue | implemented | email | complete (fa + en) | Email: shell provider | — |
-| `reschedule.replacement.rejected.student` | Replacement Session · Rejected · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
-| `reschedule.replacement.rejected.teacher` | Replacement Session · Rejected · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `reschedule.replacement.rejected.student` | Replacement Session · Rejected · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
+| `reschedule.replacement.rejected.teacher` | Replacement Session · Rejected · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `system.inbox_check.admin` | Portal Notification Check | admin | account | queue | implemented | website | complete (fa + en) | Portal only | — |
 | `teacher.invitation_issued.teacher` | Teacher Invitation | teacher | security | dedicated | implemented | email, sms | complete (fa + en) | SMS: event-owned route; Email: shell provider | security, dedicated_authority |
 
@@ -145,8 +145,31 @@ exactly one APPROVED Utility row whose variable order matches the local contract
 | `delnavazan_teacher_schedule_change_fa` | `reschedule.change.accepted.teacher` | teacher | teacher, course, student, previous_when, new_when |
 | `delnavazan_reschedule_rejected_fa` | `reschedule.change.rejected.student` | student | name, course, teacher, when |
 | `delnavazan_class_access_fa` | `lesson.access.student` | student | name, course, teacher, when |
+| `delnavazan_payment_failed_student_fa` | `payment.failed.student` | student | name, course, amount, portal_url |
+| `delnavazan_refund_resolved_student_fa` | `refund.resolved.student` | student | name, amount, portal_url |
+| `delnavazan_refund_review_required_student_fa` | `refund.review_required.student` | student | name, amount, portal_url |
+| `delnavazan_renewal_automatic_charged_student_fa` | `renewal.automatic_charged.student` | student | name, course, amount, paid_date, portal_url |
+| `delnavazan_renewal_automatic_failed_student_fa` | `renewal.automatic_failed.student` | student | name, course, amount, due_date, portal_url |
+| `delnavazan_renewal_guarantee_deadline_approaching_student_fa` | `renewal.guarantee_deadline_approaching.student` | student | name, course, due_date, amount, portal_url |
+| `delnavazan_renewal_term_lapsed_student_fa` | `renewal.term_lapsed.student` | student | name, course, portal_url |
+| `delnavazan_reschedule_change_cancelled_student_fa` | `reschedule.change.cancelled.student` | student | name, portal_url |
+| `delnavazan_reschedule_change_cancelled_teacher_fa` | `reschedule.change.cancelled.teacher` | teacher | teacher, teacher_portal_url |
+| `delnavazan_reschedule_change_failed_student_fa` | `reschedule.change.failed.student` | student | name, portal_url |
+| `delnavazan_reschedule_change_failed_teacher_fa` | `reschedule.change.failed.teacher` | teacher | teacher, teacher_portal_url |
+| `delnavazan_reschedule_change_proposed_teacher_fa` | `reschedule.change.proposed.teacher` | teacher | teacher, when, timezone, teacher_portal_url |
+| `delnavazan_reschedule_change_rejected_teacher_fa` | `reschedule.change.rejected.teacher` | teacher | teacher, when, teacher_portal_url |
+| `delnavazan_reschedule_replacement_accepted_student_fa` | `reschedule.replacement.accepted.student` | student | name, when, timezone, portal_url |
+| `delnavazan_reschedule_replacement_accepted_teacher_fa` | `reschedule.replacement.accepted.teacher` | teacher | teacher, when, timezone, teacher_portal_url |
+| `delnavazan_reschedule_replacement_cancelled_student_fa` | `reschedule.replacement.cancelled.student` | student | name, portal_url |
+| `delnavazan_reschedule_replacement_cancelled_teacher_fa` | `reschedule.replacement.cancelled.teacher` | teacher | teacher, teacher_portal_url |
+| `delnavazan_reschedule_replacement_failed_student_fa` | `reschedule.replacement.failed.student` | student | name, portal_url |
+| `delnavazan_reschedule_replacement_failed_teacher_fa` | `reschedule.replacement.failed.teacher` | teacher | teacher, teacher_portal_url |
+| `delnavazan_reschedule_replacement_proposed_student_fa` | `reschedule.replacement.proposed.student` | student | name, when, timezone, portal_url |
+| `delnavazan_reschedule_replacement_proposed_teacher_fa` | `reschedule.replacement.proposed.teacher` | teacher | teacher, when, timezone, teacher_portal_url |
+| `delnavazan_reschedule_replacement_rejected_student_fa` | `reschedule.replacement.rejected.student` | student | name, when, portal_url |
+| `delnavazan_reschedule_replacement_rejected_teacher_fa` | `reschedule.replacement.rejected.teacher` | teacher | teacher, when, teacher_portal_url |
 
-Events offering WhatsApp with no registry entry (24): `account.claim_issued.student`, `payment.failed.student`, `refund.resolved.student`, `refund.review_required.student`, `renewal.automatic_charged.student`, `renewal.automatic_failed.student`, `renewal.guarantee_deadline_approaching.student`, `renewal.term_lapsed.student`, `reschedule.change.cancelled.student`, `reschedule.change.cancelled.teacher`, `reschedule.change.failed.student`, `reschedule.change.failed.teacher`, `reschedule.change.proposed.teacher`, `reschedule.change.rejected.teacher`, `reschedule.replacement.accepted.student`, `reschedule.replacement.accepted.teacher`, `reschedule.replacement.cancelled.student`, `reschedule.replacement.cancelled.teacher`, `reschedule.replacement.failed.student`, `reschedule.replacement.failed.teacher`, `reschedule.replacement.proposed.student`, `reschedule.replacement.proposed.teacher`, `reschedule.replacement.rejected.student`, `reschedule.replacement.rejected.teacher`.
+Events offering WhatsApp with no registry entry (1): `account.claim_issued.student`.
 
 These routes keep their local copy for provider submission and remain disabled until an approved
 template is mapped. A locally prepared draft is never presented as a Meta-approved template.
@@ -181,35 +204,12 @@ so they must not be reported as completed functionality.
 | `renewal.manual_payment_required.student` | `canonical:MANUAL_RENEWAL_PAYMENT_REQUIRED` | Finance intent only; no dispatch workflow is registered. |
 | `renewal.term_lapsed.student` | `canonical:TERM_LAPSED` | Finance intent only; no dispatch workflow is registered. |
 
-### 6.2 WhatsApp routes with no Meta template (24)
+### 6.2 WhatsApp routes with no Meta template (1)
 
 Local copy exists for provider submission, but no approved provider template is mapped, so
 these routes cannot be enabled and no message is sent.
 
 - `account.claim_issued.student`
-- `payment.failed.student`
-- `refund.resolved.student`
-- `refund.review_required.student`
-- `renewal.automatic_charged.student`
-- `renewal.automatic_failed.student`
-- `renewal.guarantee_deadline_approaching.student`
-- `renewal.term_lapsed.student`
-- `reschedule.change.cancelled.student`
-- `reschedule.change.cancelled.teacher`
-- `reschedule.change.failed.student`
-- `reschedule.change.failed.teacher`
-- `reschedule.change.proposed.teacher`
-- `reschedule.change.rejected.teacher`
-- `reschedule.replacement.accepted.student`
-- `reschedule.replacement.accepted.teacher`
-- `reschedule.replacement.cancelled.student`
-- `reschedule.replacement.cancelled.teacher`
-- `reschedule.replacement.failed.student`
-- `reschedule.replacement.failed.teacher`
-- `reschedule.replacement.proposed.student`
-- `reschedule.replacement.proposed.teacher`
-- `reschedule.replacement.rejected.student`
-- `reschedule.replacement.rejected.teacher`
 
 ### 6.3 Live checks outstanding
 

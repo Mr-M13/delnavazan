@@ -1,42 +1,42 @@
 {
-    "generated_at": "2026-11-16T20:54:54+00:00",
-    "catalogue_version": "2026-11-17.1",
+    "generated_at": "2026-11-16T21:08:06+00:00",
+    "catalogue_version": "2026-11-17.3",
     "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
     "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
     "totals": {
-        "events": 74,
-        "supported_event_channel_combinations": 174,
-        "required_templates": 348,
-        "existing_valid_templates": 348,
+        "events": 77,
+        "supported_event_channel_combinations": 183,
+        "required_templates": 366,
+        "existing_valid_templates": 366,
         "missing_templates": 0,
         "invalid_templates": 0,
         "missing_translations": 0,
         "unpublished_canonical_templates": "live_check_required",
         "missing_provider_mappings": 1,
-        "unsupported_routes": 122,
+        "unsupported_routes": 125,
         "events_without_registered_producer": 13
     },
     "by_category": {
         "security": 2,
-        "lesson": 35,
+        "lesson": 38,
         "booking": 13,
         "account": 13,
         "payment": 11
     },
     "by_recipient": {
         "student": 37,
-        "teacher": 22,
+        "teacher": 25,
         "admin": 14,
         "guardian": 1
     },
     "events_per_channel": {
-        "email": 67,
+        "email": 70,
         "whatsapp": 38,
-        "sms": 7,
-        "website": 62
+        "sms": 10,
+        "website": 65
     },
     "implementation": {
-        "implemented": 51,
+        "implemented": 54,
         "partial": 20,
         "declared": 3
     },
@@ -59,6 +59,15 @@
     "events_with_outstanding_review": {
         "account.claim_issued.student": [
             "security"
+        ],
+        "lesson.access.teacher": [
+            "dedicated_authority"
+        ],
+        "lesson.cancelled.teacher": [
+            "dedicated_authority"
+        ],
+        "lesson.reminder.teacher": [
+            "dedicated_authority"
         ],
         "teacher.invitation_issued.teacher": [
             "security",
@@ -508,6 +517,9 @@
         "consent.withdrawal_confirmed.student.sms",
         "consent.withdrawal_confirmed.teacher.whatsapp",
         "consent.withdrawal_confirmed.teacher.sms",
+        "lesson.access.teacher.whatsapp",
+        "lesson.cancelled.teacher.whatsapp",
+        "lesson.reminder.teacher.whatsapp",
         "payment.failed.student.sms",
         "payment.recovered.student.sms",
         "post_intro.activated.student.sms",
@@ -1710,6 +1722,63 @@
             }
         },
         {
+            "event_key": "lesson.access.teacher",
+            "notification": "Class Access Ready",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "teacher",
+            "producer": "LessonLifecycleNotificationService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "dedicated",
+            "channels": [
+                "email",
+                "website",
+                "sms"
+            ],
+            "review_outstanding": [
+                "dedicated_authority"
+            ],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "lesson.access.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "lesson.access.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "lesson.access.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "lesson.access.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "lesson.access.teacher.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "lesson.access.teacher.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "event_owned_route"
+            }
+        },
+        {
             "event_key": "lesson.cancelled.student",
             "notification": "Class Cancelled",
             "category": "lesson",
@@ -1776,6 +1845,63 @@
             }
         },
         {
+            "event_key": "lesson.cancelled.teacher",
+            "notification": "Class Cancelled",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "teacher",
+            "producer": "LessonLifecycleNotificationService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "dedicated",
+            "channels": [
+                "email",
+                "website",
+                "sms"
+            ],
+            "review_outstanding": [
+                "dedicated_authority"
+            ],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "lesson.cancelled.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "lesson.cancelled.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "lesson.cancelled.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "lesson.cancelled.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "lesson.cancelled.teacher.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "lesson.cancelled.teacher.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "event_owned_route"
+            }
+        },
+        {
             "event_key": "lesson.reminder.student",
             "notification": "Class Reminder",
             "category": "lesson",
@@ -1838,6 +1964,63 @@
             "provider": {
                 "whatsapp_registry_name": "delnavazan_class_reminder_fa",
                 "whatsapp_state": "registry_present_discovery_unverified",
+                "sms_state": "event_owned_route"
+            }
+        },
+        {
+            "event_key": "lesson.reminder.teacher",
+            "notification": "Class Reminder",
+            "category": "lesson",
+            "task": "classes_scheduling",
+            "recipient": "teacher",
+            "producer": "LessonLifecycleNotificationService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "dedicated",
+            "channels": [
+                "email",
+                "website",
+                "sms"
+            ],
+            "review_outstanding": [
+                "dedicated_authority"
+            ],
+            "templates": {
+                "email.fa-IR": {
+                    "template_key": "lesson.reminder.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "lesson.reminder.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.fa-IR": {
+                    "template_key": "lesson.reminder.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "lesson.reminder.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "lesson.reminder.teacher.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "lesson.reminder.teacher.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
                 "sms_state": "event_owned_route"
             }
         },

@@ -1,19 +1,19 @@
 {
-    "generated_at": "2026-11-15T15:20:10+00:00",
-    "catalogue_version": "2026-11-15.1",
+    "generated_at": "2026-11-16T11:27:03+00:00",
+    "catalogue_version": "2026-11-16.1",
     "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
     "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
     "totals": {
         "events": 74,
-        "supported_event_channel_combinations": 173,
-        "required_templates": 346,
-        "existing_valid_templates": 346,
+        "supported_event_channel_combinations": 174,
+        "required_templates": 348,
+        "existing_valid_templates": 348,
         "missing_templates": 0,
         "invalid_templates": 0,
         "missing_translations": 0,
         "unpublished_canonical_templates": "live_check_required",
         "missing_provider_mappings": 24,
-        "unsupported_routes": 123,
+        "unsupported_routes": 122,
         "events_without_registered_producer": 13
     },
     "by_category": {
@@ -32,7 +32,7 @@
     "events_per_channel": {
         "email": 67,
         "whatsapp": 38,
-        "sms": 6,
+        "sms": 7,
         "website": 62
     },
     "implementation": {
@@ -370,8 +370,7 @@
         "system.inbox_check.admin.whatsapp",
         "system.inbox_check.admin.sms",
         "teacher.invitation_issued.teacher.website",
-        "teacher.invitation_issued.teacher.whatsapp",
-        "teacher.invitation_issued.teacher.sms"
+        "teacher.invitation_issued.teacher.whatsapp"
     ],
     "invalid_templates": [],
     "events": [
@@ -3887,7 +3886,8 @@
             "implementation": "implemented",
             "delivery_authority": "dedicated",
             "channels": [
-                "email"
+                "email",
+                "sms"
             ],
             "review_outstanding": [
                 "security",
@@ -3903,12 +3903,22 @@
                     "template_key": "teacher.invitation_issued.teacher.email.en",
                     "status": "present",
                     "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "teacher.invitation_issued.teacher.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "teacher.invitation_issued.teacher.sms.en",
+                    "status": "present",
+                    "errors": []
                 }
             },
             "provider": {
                 "whatsapp_registry_name": null,
                 "whatsapp_state": "unsupported",
-                "sms_state": "unsupported"
+                "sms_state": "event_owned_route"
             }
         }
     ],

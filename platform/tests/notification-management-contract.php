@@ -25,11 +25,13 @@ foreach (array(
     'dzn_notification_copy_restore', 'dzn_notification_copy_restore_default', 'dzn_notification_provider_mapping',
     'dzn_notification_event_toggle', 'dzn_notification_event_channel_toggle', 'dzn_notification_inbox_prune', 'dzn_notification_inbox_test',
     'dzn_notification_recover_leases', 'dzn_notification_prepare_drafts', 'dzn_notification_publish_drafts',
-    'dzn_notification_approve_draft', 'dzn_notification_revoke_approval',
+    'dzn_notification_approve_draft', 'dzn_notification_revoke_approval', 'dzn_notification_approve_operational',
+    'dzn_notification_manual_send',
 ) as $action) {
-    $fail('registered action ' . $action, str_contains($controller, "admin_post_" . $action));
-}
+    $fail('registered action ' . $action, str_contains($controller, "admin_post_" . $action));}
 $fail('editing uses the canonical template capability', str_contains($controller, "CAP_EDIT='dzn_manage_notification_templates'"));
+$fail('a manual send is idempotent by content, not by clock', str_contains($controller, "hash('sha256',wp_json_encode(\$input))") && !str_contains($controller, "'manual-send:'.gmdate"));
+$fail('a manual send requires the dispatch capability', str_contains((string) file_get_contents(dirname(__DIR__) . '/src/Integrations/Notifications/NotificationManualSendService.php'), "current_user_can(self::CAPABILITY)"));
 $fail('every handler checks a nonce', substr_count($controller, 'check_admin_referer(') >= 2);
 $fail('redirects are validated', str_contains($controller, 'wp_safe_redirect'));
 $fail('no eval or request superglobal', !str_contains($controller, 'eval(') && !str_contains($controller, '$_REQUEST'));
@@ -50,10 +52,10 @@ $fail('legacy tab URLs are mapped', str_contains($controller, "'rules'=>'events'
 $fail('legacy diagnostics redirects centrally', str_contains($controller, "page=dzn-system-health&component=notifications"));
 $fail('one event table uses combined search and compact filters', str_contains($controller, 'name="search"') && str_contains($controller, 'name="category"') && str_contains($controller, 'name="recipient"') && str_contains($controller, 'name="status"'));
 $fail('all four delivery methods are rendered together', str_contains($controller, "array('website','email','whatsapp','sms')"));
-$fail('effective status replaces legacy readiness columns', str_contains($controller, 'name="status"') && str_contains($controller, '<th>Category</th>') && !str_contains($controller, '<th>Template readiness</th>') && !str_contains($controller, '<th>Latest delivery</th>'));
-$fail('editor stays on the table page', str_contains($controller, 'self::renderEvents();') && str_contains($controller, 'id="notification-editor"') && str_contains($controller, 'self::renderEditor(new NotificationTemplateLibrary()'));
+$fail('effective status replaces legacy readiness columns', str_contains($controller, 'name="status"') && str_contains($controller, 'dzn-notif-grid-cards') && !str_contains($controller, '<th>Template readiness</th>') && !str_contains($controller, '<th>Latest delivery</th>'));
+$fail('the editor opens in the workspace without leaving it', str_contains($controller, 'self::renderEvents();') && str_contains($controller, 'id="dzn-notif-drawer"') && str_contains($controller, 'self::renderEditor(new NotificationTemplateLibrary()'));
 $fail('table filters survive editor navigation', str_contains($controller, 'private static function editorUrl') && str_contains($controller, 'filter_context'));
-$fail('the template editor opens as a modal over the catalogue', str_contains($controller, '<dialog id="notification-editor"') && str_contains($controller, 'd.showModal()'));
+$fail('the template editor opens as a drawer that preserves the list position', str_contains($controller, 'class="dzn-notif-drawer"') && str_contains($controller, 'dzn-notif-drawer-close') && str_contains($controller, 'sessionStorage'));
 $fail('reschedule families are genuinely collapsible', str_contains($controller, '<details><summary><strong>') && str_contains($controller, 'private static function eventFamily'));
 $fail('purpose copy is event-specific or family-specific', str_contains($catalogue, 'private static function purpose') && !str_contains($catalogue, 'This message tells the recipient what happened'));
 $fail('global channel policy editor is removed', !str_contains($controller, 'dzn_notification_channel_policy') && !str_contains($library, 'OPTION_CHANNEL_POLICY'));

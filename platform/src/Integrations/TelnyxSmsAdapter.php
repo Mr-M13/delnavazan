@@ -59,9 +59,11 @@ final class TelnyxSmsAdapter {
             return array('acknowledged'=>true,'permanent_failure'=>null,'idempotent'=>true);
         }
         $payload=self::messagePayload($to,$text,$from,$profile);
+        $headers=array('Authorization'=>'Bearer '.(string)$this->settings->value('sms','api_key'),'Content-Type'=>'application/json');
+        if(!empty($command['idempotency_key']))$headers['Idempotency-Key']=(string)$command['idempotency_key'];
         $response=$this->post('https://api.telnyx.com/v2/messages',array(
             'timeout'=>20,'redirection'=>0,
-            'headers'=>array('Authorization'=>'Bearer '.(string)$this->settings->value('sms','api_key'),'Content-Type'=>'application/json'),
+            'headers'=>$headers,
             'body'=>wp_json_encode($payload),
         ));
         if(is_wp_error($response))return array('acknowledged'=>false,'permanent_failure'=>null,'failure'=>'transport','ambiguous'=>true);

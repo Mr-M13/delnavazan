@@ -101,7 +101,7 @@ delivery control described in §10: any notification and any offered channel can
 | Account | Calm and operational | Not offered; the message is not marketing |
 | Booking | Helpful, time-specific | Not offered while a booking is live |
 | Lesson | Operational, time-zone explicit | Not offered for changes already made |
-| Payment | Precise, neutral, no pressure | Not offered; requires financial/legal review before activation |
+| Payment | Precise, neutral, no pressure | Not offered; follows ordinary editorial approval |
 | Optional | Warm but restrained | Requires marketing consent |
 
 Operational authority comes from the teaching relationship, not from marketing consent. Marketing consent
@@ -142,9 +142,10 @@ is never used to justify a booking, class, payment or security message.
 
 ## 9. Review rules
 
-- Financial, refund and renewal copy must be reviewed by the academy's finance/legal owner before the
-  category is activated. The dashboard labels this explicitly.
-- Security copy must be reviewed together with the claim/invitation flow; never add extra variables.
+- Financial, refund and renewal copy follows ordinary editorial approval — the same prepare, approve
+  and publish workflow as any operational message. No separate finance or legal reviewer is required.
+- Security copy must be reviewed together with the claim/invitation flow; never add extra variables,
+  and it keeps its additional review hold.
 - Any change to a WhatsApp template requires a new Meta approval before sending.
 - Persian and English variants must carry the same facts, deadline and action; they need not be literal
   translations.
@@ -171,22 +172,39 @@ payment notices, and including the portal and email routes that used to be locke
 
 ## 11. Preparing and publishing copy
 
-1. **Prepare** creates a reviewable draft for every supported template that has no published version
-   and no draft. It never sends, publishes or enables anything, and it never overwrites a draft or a
-   published version.
-2. **Approve** records that an administrator has read one exact draft. The approval stores a digest of
-   the subject and body, so editing the draft, discarding it or publishing it invalidates the approval.
-3. **Publish in bulk** only publishes drafts that carry a valid approval *and* whose channel approval is
-   complete. Financial, legal, security and dedicated-authority copy always needs its owning reviewer
-   and is published individually.
-4. **Provider approval is separate.** A WhatsApp draft is only bulk-publishable when the route is
-   positively mapped. Not mapped, rejected, pending re-approval, ambiguous, contract-mismatched or
-   unrecognised provider states are refused; a locally prepared draft is never presented as an
-   approved Meta template.
-5. Publishing a template never enables its delivery channel, and it never changes a notification that
-   already froze an earlier version.
+The workflow is three separate, named steps on the Notifications page. Each step reports its own
+result and the last result stays on the page, so a step never looks like it did nothing.
+
+1. **Prepare drafts** creates a reviewable draft for every supported template that has no published
+   version and no draft. It never sends, publishes or enables anything, and it never overwrites a
+   draft or a published version.
+2. **Approve operational drafts** records one explicit approval per draft whose channel approvals are
+   already complete. Security, dedicated-authority and unmapped-provider copy is skipped and listed
+   with the reason it is held; financial copy is approved like any other operational copy.
+3. **Publish approved drafts** creates a new immutable version for each approved draft. It never
+   enables a delivery channel and never changes a notification that already froze a version.
+
+Approval is bound to one exact draft: editing the copy, discarding the draft or publishing it
+invalidates the approval automatically, so modified copy always needs a fresh approval.
+
+**Provider approval is separate.** A WhatsApp draft is only approved when the route is positively
+mapped. Not mapped, rejected, pending re-approval, ambiguous, contract-mismatched or unrecognised
+provider states are refused; a locally prepared draft is never presented as an approved Meta template.
 
 Completeness is reported separately from readiness. A notification can have complete Persian and
-English copy and still be unpublished, awaiting approval, awaiting a provider template, or impossible
-to raise because no producer is registered. Those are different facts and the administration surface
-must not merge them into one badge.
+English copy and still be unpublished, awaiting an approval, awaiting a provider template, or
+impossible to raise because no producer is registered. Those are different facts and the
+administration surface must not merge them into one badge.
+
+### Status vocabulary
+
+| Status | Meaning | Next action |
+|---|---|---|
+| Enabled | The channel is on and nothing blocks it | none |
+| Disabled | An administrator switched it off | switch it on when intended |
+| Awaiting approval | Sensitive canonical copy (security) needs its security owner | publish it from the editor after that sign-off |
+| Missing template | No usable copy exists for this route | prepare and approve a draft |
+| Missing provider | Provider configuration or approval is absent | configure the provider, or wait for Meta approval |
+| Not offered | This notification does not use this delivery method | none |
+| Notification disabled | The event-wide switch is off | switch the notification on |
+| No producer | No service raises this event yet | implement the producer |

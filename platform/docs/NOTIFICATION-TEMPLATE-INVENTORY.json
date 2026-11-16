@@ -1,5 +1,5 @@
 {
-    "generated_at": "2026-11-15T12:52:07+00:00",
+    "generated_at": "2026-11-15T15:20:10+00:00",
     "catalogue_version": "2026-11-15.1",
     "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
     "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
@@ -59,46 +59,6 @@
     "events_with_outstanding_review": {
         "account.claim_issued.student": [
             "security"
-        ],
-        "payment.failed.student": [
-            "financial",
-            "legal"
-        ],
-        "payment.recovered.student": [
-            "financial",
-            "legal"
-        ],
-        "refund.resolved.student": [
-            "financial",
-            "legal"
-        ],
-        "refund.review_required.student": [
-            "financial",
-            "legal"
-        ],
-        "renewal.automatic_charged.student": [
-            "financial",
-            "legal"
-        ],
-        "renewal.automatic_failed.student": [
-            "financial",
-            "legal"
-        ],
-        "renewal.automatic_upcoming.student": [
-            "financial",
-            "legal"
-        ],
-        "renewal.guarantee_deadline_approaching.student": [
-            "financial",
-            "legal"
-        ],
-        "renewal.manual_payment_required.student": [
-            "financial",
-            "legal"
-        ],
-        "renewal.term_lapsed.student": [
-            "financial",
-            "legal"
         ],
         "teacher.invitation_issued.teacher": [
             "security",
@@ -1687,10 +1647,7 @@
                 "website",
                 "whatsapp"
             ],
-            "review_outstanding": [
-                "financial",
-                "legal"
-            ],
+            "review_outstanding": [],
             "templates": {
                 "email.fa-IR": {
                     "template_key": "payment.failed.student.email.fa-IR",
@@ -1745,10 +1702,7 @@
                 "website",
                 "whatsapp"
             ],
-            "review_outstanding": [
-                "financial",
-                "legal"
-            ],
+            "review_outstanding": [],
             "templates": {
                 "email.fa-IR": {
                     "template_key": "payment.recovered.student.email.fa-IR",
@@ -1990,10 +1944,7 @@
                 "website",
                 "whatsapp"
             ],
-            "review_outstanding": [
-                "financial",
-                "legal"
-            ],
+            "review_outstanding": [],
             "templates": {
                 "email.fa-IR": {
                     "template_key": "refund.resolved.student.email.fa-IR",
@@ -2048,10 +1999,7 @@
                 "website",
                 "whatsapp"
             ],
-            "review_outstanding": [
-                "financial",
-                "legal"
-            ],
+            "review_outstanding": [],
             "templates": {
                 "email.fa-IR": {
                     "template_key": "refund.review_required.student.email.fa-IR",
@@ -2106,10 +2054,7 @@
                 "website",
                 "whatsapp"
             ],
-            "review_outstanding": [
-                "financial",
-                "legal"
-            ],
+            "review_outstanding": [],
             "templates": {
                 "email.fa-IR": {
                     "template_key": "renewal.automatic_charged.student.email.fa-IR",
@@ -2164,10 +2109,7 @@
                 "website",
                 "whatsapp"
             ],
-            "review_outstanding": [
-                "financial",
-                "legal"
-            ],
+            "review_outstanding": [],
             "templates": {
                 "email.fa-IR": {
                     "template_key": "renewal.automatic_failed.student.email.fa-IR",
@@ -2222,10 +2164,7 @@
                 "website",
                 "whatsapp"
             ],
-            "review_outstanding": [
-                "financial",
-                "legal"
-            ],
+            "review_outstanding": [],
             "templates": {
                 "email.fa-IR": {
                     "template_key": "renewal.automatic_upcoming.student.email.fa-IR",
@@ -2280,10 +2219,7 @@
                 "website",
                 "whatsapp"
             ],
-            "review_outstanding": [
-                "financial",
-                "legal"
-            ],
+            "review_outstanding": [],
             "templates": {
                 "email.fa-IR": {
                     "template_key": "renewal.guarantee_deadline_approaching.student.email.fa-IR",
@@ -2338,10 +2274,7 @@
                 "website",
                 "whatsapp"
             ],
-            "review_outstanding": [
-                "financial",
-                "legal"
-            ],
+            "review_outstanding": [],
             "templates": {
                 "email.fa-IR": {
                     "template_key": "renewal.manual_payment_required.student.email.fa-IR",
@@ -2440,10 +2373,7 @@
                 "website",
                 "whatsapp"
             ],
-            "review_outstanding": [
-                "financial",
-                "legal"
-            ],
+            "review_outstanding": [],
             "templates": {
                 "email.fa-IR": {
                     "template_key": "renewal.term_lapsed.student.email.fa-IR",

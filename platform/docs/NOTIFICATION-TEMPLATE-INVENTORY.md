@@ -75,21 +75,21 @@ the live site before any delivery channel is switched on.
 | `lesson.access.student` | Class Access Ready | student | lesson | queue | declared (no producer) | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: event-owned route; Email: shell provider | — |
 | `lesson.cancelled.student` | Class Cancelled | student | lesson | queue | declared (no producer) | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: event-owned route; Email: shell provider | — |
 | `lesson.reminder.student` | Class Reminder | student | lesson | queue | declared (no producer) | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: event-owned route; Email: shell provider | — |
-| `payment.failed.student` | Payment Failed | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | financial, legal |
-| `payment.recovered.student` | Payment Recovered | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | financial, legal |
+| `payment.failed.student` | Payment Failed | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `payment.recovered.student` | Payment Recovered | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `post_intro.activated.student` | Enrolment Activated | student | account | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `post_intro.activated.teacher` | New Student Class Activated | teacher | account | queue | implemented | email, website | complete (fa + en) | Email: shell provider | — |
 | `post_intro.invitation.student` | Enrolment Ready | student | booking | queue | implemented | email, website | complete (fa + en) | Email: shell provider | — |
 | `post_intro.survey.student` | Enrolment Follow-up | student | booking | queue | implemented | email, website | complete (fa + en) | Email: shell provider | — |
-| `refund.resolved.student` | Refund Resolved | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | financial, legal |
-| `refund.review_required.student` | Refund Under Review | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | financial, legal |
-| `renewal.automatic_charged.student` | Automatic Renewal Charged | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | financial, legal |
-| `renewal.automatic_failed.student` | Automatic Renewal Failed | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | financial, legal |
-| `renewal.automatic_upcoming.student` | Automatic Renewal Upcoming | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | financial, legal |
-| `renewal.guarantee_deadline_approaching.student` | Renewal Deadline Approaching | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | financial, legal |
-| `renewal.manual_payment_required.student` | Renewal Payment Required | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | financial, legal |
+| `refund.resolved.student` | Refund Resolved | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `refund.review_required.student` | Refund Under Review | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `renewal.automatic_charged.student` | Automatic Renewal Charged | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `renewal.automatic_failed.student` | Automatic Renewal Failed | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `renewal.automatic_upcoming.student` | Automatic Renewal Upcoming | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
+| `renewal.guarantee_deadline_approaching.student` | Renewal Deadline Approaching | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
+| `renewal.manual_payment_required.student` | Renewal Payment Required | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `renewal.reminder.student` | Term Renewal Reminder | student | payment | queue | implemented | email, website | complete (fa + en) | Email: shell provider | — |
-| `renewal.term_lapsed.student` | Term Lapsed | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | financial, legal |
+| `renewal.term_lapsed.student` | Term Lapsed | student | payment | canonical | partial (no producer) | email, website, whatsapp | complete (fa + en) | WhatsApp: no Meta template; Email: shell provider | — |
 | `reschedule.change.accepted.admin` | Admin · Lesson Change · Proposal Accepted | admin | lesson | queue | implemented | email | complete (fa + en) | Email: shell provider | — |
 | `reschedule.change.accepted.student` | Lesson Change · Accepted · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `reschedule.change.accepted.teacher` | Lesson Change · Accepted · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
@@ -156,16 +156,6 @@ template is mapped. A locally prepared draft is never presented as a Meta-approv
 | Event key | Outstanding approval |
 |---|---|
 | `account.claim_issued.student` | security |
-| `payment.failed.student` | financial, legal |
-| `payment.recovered.student` | financial, legal |
-| `refund.resolved.student` | financial, legal |
-| `refund.review_required.student` | financial, legal |
-| `renewal.automatic_charged.student` | financial, legal |
-| `renewal.automatic_failed.student` | financial, legal |
-| `renewal.automatic_upcoming.student` | financial, legal |
-| `renewal.guarantee_deadline_approaching.student` | financial, legal |
-| `renewal.manual_payment_required.student` | financial, legal |
-| `renewal.term_lapsed.student` | financial, legal |
 | `teacher.invitation_issued.teacher` | security, dedicated_authority |
 
 ## 6. Outstanding implementation work (not delivered functionality)

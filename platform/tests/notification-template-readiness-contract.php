@@ -109,7 +109,7 @@ foreach (NotificationCatalogue::events() as $eventKey => $event) {
     $review = NotificationCatalogue::reviewFor($eventKey);
     $fail('review codes are known: ' . $eventKey, array_diff($review, $known) === array());
     if ((string) $event['category'] === 'payment' && (string) $event['implementation'] !== 'implemented') {
-        $fail('financial copy awaiting activation is flagged: ' . $eventKey, in_array('financial', $review, true) && in_array('legal', $review, true));
+        $fail('financial copy carries no separate finance or legal hold: ' . $eventKey, !in_array('financial', $review, true) && !in_array('legal', $review, true));
     }
     if ((string) $event['category'] === 'payment' && (string) $event['implementation'] === 'implemented') {
         $fail('an active financial reminder carries reviewed copy, not a placeholder: ' . $eventKey, !str_contains((string) NotificationCatalogue::exactCopy($eventKey, 'email', 'fa-IR')['body'], 'بازبینی'));
@@ -152,6 +152,12 @@ $fail('editing the copy revokes the approval', str_contains($librarySource, 'pri
 $fail('the approval is bound to a content digest', str_contains($librarySource, 'public function contentDigest') && str_contains($librarySource, "'digest'=>"));
 $fail('the provider gate is a positive whitelist', str_contains($librarySource, '$state!==TelnyxTemplateAuthority::MAPPED') && str_contains($librarySource, "default=>'The provider approval state is unknown, so publication is refused.'"));
 $fail('the publish action is capability and nonce gated', substr_count($controller, 'check_admin_referer(') >= 2 && str_contains($controller, 'dzn_notification_approve_draft'));
+$fail('the workflow exposes a bulk approval step', str_contains($controller, 'dzn_notification_approve_operational') && str_contains($librarySource, 'public function approveOperationalDrafts'));
+$fail('the workflow reports each step persistently', str_contains($controller, 'dzn_notification_workflow_result') && str_contains($controller, 'private static function rememberWorkflowResult'));
+$fail('a canonical event awaiting sign-off is not labelled as missing copy', str_contains($controller, "'awaiting_approval'") && str_contains($controller, 'Awaiting approval'));
+$fail('a channel the event does not use is never shown as a fault', str_contains($controller, "'Not offered'") && str_contains($controller, 'if(!in_array($channel,(array)$row[') && str_contains($controller, 'continue;'));
+$fail('a rejected edit is preserved instead of discarded', str_contains($controller, 'private static function rememberRejectedSubmission') && str_contains($controller, 'Your last change was not saved'));
+$fail('the action link is a choice, not one fixed placeholder', str_contains((string) file_get_contents($root . '/src/Integrations/Notifications/NotificationTemplateSanitizer.php'), 'public static function requiredActionLinks'));
 
 /* 7. Producer gaps and unmapped provider routes are reported as outstanding implementation work. */
 $inventory = json_decode((string) file_get_contents($root . '/docs/NOTIFICATION-TEMPLATE-INVENTORY.json'), true);

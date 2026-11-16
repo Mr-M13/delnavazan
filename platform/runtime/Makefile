@@ -16,5 +16,6 @@ regressions: ; @$(BIN)/run-regressions.sh
 concurrency: ; @$(BIN)/run-concurrency.sh
 stripe-checkout-e2e: ; @$(BIN)/run-stripe-checkout-test-mode-e2e.sh
 lifecycle-regression: ; @$(BIN)/run-lifecycle-regression.sh
+booking-stress: ; @$(BIN)/run-booking-engine-stress.sh
 all: ; @$(BIN)/run-all.sh
 destroy: ; @$(BIN)/destroy.sh

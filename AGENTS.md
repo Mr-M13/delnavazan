@@ -85,11 +85,22 @@ is optional strict parity. Docker is required only for the runtime suites.
   CI installs when a test needs them (`pdo_sqlite`, `sqlite3`, `curl`, `mbstring`). The contract
   list in `.github/workflows/pr-runtime-gate.yml` is the authoritative set. The notification
   remediation gate includes `php platform/tests/notification-template-readiness-contract.php`
-  beside the notification management contracts.
+  beside the notification management contracts. The booking reliability gate also includes the
+  host-only `php platform/tests/booking-allocation-workload-unit.php`,
+  `php platform/tests/booking-engine-capacity-unit.php`,
+  `php platform/tests/booking-engine-scenario-date-unit.php` and
+  `bash platform/tests/booking-stress-runner-contract.sh`.
 - **Runtime suites:** `platform/runtime/bin/run-<suite>-runtime.sh`. These already drive Docker
   with the CI images `mariadb:11.4`, `wordpress:php8.3-apache` and `wordpress:cli-php8.3`.
   The booking slot conflict suite also proves that two valid reschedules send Calendar revisions
   in version order and that Teacher availability covers the introductory buffer.
+  The `booking-stress-runtime` job provisions a disposable stack with
+  `platform/runtime/bin/reset-disposable.sh`, then runs
+  `platform/runtime/bin/run-booking-engine-stress.sh`: scenarios A–G plus the 2–100 worker
+  matrix, crash recovery, idempotent replay and partial-overlap contention. Its raw evidence is
+  uploaded as the `booking-stress-evidence` workflow artifact and is never committed. The
+  1,000-request measurement is scenario A's request volume, not a 1,000-worker burst; the
+  harness spawns at most 100 concurrent processes.
 - **Service tests:** `tools/ci/check.sh services` (runs `services/tests/run-all.sh` on PHP 8.3
   with `pdo_sqlite`, `sqlite3`, `curl`, `mbstring`).
 

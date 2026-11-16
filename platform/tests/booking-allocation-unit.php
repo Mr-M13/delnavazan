@@ -68,7 +68,8 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
 }
 namespace Delnavazan\Platform\Core\Application {
     final class TeacherAvailabilityService {
-        public function effective(int $teacherId, string $start, string $end): array { return array(array('starts_at_utc'=>$start,'ends_at_utc'=>$end,'state'=>'preferred')); }
+        public static array $requestable = array();
+        public function effective(int $teacherId, string $start, string $end): array { return array(array('starts_at_utc'=>$start,'ends_at_utc'=>$end,'state'=>in_array($teacherId,self::$requestable,true)?'requestable':'preferred')); }
         public function instrumentIdForCourse(int $courseId): ?int { return 1; }
     }
     final class BookingTeacherOccupancyReadService {
@@ -77,6 +78,16 @@ namespace Delnavazan\Platform\Core\Application {
     }
     final class CanonicalContinuationCapacityAuthority {
         public static function assertNoActiveHold(int $teacherId, string $start, string $end): void {}
+    }
+    /** Controllable weighted workload; zero by default so the round-robin assertions stay exact. */
+    final class BookingTeacherWorkloadService {
+        public static array $weighted = array();
+        public function __construct(mixed $repository = null) {}
+        public function scores(array $teacherIds, string $now): array {
+            $out = array();
+            foreach ($teacherIds as $id) $out[(int) $id] = array('weighted'=>(float) (self::$weighted[(int) $id] ?? 0.0),'pending'=>0,'accepted'=>0,'confirmed'=>0,'completed'=>0);
+            return $out;
+        }
     }
     final class PortalNotificationRecorder {
         public static array $calls=array();
@@ -170,5 +181,37 @@ namespace {
     try{$validator->resolveLockedCatalogue($intake,$instrument,$course,$start->modify('-1 hour')->format('Y-m-d H:i:s'));}
     catch(\Delnavazan\Platform\Core\Application\BookingLeadTimeException $error){$shortNotice=$error->reasonCode()==='lead_time_too_short';}
     $assert($shortNotice,'Intake must refuse a start inside the shared minimum notice.');
+
+    // --- Approved allocation order: strength, then weighted workload, then round-robin ---
+    $ordered = static function (array $workload, array $requestable = array()) use ($now): array {
+        \Delnavazan\Platform\Core\Application\BookingTeacherWorkloadService::$weighted = $workload;
+        \Delnavazan\Platform\Core\Application\TeacherAvailabilityService::$requestable = $requestable;
+        $repo = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository();
+        $service = new \Delnavazan\Platform\Core\Application\BookingAllocationService($repo, new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestMatchAssessmentRepository(), new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherDeliveryRepository($repo));
+        return $service->startWithinTransaction(90, 4, $repo->times(90), $now);
+    };
+
+    $first = $ordered(array());
+    $assert($first['teacher_id'] === 11, 'With equal strength and equal workload the course cursor selects the lowest eligible id.');
+
+    $lighter = $ordered(array(11 => 2.0, 22 => 0.0));
+    $assert($lighter['teacher_id'] === 22, 'The lower weighted workload must win over the lower Teacher id.');
+
+    $stronger = $ordered(array(11 => 0.0, 22 => 9.0), array(11));
+    $assert($stronger['teacher_id'] === 22, 'A strong match must win even when its weighted workload is higher than a possible match.');
+    $assert($stronger['match_strength'] === 'strong', 'The selected candidate must report the strong match it was chosen for.');
+
+    $weak = $ordered(array(11 => 0.0, 22 => 9.0));
+    $assert($weak['teacher_id'] === 11 && $weak['match_strength'] === 'strong', 'Two strong matches fall back to weighted workload, not Teacher id.');
+
+    // Determinism: identical inputs must always select the same Teacher.
+    $repeatA = $ordered(array(11 => 1.25, 22 => 1.25));
+    $repeatB = $ordered(array(11 => 1.25, 22 => 1.25));
+    $assert($repeatA['teacher_id'] === $repeatB['teacher_id'], 'Equal strength and equal workload must resolve deterministically.');
+    $assert($repeatA['teacher_id'] === 11, 'Equal strength and equal workload must fall through to the deterministic round-robin tie-break.');
+
+    \Delnavazan\Platform\Core\Application\BookingTeacherWorkloadService::$weighted = array();
+    \Delnavazan\Platform\Core\Application\TeacherAvailabilityService::$requestable = array();
+
     echo "Booking allocation unit passed\n";
 }

@@ -117,6 +117,7 @@ dzn_prune_points(){
   : > "$tmp/all"
   : > "$tmp/complete"
   : > "$tmp/keep"
+  if ! ( cd "$points" && ls -1 ) > "$tmp/list"; then rm -rf "$tmp"; return 1; fi
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
     [[ -d "$points/$name" ]] || continue
@@ -125,7 +126,7 @@ dzn_prune_points(){
     if [[ -f "$points/$name/manifest.json" && -f "$points/$name/database.sql.gz" && -f "$points/$name/public_html.tar.gz" ]]; then
       printf '%s\n' "$name" >> "$tmp/complete"
     fi
-  done < <( cd "$points" && ls -1 )
+  done < "$tmp/list"
   LC_ALL=C sort -r -o "$tmp/all" "$tmp/all"
   LC_ALL=C sort -r -o "$tmp/complete" "$tmp/complete"
   head -n "$keep" "$tmp/complete" > "$tmp/keep"

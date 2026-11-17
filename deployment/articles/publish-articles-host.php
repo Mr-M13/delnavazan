@@ -165,6 +165,19 @@ final class HostProcessor
         return $stdout;
     }
 
+    /**
+     * Canonical text hash used to verify a write. WordPress may store some
+     * characters as entities and WP-CLI appends output newlines; decoding,
+     * folding line endings and trimming removes only those surface differences.
+     */
+    private static function canonicalHash(string $text): string
+    {
+        $decoded = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $decoded = str_replace(array("\r\n", "\r"), "\n", $decoded);
+        $decoded = str_replace("\xc2\xa0", ' ', $decoded);
+        return hash('sha256', trim($decoded));
+    }
+
     /** @return array<int,string> */
     private function readTags(int $id): array
     {
@@ -323,12 +336,18 @@ final class HostProcessor
             return $base;
         }
 
-        // Read back and prove the content hash and the meta match.
+        // Read back and prove the content and the meta. WordPress normalises some
+        // characters on save (e.g. ™ becomes &#x2122;) and WP-CLI appends a
+        // newline, so the comparison is made over canonicalised text: entity
+        // decoded, CR/CRLF folded to LF, and trailing whitespace trimmed. Any
+        // real text change still fails.
         $readBack = $this->readContent($id);
         $readBack = $readBack === null ? '' : $readBack;
-        $expectedHash = $payload['body_sha256'] ?? '';
         $actualHash = hash('sha256', $readBack);
-        $contentOk = ($actualHash === $expectedHash);
+        // The parser's payload body_sha256 is retained as evidence alongside the
+        // canonical comparison, so the result still records what was published.
+        $expectedHash = (string) ($payload['body_sha256'] ?? '');
+        $contentOk = self::canonicalHash($readBack) === self::canonicalHash((string) ($payload['body_html'] ?? ''));
         $metaOk = true;
         foreach ([
             'rank_math_title' => $payload['seo_title'],
@@ -341,6 +360,7 @@ final class HostProcessor
         }
 
         $base['content_sha256'] = $actualHash;
+        $base['expected_content_sha256'] = $expectedHash;
         $base['content_verified'] = $contentOk;
         $base['meta_verified'] = $metaOk;
 

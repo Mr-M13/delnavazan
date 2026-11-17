@@ -73,7 +73,7 @@ $assert(str_contains($claim_controller, 'check_admin_referer(self::ACTION)') && 
 $assert(str_contains($response_service, 'public function claim(') && str_contains($response_service, 'assertAcceptable($locked,$now,$requestedTimeId,true)') && str_contains($response_service, "'teacher_claim_availability_override'"), 'A claim must explicitly override availability, still revalidate occupancy, and audit the override.');
 $assert(str_contains($intro_card, 'claim_action_url') && str_contains($intro_card, 'name="requested_time_id"') && str_contains($intro_card, 'name="claim_key"') && str_contains($intro_card, 'name="request_uid"'), 'The unmatched section must post the claim nonce, request identity, key and selected preference.');
 $classes_position = strpos($shell, "dzn_theme_teacher_portal_component( 'classes'");
-$open_position = strpos($shell, "dzn_theme_teacher_portal_component( 'open-requests'");
+$open_position = false !== $classes_position ? strpos($shell, "dzn_theme_teacher_portal_component( 'open-requests'", $classes_position) : false;
 $assert(str_contains($shell, "'classes' === \$screen") && false !== $classes_position && false !== $open_position && $open_position > $classes_position, 'Unmatched opportunities must render at the bottom of the default classes screen.');
 $assert(!str_contains($home, "dzn_theme_teacher_portal_component( 'open-requests'"), 'Unmatched opportunities must not be duplicated on the home screen.');
 echo "Booking teacher delivery contract passed\n";

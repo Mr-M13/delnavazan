@@ -57,9 +57,11 @@ $assert(str_contains($files['bridge'], 'function dzn_theme_platform_teacher_dead
 
 // The board is bottom-of-classes only and uses the same card.
 $assert(str_contains($files['open'], 'درخواست‌های بدون پاسخ') && str_contains($files['open'], 'این درخواست‌ها هنوز به مدرسی واگذار نشده‌اند') && str_contains($files['open'], "component( 'intro-request-card'"), 'Opportunity board must reuse the one card with the required section copy.');
+$assert(str_contains($files['open'], 'در حال حاضر درخواست بدون پاسخی') && str_contains($files['open'], 'سازهایی که تدریس می‌کنید'), 'The board must stay visible when empty and explain the current-instrument rule.');
 $classes_position = strpos($files['shell'], "component( 'classes'");
-$open_position = strpos($files['shell'], "component( 'open-requests'");
+$open_position = false !== $classes_position ? strpos($files['shell'], "component( 'open-requests'", $classes_position) : false;
 $assert(false !== $classes_position && false !== $open_position && $open_position > $classes_position, 'Opportunity board must be at the bottom of the Classes screen.');
+$assert(preg_match("/'settings' === \\\$screen \\).*?component\\( 'open-requests'/s", $files['shell']) === 1, 'The Teacher account screen must expose the same opportunity board.');
 $assert(!str_contains($files['home'], "component( 'open-requests'"), 'Opportunity board must not be duplicated on the home screen.');
 $assert(str_contains($files['css'], 'dzn-tp-intro-card.is-opportunity') && str_contains($files['css'], 'dzn-color-warning') && str_contains($files['css'], 'dzn-tp-preference--outside'), 'Opportunity cards need a yellow highlight and yellow outside-availability rows.');
 

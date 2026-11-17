@@ -30,3 +30,4 @@ $renewal = file_get_contents($root . '/src/Core/Application/RenewalAutomationNot
 $payment = file_get_contents($root . '/src/Core/Application/PaymentRefundNotificationService.php');
 $fail('teacher SMS falls back to the teacher WhatsApp number', str_contains($lessonLifecycle, "t.whatsapp_phone teacher_whatsapp") && str_contains($lessonLifecycle, "(\$row['teacher_whatsapp']"));
 $fail('student WhatsApp falls back to the student mobile', str_contains($lessonLifecycle, "(\$row['student_phone']") && str_contains($renewal, "(\$row['student_phone']") && str_contains($payment, "(\$row['student_phone']"));
+$fail('one stored number fills the phone/WhatsApp pair everywhere', str_contains($lessonLifecycle, 'PhoneNumberNormalizer::pair') && str_contains($renewal, 'PhoneNumberNormalizer::pair') && str_contains($payment, 'PhoneNumberNormalizer::pair') && str_contains($mobile, 'PhoneNumberNormalizer::pair'));

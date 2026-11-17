@@ -1545,11 +1545,12 @@ function dzn_theme_platform_student_model( $screen ) {
 		return $model;
 	}
 	if ( 'account' === $screen ) {
+		$student_contact = \Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer::pair( (string) ( $student_profile['mobile'] ?? '' ), (string) ( $student_profile['whatsapp_phone'] ?? '' ) );
 		$model['profile'] = array(
 			'full_name' => (string) ( $student_profile['full_name'] ?? $identity['full_name'] ),
 			'email' => (string) ( $student_profile['email'] ?? $identity['email'] ),
-			'mobile' => (string) ( $student_profile['mobile'] ?? '' ),
-			'whatsapp_phone' => (string) ( $student_profile['whatsapp_phone'] ?? '' ),
+			'mobile' => $student_contact['phone'],
+			'whatsapp_phone' => $student_contact['whatsapp'],
 			'timezone_label' => dzn_theme_platform_timezone_label( $student_timezone ),
 			'timezone' => $student_timezone,
 			'password_url' => wp_lostpassword_url(),
@@ -2367,6 +2368,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				'state' => (string) $rule['state'], 'booked' => '',
 			);
 		}, $onboarding_rules );
+		$onboarding_contact = \Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer::pair( (string) ( $onboarding['profile']['phone'] ?? '' ), (string) ( $onboarding['profile']['whatsapp_phone'] ?? '' ) );
 		return array(
 			'available' => true, 'screen' => 'onboarding', 'source' => 'platform',
 			'teacher' => array( 'first_name' => (string) ( $parts[0] ?? $name ), 'full_name' => $name ),
@@ -2378,7 +2380,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'profile' => array(
 				'name' => (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] ), 'persian_name' => (string) ( $onboarding['profile']['persian_name'] ?? '' ),
 				'english_name' => (string) ( $onboarding['profile']['english_name'] ?? '' ), 'email' => (string) ( $onboarding['profile']['email'] ?? $identity['email'] ),
-				'mobile' => (string) ( $onboarding['profile']['phone'] ?? '' ), 'whatsapp_phone' => (string) ( $onboarding['profile']['whatsapp_phone'] ?? '' ),
+				'mobile' => $onboarding_contact['phone'], 'whatsapp_phone' => $onboarding_contact['whatsapp'],
 				'country_code' => (string) ( $onboarding['profile']['country_code'] ?? '' ) ?: 'IR', 'city' => (string) ( $onboarding['profile']['city'] ?? '' ),
 				'locale' => $onboarding_locale, 'timezone' => $onboarding_timezone, 'timezone_label' => dzn_theme_platform_timezone_label( $onboarding_timezone ),
 				'calendar' => $onboarding_calendar, 'calendar_preference' => $stored_calendar_preference ?: 'persian',
@@ -2514,13 +2516,14 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			dzn_theme_platform_teacher_booked_bands( $all_scheduled_classes, $teacher_timezone )
 		);
 		$induction_hub = dzn_theme_platform_teacher_induction_hub();
+		$onboarding_contact = \Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer::pair( (string) ( $onboarding['profile']['phone'] ?? '' ), (string) ( $onboarding['profile']['whatsapp_phone'] ?? '' ) );
 		return array(
 			'available' => true, 'screen' => $screen, 'source' => 'platform',
 			'teacher' => array( 'first_name' => $teacher_first_name, 'full_name' => $teacher_name ), 'navigation' => $nav,
 			'induction' => $induction_hub,
 			'induction_hub_url' => dzn_theme_platform_teacher_induction_url(),
 			'induction_continue_url' => dzn_theme_platform_teacher_induction_url( (string) ( is_array( $induction_hub ) ? ( $induction_hub['next_module_id'] ?? '' ) : '' ) ),
-			'profile' => array( 'name' => (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] ), 'persian_name' => (string) ( $onboarding['profile']['persian_name'] ?? '' ), 'english_name' => (string) ( $onboarding['profile']['english_name'] ?? '' ), 'email' => (string) ( $onboarding['profile']['email'] ?? $identity['email'] ), 'mobile' => (string) ( $onboarding['profile']['phone'] ?? '' ), 'whatsapp_phone' => (string) ( $onboarding['profile']['whatsapp_phone'] ?? '' ), 'country_code' => (string) ( $onboarding['profile']['country_code'] ?? '' ), 'city' => (string) ( $onboarding['profile']['city'] ?? '' ), 'locale' => (string) ( $onboarding['profile']['locale'] ?? 'fa_IR' ), 'timezone' => (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' ), 'timezone_label' => dzn_theme_platform_timezone_label( (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' ) ), 'calendar' => in_array( (string) ( $onboarding['profile']['calendar_preference'] ?? '' ), array( 'auto', 'gregorian', 'persian' ), true ) ? (string) $onboarding['profile']['calendar_preference'] : 'auto' ),
+			'profile' => array( 'name' => (string) ( $onboarding['profile']['display_name'] ?? $identity['full_name'] ), 'persian_name' => (string) ( $onboarding['profile']['persian_name'] ?? '' ), 'english_name' => (string) ( $onboarding['profile']['english_name'] ?? '' ), 'email' => (string) ( $onboarding['profile']['email'] ?? $identity['email'] ), 'mobile' => $onboarding_contact['phone'], 'whatsapp_phone' => $onboarding_contact['whatsapp'], 'country_code' => (string) ( $onboarding['profile']['country_code'] ?? '' ), 'city' => (string) ( $onboarding['profile']['city'] ?? '' ), 'locale' => (string) ( $onboarding['profile']['locale'] ?? 'fa_IR' ), 'timezone' => (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' ), 'timezone_label' => dzn_theme_platform_timezone_label( (string) ( $onboarding['profile']['timezone'] ?? wp_timezone_string() ?: 'UTC' ) ), 'calendar' => in_array( (string) ( $onboarding['profile']['calendar_preference'] ?? '' ), array( 'auto', 'gregorian', 'persian' ), true ) ? (string) $onboarding['profile']['calendar_preference'] : 'auto' ),
 			'profile_edit_action' => admin_url( 'admin-post.php?action=dzn_teacher_onboarding_profile' ),
 			'golden_bonus' => (array) ( $availability_summary['golden'] ?? $golden_bonus ),
 			'availability_summary' => $availability_summary,

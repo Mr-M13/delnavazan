@@ -10,6 +10,23 @@ namespace Delnavazan\Platform\Integrations\Notifications;
  * destination.
  */
 final class PhoneNumberNormalizer {
+    /**
+     * Resolve the phone/WhatsApp pair for one contact.
+     *
+     * When only one number is recorded it is the same reachable mobile for both channels; when both
+     * are present they are kept exactly as recorded (including two deliberately different numbers).
+     *
+     * @return array{phone:string,whatsapp:string}
+     */
+    public static function pair(?string $phone, ?string $whatsapp): array {
+        $phone=trim((string)$phone);
+        $whatsapp=trim((string)$whatsapp);
+        if($phone!==''&&$whatsapp!=='')return array('phone'=>$phone,'whatsapp'=>$whatsapp);
+        if($phone===''&&$whatsapp!=='')return array('phone'=>$whatsapp,'whatsapp'=>$whatsapp);
+        if($whatsapp===''&&$phone!=='')return array('phone'=>$phone,'whatsapp'=>$phone);
+        return array('phone'=>'','whatsapp'=>'');
+    }
+
     public static function toE164(string $value,string $defaultCountry='IR'):string{
         $value=trim($value);
         if($value==='')return '';

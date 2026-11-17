@@ -690,6 +690,34 @@ body.dzn-admin-page .nav-tab-active:hover {
   font-weight: 600;
 }
 
+/* Needs Attention inbox */
+.dzn-attention-group {
+  display: grid;
+  gap: 10px;
+  margin-block-start: 16px;
+}
+
+.dzn-attention-group:first-of-type {
+  margin-block-start: 0;
+}
+
+.dzn-attention-group__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--dzn-teal-deep);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.dzn-attention-group__title .dzn-badge {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 /* Pipeline */
 .dzn-pipeline {
   display: grid;

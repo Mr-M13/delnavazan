@@ -34,6 +34,8 @@ $contains($dashboard, array(
     'Coverage Clock',
     'scheduledIntroClasses',
     'pendingActions',
+    'attentionAreas',
+    'dzn-attention-group',
     "AcademyDashboardScreen::shows('coverage')",
     'AcademyCoverageController::renderAtlas',
 ), 'The streamlined Overview must expose its retained operational sections.');

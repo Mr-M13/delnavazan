@@ -57,7 +57,7 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
     public function acceptedProvisioningForTeacher(int $teacherId, int $limit = 20): array {
         global $wpdb;
         $limit = max(1, min(50, $limit));
-        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.state confirmation_state,
+        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.version confirmation_version,c.state confirmation_state,
                        c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.failure_reason_code,
                        c.attempt_count,c.next_attempt_at,c.updated_at confirmation_updated_at,
                        d.id delivery_id,d.state delivery_state,
@@ -168,7 +168,7 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
         if ($window) { $args[] = $fromUtc; if ( null !== $toUtc ) $args[] = $toUtc; }
         $limitSql = $limit > 0 ? ' LIMIT %d' : '';
         if ( $limit > 0 ) $args[] = $limit;
-        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.state confirmation_state,
+        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.version confirmation_version,c.state confirmation_state,
                        c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.provider_code,
                        c.provider_event_digest,c.confirmed_at,
                        d.teacher_id delivery_teacher_id,d.state delivery_state,
@@ -214,7 +214,7 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
     public function confirmedUpcomingForStudent(int $studentId, int $limit = 50): array {
         global $wpdb;
         $limit = max(1, min(80, $limit));
-        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.state confirmation_state,
+        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.version confirmation_version,c.state confirmation_state,
                        c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.provider_code,
                        c.provider_event_digest,c.confirmed_at,
                        d.teacher_id delivery_teacher_id,d.state delivery_state,
@@ -272,7 +272,7 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
     public function confirmedUpcomingForOperator(int $limit = 80): array {
         global $wpdb;
         $limit = max(1, min(80, $limit));
-        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.state confirmation_state,
+        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.version confirmation_version,c.state confirmation_state,
                        c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.local_wall_date,c.local_wall_time,
                        c.provider_code,c.confirmed_at,
                        d.state delivery_state,r.id booking_request_id,r.student_id,
@@ -404,7 +404,7 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
         $identity = $role === 'student'
             ? " INNER JOIN {$this->prefix}booking_request_identity_resolution_events identity ON identity.id=r.current_identity_resolution_id AND identity.booking_request_id=r.id AND identity.student_id=r.student_id AND identity.outcome='resolved'"
             : '';
-        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.state confirmation_state,
+        $sql = "SELECT c.id confirmation_id,c.uid confirmation_uid,c.teacher_id,c.version confirmation_version,c.state confirmation_state,
                        c.starts_at_utc,c.ends_at_utc,c.provider_code,c.provider_event_digest,c.confirmed_at,
                        d.teacher_id delivery_teacher_id,d.state delivery_state,
                        r.student_id,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,

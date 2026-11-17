@@ -59,6 +59,8 @@ if ( 'persian' === $calendar && $jalali_year < 1300 ) {
 			<form method="post" action="<?php echo esc_url( (string) ( $item['intro_reschedule_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit>
 				<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['intro_reschedule_nonce'] ?? '' ) ); ?>">
 				<input type="hidden" name="confirmation_uid" value="<?php echo esc_attr( (string) ( $item['confirmation_uid'] ?? '' ) ); ?>">
+				<input type="hidden" name="expected_confirmation_id" value="<?php echo esc_attr( (string) (int) ( $item['confirmation_id'] ?? 0 ) ); ?>">
+				<input type="hidden" name="expected_confirmation_version" value="<?php echo esc_attr( (string) (int) ( $item['confirmation_version'] ?? 0 ) ); ?>">
 				<input type="hidden" name="reason_code" value="teacher_requested">
 				<input type="hidden" name="command_key" value="<?php echo esc_attr( wp_generate_uuid4() ); ?>">
 				<input type="hidden" name="calendar" value="<?php echo esc_attr( $calendar ); ?>">

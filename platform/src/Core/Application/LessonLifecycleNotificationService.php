@@ -288,6 +288,7 @@ final class LessonLifecycleNotificationService {
      */
     private function sms(string $eventKey,array $row,array $variables,?int $notificationId,string $audience):array{
         $phone=trim((string)($audience==='student'?($row['student_phone']??''):($row['phone']??'')));
+        if($phone==='')$phone=trim((string)($audience==='student'?($row['student_whatsapp']??''):($row['teacher_whatsapp']??'')));
         if($phone==='')return array('state'=>'skipped','reason'=>'no_phone');
         $country=strtoupper(trim((string)($audience==='student'?($row['student_country_code']??''):($row['country_code']??''))));
         $e164=PhoneNumberNormalizer::toE164($phone,$country!==''?$country:'IR');
@@ -319,6 +320,7 @@ final class LessonLifecycleNotificationService {
      */
     private function whatsapp(string $eventKey,array $row,array $variables,?int $notificationId):array{
         $phone=trim((string)($row['student_whatsapp']??''));
+        if($phone==='')$phone=trim((string)($row['student_phone']??''));
         if($phone==='')return array('state'=>'skipped','reason'=>'no_whatsapp_phone');
         $country=strtoupper(trim((string)($row['student_country_code']??'')));
         $e164=PhoneNumberNormalizer::toE164($phone,$country!==''?$country:'IR');
@@ -371,6 +373,7 @@ final class LessonLifecycleNotificationService {
         $row=$wpdb->get_row($wpdb->prepare(
             "SELECT l.teacher_id,l.student_id,l.lifecycle_state,
                     t.email,t.phone,t.country_code,t.timezone teacher_timezone,
+                    t.whatsapp_phone teacher_whatsapp,
                     COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name,'') teacher_name,
                     s.email student_email,s.phone student_phone,s.whatsapp_phone student_whatsapp,
                     s.country_code student_country_code,s.timezone student_timezone,
@@ -393,6 +396,7 @@ final class LessonLifecycleNotificationService {
             'lifecycle_state'=>(string)$row->lifecycle_state,
             'email'=>trim((string)($row->email??'')),
             'phone'=>trim((string)($row->phone??'')),
+            'teacher_whatsapp'=>trim((string)($row->teacher_whatsapp??'')),
             'country_code'=>trim((string)($row->country_code??'')),
             'teacher_name'=>trim((string)($row->teacher_name??'')),
             'student_name'=>trim((string)($row->student_name??'')),

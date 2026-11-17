@@ -246,6 +246,7 @@ final class RenewalAutomationNotificationService {
      */
     private function whatsapp(string $eventKey,array $row,array $variables,?int $notificationId):array{
         $phone=trim((string)($row['student_whatsapp']??''));
+        if($phone==='')$phone=trim((string)($row['student_phone']??''));
         if($phone==='')return array('state'=>'skipped','reason'=>'no_whatsapp_phone');
         $country=strtoupper(trim((string)($row['student_country_code']??'')));
         $e164=PhoneNumberNormalizer::toE164($phone,$country!==''?$country:'IR');

@@ -300,9 +300,62 @@ final class TeacherWorkspaceReadService {
         global $wpdb;
         $p = $wpdb->prefix . 'dzn_';
         $profile = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}teacher_availability_profiles WHERE teacher_id=%d", $teacherId));
-        $rules = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$p}teacher_availability_rules WHERE teacher_id=%d AND status='active' ORDER BY weekday,local_start_time,id", $teacherId)) ?: array();
+        $rules = $wpdb->get_results($wpdb->prepare(
+            "SELECT r.*,COALESCE(NULLIF(i.name_en,''),NULLIF(i.name_fa,''),'') instrument_name
+             FROM {$p}teacher_availability_rules r
+             LEFT JOIN {$p}instruments i ON i.id=r.instrument_id
+             WHERE r.teacher_id=%d AND r.status='active'
+             ORDER BY r.weekday,r.local_start_time,r.id",
+            $teacherId
+        )) ?: array();
         $exceptions = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$p}teacher_availability_exceptions WHERE teacher_id=%d AND status='active' ORDER BY local_date,local_start_time,id", $teacherId)) ?: array();
-        return array('profile' => $profile, 'rules' => $rules, 'exceptions' => $exceptions, 'golden' => $this->goldenCoverage($teacherId, $profile ? (string) $profile->timezone : null));
+        $weekly = $this->weeklyAvailability($rules);
+        return array(
+            'profile' => $profile,
+            'rules' => $rules,
+            'exceptions' => $exceptions,
+            'golden' => $this->goldenCoverage($teacherId, $profile ? (string) $profile->timezone : null, $rules),
+            'weekly_minutes' => (int) $weekly['minutes'],
+            'weekly_instrument_count' => (int) $weekly['instrument_count'],
+            'instrument_totals' => (array) $weekly['instruments'],
+        );
+    }
+
+    /**
+     * Union weekly minutes across every instrument. A Teacher can only teach one
+     * class at a time, so overlapping windows on two instruments count once.
+     *
+     * @param list<object> $rules
+     * @return array{minutes:int,instrument_count:int,instruments:list<array{label:string,minutes:int}>}
+     */
+    private function weeklyAvailability(array $rules): array {
+        $schedules = array();
+        $labels = array();
+        foreach ($rules as $rule) {
+            if (!in_array((string) ($rule->state ?? ''), array('preferred', 'requestable'), true)) continue;
+            $weekday = (int) ($rule->weekday ?? 0);
+            $start = TeacherAvailabilityPlanner::minute((string) ($rule->local_start_time ?? ''));
+            $end = TeacherAvailabilityPlanner::minute((string) ($rule->local_end_time ?? ''));
+            if ($weekday < 1 || $weekday > 7 || $start === null || $end === null || $end <= $start) continue;
+            $instrumentId = isset($rule->instrument_id) && $rule->instrument_id !== null ? (int) $rule->instrument_id : 0;
+            $schedules[$instrumentId][$weekday][] = array('start' => $start, 'end' => $end);
+            if (!isset($labels[$instrumentId])) {
+                $name = trim((string) ($rule->instrument_name ?? ''));
+                $labels[$instrumentId] = $instrumentId > 0
+                    ? ($name !== '' ? $name : 'Instrument #' . $instrumentId)
+                    : 'General (all instruments)';
+            }
+        }
+        $instruments = array();
+        foreach ($schedules as $instrumentId => $days) {
+            $instruments[] = array('label' => $labels[$instrumentId], 'minutes' => TeacherAvailabilityPlanner::totalMinutes(TeacherAvailabilityPlanner::unionByWeekday(array($instrumentId => $days))));
+        }
+        usort($instruments, static fn(array $a, array $b): int => strcasecmp((string) $a['label'], (string) $b['label']));
+        return array(
+            'minutes' => TeacherAvailabilityPlanner::totalMinutes(TeacherAvailabilityPlanner::unionByWeekday($schedules)),
+            'instrument_count' => count($schedules),
+            'instruments' => $instruments,
+        );
     }
 
     /** @return list<object> Active and historical course eligibility rows with catalogue labels. */
@@ -627,18 +680,27 @@ final class TeacherWorkspaceReadService {
         if ($rules < 1) return 'No weekly windows';
         $timezone = (string) ($row->availability_timezone ?: $row->timezone ?: '');
         $summary = trim((string) ($row->stats['availability_summary'] ?? ''));
-        return ($summary !== '' ? $summary : number_format_i18n($rules) . ' window' . ($rules === 1 ? '' : 's')) . ($timezone !== '' ? ' · ' . $timezone : '');
+        $minutes = (int) ($row->stats['weekly_minutes'] ?? 0);
+        $instruments = (int) ($row->stats['availability_instrument_count'] ?? 0);
+        $head = $minutes > 0 ? $this->durationLabel($minutes) . '/week' : '';
+        if ($instruments > 0) $head = trim($head . ' · ' . $instruments . ' instrument' . ($instruments === 1 ? '' : 's'), ' ·');
+        return trim($head . ($summary !== '' ? ' · ' . $summary : '') . ($timezone !== '' ? ' · ' . $timezone : ''));
     }
 
-    /** @return array<string,mixed> */
-    private function goldenCoverage(int $teacherId, ?string $timezone): array {
-        $fallback = array('minutes' => 0, 'minutes_label' => '0m', 'label' => 'Not available', 'windows' => array(), 'state' => 'unavailable', 'percentage_label' => '0');
+    /**
+     * @param list<object>|null $rules
+     * @return array<string,mixed>
+     */
+    private function goldenCoverage(int $teacherId, ?string $timezone, ?array $rules = null): array {
+        $fallback = array('minutes' => 0, 'minutes_label' => '0m', 'label' => 'Not available', 'windows' => array(), 'instrument_windows' => array(), 'state' => 'unavailable', 'percentage_label' => '0');
         if (($timezone ?? '') === '') return $fallback;
         try {
             $policy = (new GoldenHourPolicyService())->resolveAt(GoldenHourRule::GLOBAL_IRAN_KEY, gmdate('Y-m-d H:i:s'));
             $projection = GoldenHourTeacherWindowProjection::forPolicy($policy, (string) $timezone, new \DateTimeImmutable('today', new \DateTimeZone((string) $timezone)), 7, true);
-            global $wpdb;
-            $rules = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->prefix}dzn_teacher_availability_rules WHERE teacher_id=%d AND status='active' AND state IN ('preferred','requestable') ORDER BY weekday,local_start_time", $teacherId)) ?: array();
+            if ($rules === null) {
+                global $wpdb;
+                $rules = $wpdb->get_results($wpdb->prepare("SELECT r.*,COALESCE(NULLIF(i.name_en,''),NULLIF(i.name_fa,''),'') instrument_name FROM {$wpdb->prefix}dzn_teacher_availability_rules r LEFT JOIN {$wpdb->prefix}dzn_instruments i ON i.id=r.instrument_id WHERE r.teacher_id=%d AND r.status='active' AND r.state IN ('preferred','requestable') ORDER BY r.weekday,r.local_start_time", $teacherId)) ?: array();
+            }
             $summary = TeacherAvailabilitySummary::build($rules, $projection);
             $windows = array();
             $weekdayLabels = array(1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun');
@@ -655,12 +717,49 @@ final class TeacherWorkspaceReadService {
                 'minutes_label' => $this->durationLabel($minutes),
                 'label' => $minutes > 0 ? $this->durationLabel($minutes) . ' selected this week' : 'No golden-hour overlap',
                 'windows' => array_slice($windows, 0, 6),
+                'instrument_windows' => array_slice($this->goldenInstrumentWindows($rules, $projection, $weekdayLabels), 0, 12),
                 'state' => (string) ($projection['state'] ?? 'unavailable'),
                 'percentage_label' => (string) ($projection['percentage_label'] ?? '0'),
             );
         } catch (\Throwable) {
             return $fallback;
         }
+    }
+
+    /**
+     * Golden-hour overlap per instrument, so the admin can tell which instrument
+     * an availability window belongs to when a Teacher teaches several.
+     *
+     * @param list<object> $rules
+     * @param array<string,mixed> $projection
+     * @param array<int,string> $weekdayLabels
+     * @return list<string>
+     */
+    private function goldenInstrumentWindows(array $rules, array $projection, array $weekdayLabels): array {
+        $groups = array();
+        $labels = array();
+        foreach ($rules as $rule) {
+            if (!isset($rule->state) || !in_array((string) $rule->state, array('preferred', 'requestable'), true)) continue;
+            $instrumentId = isset($rule->instrument_id) && $rule->instrument_id !== null ? (int) $rule->instrument_id : 0;
+            $groups[$instrumentId][] = $rule;
+            if (!isset($labels[$instrumentId])) {
+                $name = trim((string) ($rule->instrument_name ?? ''));
+                $labels[$instrumentId] = $instrumentId > 0
+                    ? ($name !== '' ? $name : 'Instrument #' . $instrumentId)
+                    : 'General (all instruments)';
+            }
+        }
+        $windows = array();
+        foreach ($groups as $instrumentId => $instrumentRules) {
+            $summary = TeacherAvailabilitySummary::build($instrumentRules, $projection);
+            foreach ((array) ($summary['golden']['days'] ?? array()) as $day) {
+                foreach ((array) ($day['intervals'] ?? array()) as $interval) {
+                    if ((int) ($interval['selected_minutes'] ?? 0) < 1) continue;
+                    $windows[] = $labels[$instrumentId] . ': ' . ($weekdayLabels[(int) ($day['weekday'] ?? 0)] ?? 'Day') . ' ' . (string) ($interval['label'] ?? '');
+                }
+            }
+        }
+        return array_values(array_unique($windows));
     }
 
     /** @return array{teachers:array<int,array<string,mixed>>,payment:array<int,array<string,mixed>>} */
@@ -697,14 +796,38 @@ final class TeacherWorkspaceReadService {
         ) ?: array();
         foreach ($availability as $row) $teachers[(int) $row->teacher_id]['availability_rules'] = (int) $row->rules;
         $ruleRows = $wpdb->get_results(
-            "SELECT teacher_id,weekday,local_start_time,local_end_time FROM {$p}teacher_availability_rules WHERE teacher_id IN ({$marks}) AND status='active' AND state IN ('preferred','requestable') ORDER BY teacher_id,weekday,local_start_time"
+            "SELECT r.teacher_id,r.weekday,r.local_start_time,r.local_end_time,r.instrument_id,
+                    COALESCE(NULLIF(i.name_en,''),NULLIF(i.name_fa,''),'') instrument_name
+             FROM {$p}teacher_availability_rules r
+             LEFT JOIN {$p}instruments i ON i.id=r.instrument_id
+             WHERE r.teacher_id IN ({$marks}) AND r.status='active' AND r.state IN ('preferred','requestable')
+             ORDER BY r.teacher_id,r.weekday,r.local_start_time"
         ) ?: array();
         $summaryParts = array();
+        $ruleSchedules = array();
         $weekdayShort = array(1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun');
         foreach ($ruleRows as $rule) {
-            $summaryParts[(int) $rule->teacher_id][] = ($weekdayShort[(int) $rule->weekday] ?? 'Day') . ' ' . substr((string) $rule->local_start_time, 0, 5) . '–' . substr((string) $rule->local_end_time, 0, 5);
+            $teacherId = (int) $rule->teacher_id;
+            $weekday = (int) $rule->weekday;
+            $start = TeacherAvailabilityPlanner::minute((string) $rule->local_start_time);
+            $end = TeacherAvailabilityPlanner::minute((string) $rule->local_end_time);
+            if ($weekday < 1 || $weekday > 7 || $start === null || $end === null || $end <= $start) continue;
+            $instrumentId = isset($rule->instrument_id) && $rule->instrument_id !== null ? (int) $rule->instrument_id : 0;
+            $instrumentLabel = $instrumentId > 0
+                ? (trim((string) $rule->instrument_name) !== '' ? trim((string) $rule->instrument_name) : 'Instrument #' . $instrumentId)
+                : 'General';
+            $summaryParts[$teacherId][$instrumentLabel][$weekday . ':' . $start . ':' . $end] = ($weekdayShort[$weekday] ?? 'Day') . ' ' . substr((string) $rule->local_start_time, 0, 5) . '–' . substr((string) $rule->local_end_time, 0, 5);
+            $ruleSchedules[$teacherId][$instrumentId][$weekday][] = array('start' => $start, 'end' => $end);
         }
-        foreach ($summaryParts as $id => $parts) $teachers[$id]['availability_summary'] = implode('; ', array_slice($parts, 0, 6)) . (count($parts) > 6 ? ' +' . (count($parts) - 6) . ' more' : '');
+        foreach ($summaryParts as $id => $byInstrument) {
+            $parts = array();
+            foreach ($byInstrument as $instrumentLabel => $windows) {
+                $parts[] = $instrumentLabel . ': ' . implode(', ', array_slice(array_values($windows), 0, 4));
+            }
+            $teachers[$id]['availability_summary'] = implode('; ', array_slice($parts, 0, 4)) . (count($parts) > 4 ? ' +' . (count($parts) - 4) . ' more' : '');
+            $teachers[$id]['weekly_minutes'] = TeacherAvailabilityPlanner::totalMinutes(TeacherAvailabilityPlanner::unionByWeekday($ruleSchedules[$id] ?? array()));
+            $teachers[$id]['availability_instrument_count'] = count($ruleSchedules[$id] ?? array());
+        }
         $teaching = $wpdb->get_results($wpdb->prepare(
             "SELECT teacher_id,SUM(TIMESTAMPDIFF(MINUTE,occurrence_starts_at_utc,occurrence_ends_at_utc)) minutes
              FROM {$p}canonical_lesson_delivery_outcomes
@@ -848,7 +971,7 @@ final class TeacherWorkspaceReadService {
     /** @return array<string,mixed> */
     private function emptyStats(): array {
         return array(
-            'students' => 0, 'instruments' => '', 'availability_rules' => 0, 'availability_summary' => '', 'teaching_minutes' => 0, 'completed_lessons_month' => 0,
+            'students' => 0, 'instruments' => '', 'availability_rules' => 0, 'availability_summary' => '', 'weekly_minutes' => 0, 'availability_instrument_count' => 0, 'teaching_minutes' => 0, 'completed_lessons_month' => 0,
             'intro' => array('total' => 0, 'converted' => 0, 'pending' => 0, 'unsuccessful' => 0, 'window_days' => self::CONVERSION_WINDOW_DAYS, 'rate_label' => 'Not available', 'rate_value' => null),
             'outstanding_requests' => 0, 'oldest_request' => '', 'pending_reschedules' => 0, 'replacement_lessons' => 0,
             'upcoming' => 0, 'next_lesson_utc' => '', 'last_class_utc' => '', 'response' => $this->emptyResponse(), 'golden_minutes' => 0,

@@ -16,4 +16,9 @@ $interval=$summary['golden']['days'][0]['intervals'][0];
 $assert($interval['partially_selected']===true&&$interval['fully_selected']===false,'A partial Golden Hours overlap must remain visibly distinct.');
 $assert($interval['segments'][0]['selected']===true&&$interval['segments'][0]['label']==='10:00–12:00','The eligible selected portion must be identified exactly.');
 $assert($interval['segments'][1]['selected']===false&&$interval['segments'][1]['label']==='12:00–14:00','The unselected Golden Hours portion must remain explicit.');
+$overlap=TeacherAvailabilitySummary::build(array(
+ array('weekday'=>2,'local_start_time'=>'10:00:00','local_end_time'=>'12:00:00','state'=>'preferred'),
+ array('weekday'=>2,'local_start_time'=>'11:00:00','local_end_time'=>'13:00:00','state'=>'preferred'),
+),array());
+$assert($overlap['weekly_minutes']===180,'Overlapping windows across instruments must count once in weekly capacity.');
 echo "teacher-availability-summary-unit: OK\n";

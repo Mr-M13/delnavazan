@@ -9,7 +9,7 @@ final class TeacherAvailabilitySummary {
      * @return array<string,mixed>
      */
     public static function build(array $rules,array $golden):array{
-        $selected=[];$weeklyMinutes=0;
+        $selected=[];
         foreach($rules as$rule){
             $row=is_object($rule)?get_object_vars($rule):$rule;
             $state=(string)($row['state']??'');
@@ -17,9 +17,12 @@ final class TeacherAvailabilitySummary {
             $weekday=(int)($row['weekday']??0);$start=self::minute((string)($row['local_start_time']??$row['start']??''));$end=self::minute((string)($row['local_end_time']??$row['end']??''));
             if($weekday<1||$weekday>7||$start===null||$end===null||$end<=$start)continue;
             $selected[$weekday][]=array('start'=>$start,'end'=>$end);
-            $weeklyMinutes+=$end-$start;
         }
-        foreach($selected as$weekday=>$intervals)$selected[$weekday]=self::merge($intervals);
+        $weeklyMinutes=0;
+        foreach($selected as$weekday=>$intervals){
+            $selected[$weekday]=self::merge($intervals);
+            foreach($selected[$weekday]as$interval)$weeklyMinutes+=$interval['end']-$interval['start'];
+        }
 
         $goldenMinutes=0;$days=[];
         foreach((array)($golden['days']??array())as$day){

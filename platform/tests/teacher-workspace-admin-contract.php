@@ -108,6 +108,8 @@ $contains($academy, array("AcademyDashboardScreen::shows('coverage')", 'AcademyC
 $contains($dashboard, array("'coverage' => 'Coverage Clock'"), 'Golden-hour coverage must be a Screen Options section on Overview.');
 $expect(!str_contains($screen, 'teacherCoverage'), 'The Teachers administration route must not render the academy-wide coverage atlas.');
 $contains($view, array('Golden-hour coverage', 'Selected golden-hour windows'), 'Each Teacher profile must retain individual golden-hour coverage.');
+$contains($view, array('Weekly availability by instrument', 'Instrument</th>', 'All instruments (general)'), 'Each weekly window must say which instrument it belongs to and the total must distinguish per-instrument hours.');
+$contains($service, array('weeklyAvailability', 'goldenInstrumentWindows', 'availability_instrument_count'), 'The admin read model must union overlapping instrument windows and label golden-hour coverage by instrument.');
 
 // The invitation phone is an optional SMS convenience, never an onboarding gate.
 // Email-only issuance must stay available on the invite form, the profile resend and the

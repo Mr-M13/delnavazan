@@ -7,8 +7,9 @@
  * portal consumes.
  */
 if(getenv('DZN_PROMOTION_APPLICATION_RUNTIME_TEST')!=='authority'||!defined('WP_CLI')||!WP_CLI||!in_array(wp_get_environment_type(),array('local','development'),true)){fwrite(STDERR,"Promotion application runtime refused.\n");exit(1);}
-use Delnavazan\Platform\Core\Application\{CanonicalContinuationService,CommercialCatalogueService,CommercialOfferService,CommercialPaymentService,CommercialPromotionService,CommercialTermFundingService,LessonScheduleService,LessonService,TeacherAvailabilityService};
+use Delnavazan\Platform\Core\Application\{CanonicalContinuationService,CommercialCatalogueService,CommercialCommitmentValidator,CommercialOfferService,CommercialPaymentService,CommercialPromotionService,CommercialTermFundingService,LessonScheduleService,LessonService,TeacherAvailabilityService};
 use Delnavazan\Platform\Core\Application\Checkout\StudentCommercialCheckoutReadService;
+use Delnavazan\Platform\Core\Infrastructure\Repository\CommercialAuthorityRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
 global $wpdb;$p=$wpdb->prefix.'dzn_';
 function dzn_promo_assert(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);}
@@ -304,6 +305,17 @@ dzn_promo_assert($freeEvidence!==null&&(string)$freeEvidence->evidence_kind==='p
 dzn_promo_assert($freePurchase!==null&&(int)$freePurchase->amount_minor===0,'zero-value settlement must create a zero-value purchase');
 dzn_promo_assert($freeRedemption!==null&&(string)$freeRedemption->state==='consumed'&&(int)$freeRedemption->promotion_id===(int)$free['promotion_id'],'zero-value settlement must consume exactly one promotion redemption');
 dzn_promo_assert((int)(new CommercialTermFundingService())->effectiveSessions((int)$appliedF['offer_id'])===12,'zero-value settlement must make all 12 sessions effective');
+// The commitment gate that every downstream mutation proves must accept the internal zero-value
+// settlement exactly like a provider charge. Without this, a 100% discounted post-intro offer can
+// be issued, settled and jobbed, yet activation refuses with
+// commercial_commitment_integrity_conflict and recovery with commercial_evidence_not_repairable.
+$freeEntitlement=(new CommercialAuthorityRepository())->entitlementForPurchase((int)$freePurchase->id);
+dzn_promo_assert($freeEntitlement!==null,'zero-value settlement must mint the entitlement for its purchase');
+$freeCommitment=CommercialCommitmentValidator::assertForEntitlement($freeEntitlement,CommercialCommitmentValidator::STATES_PRE_CAPACITY);
+dzn_promo_assert((int)$freeCommitment['offer']->amount_due_minor===0
+    && (int)$freeCommitment['purchase']->amount_minor===0
+    && (int)$freeEntitlement->session_count===(int)$freeCommitment['offer']->committed_sessions,
+    'the zero-value commitment must prove the complete purchase → offer → settlement chain');
 $freePreparation=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}post_intro_preparations WHERE id=%d",$preparationF));
 $freeJob=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}post_intro_activation_jobs WHERE purchase_id=%d",(int)$freePurchase->id));
 dzn_promo_assert($freePreparation!==null&&(int)$freePreparation->offer_id===(int)$appliedF['offer_id']&&(string)$freePreparation->state==='payment_received','the 100% path must keep the post-intro preparation on the live offer');

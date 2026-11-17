@@ -57,4 +57,17 @@ $assert(str_contains($payment, '!$benefitsConsumed'), 'Commercial benefits must 
 $assert(str_contains($rule, "INTERNAL_EVIDENCE_KINDS=array('promotion')"), 'Internal promotion evidence must be a controlled kind.');
 $assert(str_contains($validator, "\$kind!=='promotion'"), 'Only internal promotion evidence may carry a zero amount.');
 
+/*
+ * The zero-value settlement is a complete commitment. It must pass the same acceptance proof as a
+ * provider charge, and the evidence timeline repair must recognise it; otherwise a 100% discounted
+ * post-intro offer is settled, jobbed and then refused at activation with
+ * `commercial_commitment_integrity_conflict` and at recovery with
+ * `commercial_evidence_not_repairable`.
+ */
+$commitment = $read('src/Core/Application/CommercialCommitmentValidator.php');
+$assert(str_contains($commitment, "array('success','promotion')"), 'The acceptance evidence proof must accept the internal zero-value promotion settlement.');
+$assert(str_contains($commitment, "(string)\$evidence->provider_key!=='platform'"), 'A promotion acceptance fact must be bound to the internal provider.');
+$assert(str_contains($commitment, "(int)\$evidence->amount_minor!==0"), 'A promotion acceptance fact must be exactly zero.');
+$assert(str_contains($payment, "evidence_kind==='promotion'") && str_contains($payment, "'platform'"), 'The evidence timeline repair must recognise the internal zero-value promotion settlement.');
+
 echo "Promotion administration contract passed\n";

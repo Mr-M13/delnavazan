@@ -150,11 +150,12 @@ final class CommercialCommitmentValidator {
     /**
      * The complete acceptance-fact chain that minted the purchase.
      *
-     * `purchase.first_evidence_id` must be the exact successful provider evidence that settled the
+     * `purchase.first_evidence_id` must be the exact accepted evidence that settled the
      * obligation the purchase was accepted against — not merely an intrinsically valid accepted row —
      * and that evidence must still be backed by its exact obligation settlement and its exact payment
      * fact, with amount, currency and occurrence agreeing across the three stored representations and
-     * with the purchase's recorded acceptance instant.
+     * with the purchase's recorded acceptance instant. Provider charges present `success` evidence;
+     * a fully discounted offer presents the internal zero-value `promotion` fact.
      *
      * (The first acceptance writes its evidence row before the purchase exists, so a null purchase link
      * on that row is legitimate; any other purchase link is corruption.)
@@ -164,8 +165,13 @@ final class CommercialCommitmentValidator {
         if($evidenceId<1)throw new \InvalidArgumentException($conflict);
         $evidence=$payments->evidence($evidenceId,$lock);
         if(!$evidence||!CommercialValidator::evidenceValid($evidence))throw new \InvalidArgumentException($conflict);
-        // Only a successful, accepted evidence fact can mint an accepted purchase.
-        if((string)$evidence->evidence_kind!=='success')throw new \InvalidArgumentException($conflict);
+        // A provider charge mints the purchase through accepted `success` evidence. A fully
+        // discounted offer mints it through the internal zero-value `promotion` fact written by
+        // settleZeroValueOffer(); that fact is a complete settlement of its obligation and must
+        // pass the same identity proof, or a 100% discount can never activate an enrolment.
+        $evidenceKind=(string)$evidence->evidence_kind;
+        if(!in_array($evidenceKind,array('success','promotion'),true))throw new \InvalidArgumentException($conflict);
+        if($evidenceKind==='promotion'&&((int)$evidence->amount_minor!==0||(string)$evidence->provider_key!=='platform'))throw new \InvalidArgumentException($conflict);
         if((string)$evidence->processing_state!=='accepted')throw new \InvalidArgumentException($conflict);
         if($evidence->offer_id===null||(int)$evidence->offer_id!==(int)$offer->id)throw new \InvalidArgumentException($conflict);
         if($evidence->purchase_id!==null&&(int)$evidence->purchase_id!==(int)$purchase->id)throw new \InvalidArgumentException($conflict);

@@ -358,7 +358,12 @@ final class CommercialPaymentService {
             if($winner=$this->repository->command($digest)){$result=$this->replay($winner,$payload);$this->repository->commit();return $result;}
             $evidence=$this->payments->evidence($evidenceId,true);
             if(!$evidence||!CommercialValidator::evidenceValid($evidence))throw new \InvalidArgumentException('commercial_evidence_required');
-            if((string)$evidence->processing_state!=='accepted'||(string)$evidence->evidence_kind!=='success'
+            // The timeline repair applies to the two accepted settlement presentations: a provider
+            // `success` charge and the internal zero-value `promotion` fact of a fully discounted
+            // offer. Anything else is a different fact and must not be rewritten.
+            $repairableKind=(string)$evidence->evidence_kind==='success'
+                ||((string)$evidence->evidence_kind==='promotion'&&(int)$evidence->amount_minor===0&&(string)$evidence->provider_key==='platform');
+            if((string)$evidence->processing_state!=='accepted'||!$repairableKind
                 ||$evidence->obligation_id===null||$evidence->offer_id===null)throw new \InvalidArgumentException('commercial_evidence_not_repairable');
             $obligation=$this->repository->obligation((int)$evidence->obligation_id,true);
             $offer=$this->repository->offer((int)$evidence->offer_id,true);

@@ -860,7 +860,10 @@ final class TeacherWorkspaceReadService {
     }
 
     private function displayName(object $teacher): string {
-        foreach (array('display_name', 'english_name', 'persian_name') as $field) {
+        // The Persian name is the name the academy uses for a Teacher, so it is the display label.
+        // `display_name` is derived from it on save; the remaining fields are safe fallbacks for an
+        // English-only profile or a row written before that rule existed.
+        foreach (array('persian_name', 'display_name', 'english_name') as $field) {
             $value = trim((string) ($teacher->{$field} ?? ''));
             if ($value !== '') return $value;
         }

@@ -2459,8 +2459,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		if ( ! class_exists( $induction_class ) ) {
 			return dzn_theme_platform_teacher_state_model( $screen, 'error' );
 		}
-		$teacher_name = trim( (string) ( $onboarding['profile']['display_name'] ?? '' ) );
-		if ( '' === $teacher_name ) { $teacher_name = trim( (string) ( $onboarding['profile']['persian_name'] ?? '' ) ); }
+		$teacher_name = trim( (string) ( $onboarding['profile']['persian_name'] ?? '' ) );
+		if ( '' === $teacher_name ) { $teacher_name = trim( (string) ( $onboarding['profile']['display_name'] ?? '' ) ); }
 		if ( '' === $teacher_name ) { $teacher_name = (string) $identity['full_name']; }
 		$teacher_parts = preg_split( '/\\s+/u', trim( $teacher_name ) );
 		try {
@@ -2484,8 +2484,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	if ( ! in_array( $teacher_timezone, timezone_identifiers_list(), true ) ) { $teacher_timezone = wp_timezone_string() ?: 'UTC'; }
 	$teacher_locale = (string) ( $onboarding['profile']['locale'] ?? 'fa_IR' );
 	$teacher_calendar = dzn_theme_platform_calendar_preference( $onboarding['profile']['calendar_preference'] ?? '', $teacher_locale );
-	$teacher_name = trim( (string) ( $onboarding['profile']['display_name'] ?? '' ) );
-	if ( '' === $teacher_name ) { $teacher_name = trim( (string) ( $onboarding['profile']['persian_name'] ?? '' ) ); }
+	$teacher_name = trim( (string) ( $onboarding['profile']['persian_name'] ?? '' ) );
+	if ( '' === $teacher_name ) { $teacher_name = trim( (string) ( $onboarding['profile']['display_name'] ?? '' ) ); }
 	if ( '' === $teacher_name ) { $teacher_name = (string) $identity['full_name']; }
 	$teacher_name_parts = preg_split( '/\\s+/u', trim( $teacher_name ) );
 	$teacher_first_name = (string) ( $teacher_name_parts[0] ?? $teacher_name );

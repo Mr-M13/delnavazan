@@ -14,6 +14,7 @@ $files = array(
     'routes' => $read(dirname($root) . '/theme/inc/routes.php'),
     'bridge' => $read(dirname($root) . '/theme/inc/platform-bridge.php'),
     'admin' => $read($root . '/src/Admin/Controller/ScreenController.php') . $read($root . '/src/Admin/View/TeacherWorkspaceView.php'),
+    'workspace' => $read($root . '/src/Core/Application/TeacherWorkspaceReadService.php'),
     'registry' => $read($root . '/src/Admin/RecordAction/RecordActionRegistry.php'),
 );
 $contracts = array(
@@ -32,6 +33,7 @@ $contracts = array(
     'administrator review is capability gated' => str_contains($files['admin'], "'approve_teacher_onboarding', 'return_teacher_onboarding', 'reject_teacher_onboarding' => 'dzn_manage_onboarding'") && str_contains($files['registry'], 'Approve and activate'),
     'administrator can invite by email without selecting a Teacher ID' => str_contains($files['admin'], 'issue_teacher_invitation_by_email') && str_contains($files['admin'], 'issueForEmail') && str_contains($files['admin'], 'name="recipient"') && str_contains($files['admin'], 'Teacher email'),
     'a teacher readiness refusal returns to setup rather than a generic portal error' => str_contains($files['bridge'], "'teacher_onboarding_required' === \$reason ? 'onboarding_required'") && str_contains($files['bridge'], "'not_linked','onboarding_required'"),
+    'the Persian name is the Teacher display name' => str_contains($files['onboarding'], '$displayName = ( null !== $persianName') && str_contains($files['onboarding'], "'display_name' => Normalizer::text( \$displayName, 191, true )") && str_contains($files['account'], 'name="persian_name"') && !str_contains($files['account'], 'name="display_name"') && str_contains($files['workspace'], "array('persian_name', 'display_name', 'english_name')") && str_contains($files['bridge'], "\$teacher_name = trim( (string) ( \$onboarding['profile']['persian_name'] ?? '' ) );"),
 );
 foreach ($contracts as $name => $passed) {
     if (!$passed) throw new RuntimeException('Teacher onboarding v2 contract failed: ' . $name);

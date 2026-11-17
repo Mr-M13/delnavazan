@@ -142,13 +142,27 @@ final class HostProcessor
     private function readContent(int $id): ?string
     {
         [$exit, $stdout] = $this->runWp(['post', 'get', (string) $id, '--field=post_content']);
-        return $exit === 0 ? $stdout : null;
+        if ($exit !== 0) {
+            return null;
+        }
+        // WP-CLI's line output appends one newline; the stored content does not
+        // carry it, so remove exactly that terminator before hashing/comparing.
+        if (str_ends_with($stdout, "\n")) {
+            $stdout = substr($stdout, 0, -1);
+        }
+        return $stdout;
     }
 
     private function readMeta(int $id, string $key): string
     {
         [$exit, $stdout] = $this->runWp(['post', 'meta', 'get', (string) $id, $key]);
-        return $exit === 0 ? $stdout : '';
+        if ($exit !== 0) {
+            return '';
+        }
+        if (str_ends_with($stdout, "\n")) {
+            $stdout = substr($stdout, 0, -1);
+        }
+        return $stdout;
     }
 
     /** @return array<int,string> */

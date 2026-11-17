@@ -52,7 +52,7 @@ $renderEnd = strpos($dashboard, 'private static function hero()', $renderStart);
 $render = substr($dashboard, $renderStart, $renderEnd - $renderStart);
 $contains($render, array(
     "AcademyDashboardScreen::shows('actions')",
-    'self::pendingActions()',
+    'self::pendingActions($summary)',
     'self::todayClasses()',
     'self::scheduledIntroClasses()',
     'self::financePanel($summary)',
@@ -60,6 +60,35 @@ $contains($render, array(
 ), 'Overview must render the retained panels and introductory classes.');
 $notContains($render, array('self::hero()', 'self::quickActions()', 'self::kpiCards(', 'self::pipelinePanel(', 'self::activityPanel(', 'self::journeyQueue('), 'Removed Overview sections must not render.');
 $contains($dashboard, array('Needs Attention', 'Scheduled Introductory Classes', 'id="dzn-pending-work"', 'Intro class outcomes due', 'Post-intro enrolments needing attention', 'Payment webhooks refused'), 'Attention and intro sections must be retained.');
+
+// Needs Attention is one inbox across every operational area, rendered above the class schedule.
+$attentionStart = strpos($dashboard, "if (AcademyDashboardScreen::shows('actions'))");
+$scheduleStart = strpos($dashboard, "if (AcademyDashboardScreen::shows('schedule'))");
+$expect($attentionStart !== false && $scheduleStart !== false && $attentionStart < $scheduleStart, 'Needs Attention must render above Today’s classes.');
+$contains($dashboard, array(
+    'private static function attentionAreas',
+    "'learners' => 'Learners & bookings'",
+    "'classes' => 'Classes & teaching'",
+    "'finance' => 'Finance'",
+    "'teachers' => 'Teachers & compliance'",
+    "'platform' => 'Platform & operations'",
+    'dzn-attention-group',
+    'No administrator task is waiting',
+    'Bookings awaiting coordination',
+    'Identities awaiting review',
+    'Service arrangements awaiting acceptance',
+    'Accepted arrangements awaiting enrolment',
+    'Enrolments awaiting a Teacher assignment',
+    'Checkout payments awaiting an outcome',
+    'Overdue payment obligations',
+    'Refund reviews awaiting a decision',
+    'Teacher statements open',
+    'Lessons with pending payability',
+    'Open finance exceptions',
+    'Teacher profiles still in setup',
+    'Notification delivery failures',
+), 'Needs Attention must collect every administrator task and group it by operational area.');
+$contains($css, array('.dzn-attention-group', '.dzn-attention-group__title'), 'The attention inbox needs grouped-area styling.');
 $contains($screenOptions, array("'actions' => 'Needs Attention'", "'finance' => 'Finance snapshot'", "'coverage' => 'Coverage Clock'"), 'Screen Options must describe retained sections.');
 
 // Today’s classes only, with authoritative details and canonical actions.

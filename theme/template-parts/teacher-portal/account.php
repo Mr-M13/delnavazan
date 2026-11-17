@@ -14,9 +14,10 @@ $m=$args['model']??array();$brand=dzn_theme_brand_identity();$p=$m['profile']??a
 
 <?php endif; ?><?php if ( $dzn_show( 'availability' ) ) : ?><?php dzn_theme_teacher_portal_component( 'availability-planner', array( 'model' => $m ) ); ?><?php endif; ?>
 
+<?php if ( $show_recording_terms && $dzn_show( 'recording' ) ) : ?>
+<?php dzn_theme_teacher_portal_component( 'recording-terms', array( 'recording' => $m['recording_terms'] ?? array() ) ); ?>
+<?php endif; ?>
 <?php if ( $dzn_show( 'induction' ) ) : ?><?php if ( is_array( $m['induction'] ?? null ) && ! empty( $m['induction']['modules'] ) ) : ?>
 <section class="dzn-tp-section dzn-tp-induction-settings" aria-labelledby="tp-induction-settings"><div class="dzn-tp-heading"><div><p class="dzn-tp-kicker">راهنمای سریع</p><h2 id="tp-induction-settings">مرور جریان کار تدریس</h2></div></div><p class="dzn-tp-help">مسیر هنرجو و مسئولیت شما را از درخواست کلاس آشنایی تا برگزاری، تغییر زمان و پیگیری مالی توضیح می‌دهد. مرور آن برای دسترسی به پرتال لازم نیست.</p><p><a class="dzn-button" href="<?php echo esc_url( (string) ( $m['induction_hub_url'] ?? $m['induction_continue_url'] ?? '' ) ); ?>">مرور راهنمای تدریس</a></p></section>
 <?php endif; ?>
-<?php endif; ?><?php if ( $show_recording_terms && $dzn_show( 'recording' ) ) : ?>
-<?php dzn_theme_teacher_portal_component( 'recording-terms', array( 'recording' => $m['recording_terms'] ?? array() ) ); ?>
 <?php endif; ?>

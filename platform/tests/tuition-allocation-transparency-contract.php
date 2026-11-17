@@ -11,7 +11,8 @@ $assert(!str_contains($component, 'format_money') && !str_contains($component, '
 $assert(!str_contains($component, 'amount_minor') && !str_contains($component, 'paid_minor'), 'The shared component must ignore term amounts in the model.');
 $assert(!str_contains($component, 'term_reference') && !str_contains($component, 'term_id') && !str_contains($component, 'term-'), 'The shared component must not render a term selector or term cards.');
 $assert(!str_contains($component, 'name="term"') && !str_contains($component, '<select'), 'No term selector may remain in the shared component.');
-$assert(str_contains($component, '<details') && str_contains($component, '<summary>'), 'The percentage table must be compact and expandable.');
+$assert(!str_contains($component, '<details') && !str_contains($component, '<summary>'), 'The percentage table must always be expanded, not hidden behind a disclosure.');
+$assert(str_contains($component, 'دلنوازان شهریه دریافتی رو چگونه هزینه می کند. (تخمینی و صرفا جهت اطلاع)'), 'The allocation section must carry the requested plain-language title.');
 $assert(str_contains($component, 'TuitionAllocationEstimator::categories()'), 'Both portals must read the identical central category list.');
 $assert(str_contains($component, '100.0%'), 'The percentages must explicitly total 100%.');
 $estimator = (string) file_get_contents($root . '/src/Core/Application/Finance/TuitionAllocationEstimator.php');

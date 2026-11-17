@@ -1137,6 +1137,49 @@ function dzn_theme_platform_student_schedule_row( array $row, $is_booking, array
 	);
 }
 
+/**
+ * Present one introductory session as one row.
+ *
+ * A confirmed booking and its provisioned introductory Lesson are two projections of the same
+ * class: the booking carries the Teacher, the join window and the intro semantics, while the
+ * Lesson carries delivery, attendance and recording facts. Showing both duplicates the class on
+ * the Student's card. Keep the booking row and carry the Lesson's facts onto it; a Lesson with
+ * no confirmed booking at the same start instant is left exactly as it is.
+ *
+ * The match is on the start instant because the occupancy authority never allows one Student two
+ * classes at the same instant, and it is narrowed to `introductory` Lessons so a regular class can
+ * never be folded into a booking.
+ */
+function dzn_theme_platform_merge_intro_rows( array $rows ) {
+	$lesson_at = array();
+	foreach ( $rows as $index => $row ) {
+		if ( ! is_array( $row ) || 'intro' === ( $row['kind'] ?? '' ) ) { continue; }
+		if ( 'introductory' !== (string) ( $row['lesson_kind'] ?? '' ) ) { continue; }
+		$starts = (string) ( $row['starts_at_utc'] ?? '' );
+		if ( '' !== $starts && ! isset( $lesson_at[ $starts ] ) ) { $lesson_at[ $starts ] = $index; }
+	}
+	if ( ! $lesson_at ) { return $rows; }
+	$consumed = array();
+	foreach ( $rows as $index => $row ) {
+		if ( ! is_array( $row ) || 'intro' !== ( $row['kind'] ?? '' ) ) { continue; }
+		$starts = (string) ( $row['starts_at_utc'] ?? '' );
+		if ( '' === $starts || ! isset( $lesson_at[ $starts ] ) ) { continue; }
+		$lesson = isset( $rows[ $lesson_at[ $starts ] ] ) && is_array( $rows[ $lesson_at[ $starts ] ] ) ? $rows[ $lesson_at[ $starts ] ] : array();
+		if ( ! $lesson ) { continue; }
+		foreach ( array( 'delivery_state', 'attendance_state', 'outcome_label', 'outcome_tone', 'lesson_uid', 'schedule_version_uid', 'recording_uid', 'recording_available', 'recording_status_label', 'recording_state' ) as $field ) {
+			if ( array_key_exists( $field, $lesson ) ) { $rows[ $index ][ $field ] = $lesson[ $field ]; }
+		}
+		$consumed[ $lesson_at[ $starts ] ] = true;
+	}
+	if ( ! $consumed ) { return $rows; }
+	$merged = array();
+	foreach ( $rows as $index => $row ) {
+		if ( isset( $consumed[ $index ] ) ) { continue; }
+		$merged[] = $row;
+	}
+	return $merged;
+}
+
 /** Build and rank schedule rows: active first, then upcoming, then ended. */
 function dzn_theme_platform_student_schedule_rows( array $lessons, array $booking_classes, array $enrolments, $timezone, $now, $calendar = 'gregorian', $locale = '' ) {
 	$rows = array();
@@ -1146,6 +1189,7 @@ function dzn_theme_platform_student_schedule_rows( array $lessons, array $bookin
 	foreach ( $booking_classes as $booking ) {
 		if ( is_array( $booking ) ) { $rows[] = dzn_theme_platform_student_schedule_row( $booking, true, $enrolments, $timezone, $now, $calendar, $locale ); }
 	}
+	$rows = dzn_theme_platform_merge_intro_rows( $rows );
 	$rank = array( 'in_progress' => 0, 'upcoming' => 1, 'unknown' => 2, 'ended' => 3 );
 	usort( $rows, static function ( $a, $b ) use ( $rank ) {
 		$order = ( $rank[ $a['temporal_state'] ] ?? 2 ) <=> ( $rank[ $b['temporal_state'] ] ?? 2 );

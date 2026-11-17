@@ -7,6 +7,8 @@ use Delnavazan\Platform\Core\Application\AcademyDashboardReadService;
 use Delnavazan\Platform\Core\Application\AcademyJourneyReadService;
 use Delnavazan\Platform\Core\Application\CoreReadService;
 use Delnavazan\Platform\Core\Application\LessonOperationsReadService;
+use Delnavazan\Platform\Core\Application\NotificationDiagnosticsReadService;
+use Delnavazan\Platform\Core\Application\NotificationRule;
 use Delnavazan\Platform\Core\Application\Finance\OperationalCashRule;
 use Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney;
 use Delnavazan\Platform\Integrations\GoogleWorkspace\MeetAdministratorClassroomService;
@@ -33,7 +35,7 @@ final class AcademyOperationsController {
         if (!current_user_can(self::CAP)) wp_die('Forbidden', 403);
         $summary = (new AcademyDashboardReadService())->summary();
         echo '<div class="wrap dzn-academy-dashboard">';
-        if (AcademyDashboardScreen::shows('actions')) self::pendingActions();
+        if (AcademyDashboardScreen::shows('actions')) self::pendingActions($summary);
         if (AcademyDashboardScreen::shows('schedule')) {
             self::todayClasses();
             self::scheduledIntroClasses();
@@ -103,7 +105,7 @@ final class AcademyOperationsController {
     private static function kpiCards(array $summary): void {
         $counts = $summary['counts'];
         $classes = self::classSnapshot();
-        $pending = self::pendingActionItems();
+        $pending = self::pendingActionItems($summary);
         $actionCount = 0;
         foreach ($pending as $item) $actionCount += (int) $item['count'];
         $cards = array(
@@ -150,50 +152,71 @@ final class AcademyOperationsController {
         echo '</div></section>';
     }
 
-    /** All actionable Overview work in one capability-gated pending-work area. */
-    private static function pendingActions(): void {
-        $items = array_values(array_filter(self::pendingActionItems(), static fn(array $item): bool => (int) $item['count'] > 0));
-        if (!$items) return;
-        echo '<section class="dzn-panel" id="dzn-pending-work"><div class="dzn-panel__head"><h2>Needs Attention</h2></div>';
-        echo '<div class="dzn-action-grid">';
+    /** Every open administrator task, grouped by operational area and rendered once above the class schedule. */
+    private static function pendingActions(array $summary): void {
+        $items = array_values(array_filter(self::pendingActionItems($summary), static fn(array $item): bool => (int) $item['count'] > 0));
+        $total = 0;
+        $grouped = array();
         foreach ($items as $item) {
-            $url = add_query_arg(array_merge(array('page' => $item['page']), $item['args']), admin_url('admin.php'));
-            if (!empty($item['anchor'])) $url .= '#' . $item['anchor'];
-            echo '<article class="dzn-action-card' . (!empty($item['urgent']) ? ' is-urgent' : '') . '"><div class="dzn-action-card__top"><span class="dzn-action-card__count">' . esc_html(number_format_i18n((int) $item['count'])) . '</span><span class="dzn-badge' . (!empty($item['urgent']) ? ' dzn-badge--red' : ' dzn-badge--gold') . '">' . (!empty($item['urgent']) ? 'Needs attention' : 'Waiting') . '</span></div><h3>' . esc_html($item['label']) . '</h3><p>' . esc_html($item['description']) . '</p><a class="button' . (!empty($item['urgent']) ? ' button-primary' : '') . '" href="' . esc_url($url) . '">' . esc_html($item['action']) . '</a></article>';
+            $total += (int) $item['count'];
+            $grouped[(string) $item['area']][] = $item;
         }
+        echo '<section class="dzn-panel dzn-attention" id="dzn-pending-work"><div class="dzn-panel__head"><div><h2>Needs Attention</h2><p>Every open administrator task across learners, classes, finance, teachers and platform operations, collected once. Each card opens the existing authority that resolves it.</p></div>';
+        if ($total > 0) echo '<span class="dzn-badge dzn-badge--red">' . esc_html(number_format_i18n($total)) . ' open</span>';
         echo '</div>';
+        if (!$grouped) {
+            echo '<p class="dzn-all-clear"><span aria-hidden="true">✓</span> No administrator task is waiting in your work areas.</p></section>';
+            return;
+        }
+        foreach (self::attentionAreas() as $areaKey => $areaLabel) {
+            if (empty($grouped[$areaKey])) continue;
+            $areaTotal = 0;
+            foreach ($grouped[$areaKey] as $item) $areaTotal += (int) $item['count'];
+            echo '<div class="dzn-attention-group"><h3 class="dzn-attention-group__title">' . esc_html($areaLabel) . ' <span class="dzn-badge dzn-badge--gold">' . esc_html(number_format_i18n($areaTotal)) . '</span></h3><div class="dzn-action-grid">';
+            foreach ($grouped[$areaKey] as $item) self::attentionCard($item);
+            echo '</div></div>';
+        }
         echo '</section>';
     }
 
-    /** @return list<array{label:string,count:int,page:string,action:string,args:array<string,mixed>,description:string,urgent:bool,anchor:string}> */
-    private static function pendingActionItems(): array {
+    /** @return array<string,string> Ordered operational areas for the attention inbox. */
+    private static function attentionAreas(): array {
+        return array(
+            'learners' => 'Learners & bookings',
+            'classes' => 'Classes & teaching',
+            'finance' => 'Finance',
+            'teachers' => 'Teachers & compliance',
+            'platform' => 'Platform & operations',
+        );
+    }
+
+    /** @param array<string,mixed> $item */
+    private static function attentionCard(array $item): void {
+        $url = add_query_arg(array_merge(array('page' => $item['page']), $item['args']), admin_url('admin.php'));
+        if (!empty($item['anchor'])) $url .= '#' . $item['anchor'];
+        echo '<article class="dzn-action-card' . (!empty($item['urgent']) ? ' is-urgent' : '') . '"><div class="dzn-action-card__top"><span class="dzn-action-card__count">' . esc_html(number_format_i18n((int) $item['count'])) . '</span><span class="dzn-badge' . (!empty($item['urgent']) ? ' dzn-badge--red' : ' dzn-badge--gold') . '">' . (!empty($item['urgent']) ? 'Needs attention' : 'Waiting') . '</span></div><h3>' . esc_html($item['label']) . '</h3><p>' . esc_html($item['description']) . '</p><a class="button' . (!empty($item['urgent']) ? ' button-primary' : '') . '" href="' . esc_url($url) . '">' . esc_html($item['action']) . '</a></article>';
+    }
+
+    /** @return list<array{area:string,label:string,count:int,page:string,action:string,args:array<string,mixed>,description:string,urgent:bool,anchor:string}> */
+    private static function pendingActionItems(array $summary = array()): array {
         if (self::$pendingCache !== null) return self::$pendingCache;
         global $wpdb;
         $p = $wpdb->prefix . 'dzn_';
+        $finance = (array) ($summary['finance'] ?? array());
+        $pipeline = (array) ($summary['pipeline'] ?? array());
         $items = array();
-        if (current_user_can('dzn_manage_onboarding')) {
-            $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}teacher_onboarding_states WHERE state='pending_review'");
-            $items[] = array('label' => 'Teacher onboarding submissions', 'count' => $count, 'page' => 'dzn-teachers-menu', 'action' => 'Review and decide', 'args' => array('view' => 'onboarding'), 'description' => 'Profiles and availability submitted for an explicit staff decision.', 'urgent' => $count > 0, 'anchor' => 'teacher-onboarding');
+        if (current_user_can('dzn_view_booking_requests')) {
+            $items[] = array('area' => 'learners', 'label' => 'Bookings awaiting coordination', 'count' => (int) ($pipeline['needs_coordination'] ?? 0), 'page' => 'dzn-enrolment-workspace', 'action' => 'Open intro bookings', 'args' => array('type' => 'intro', 'stage' => 'new'), 'description' => 'A submitted booking has no coordination case yet. Contact the learner and propose a Teacher.', 'urgent' => true, 'anchor' => '');
+            $items[] = array('area' => 'learners', 'label' => 'Identities awaiting review', 'count' => (int) ($pipeline['needs_identity'] ?? 0), 'page' => 'dzn-enrolment-workspace', 'action' => 'Review identity blockers', 'args' => array('type' => 'intro', 'stage' => 'identity'), 'description' => 'Coordination exists but the learner identity is unresolved. Review the evidence and resolve it or record an outcome.', 'urgent' => true, 'anchor' => '');
+            $items[] = array('area' => 'learners', 'label' => 'Service arrangements awaiting acceptance', 'count' => (int) ($pipeline['needs_acceptance'] ?? 0), 'page' => 'dzn-enrolment-workspace', 'action' => 'Confirm acceptance', 'args' => array('type' => 'intro', 'stage' => 'teacher_agreed'), 'description' => 'The identity is resolved but no accepted Service Arrangement exists. Confirm acceptance authority and complete coordination.', 'urgent' => false, 'anchor' => '');
+            $items[] = array('area' => 'learners', 'label' => 'Accepted arrangements awaiting enrolment', 'count' => (int) ($pipeline['needs_enrolment'] ?? 0), 'page' => 'dzn-enrolment-workspace', 'action' => 'Convert to enrolment', 'args' => array('type' => 'intro', 'stage' => 'post_intro'), 'description' => 'An accepted Service Arrangement has not been converted to an Enrolment.', 'urgent' => false, 'anchor' => '');
+            $items[] = array('area' => 'learners', 'label' => 'Enrolments awaiting a Teacher assignment', 'count' => (int) ($pipeline['needs_assignment'] ?? 0), 'page' => 'dzn-enrolment-workspace', 'action' => 'Review enrolments', 'args' => array('type' => 'intro'), 'description' => 'An Enrolment exists without a current Teacher Assignment. Assign the accepted Teacher before a Term or Lesson can start.', 'urgent' => false, 'anchor' => '');
         }
         if (current_user_can('dzn_manage_post_intro_automation')) {
             $outcomesDue = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_confirmations c INNER JOIN {$p}booking_requests r ON r.id=c.booking_request_id LEFT JOIN {$p}booking_request_intro_outcomes o ON o.confirmation_id=c.id WHERE c.state='confirmed' AND c.ends_at_utc<UTC_TIMESTAMP() AND r.privacy_erased_at IS NULL AND o.id IS NULL");
-            $items[] = array('label' => 'Intro class outcomes due', 'count' => $outcomesDue, 'page' => 'dzn-enrolment-workspace', 'action' => 'Record intro outcome', 'args' => array('stage' => 'intro_outcome'), 'description' => 'A confirmed introductory class has ended without a Teacher or administrator outcome. Payment and continuation cannot start until it is recorded.', 'urgent' => $outcomesDue > 0, 'anchor' => '');
+            $items[] = array('area' => 'learners', 'label' => 'Intro class outcomes due', 'count' => $outcomesDue, 'page' => 'dzn-enrolment-workspace', 'action' => 'Record intro outcome', 'args' => array('stage' => 'intro_outcome'), 'description' => 'A confirmed introductory class has ended without a Teacher or administrator outcome. Payment and continuation cannot start until it is recorded.', 'urgent' => $outcomesDue > 0, 'anchor' => '');
             $postIntroAttention = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}post_intro_preparations p LEFT JOIN {$p}post_intro_activation_jobs j ON j.preparation_id=p.id WHERE p.state='exception' OR j.state='failed' OR (p.state='payment_received' AND (j.id IS NULL OR (j.state IN ('queued','retryable') AND (j.next_attempt_at IS NULL OR j.next_attempt_at<UTC_TIMESTAMP() - INTERVAL 15 MINUTE))))");
-            $items[] = array('label' => 'Post-intro enrolments needing attention', 'count' => $postIntroAttention, 'page' => 'dzn-post-intro', 'action' => 'Review post-intro diagnostics', 'args' => array(), 'description' => 'A recorded outcome, verified payment or controlled activation is stuck. Review the preparation and retry only from its protected diagnostics.', 'urgent' => $postIntroAttention > 0, 'anchor' => '');
-        }
-        if (current_user_can('dzn_manage_payment_execution')) {
-            $refusedProviderEvents = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}payment_provider_event_receipts WHERE provider_key='stripe' AND verification_state='refused' AND received_at>=UTC_TIMESTAMP() - INTERVAL 24 HOUR");
-            $items[] = array('label' => 'Payment webhooks refused', 'count' => $refusedProviderEvents, 'page' => 'dzn-finance', 'action' => 'Review payment events', 'args' => array('tab' => 'payments'), 'description' => 'Stripe delivered an event that failed verification or was refused. A paid Checkout can be recovered from its retained attempt after the signing secret and event are reviewed.', 'urgent' => $refusedProviderEvents > 0, 'anchor' => '');
-        }
-        if (current_user_can('dzn_manage_canonical_attendance_review')) {
-            // Pending/accepted proposals are still owned by the Teacher and Student. The absence
-            // queue must not ask an administrator to intervene before the parties have resolved it.
-            $count = (int) $wpdb->get_var("SELECT COUNT(DISTINCT c.id) FROM {$p}canonical_attendance_cases c INNER JOIN {$p}canonical_attendance_evidence e ON e.case_id=c.id LEFT JOIN {$p}canonical_lesson_schedule_versions v ON v.id=c.schedule_version_id AND v.lesson_id=c.lesson_id WHERE c.state IN ('open','ready_for_review','settlement_pending') AND e.source_kind='student' AND (v.id IS NULL OR (v.applicable_slot=1 AND v.superseded_at IS NULL)) AND NOT EXISTS (SELECT 1 FROM {$p}lesson_reschedule_proposals rp WHERE rp.lesson_id=c.lesson_id AND rp.created_at>=c.created_at AND (rp.state IN ('committing','accepted') OR (rp.state='pending' AND (rp.expires_at IS NULL OR rp.expires_at>UTC_TIMESTAMP()))))");
-            $items[] = array('label' => 'Absence reports needing administrator review', 'count' => $count, 'page' => 'dzn-attendance-review', 'action' => 'Review attendance', 'args' => array(), 'description' => 'No active Teacher/Student replacement is resolving these reports. Exhausted allowances and disputed outcomes are included.', 'urgent' => $count > 0, 'anchor' => '');
-        }
-        if (current_user_can('dzn_manage_exceptions')) {
-            $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}operational_exceptions WHERE status='open'");
-            $items[] = array('label' => 'Operational exceptions', 'count' => $count, 'page' => 'dzn-exception', 'action' => 'Review exceptions', 'args' => array('status' => 'open'), 'description' => 'Catalogue, booking or workflow exceptions need acknowledgement or resolution.', 'urgent' => $count > 0, 'anchor' => '');
+            $items[] = array('area' => 'learners', 'label' => 'Post-intro enrolments needing attention', 'count' => $postIntroAttention, 'page' => 'dzn-post-intro', 'action' => 'Review post-intro diagnostics', 'args' => array(), 'description' => 'A recorded outcome, verified payment or controlled activation is stuck. Review the preparation and retry only from its protected diagnostics.', 'urgent' => $postIntroAttention > 0, 'anchor' => '');
         }
         if (current_user_can('dzn_manage_lessons')) {
             $state = self::classSnapshot();
@@ -204,11 +227,55 @@ final class AcademyOperationsController {
                 if ($status === 'Ready to schedule') $ready++;
                 elseif (in_array($status, array('Integrity review needed', 'Schedule needs review'), true)) $review++;
             }
-            if ($ready > 0) $items[] = array('label' => 'Classes ready to schedule', 'count' => $ready, 'page' => 'dzn-enrolment-workspace', 'action' => 'Open class admin', 'args' => array('type' => 'class', 'attention' => '1'), 'description' => 'Canonical classes have no applicable schedule and need staff action.', 'urgent' => false, 'anchor' => '');
-            if ($review > 0) $items[] = array('label' => 'Classes needing schedule or integrity review', 'count' => $review, 'page' => 'dzn-lesson', 'action' => 'Open class resolutions', 'args' => array('class_queue' => 'review'), 'description' => 'Class schedule pointers, legacy records or canonical integrity checks need review.', 'urgent' => true, 'anchor' => '');
+            if ($ready > 0) $items[] = array('area' => 'classes', 'label' => 'Classes ready to schedule', 'count' => $ready, 'page' => 'dzn-enrolment-workspace', 'action' => 'Open class admin', 'args' => array('type' => 'class', 'attention' => '1'), 'description' => 'Canonical classes have no applicable schedule and need staff action.', 'urgent' => false, 'anchor' => '');
+            if ($review > 0) $items[] = array('area' => 'classes', 'label' => 'Classes needing schedule or integrity review', 'count' => $review, 'page' => 'dzn-lesson', 'action' => 'Open class resolutions', 'args' => array('class_queue' => 'review'), 'description' => 'Class schedule pointers, legacy records or canonical integrity checks need review.', 'urgent' => true, 'anchor' => '');
             $escalated = (int) $wpdb->get_var("SELECT COUNT(*) FROM (SELECT lesson_id FROM {$p}lesson_reschedule_proposals WHERE state='rejected' GROUP BY lesson_id HAVING COUNT(*)>=3) escalated");
-            $timeChanges = $escalated;
-            if ($timeChanges > 0) $items[] = array('label' => 'Class time changes needing a decision', 'count' => $timeChanges, 'page' => 'dzn-lesson', 'action' => 'Review class resolutions', 'args' => array('class_queue' => 'resolutions'), 'description' => 'Repeatedly rejected time changes require administrator review.', 'urgent' => true, 'anchor' => '');
+            if ($escalated > 0) $items[] = array('area' => 'classes', 'label' => 'Class time changes needing a decision', 'count' => $escalated, 'page' => 'dzn-lesson', 'action' => 'Review class resolutions', 'args' => array('class_queue' => 'resolutions'), 'description' => 'Repeatedly rejected time changes require administrator review.', 'urgent' => true, 'anchor' => '');
+        }
+        if (current_user_can('dzn_manage_canonical_attendance_review')) {
+            // Pending/accepted proposals are still owned by the Teacher and Student. The absence
+            // queue must not ask an administrator to intervene before the parties have resolved it.
+            $count = (int) $wpdb->get_var("SELECT COUNT(DISTINCT c.id) FROM {$p}canonical_attendance_cases c INNER JOIN {$p}canonical_attendance_evidence e ON e.case_id=c.id LEFT JOIN {$p}canonical_lesson_schedule_versions v ON v.id=c.schedule_version_id AND v.lesson_id=c.lesson_id WHERE c.state IN ('open','ready_for_review','settlement_pending') AND e.source_kind='student' AND (v.id IS NULL OR (v.applicable_slot=1 AND v.superseded_at IS NULL)) AND NOT EXISTS (SELECT 1 FROM {$p}lesson_reschedule_proposals rp WHERE rp.lesson_id=c.lesson_id AND rp.created_at>=c.created_at AND (rp.state IN ('committing','accepted') OR (rp.state='pending' AND (rp.expires_at IS NULL OR rp.expires_at>UTC_TIMESTAMP()))))");
+            $items[] = array('area' => 'classes', 'label' => 'Absence reports needing administrator review', 'count' => $count, 'page' => 'dzn-attendance-review', 'action' => 'Review attendance', 'args' => array(), 'description' => 'No active Teacher/Student replacement is resolving these reports. Exhausted allowances and disputed outcomes are included.', 'urgent' => $count > 0, 'anchor' => '');
+        }
+        if (current_user_can('dzn_view_payment_execution_authority')) {
+            $paymentsPending = (int) ($finance['payments_pending'] ?? 0);
+            $items[] = array('area' => 'finance', 'label' => 'Checkout payments awaiting an outcome', 'count' => $paymentsPending, 'page' => 'dzn-finance', 'action' => 'Review payments', 'args' => array('tab' => 'payments'), 'description' => 'A Checkout session is creating or open and has not produced a settled result.', 'urgent' => false, 'anchor' => '');
+            $overdue = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}commercial_offer_obligations obligation INNER JOIN {$p}commercial_offers offer_row ON offer_row.id=obligation.offer_id LEFT JOIN {$p}commercial_obligation_settlements settlement ON settlement.obligation_id=obligation.id WHERE settlement.id IS NULL AND obligation.amount_minor>0 AND obligation.due_at IS NOT NULL AND obligation.due_at<UTC_TIMESTAMP() AND (offer_row.state='accepted' OR (offer_row.state='issued' AND (offer_row.expires_at IS NULL OR offer_row.expires_at>UTC_TIMESTAMP())))");
+            $items[] = array('area' => 'finance', 'label' => 'Overdue payment obligations', 'count' => $overdue, 'page' => 'dzn-finance', 'action' => 'Open outstanding payments', 'args' => array('tab' => 'payments'), 'description' => 'An accepted or issued offer has an instalment past its due date without a recorded settlement.', 'urgent' => $overdue > 0, 'anchor' => 'outstanding-payments');
+            $refunds = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}refund_review_cases WHERE state IN ('open','review_required')");
+            $items[] = array('area' => 'finance', 'label' => 'Refund reviews awaiting a decision', 'count' => $refunds, 'page' => 'dzn-finance', 'action' => 'Review refunds', 'args' => array('tab' => 'payments'), 'description' => 'A refund review case is open or requires a reviewer decision.', 'urgent' => $refunds > 0, 'anchor' => 'refund-reviews');
+        }
+        if (current_user_can('dzn_manage_payment_execution')) {
+            $refusedProviderEvents = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}payment_provider_event_receipts WHERE provider_key='stripe' AND verification_state='refused' AND received_at>=UTC_TIMESTAMP() - INTERVAL 24 HOUR");
+            $items[] = array('area' => 'finance', 'label' => 'Payment webhooks refused', 'count' => $refusedProviderEvents, 'page' => 'dzn-finance', 'action' => 'Review payment events', 'args' => array('tab' => 'payments'), 'description' => 'Stripe delivered an event that failed verification or was refused. A paid Checkout can be recovered from its retained attempt after the signing secret and event are reviewed.', 'urgent' => $refusedProviderEvents > 0, 'anchor' => '');
+        }
+        if (current_user_can('dzn_view_finance_authority')) {
+            $statements = (int) ($finance['statements_open'] ?? 0);
+            $items[] = array('area' => 'finance', 'label' => 'Teacher statements open', 'count' => $statements, 'page' => 'dzn-finance', 'action' => 'Open statements', 'args' => array('tab' => 'statements'), 'description' => 'A Teacher statement is still draft or issued and has no recorded settlement.', 'urgent' => false, 'anchor' => '');
+            $payability = (int) ($finance['payability_pending'] ?? 0);
+            $items[] = array('area' => 'finance', 'label' => 'Lessons with pending payability', 'count' => $payability, 'page' => 'dzn-finance-payability', 'action' => 'Review payability', 'args' => array(), 'description' => 'A scheduled lesson has no current payability disposition. Teacher payment cannot be calculated until it is reviewed.', 'urgent' => false, 'anchor' => '');
+            $financeExceptions = (int) ($finance['exceptions_open'] ?? 0);
+            $items[] = array('area' => 'finance', 'label' => 'Open finance exceptions', 'count' => $financeExceptions, 'page' => 'dzn-finance-reconciliation', 'action' => 'Open reconciliation', 'args' => array(), 'description' => 'A finance exception needs reconciliation before the ledger and provider records can agree.', 'urgent' => $financeExceptions > 0, 'anchor' => '');
+        }
+        if (current_user_can('dzn_manage_onboarding')) {
+            $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}teacher_onboarding_states WHERE state='pending_review'");
+            $items[] = array('area' => 'teachers', 'label' => 'Teacher onboarding submissions', 'count' => $count, 'page' => 'dzn-teachers-menu', 'action' => 'Review and decide', 'args' => array('view' => 'onboarding'), 'description' => 'Profiles and availability submitted for an explicit staff decision.', 'urgent' => $count > 0, 'anchor' => 'teacher-onboarding');
+            $setup = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}teacher_onboarding_states WHERE state IN ('linked_pending','in_progress','returned','rejected')");
+            $items[] = array('area' => 'teachers', 'label' => 'Teacher profiles still in setup', 'count' => $setup, 'page' => 'dzn-teachers-menu', 'action' => 'Follow up onboarding', 'args' => array('view' => 'onboarding'), 'description' => 'A Teacher has not submitted a complete profile and availability, or their submission was returned. Follow up before they can be assigned.', 'urgent' => false, 'anchor' => 'teacher-onboarding');
+        }
+        if (current_user_can(NotificationRule::READ_CAPABILITY)) {
+            try {
+                $report = (new NotificationDiagnosticsReadService())->report();
+            } catch (\Throwable) {
+                $report = array();
+            }
+            $deliveryFailures = (int) ($report['retry_exhausted'] ?? 0) + (int) ($report['retry_window_exhausted'] ?? 0) + (int) ($report['stuck_lease'] ?? 0) + (int) ($report['orphan_outbox_row'] ?? 0) + (int) ($report['unroutable_intent'] ?? 0) + (int) ($report['unregistered_intent'] ?? 0);
+            $items[] = array('area' => 'platform', 'label' => 'Notification delivery failures', 'count' => $deliveryFailures, 'page' => 'dzn-communications', 'action' => 'Open communications diagnostics', 'args' => array(), 'description' => 'A notification exhausted its retries, lost its lease, has no routable workflow or points at a missing record. Messages are not being delivered until it is reviewed.', 'urgent' => $deliveryFailures > 0, 'anchor' => '');
+        }
+        if (current_user_can('dzn_manage_exceptions')) {
+            $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}operational_exceptions WHERE status='open'");
+            $items[] = array('area' => 'platform', 'label' => 'Operational exceptions', 'count' => $count, 'page' => 'dzn-exception', 'action' => 'Review exceptions', 'args' => array('status' => 'open'), 'description' => 'Catalogue, booking or workflow exceptions need acknowledgement or resolution.', 'urgent' => $count > 0, 'anchor' => '');
         }
         self::$pendingCache = $items;
         return $items;

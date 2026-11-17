@@ -42,7 +42,7 @@ final class AcademyJourneyReadService {
         'needs_identity' => 'ta.id IS NULL AND cc.id IS NOT NULL AND br.student_id IS NULL',
         'needs_acceptance' => 'ta.id IS NULL AND cc.id IS NOT NULL AND br.student_id IS NOT NULL AND asa.id IS NULL',
         'needs_enrolment' => 'ta.id IS NULL AND cc.id IS NOT NULL AND br.student_id IS NOT NULL AND asa.id IS NOT NULL AND e.id IS NULL',
-        'needs_assignment' => 'ta.id IS NULL AND cc.id IS NOT NULL AND br.student_id IS NOT NULL AND asa.id IS NOT NULL AND e.id IS NOT NULL',
+        'needs_assignment' => "ta.id IS NULL AND cc.id IS NOT NULL AND br.student_id IS NOT NULL AND asa.id IS NOT NULL AND e.id IS NOT NULL AND e.lifecycle_state IN ('authorised','current')",
         'complete' => 'ta.id IS NOT NULL',
     );
 

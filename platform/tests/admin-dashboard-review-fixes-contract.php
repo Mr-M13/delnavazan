@@ -32,6 +32,14 @@ $expect(!str_contains($dashboardRead, 'SUM(cc.id IS NULL)'), 'Dashboard pipeline
 $contains($dashboardRead, array('new AcademyJourneyReadService())->stageCounts()'), 'Dashboard must use the shared queue stage counts.');
 $contains($dashboard, array('AcademyJourneyReadService::PIPELINE_STAGES'), 'Dashboard labels must come from the shared stage map.');
 
+// A resolved item must leave the Overview. The assignment stage may only count an Enrolment that is
+// still open, and the post-intro card may only count provisioning that has not completed — a later
+// classroom projection failure belongs to the class/classroom surface, and an older failed attempt
+// is history once a newer run has been recorded.
+$expect(str_contains($queueRead, "e.lifecycle_state IN ('authorised','current')"), 'The assignment stage must only count an active Enrolment.');
+$expect(str_contains($dashboard, "p.state <> 'activated'"), 'Post-intro attention must require incomplete academic provisioning.');
+$expect(str_contains($dashboard, 'latest.id') && !str_contains($dashboard, "WHERE p.state='exception' OR j.state='failed'"), 'Post-intro attention must read the latest activation attempt, not any historical failed job.');
+
 // 2. Course-specific rate rows show the course name.
 $contains($rateRead, array(
     'public function timeline',

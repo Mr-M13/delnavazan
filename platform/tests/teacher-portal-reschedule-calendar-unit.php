@@ -51,6 +51,8 @@ namespace {
 
     $introItem = array(
         'confirmation_uid' => 'CONF-UID-0001',
+        'confirmation_id' => 913,
+        'confirmation_version' => 7,
         'timezone' => 'Asia/Tehran',
         'intro_timezone_options' => array('Asia/Tehran' => 'Tehran', 'Australia/Brisbane' => 'Brisbane'),
         'intro_reschedule_action_url' => 'https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_reschedule_intro',
@@ -66,6 +68,7 @@ namespace {
     $fail('intro form honors Persian preference with Jalali selects', str_contains($introPersian, 'name="jalali_year"') && str_contains($introPersian, 'name="jalali_month"') && str_contains($introPersian, 'name="jalali_day"') && str_contains($introPersian, 'فروردین'));
     $fail('intro Persian form hides Gregorian date input', !str_contains($introPersian, 'type="date" name="local_date"'));
     $fail('intro Persian form submits calendar and keeps timezone/time/conflict fields', str_contains($introPersian, 'name="calendar" value="persian"') && str_contains($introPersian, 'name="local_start_time"') && str_contains($introPersian, 'name="schedule_timezone"') && str_contains($introPersian, 'name="confirmation_uid" value="CONF-UID-0001"') && str_contains($introPersian, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_reschedule_intro"'));
+    $fail('intro form submits the current confirmation version', str_contains($introPersian, 'name="expected_confirmation_id" value="913"') && str_contains($introPersian, 'name="expected_confirmation_version" value="7"'));
     $fail('intro Jalali defaults come from the current wall date', str_contains($introPersian, 'name="jalali_year" value="1405"') && str_contains($introPersian, 'value="9" selected=\'selected\'') && str_contains($introPersian, 'value="1" selected=\'selected\''));
 
     // Intro + Gregorian/auto: ISO date input retained.
@@ -117,6 +120,11 @@ namespace {
     $fail('intro template conditionally renders Jalali vs Gregorian', str_contains($introTpl, "'persian' === \$calendar") && str_contains($introTpl, 'name="jalali_year"') && str_contains($introTpl, 'type="date" name="local_date"'));
     $fail('regular template conditionally renders Jalali vs Gregorian', str_contains($regularTpl, "'persian' === \$calendar") && str_contains($regularTpl, 'name="jalali_year"') && str_contains($regularTpl, 'type="date" name="local_date"'));
     $fail('intro controller forwards Jalali parts to the service', str_contains($controller, "'calendar' => sanitize_text_field") && str_contains($controller, "'jalali_year' => absint") && str_contains($controller, "'jalali_month' => absint") && str_contains($controller, "'jalali_day' => absint"));
+    $repo = (string) file_get_contents($root . '/platform/src/Core/Infrastructure/Repository/BookingTeacherDeliveryRepository.php');
+    $projector = (string) file_get_contents($root . '/platform/src/Portals/BookingUpcomingReadProjector.php');
+    $fail('confirmed booking reads carry the confirmation version', str_contains($repo, 'c.version confirmation_version') && str_contains($projector, "'confirmation_version' =>"));
+    $fail('teacher class model exposes the confirmation version to the form', str_contains($bridge, "'confirmation_version' => \$is_booking") && str_contains($bridge, "'confirmation_id' => \$is_booking"));
+    $fail('intro controller explains a stale or concurrent confirmation instead of a generic failure', str_contains($controller, "'A current booking confirmation version is required'") && str_contains($controller, "'Booking confirmation changed concurrently'"));
     $fail('intro service converts Jalali with pure arithmetic', str_contains($service, 'PersianCalendar::toGregorian') && str_contains($service, "'Choose a valid local date and start time'"));
     $fail('intro service keeps UTC conversion, conflicts and notifications', str_contains($service, "->setTimezone(\$utc)") && str_contains($service, 'BookingTeacherOccupancyReadService') && str_contains($service, 'ensureAndLockTeacherRoot') && str_contains($service, 'studentConflict') && str_contains($service, "'rescheduled'") && str_contains($service, "'rescheduled_teacher'"));
     $fail('regular service keeps Jalali conversion, UTC and ISO wall date', str_contains((string) file_get_contents($root . '/platform/src/Core/Application/LessonRescheduleService.php'), 'jalali_year') && str_contains((string) file_get_contents($root . '/platform/src/Core/Application/LessonRescheduleService.php'), 'local_wall_date'));

@@ -7,6 +7,8 @@ final class BookingUpcomingReadProjector {
         $join = $this->joinState($row);
         return array(
             'version' => $version,
+            'confirmation_id' => (int) ($row->confirmation_id ?? 0),
+            'confirmation_version' => (int) ($row->confirmation_version ?? 0),
             'confirmation_uid' => (string) $row->confirmation_uid,
             'request_reference' => (string) $row->request_reference,
             'lesson_kind' => 'intro',

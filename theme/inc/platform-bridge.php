@@ -2723,6 +2723,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'join_action_url' => admin_url( 'admin-post.php?action=' . ( $is_booking ? 'dzn_teacher_join_booking_class' : 'dzn_teacher_join_class' ) ),
 			'join_nonce' => wp_create_nonce( $is_booking ? 'dzn_teacher_join_booking_class' : 'dzn_teacher_join_class' ),
 			'confirmation_uid' => $is_booking ? (string) ( $lesson['confirmation_uid'] ?? '' ) : '',
+			'confirmation_id' => $is_booking ? (int) ( $lesson['confirmation_id'] ?? 0 ) : 0,
+			'confirmation_version' => $is_booking ? (int) ( $lesson['confirmation_version'] ?? 0 ) : 0,
 			'join_message' => $classroom_message,
 			'lesson_uid' => (string) ( $lesson['lesson_uid'] ?? '' ),
 			'schedule_version_uid' => (string) ( $lesson['schedule_version_uid'] ?? '' ),

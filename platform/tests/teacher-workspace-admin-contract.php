@@ -108,6 +108,14 @@ $contains($academy, array("AcademyDashboardScreen::shows('coverage')", 'AcademyC
 $contains($dashboard, array("'coverage' => 'Coverage Clock'"), 'Golden-hour coverage must be a Screen Options section on Overview.');
 $expect(!str_contains($screen, 'teacherCoverage'), 'The Teachers administration route must not render the academy-wide coverage atlas.');
 $contains($view, array('Golden-hour coverage', 'Selected golden-hour windows'), 'Each Teacher profile must retain individual golden-hour coverage.');
+
+// The invitation phone is an optional SMS convenience, never an onboarding gate.
+// Email-only issuance must stay available on the invite form, the profile resend and the
+// onboarding-table resend, and the view must say so instead of requiring a number.
+$expect(3 === substr_count($view, 'Teacher phone (optional)') && 1 === substr_count($view, 'aria-label="Teacher phone, optional"'), 'Every invitation phone input must be labelled optional.');
+$expect(0 === preg_match('/name="phone"[^>]*\brequired\b/', $view), 'The invitation phone must never be a required field.');
+$expect(!str_contains($view, "\$storedPhone === '' ? ' required'") && !str_contains($view, "\$rowPhone === '' ? ' required'"), 'Resending must not demand a phone the invitation does not need.');
+$expect(str_contains($view, 'sent by email only and the SMS leg is recorded as skipped'), 'The view must explain that omitting the phone still sends the invitation.');
 $contains($css, array('.dzn-tw-table-scroll', '.dzn-tw-snapshot__body', '.dzn-tw-status-icon--complete', '.dzn-tw-status-icon--unknown', '.dzn-tw-status-icon[data-dzn-tip]:focus-visible::after', '@media (max-width: 782px)', 'overflow-x: hidden', 'min-inline-size: 0'), 'The workspace must be responsive, keyboard accessible and visually consistent.');
 foreach (array('platform/docs/evidence/teachers-directory-desktop-2026-11-02.png','platform/docs/evidence/teachers-profile-desktop-2026-11-02.png','platform/docs/evidence/teachers-onboarding-desktop-2026-11-02.png','platform/docs/evidence/teachers-directory-mobile-2026-11-02.png','platform/docs/evidence/teachers-profile-mobile-2026-11-02.png','platform/docs/evidence/teachers-onboarding-mobile-2026-11-02.png') as $evidence) $expect(is_file($root . '/../' . $evidence), 'Missing screenshot evidence: ' . $evidence);
 

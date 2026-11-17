@@ -22,4 +22,35 @@ $assert(str_contains($repository, 'd.requested_time_id=c.requested_time_id'), 'B
 $assert(str_contains($bridge, "'teacher_booking_class_v1' === ( \$row['version'] ?? '' )") && str_contains($bridge, 'dzn_theme_platform_within_join_window') && str_contains($bridge, 'ParticipantJoinWindow'), 'Teacher and Student presentation must use the shared 30-minute participant join window.');
 $assert(str_contains($classroomActions, 'confirmation_uid') && str_contains($studentTemplate, 'classroom-actions') && str_contains($teacherTemplate, 'classroom-actions'), 'Both participant UIs must submit the booking confirmation identity.');
 $assert(!str_contains($bridge, "'join_url' => 'https://meet.google.com"), 'The Theme must never fabricate a Meet URL.');
+
+/*
+ * One introductory session, one row.
+ *
+ * The confirmed booking and the introductory Lesson provisioned for it are two projections of the
+ * same class. The Student card must show it once, with the booking's Teacher and join semantics and
+ * the Lesson's delivery/recording facts. Load the real Theme adapter and exercise the merge.
+ */
+if (!defined('ABSPATH')) define('ABSPATH', dirname(__DIR__) . '/');
+if (!function_exists('add_filter')) { function add_filter(...$args) { return true; } }
+require_once dirname($root) . '/theme/inc/platform-bridge.php';
+$row = static function (array $overrides): array {
+    return array_merge(array(
+        'kind' => 'intro', 'lesson_kind' => 'introductory', 'starts_at_utc' => '2026-11-17 13:00:00',
+        'course' => 'سه تار', 'teacher' => 'مدرس جدید', 'outcome_label' => 'وضعیت برگزاری ثبت نشده',
+        'outcome_tone' => 'muted', 'delivery_state' => '', 'attendance_state' => '',
+        'lesson_uid' => '', 'schedule_version_uid' => '', 'recording_uid' => '',
+        'recording_available' => false, 'recording_status_label' => '', 'recording_state' => '',
+    ), $overrides);
+};
+$booked = $row(array('kind' => 'intro', 'join_available' => true));
+$lesson = $row(array('kind' => 'term', 'teacher' => '', 'course' => 'کلاس معارفه سه تار', 'outcome_label' => 'برگزار شد', 'outcome_tone' => 'success', 'delivery_state' => 'delivered', 'lesson_uid' => 'LSN-1', 'recording_available' => true, 'recording_uid' => 'REC-1'));
+$merged = dzn_theme_platform_merge_intro_rows(array($lesson, $booked));
+$assert(count($merged) === 1, 'The confirmed booking and its introductory Lesson must render as one class row.');
+$assert('intro' === $merged[0]['kind'] && 'مدرس جدید' === $merged[0]['teacher'] && $merged[0]['join_available'] === true, 'The surviving row must keep the booking Teacher and join availability.');
+$assert('برگزار شد' === $merged[0]['outcome_label'] && 'delivered' === $merged[0]['delivery_state'] && 'LSN-1' === $merged[0]['lesson_uid'] && $merged[0]['recording_available'] === true, 'The surviving row must carry the Lesson delivery, attendance and recording facts.');
+$assert(count(dzn_theme_platform_merge_intro_rows(array($lesson, $row(array('lesson_kind' => 'standard', 'kind' => 'term'))))) === 2, 'A regular Lesson that merely starts at the same instant must not be folded into a booking.');
+$assert(count(dzn_theme_platform_merge_intro_rows(array($lesson))) === 1, 'An introductory Lesson without a confirmed booking must remain visible.');
+$double = dzn_theme_platform_merge_intro_rows(array($row(array('kind' => 'term', 'lesson_uid' => 'A')), $row(array('kind' => 'term', 'lesson_uid' => 'B')), $booked));
+$assert(count($double) === 2 && 'intro' === $double[1]['kind'], 'One booking must consume exactly one introductory Lesson.');
+$assert(count(dzn_theme_platform_merge_intro_rows(array($booked))) === 1, 'A booking with no provisioned Lesson must remain visible on its own.');
 echo "Booking intro portal contract passed\n";

@@ -649,6 +649,15 @@ final class TeacherWorkspaceView {
             echo '<td>' . self::statusIcon($reviewIcon, (string) ($review['label'] ?? ''), (string) ($review['label'] ?? '')) . '</td>';
             echo '<td class="dzn-tw-actions">';
             if ($profileUrl !== '') echo '<a class="button button-small" href="' . esc_url($profileUrl) . '">Open</a>';
+            if ((string) ($review['state'] ?? '') === 'pending_review') {
+                // Reuse the reviewed onboarding decision (confirmation, signed context token,
+                // idempotent request and readiness checks) directly from the table row.
+                RecordActionRenderer::renderSelected('teacher', (object) array(
+                    'id' => $teacherId,
+                    'onboarding_state' => 'pending_review',
+                    'archived_at' => null,
+                ), $page, array('teacher-approve-onboarding'));
+            }
             if (($overview['can_invite'] ?? false) && (int) ($row['accepted'] ?? false) === 0) {
                 $rowPhone = trim((string) ($row['phone'] ?? ''));
                 echo '<form method="post" class="dzn-tw-inline-form">';

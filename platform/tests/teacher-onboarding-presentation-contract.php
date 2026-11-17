@@ -51,8 +51,13 @@ $check( 'onboarding renders the current account workspace', str_contains( $onboa
 $check( 'onboarding owns the protected recording terms section', str_contains( $onboarding, "dzn_theme_teacher_portal_component( 'recording-terms'" ) );
 $check( 'the nested account copy does not duplicate recording terms', str_contains( $onboarding, "'show_recording_terms' => false" ) );
 $check( 'the account workspace keeps one timezone selector', 1 === substr_count( $account, 'wp_timezone_choice' ) );
-$check( 'the setup summary links to profile', str_contains( $onboarding, 'href="#tp-profile"' ) );
-$check( 'the setup summary links to availability', str_contains( $onboarding, 'href="#tp-availability"' ) );
+$check( 'the setup summary links to profile', str_contains( $onboarding, "2 => 'tp-profile'" ) );
+$check( 'the setup summary links to availability', str_contains( $onboarding, "3 => 'tp-availability'" ) );
+$check( 'the setup shows one server step at a time', str_contains( $onboarding, "\$step = (int) ( \$model['current_step']" ) && str_contains( $onboarding, '1 === $step' ) && str_contains( $onboarding, '4 === $step' ) );
+$check( 'the setup progress links carry the requested step', str_contains( $onboarding, "'onboarding-step' => \$number" ) );
+$check( 'the profile step renders only profile and instruments', str_contains( $onboarding, "'sections' => array( 'profile', 'instruments' )" ) );
+$check( 'the availability step renders only the planner', str_contains( $onboarding, "'sections' => array( 'availability' )" ) );
+$check( 'the shared account component can render a chosen section', str_contains( $account, '$dzn_show( ' ) && str_contains( $account, "\$args['sections']" ) );
 $check( 'the setup summary does not link to a Teacher Google step', ! str_contains( $onboarding, 'href="#tp-google"' ) && str_contains( $onboarding, 'به‌صورت متمرکز توسط دلنوازان' ) );
 
 /* 4. Current native time inputs keep the canonical field names and are adapted server-side. */
@@ -69,6 +74,9 @@ $check( 'the raw review reason code is not echoed at the teacher', ! str_contain
 $check( 'returned/rejected states still explain the correction path', str_contains( $onboarding, 'برای اصلاح برگردانده شده است' ) );
 $check( 'can_submit still gates submission', str_contains( $onboarding, "! empty( \$onboarding['can_submit'] )" ) );
 $check( 'no Teacher Google authorization notice remains', ! str_contains( $onboarding, 'google_nonce' ) && ! str_contains( $onboarding, 'google_disconnect' ) );
+$portal_css = (string) file_get_contents( $theme . '/assets/css/teacher-portal.css' );
+$check( 'the step progress styles support the five-step setup', str_contains( $portal_css, '.dzn-tp-setup-progress--steps' ) );
+$check( 'the step navigation is styled', str_contains( $portal_css, '.dzn-tp-setup-nav' ) );
 
 if ( $failures ) {
 	throw new RuntimeException( 'Teacher onboarding presentation contract failed: ' . implode( '; ', $failures ) );

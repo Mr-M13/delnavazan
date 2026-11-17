@@ -52,6 +52,7 @@ final class NotificationManagementController {
         add_action('admin_post_dzn_notification_provider_mapping',array(__CLASS__,'saveProviderMapping'));
         add_action('admin_post_dzn_notification_event_toggle',array(__CLASS__,'toggleEvent'));
         add_action('admin_post_dzn_notification_event_channel_toggle',array(__CLASS__,'toggleEventChannel'));
+        add_action('admin_post_dzn_notification_enable_ready_mobile',array(__CLASS__,'enableReadyMobile'));
         add_action('admin_post_dzn_notification_inbox_prune',array(__CLASS__,'pruneInbox'));
         add_action('admin_post_dzn_notification_inbox_test',array(__CLASS__,'testInbox'));
         add_action('admin_post_dzn_notification_recover_leases',array(__CLASS__,'recoverLeases'));
@@ -398,7 +399,11 @@ final class NotificationManagementController {
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_publish_drafts">';
             wp_nonce_field('dzn_notification_publish_drafts');
             echo '<button class="button button-primary" type="submit" onclick="return confirm(\'Publish every approved draft as a new immutable version?\')">3. Publish approved drafts</button></form>';
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_enable_ready_mobile">';
+            wp_nonce_field('dzn_notification_enable_ready_mobile');
+            echo '<button class="button" type="submit" onclick="return confirm(\'Enable SMS and WhatsApp for every operational event whose copy and provider route are ready? Sensitive events stay off.\')">4. Enable ready SMS &amp; WhatsApp events</button></form>';
             echo '</div>';
+            echo '<p class="dzn-notif-meta">The provider test under Integrations proves transport only. Event delivery stays off until its channel is enabled here; this button does not enable sensitive, blocked or unmapped events.</p>';
         }
 
         if($workflow['restricted']>0){
@@ -863,8 +868,33 @@ final class NotificationManagementController {
         self::redirectBack('events',self::postTableContext(),$eventKey);
     }
 
-    public static function toggleEventChannel():never{
+    /**
+     * Explicit opt-in for the operational mobile channels after the provider test.
+     *
+     * The provider test proves transport only; it does not enable event delivery. This action
+     * enables SMS and WhatsApp for every operational event whose copy/provider route is already
+     * ready, and leaves sensitive or blocked events untouched for a deliberate per-event decision.
+     */
+    public static function enableReadyMobile():never{
         self::authorizeEdit();
+        check_admin_referer('dzn_notification_enable_ready_mobile');
+        $library=new NotificationTemplateLibrary();
+        $enabled=0;$blocked=0;
+        foreach(NotificationCatalogue::events() as $eventKey=>$event){
+            if((string)($event['category']??'')!=='operational')continue;
+            foreach(array('whatsapp','sms') as $channel){
+                if(!$library->channelOffered($eventKey,$channel)||$library->eventChannelEnabled($eventKey,$channel))continue;
+                if(self::channelBlocker($library,$eventKey,$channel)!==null){$blocked++;continue;}
+                try{$library->saveEventChannel($eventKey,$channel,true);$enabled++;}catch(\Throwable){$blocked++;}
+            }
+        }
+        $message=$enabled.' operational SMS/WhatsApp channel(s) enabled.';
+        if($blocked>0)$message.=' '.$blocked.' channel(s) stayed off because their copy, provider route or provider template is not ready; open the event to see the exact blocker.';
+        self::flash($enabled>0?'success':'error',$message);
+        self::redirectBack('events');
+    }
+
+    public static function toggleEventChannel():never{        self::authorizeEdit();
         check_admin_referer('dzn_notification_event_channel_toggle');
         $eventKey=isset($_POST['event_key'])?self::eventKey(wp_unslash((string)$_POST['event_key'])):'';
         $channel=isset($_POST['channel'])?sanitize_key(wp_unslash((string)$_POST['channel'])):'';

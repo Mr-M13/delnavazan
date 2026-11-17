@@ -98,8 +98,9 @@ final class BookingNotificationMobileDispatcher {
         } else {
             return null;
         }
-        $whatsapp = PhoneNumberNormalizer::toE164($whatsapp !== '' ? $whatsapp : $phone);
-        $phone = PhoneNumberNormalizer::toE164($phone !== '' ? $phone : $whatsapp);
+        $contact = PhoneNumberNormalizer::pair($phone, $whatsapp);
+        $whatsapp = PhoneNumberNormalizer::toE164($contact['whatsapp']);
+        $phone = PhoneNumberNormalizer::toE164($contact['phone']);
         if ($whatsapp === '' && $phone === '') return null;
         return array('id' => $id, 'whatsapp' => $whatsapp !== '' ? $whatsapp : $phone, 'sms' => $phone);
     }

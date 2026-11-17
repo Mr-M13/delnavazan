@@ -91,6 +91,7 @@ namespace {
             'lifecycle_state' => $state,
             'email' => $email,
             'phone' => $phone,
+            'teacher_whatsapp' => '',
             'country_code' => $country,
             'teacher_name' => 'استاد ندا',
             'student_name' => 'باران',
@@ -219,6 +220,10 @@ namespace {
     $r = $service->notifyAccessReady(101);
     $fail('no phone skips SMS with a stable reason', $r['sms']['state'] === 'skipped' && $r['sms']['reason'] === 'no_phone' && count($state->sms) === 0 && $r['produced'] === true && count($state->sent) === 1);
 
+    [$service, $state] = $make($makeRow('authorised', 42, 'teacher@example.invalid', '', 'IR', array('teacher_whatsapp' => '09123456789')));
+    $r = $service->notifyAccessReady(101);
+    $fail('missing teacher phone falls back to the teacher WhatsApp number', $r['sms']['state'] === 'accepted' && count($state->sms) === 1 && $state->sms[0]['to'] === '+989123456789');
+
     [$service, $state] = $make($makeRow('authorised', 42, 'teacher@example.invalid', 'not-a-number', 'IR'));
     $r = $service->notifyAccessReady(101);
     $fail('invalid phone skips SMS with a stable reason', $r['sms']['state'] === 'skipped' && $r['sms']['reason'] === 'phone_invalid' && count($state->sms) === 0);
@@ -301,7 +306,11 @@ namespace {
 
     [$service, $state] = $make($makeRow('authorised', 42, 'teacher@example.invalid', '09123456789', 'IR', array('student_phone' => '')));
     $r = $service->notifyStudentAccessReady(101);
-    $fail('student no phone skips SMS with a stable reason', $r['sms']['state'] === 'skipped' && $r['sms']['reason'] === 'no_phone' && count($state->sms) === 0 && $r['produced'] === true);
+    $fail('student without a phone falls back to the WhatsApp number', $r['sms']['state'] === 'accepted' && count($state->sms) === 1 && $state->sms[0]['to'] === '+989123456789');
+
+    [$service, $state] = $make($makeRow('authorised', 42, 'teacher@example.invalid', '09123456789', 'IR', array('student_phone' => '', 'student_whatsapp' => '')));
+    $r = $service->notifyStudentAccessReady(101);
+    $fail('student with no phone or WhatsApp skips SMS with a stable reason', $r['sms']['state'] === 'skipped' && $r['sms']['reason'] === 'no_phone' && count($state->sms) === 0 && $r['produced'] === true);
 
     [$service, $state] = $make($makeRow('authorised', 42, 'teacher@example.invalid', '09123456789', 'IR', array('student_phone' => 'not-a-number')));
     $r = $service->notifyStudentAccessReady(101);
@@ -329,7 +338,11 @@ namespace {
      * unmapped template, and the accepted path. */
     [$service, $state] = $make($makeRow('authorised', 42, 'teacher@example.invalid', '09123456789', 'IR', array('student_whatsapp' => '')));
     $r = $service->notifyStudentAccessReady(101);
-    $fail('no WhatsApp number skips with a stable reason', $r['whatsapp']['state'] === 'skipped' && $r['whatsapp']['reason'] === 'no_whatsapp_phone' && count($state->whatsapp) === 0 && $r['produced'] === true);
+    $fail('missing dedicated WhatsApp number falls back to the student mobile', $r['whatsapp']['state'] === 'accepted' && count($state->whatsapp) === 1 && $state->whatsapp[0]['to'] === '+989123456789');
+
+    [$service, $state] = $make($makeRow('authorised', 42, 'teacher@example.invalid', '09123456789', 'IR', array('student_whatsapp' => '', 'student_phone' => '')));
+    $r = $service->notifyStudentAccessReady(101);
+    $fail('no WhatsApp or mobile number skips with a stable reason', $r['whatsapp']['state'] === 'skipped' && $r['whatsapp']['reason'] === 'no_whatsapp_phone' && count($state->whatsapp) === 0 && $r['produced'] === true);
 
     [$service, $state] = $make($makeRow('authorised'), array('whatsapp_allowed' => static fn(string $e): bool => false));
     $r = $service->notifyStudentAccessReady(101);
@@ -365,6 +378,8 @@ namespace {
     $fail('cancellation hooks the lifecycle transition for both audiences', str_contains($source, "dzn_phase_2a2m_after_lesson_transition") && str_contains($source, "'cancel'") && str_contains($source, "STUDENT_CANCELLED_EVENT"));
     $fail('recipient resolution joins the assigned teacher only', str_contains($source, 't.id=l.teacher_id') && str_contains($source, "t.status='active'") && str_contains($source, 't.archived_at IS NULL'));
     $fail('recipient resolution joins the enrolled student only', str_contains($source, 's.id=l.student_id') && str_contains($source, 's.email student_email') && str_contains($source, 's.whatsapp_phone student_whatsapp'));
+    $fail('recipient resolution exposes the teacher WhatsApp fallback', str_contains($source, 't.whatsapp_phone teacher_whatsapp') && str_contains($source, "'teacher_whatsapp'=>"));
+    $fail('mobile delivery falls back between the phone and WhatsApp numbers', substr_count($source, "if(\$phone==='')") >= 2);
     $fail('recipient resolution carries the phone and country', str_contains($source, 't.phone') && str_contains($source, 't.country_code'));
     $fail('the producer defers out of band and re-verifies state', str_contains($source, 'wp_schedule_single_event') && str_contains($source, 'lifecycle_state'));
     $fail('SMS uses the existing destination policy and E.164 normaliser', str_contains($source, 'SmsProviderRoutingPolicy::select') && str_contains($source, 'PhoneNumberNormalizer::toE164'));

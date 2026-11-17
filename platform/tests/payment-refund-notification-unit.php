@@ -196,7 +196,11 @@ namespace {
     /* (viii) WhatsApp skip matrix and the accepted path. */
     [$service, $state] = $make($makeRow('failed', 7, 'student@example.invalid', '', 'IR'));
     $r = $service->dispatch('payment.failed.student', 512);
-    $fail('no WhatsApp number skips with a stable reason', $r['whatsapp']['state'] === 'skipped' && $r['whatsapp']['reason'] === 'no_whatsapp_phone' && count($state->whatsapp) === 0 && $r['produced'] === true && count($state->sent) === 1);
+    $fail('missing dedicated WhatsApp number falls back to the student mobile', $r['whatsapp']['state'] === 'accepted' && count($state->whatsapp) === 1 && $r['produced'] === true && count($state->sent) === 1);
+
+    [$service, $state] = $make($makeRow('failed', 7, 'student@example.invalid', '', 'IR', array('student_phone' => '')));
+    $r = $service->dispatch('payment.failed.student', 5121);
+    $fail('no WhatsApp or mobile number skips with a stable reason', $r['whatsapp']['state'] === 'skipped' && $r['whatsapp']['reason'] === 'no_whatsapp_phone' && count($state->whatsapp) === 0 && $r['produced'] === true && count($state->sent) === 1);
 
     [$service, $state] = $make($makeRow('failed'), array('whatsapp_allowed' => static fn(string $e): bool => false));
     $r = $service->dispatch('payment.failed.student', 513);

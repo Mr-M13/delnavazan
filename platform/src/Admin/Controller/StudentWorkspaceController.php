@@ -207,13 +207,14 @@ final class StudentWorkspaceController {
 
     private static function detailsSection(array $profile): void {
         $student = $profile['student'];
+        $contact = \Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer::pair((string) ($student->phone ?? ''), (string) ($student->whatsapp_phone ?? ''));
         self::sectionOpen('student-details', 'Student details', 'The public identity used by the academy. Internal account identity is managed separately below.', false);
         $rows = array(
             'Student name' => trim((string) ($student->first_name ?? '') . ' ' . (string) ($student->last_name ?? '')),
             'Display / preferred name' => (string) ($student->display_name ?? ''),
             'Email' => (string) ($student->email ?? ''),
-            'Phone' => (string) ($student->phone ?? ''),
-            'WhatsApp' => (string) ($student->whatsapp_phone ?? ''),
+            'Phone' => $contact['phone'],
+            'WhatsApp' => $contact['whatsapp'],
             'Country' => (string) ($student->country_code ?? ''),
             'City' => (string) ($student->city ?? ''),
             'Time zone' => (string) ($student->timezone ?? ''),

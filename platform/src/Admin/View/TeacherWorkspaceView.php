@@ -243,9 +243,9 @@ final class TeacherWorkspaceView {
         echo '<div class="dzn-tw-controls">';
         if (current_user_can('dzn_issue_teacher_invitations') && (int) ($record->linked_user_id ?? 0) < 1 && $account['active'] === false) {
             $storedPhone = trim((string) ($record->phone ?? ''));
-            echo '<details class="dzn-tw-disclosure"><summary>Resend invitation</summary><p>Resending supersedes the outstanding claimable token; the same Teacher record and email are reused. The phone is prefilled when the Teacher already has one.</p><form method="post" class="dzn-tw-form">';
+            echo '<details class="dzn-tw-disclosure"><summary>Resend invitation</summary><p>Resending supersedes the outstanding claimable token; the same Teacher record and email are reused. The phone is optional and only adds the invitation SMS; it is prefilled when the Teacher already has one.</p><form method="post" class="dzn-tw-form">';
             self::formFields('issue_teacher_invitation_by_email', $teacherId);
-            echo '<input type="hidden" name="recipient" value="' . esc_attr((string) $record->email) . '"><input type="hidden" name="invitation_form_id" value="' . esc_attr(wp_generate_uuid4()) . '"><label>Teacher phone <input type="tel" name="phone" value="' . esc_attr($storedPhone) . '"' . ($storedPhone === '' ? ' required' : '') . ' placeholder="0912 123 4567"></label><button class="button button-primary">Resend invitation</button></form></details>';
+            echo '<input type="hidden" name="recipient" value="' . esc_attr((string) $record->email) . '"><input type="hidden" name="invitation_form_id" value="' . esc_attr(wp_generate_uuid4()) . '"><label>Teacher phone (optional) <input type="tel" name="phone" value="' . esc_attr($storedPhone) . '" placeholder="0912 123 4567"></label><button class="button button-primary">Resend invitation</button></form></details>';
         }
         if (current_user_can('dzn_revoke_teacher_invitations') && in_array((string) ($record->generation_status ?? ''), array('queued_for_delivery', 'active'), true)) {
             echo '<details class="dzn-tw-disclosure"><summary>Revoke invitation</summary><p>Revoking invalidates every outstanding invitation token. It does not remove teaching history.</p><form method="post" class="dzn-tw-form">';
@@ -594,10 +594,10 @@ final class TeacherWorkspaceView {
         $overview = $read->onboardingOverview();
         echo '<section class="dzn-tw-section" id="teacher-onboarding">' . self::onboardingHeader();
         if (($overview['can_invite'] ?? false)) {
-            echo '<h3>Invite a teacher</h3><p>Issuing creates a delivery intent; it does not mean an email was received. The email carries the one-time code and claim link; the phone is captured so the teacher can also be reached by a brief invitation SMS. Raw invitation secrets are never rendered, retained, logged or placed in URLs.</p>';
+            echo '<h3>Invite a teacher</h3><p>Issuing creates a delivery intent; it does not mean an email was received. The email carries the one-time code and claim link. The phone is optional: when it is given, the teacher is also reached by a brief invitation SMS; when it is omitted, the invitation is sent by email only and the SMS leg is recorded as skipped. Raw invitation secrets are never rendered, retained, logged or placed in URLs.</p>';
             echo '<form method="post" class="dzn-tw-invite-form">';
             self::formFields('issue_teacher_invitation_by_email', 0);
-            echo '<input type="hidden" name="invitation_form_id" value="' . esc_attr(wp_generate_uuid4()) . '"><label for="dzn-teacher-invite-email">Teacher email</label><input id="dzn-teacher-invite-email" type="email" name="recipient" required placeholder="teacher@example.com"><label for="dzn-teacher-invite-phone">Teacher phone</label><input id="dzn-teacher-invite-phone" type="tel" name="phone" required placeholder="0912 123 4567"><button class="button button-primary">Send invitation</button></form>';
+            echo '<input type="hidden" name="invitation_form_id" value="' . esc_attr(wp_generate_uuid4()) . '"><label for="dzn-teacher-invite-email">Teacher email</label><input id="dzn-teacher-invite-email" type="email" name="recipient" required placeholder="teacher@example.com"><label for="dzn-teacher-invite-phone">Teacher phone (optional)</label><input id="dzn-teacher-invite-phone" type="tel" name="phone" placeholder="0912 123 4567"><button class="button button-primary">Send invitation</button></form>';
         }
         $rows = (array) ($overview['rows'] ?? array());
         echo '<h3>Onboarding and invitation status</h3>';
@@ -663,7 +663,7 @@ final class TeacherWorkspaceView {
                 $rowPhone = trim((string) ($row['phone'] ?? ''));
                 echo '<form method="post" class="dzn-tw-inline-form">';
                 self::formFields('issue_teacher_invitation_by_email', $teacherId);
-                echo '<input type="hidden" name="recipient" value="' . esc_attr((string) $row['email']) . '"><input type="hidden" name="invitation_form_id" value="' . esc_attr(wp_generate_uuid4()) . '"><input type="tel" name="phone" value="' . esc_attr($rowPhone) . '"' . ($rowPhone === '' ? ' required' : '') . ' placeholder="Teacher phone" aria-label="Teacher phone"><button class="button button-small">Resend</button></form>';
+                echo '<input type="hidden" name="recipient" value="' . esc_attr((string) $row['email']) . '"><input type="hidden" name="invitation_form_id" value="' . esc_attr(wp_generate_uuid4()) . '"><input type="tel" name="phone" value="' . esc_attr($rowPhone) . '" placeholder="Teacher phone (optional)" aria-label="Teacher phone, optional"><button class="button button-small">Resend</button></form>';
             }
             if (($overview['can_revoke'] ?? false) && in_array((string) ($row['invitation']['state'] ?? ''), array('queued_for_delivery', 'claim_available'), true)) {
                 echo '<form method="post" class="dzn-tw-inline-form" onsubmit="return confirm(\'Revoke this invitation?\')">';

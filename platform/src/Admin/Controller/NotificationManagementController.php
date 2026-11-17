@@ -382,7 +382,7 @@ final class NotificationManagementController {
 
         echo '<ol class="dzn-notif-steps">';
         echo '<li><strong>Prepare drafts</strong> — <span class="dzn-badge '.($workflow['drafts']>0?'is-ok':'').'">'.esc_html((string)$workflow['drafts']).' draft(s) stored</span><div class="dzn-notif-meta">Creates a reviewable draft for every template that has no version and no draft. Never overwrites a draft or a published version.</div></li>';
-        echo '<li><strong>Approve operational drafts</strong> — <span class="dzn-badge '.($workflow['awaiting']>0?'is-warn':'is-ok').'">'.esc_html((string)$workflow['awaiting']).' awaiting approval</span> <span class="dzn-badge '.($workflow['approved']>0?'is-ok':'').'">'.esc_html((string)$workflow['approved']).' approved</span><div class="dzn-notif-meta">Records an approval for each exact draft whose channel approvals are complete. Finance, legal, security, dedicated-authority and unmapped-provider copy is skipped and listed below.</div></li>';
+        echo '<li><strong>Approve operational drafts</strong> — <span class="dzn-badge '.($workflow['awaiting']>0?'is-warn':'is-ok').'">'.esc_html((string)$workflow['awaiting']).' awaiting approval</span> <span class="dzn-badge '.($workflow['approved']>0?'is-ok':'').'">'.esc_html((string)$workflow['approved']).' approved</span> <span class="dzn-badge '.($workflow['held']>0?'is-warn':'is-ok').'">'.esc_html((string)$workflow['held']).' held</span><div class="dzn-notif-meta">Records an approval for each exact draft whose channel approvals are complete. Finance, legal, security, dedicated-authority and unmapped-provider copy is skipped and listed below.</div></li>';
         echo '<li><strong>Publish approved drafts</strong> — <span class="dzn-badge '.($workflow['publishable']>0?'is-ok':'').'">'.esc_html((string)$workflow['publishable']).' ready to publish</span><div class="dzn-notif-meta">Creates a new immutable version for each approved draft. It never enables a channel and never changes a notification that already froze a version.</div></li>';
         echo '</ol>';
 
@@ -406,10 +406,10 @@ final class NotificationManagementController {
             echo '<p class="dzn-notif-meta">The provider test under Integrations proves transport only. Event delivery stays off until its channel is enabled here; this button does not enable sensitive, blocked or unmapped events.</p>';
         }
 
-        if($workflow['restricted']>0){
-            echo '<div class="notice notice-warning inline"><p><strong>'.esc_html((string)$workflow['restricted']).' draft(s) are held for an external approval and are never bulk-published.</strong></p><ul class="dzn-notif-list">';
-            foreach($workflow['restricted_by_reason'] as $reason=>$count)echo '<li>'.esc_html($reason).': '.esc_html((string)$count).'</li>';
-            echo '</ul><p class="dzn-notif-meta">Publish these individually from the editor after the named owner has approved them. This is the deliberate reason a sensitive notification can show "Awaiting approval" rather than "Ready".</p></div>';
+        if($workflow['held']>0){
+            echo '<div class="notice notice-warning inline"><p><strong>'.esc_html((string)$workflow['held']).' draft(s) are held and cannot be bulk-approved/published yet.</strong></p><ul class="dzn-notif-list">';
+            foreach($workflow['held_by_reason'] as $reason=>$count)echo '<li>'.esc_html($reason).': '.esc_html((string)$count).'</li>';
+            echo '</ul><p class="dzn-notif-meta">A held draft needs its named proof before it can be approved: a mapped/approved provider template for WhatsApp, the owning reviewer for security/dedicated-authority copy, or the exact generated copy for a canonical event. Open the event and edit or map it there; this workflow never force-publishes a held draft.</p></div>';
         }
 
         if($last!==null){

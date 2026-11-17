@@ -83,10 +83,18 @@ final class TeacherOnboardingService {
     }
 
     private function validatedProfile(array $input): array {
+        $persianName = Normalizer::text( $input['persian_name'] ?? null );
+        $englishName = Normalizer::text( $input['english_name'] ?? null );
+        // The Persian name is the Teacher's display name. Derive the label instead of keeping a
+        // second editable name that can disagree with the name the Teacher is actually known by.
+        $requestedDisplayName = trim( (string) ( $input['display_name'] ?? '' ) );
+        $displayName = ( null !== $persianName && '' !== trim( $persianName ) )
+            ? $persianName
+            : ( '' !== $requestedDisplayName ? $requestedDisplayName : (string) ( $englishName ?? '' ) );
         $data = array(
-            'display_name' => Normalizer::text( $input['display_name'] ?? '', 191, true ),
-            'persian_name' => Normalizer::text( $input['persian_name'] ?? null ),
-            'english_name' => Normalizer::text( $input['english_name'] ?? null ),
+            'display_name' => Normalizer::text( $displayName, 191, true ),
+            'persian_name' => $persianName,
+            'english_name' => $englishName,
             'email' => Normalizer::email( $input['email'] ?? null ),
             'phone' => Normalizer::phone( $input['phone'] ?? null ),
             'whatsapp_phone' => Normalizer::phone( $input['whatsapp_phone'] ?? null ),

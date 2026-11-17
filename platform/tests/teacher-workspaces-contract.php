@@ -39,6 +39,16 @@ $contains($view, array(
 ), 'The Teacher workspace must expose focused profile, eligibility, availability, lifecycle, onboarding and finance actions.');
 $expect(str_contains($screen, "issue_teacher_invitation_by_email"), 'Invitation creation remains a deliberate invitation action.');
 $contains($view, array('Classroom', 'Blockers', 'Next action', 'Expiry', 'invitation_form_id'), 'Onboarding must render Google account, blockers, next action and invitation evidence.');
+$tableStart = strpos($view, 'private static function onboarding(');
+$tableEnd = strpos($view, 'private static function statusIcon', $tableStart);
+$table = $tableStart !== false && $tableEnd !== false ? substr($view, $tableStart, $tableEnd - $tableStart) : '';
+$expect($table !== '', 'The onboarding table renderer must remain locatable.');
+$contains($table, array(
+    "'teacher-approve-onboarding'",
+    "'pending_review'",
+    'RecordActionRenderer::renderSelected',
+    'dzn-tw-actions',
+), 'Pending onboarding rows must offer the reviewed approval action directly from the table.');
 $expect(!str_contains($view, "'#dzn-teacher-onboarding-' . (int)"), 'Onboarding anchors must not expose raw Teacher identifiers.');
 
 $contains($registry, array(

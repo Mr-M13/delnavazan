@@ -6,11 +6,13 @@ use Delnavazan\Platform\Admin\View\EnrolmentWorkspaceView;
 use Delnavazan\Platform\Core\Application\AcademyDashboardReadService;
 use Delnavazan\Platform\Core\Application\AcademyJourneyReadService;
 use Delnavazan\Platform\Core\Application\CoreReadService;
+use Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService;
 use Delnavazan\Platform\Core\Application\LessonOperationsReadService;
 use Delnavazan\Platform\Core\Application\NotificationDiagnosticsReadService;
 use Delnavazan\Platform\Core\Application\NotificationRule;
 use Delnavazan\Platform\Core\Application\Finance\OperationalCashRule;
 use Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney;
+use Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository;
 use Delnavazan\Platform\Integrations\GoogleWorkspace\MeetAdministratorClassroomService;
 
 /**
@@ -31,6 +33,9 @@ final class AcademyOperationsController {
     /** @var array<string,array<string,mixed>> */
     private static array $classroomCache = array();
 
+    /** @var array<int,array{offer_count:int,offered_teacher_count:int,response_deadline_at:?string,response_offer_sequence:?int}> */
+    private static array $offerSummaryCache = array();
+
     public static function screen(): void {
         if (!current_user_can(self::CAP)) wp_die('Forbidden', 403);
         $summary = (new AcademyDashboardReadService())->summary();
@@ -39,6 +44,7 @@ final class AcademyOperationsController {
         if (AcademyDashboardScreen::shows('schedule')) {
             self::todayClasses();
             self::scheduledIntroClasses();
+            self::introResponseQueue();
         }
         if (AcademyDashboardScreen::shows('finance')) self::financePanel($summary);
         if (AcademyDashboardScreen::shows('coverage')) self::coveragePanel();
@@ -487,6 +493,33 @@ final class AcademyOperationsController {
         echo '</ul></section>';
     }
 
+    /** Active introductory requests whose assigned Teacher has not answered yet. */
+    private static function introResponseQueue(): void {
+        if (!current_user_can('dzn_view_booking_requests')) return;
+        $rows = (new EnrolmentWorkspaceReadService())->pendingTeacherResponses(12);
+        echo '<section class="dzn-panel dzn-intro-responses" id="dzn-intro-responses"><div class="dzn-panel__head"><div><h2>Intro requests awaiting Teacher response</h2><p>Remaining acceptance time comes from the same authoritative offer deadline the Teacher portal enforces. The offer count shows how many Teachers this request has already been sent to.</p></div><a class="dzn-panel__link" href="' . esc_url(admin_url('admin.php?page=dzn-enrolment-workspace&type=intro')) . '">Open intro requests →</a></div>';
+        if (!$rows) {
+            echo '<p class="dzn-empty">No introductory request is waiting for a Teacher response.</p></section>';
+            return;
+        }
+        echo '<ul class="dzn-list dzn-class-list dzn-intro-response-list">';
+        foreach ($rows as $row) {
+            $url = (string) ($row['url'] ?? admin_url('admin.php?page=dzn-enrolment-workspace&request_id=' . (int) $row['request_id']));
+            $count = (int) ($row['offered_teacher_count'] ?? 0);
+            $localLabel = (string) $row['local_label'];
+            $timezone = (string) $row['timezone'];
+            if ($timezone !== '' && str_ends_with($localLabel, ' ' . $timezone)) $localLabel = substr($localLabel, 0, -strlen(' ' . $timezone));
+            echo '<li class="dzn-list__item dzn-class-list__item"><span class="dzn-list__time"><bdi>' . esc_html($localLabel) . '</bdi><small>' . esc_html($timezone) . '</small></span><span class="dzn-list__body"><a class="dzn-list__title" data-dzn-class-admin data-dzn-class-admin-label="' . esc_attr((string) $row['learner_name']) . '" href="' . esc_url($url) . '">' . esc_html((string) $row['learner_name']) . '</a><span class="dzn-list__meta">' . esc_html((string) $row['instrument']) . ' · ' . esc_html((string) $row['course']) . ' · ' . esc_html((string) $row['teacher_name']) . '</span><span class="dzn-class-facts">';
+            if (!empty($row['response_expired'])) {
+                echo '<span class="dzn-offer-window is-expired"' . ((string) ($row['response_deadline_iso'] ?? '') !== '' ? ' data-dzn-offer-deadline="' . esc_attr((string) $row['response_deadline_iso']) . '"' : '') . '><strong data-dzn-offer-countdown>Deadline passed</strong> · reassignment pending</span>';
+            } else {
+                echo '<span class="dzn-offer-window" data-dzn-offer-deadline="' . esc_attr((string) $row['response_deadline_iso']) . '"><strong data-dzn-offer-countdown>' . esc_html((string) $row['response_remaining_label']) . '</strong> to accept</span>';
+            }
+            echo '<span><b>' . esc_html(number_format_i18n($count)) . '</b> Teacher' . ($count === 1 ? '' : 's') . ' offered</span><span><b>' . esc_html((string) $row['reference']) . '</b></span></span></span><div class="dzn-list__action"><a class="button button-small" data-dzn-class-admin data-dzn-class-admin-label="' . esc_attr((string) $row['learner_name']) . '" href="' . esc_url($url) . '">Review request</a></div></li>';
+        }
+        echo '</ul></section>';
+    }
+
     private static function classroomNotice(string $status): void {
         $status = sanitize_key($status);
         if (!in_array($status, array('livekit_unavailable', 'meet_unavailable'), true)) return;
@@ -519,7 +552,10 @@ final class AcademyOperationsController {
         $completed = $row->completed_class_count ?? null;
         $remaining = $row->remaining_class_count ?? null;
         $replacement = $row->replacement_remaining ?? null;
-        echo '<li class="dzn-list__item dzn-class-list__item"><span class="dzn-list__time"><bdi>' . esc_html($time) . '</bdi>' . ($timezone !== '' ? '<small>' . esc_html($timezone) . '</small>' : '') . '</span><span class="dzn-list__body"><a class="dzn-list__title" data-dzn-class-admin data-dzn-class-admin-label="' . esc_attr($student) . '" href="' . esc_url($url) . '">' . esc_html($student) . '</a><span class="dzn-list__meta">' . esc_html($instrument) . ' · ' . esc_html($teacher) . '</span><span class="dzn-class-facts"><span><b>' . ($completed === null ? '—' : esc_html((string) (int) $completed)) . '</b> completed</span><span><b>' . ($remaining === null ? '—' : esc_html((string) (int) $remaining)) . '</b> remaining</span><span><b>' . ($replacement === null ? '—' : esc_html((string) (int) $replacement)) . '</b> replacements left</span><span><b>' . esc_html($term) . '</b></span></span><span class="dzn-class-list__state"><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $row->class_status) . '</span><span class="dzn-class-state dzn-class-state--' . esc_attr(self::classroomStateTone($classroom)) . '">Classroom: ' . esc_html(self::livekitStateLabel($classroom)) . ' · Co-host: ' . esc_html((string) ($classroom['cohost_state'] ?? 'pending')) . '</span><span class="dzn-class-state dzn-class-state--' . (!empty($classroom['meet_available']) ? 'ready' : 'missing') . '">Meet: ' . (!empty($classroom['meet_available']) ? 'provisioned' : 'not provisioned') . '</span></span></span><div class="dzn-list__action"><a class="button button-small" data-dzn-class-admin data-dzn-class-admin-label="' . esc_attr($student) . '" href="' . esc_url($url) . '">' . esc_html($action) . '</a>';
+        $offeredTeacherCount = ($row->record_model ?? '') === 'confirmed_intro_booking_v1' && (int) ($row->booking_request_id ?? 0) > 0
+            ? (int) (self::offerSummary((int) $row->booking_request_id)['offered_teacher_count'] ?? 0)
+            : null;
+        echo '<li class="dzn-list__item dzn-class-list__item"><span class="dzn-list__time"><bdi>' . esc_html($time) . '</bdi>' . ($timezone !== '' ? '<small>' . esc_html($timezone) . '</small>' : '') . '</span><span class="dzn-list__body"><a class="dzn-list__title" data-dzn-class-admin data-dzn-class-admin-label="' . esc_attr($student) . '" href="' . esc_url($url) . '">' . esc_html($student) . '</a><span class="dzn-list__meta">' . esc_html($instrument) . ' · ' . esc_html($teacher) . '</span><span class="dzn-class-facts"><span><b>' . ($completed === null ? '—' : esc_html((string) (int) $completed)) . '</b> completed</span><span><b>' . ($remaining === null ? '—' : esc_html((string) (int) $remaining)) . '</b> remaining</span><span><b>' . ($replacement === null ? '—' : esc_html((string) (int) $replacement)) . '</b> replacements left</span>' . ($offeredTeacherCount !== null ? '<span><b>' . esc_html(number_format_i18n($offeredTeacherCount)) . '</b> Teachers offered</span>' : '') . '<span><b>' . esc_html($term) . '</b></span></span><span class="dzn-class-list__state"><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $row->class_status) . '</span><span class="dzn-class-state dzn-class-state--' . esc_attr(self::classroomStateTone($classroom)) . '">Classroom: ' . esc_html(self::livekitStateLabel($classroom)) . ' · Co-host: ' . esc_html((string) ($classroom['cohost_state'] ?? 'pending')) . '</span><span class="dzn-class-state dzn-class-state--' . (!empty($classroom['meet_available']) ? 'ready' : 'missing') . '">Meet: ' . (!empty($classroom['meet_available']) ? 'provisioned' : 'not provisioned') . '</span></span></span><div class="dzn-list__action"><a class="button button-small" data-dzn-class-admin data-dzn-class-admin-label="' . esc_attr($student) . '" href="' . esc_url($url) . '">' . esc_html($action) . '</a>';
         echo '<details class="dzn-class-actions"><summary class="button button-small">Classroom &amp; actions</summary><div class="dzn-class-actions__panel">';
         if (!empty($classroom['meet_available'])) {
             echo '<form method="post" target="_blank" rel="noopener noreferrer" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-class-actions__form">';
@@ -657,6 +693,15 @@ final class AcademyOperationsController {
         $todayRows = (new LessonOperationsReadService())->enrichTodayRows($todayRows);
         self::$classCache = array('available' => true, 'today' => $todayRows, 'upcoming' => array(), 'attention' => $attention, 'rows' => $rows);
         return self::$classCache;
+    }
+
+    /** @return array{offer_count:int,offered_teacher_count:int,response_deadline_at:?string,response_offer_sequence:?int} */
+    private static function offerSummary(int $requestId): array {
+        if (!array_key_exists($requestId, self::$offerSummaryCache)) {
+            $summary = (new BookingAllocationRepository())->offerSummaries(array($requestId))[$requestId] ?? null;
+            self::$offerSummaryCache[$requestId] = $summary ?? array('offer_count' => 0, 'offered_teacher_count' => 0, 'response_deadline_at' => null, 'response_offer_sequence' => null);
+        }
+        return self::$offerSummaryCache[$requestId];
     }
 
     private static function classTimeLabel(object $row): string {

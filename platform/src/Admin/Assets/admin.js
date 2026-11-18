@@ -253,4 +253,31 @@
             meetCopy(meet);
         }
     });
+
+    function offerRemainingLabel(seconds) {
+        if (seconds <= 0) return 'Deadline passed';
+        var minutes = Math.max(1, Math.ceil(seconds / 60));
+        if (minutes < 60) return minutes + ' min left';
+        var hours = Math.floor(minutes / 60);
+        var extraMinutes = minutes % 60;
+        if (hours < 48) return hours + 'h' + (extraMinutes > 0 ? ' ' + extraMinutes + 'm' : '') + ' left';
+        var days = Math.floor(hours / 24);
+        var extraHours = hours % 24;
+        return days + 'd' + (extraHours > 0 ? ' ' + extraHours + 'h' : '') + ' left';
+    }
+
+    function updateOfferCountdowns() {
+        document.querySelectorAll('[data-dzn-offer-deadline]').forEach(function (windowEl) {
+            var deadline = Date.parse(windowEl.getAttribute('data-dzn-offer-deadline') || '');
+            if (!Number.isFinite(deadline)) return;
+            var remaining = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+            var countdown = windowEl.querySelector('[data-dzn-offer-countdown]');
+            if (countdown) countdown.textContent = offerRemainingLabel(remaining);
+            windowEl.classList.toggle('is-expired', remaining <= 0);
+            windowEl.setAttribute('data-dzn-offer-expired', remaining <= 0 ? '1' : '0');
+        });
+    }
+
+    updateOfferCountdowns();
+    window.setInterval(updateOfferCountdowns, 30000);
 })();

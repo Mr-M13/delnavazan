@@ -23,6 +23,42 @@ final class BookingAllocationRepository {
     public function offer(int $requestId,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_allocation_offers WHERE booking_request_id=%d AND active_slot=1".($lock?' FOR UPDATE':''),$requestId))?:null;}
     public function offerForTeacher(int $requestId,int $teacherId,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_allocation_offers WHERE booking_request_id=%d AND teacher_id=%d".($lock?' FOR UPDATE':''),$requestId,$teacherId))?:null;}
     public function history(int $requestId):array{global $wpdb;return (array)$wpdb->get_results($wpdb->prepare("SELECT o.offer_sequence,o.teacher_id,o.requested_time_id,o.state,o.offered_at,o.deadline_at,o.responded_at,o.reason_code,COALESCE(NULLIF(t.display_name,''),NULLIF(t.persian_name,''),t.reference_code) teacher_name FROM {$this->p}booking_allocation_offers o INNER JOIN {$this->p}teachers t ON t.id=o.teacher_id WHERE o.booking_request_id=%d ORDER BY o.offer_sequence",$requestId));}
+
+    /**
+     * Offer evidence for operator queues, keyed by booking request.
+     *
+     * `offered_teacher_count` counts distinct Teachers this request has actually been
+     * offered to, including declined, expired, capacity-lost and accepted offers. The
+     * deadline is present only while exactly one offer is still the active pending one.
+     * Read-only; no state is advanced here.
+     *
+     * @param list<int> $requestIds
+     * @return array<int,array{offer_count:int,offered_teacher_count:int,response_deadline_at:?string,response_offer_sequence:?int}>
+     */
+    public function offerSummaries(array $requestIds):array{
+        global $wpdb;
+        $ids=array_values(array_unique(array_filter(array_map('intval',$requestIds),static fn(int $id):bool=>$id>0)));
+        if(!$ids)return array();
+        $placeholders=implode(',',array_fill(0,count($ids),'%d'));
+        $rows=(array)$wpdb->get_results($wpdb->prepare(
+            "SELECT booking_request_id,COUNT(*) offer_count,COUNT(DISTINCT teacher_id) offered_teacher_count,
+                    MAX(CASE WHEN state='pending' AND active_slot=1 THEN deadline_at END) response_deadline_at,
+                    MAX(CASE WHEN state='pending' AND active_slot=1 THEN offer_sequence END) response_offer_sequence
+               FROM {$this->p}booking_allocation_offers
+              WHERE booking_request_id IN ({$placeholders})
+              GROUP BY booking_request_id",
+            ...$ids
+        ),ARRAY_A);
+        if($wpdb->last_error!=='')throw new \RuntimeException('Booking offer summary unavailable');
+        $out=array();
+        foreach($rows as $row)$out[(int)$row['booking_request_id']]=array(
+            'offer_count'=>(int)$row['offer_count'],
+            'offered_teacher_count'=>(int)$row['offered_teacher_count'],
+            'response_deadline_at'=>$row['response_deadline_at']!==null?(string)$row['response_deadline_at']:null,
+            'response_offer_sequence'=>$row['response_offer_sequence']!==null?(int)$row['response_offer_sequence']:null,
+        );
+        return $out;
+    }
     public function cursor(int $courseId,string $now):int{
         global $wpdb;
         if($wpdb->query($wpdb->prepare("INSERT IGNORE INTO {$this->p}booking_allocation_cursors (course_id,last_teacher_id,updated_at) VALUES (%d,0,%s)",$courseId,$now))===false)throw new \RuntimeException('Allocation cursor unavailable');

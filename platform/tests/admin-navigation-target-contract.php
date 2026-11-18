@@ -20,11 +20,12 @@ foreach (array(
     "['CRM', 'dzn-people', Menu::PEOPLE_DIRECTORY_CAP]",
     "['Enrolment', 'dzn-enrolment-workspace', Menu::ENROLMENT_WORKSPACE_CAP]",
     "['Finance', 'dzn-finance', Menu::FINANCE_WORKSPACE_CAP, ['tab' => 'payments']]",
-    "'general' => ['General'", "'access' => ['Administration & Delegated Access'",
+    "'general' => ['General'", "'access' => ['Roles'",
     "'policy' => ['Policy'", "'notifications' => ['Notifications'",
     "'integrations' => ['Integrations'", "'diagnostics' => ['Diagnostics'",
     "'dzn-catalogue-workspace' => 'enrolment'",
 ) as $needle) $require(str_contains($shell, $needle), 'Missing current destination: ' . $needle);
+$require(str_contains($general, 'Backup and rollback'), 'General must own the read-only backup and rollback status card');
 $require(str_contains($general, 'Site information') && !str_contains($general, 'dzn-catalogue-workspace'), 'General must be simplified and must not own catalogue management');
 foreach (array('dzn-booking-requests','dzn-booking-request-coordination','dzn-enrolment','dzn-term','dzn-course','dzn-instrument','dzn-attendance-review','dzn-post-intro','dzn-recording-notices','dzn-core-dataset-readiness') as $slug) {
     $require(str_contains($menu . $shell . $read('RecordingNoticeAdminController.php'), $slug), 'Protected legacy route lost: ' . $slug);

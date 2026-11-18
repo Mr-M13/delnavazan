@@ -202,7 +202,7 @@ final class Menu {
             ['Notification templates', 'dzn_manage_provider_integrations', 'dzn-communications-templates', [CommunicationsTemplateController::class, 'screen'], null],
             ['Stripe setup', PaymentExecutionController::CAPABILITY, 'dzn-stripe-settings', [IntegrationControlPlaneController::class, 'stripeSettings'], null],
             ['General', GeneralSettingsController::CAPABILITY, GeneralSettingsController::MENU_SLUG, [GeneralSettingsController::class, 'render'], null],
-            ['Administration & Delegated Access', DelegatedAccessController::CAPABILITY, DelegatedAccessController::MENU_SLUG, [DelegatedAccessController::class, 'screen'], null],
+            ['Roles', DelegatedAccessController::CAPABILITY, DelegatedAccessController::MENU_SLUG, [DelegatedAccessController::class, 'screen'], null],
             ['Integrations', self::INTEGRATIONS_OVERVIEW_CAP, 'dzn-integrations', [IntegrationControlPlaneController::class, 'screen'], null],
             ['Email', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-email', [IntegrationControlPlaneController::class, 'emailSettings'], null],
             ['Meta WhatsApp Cloud API', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-whatsapp', [IntegrationControlPlaneController::class, 'whatsAppSettings'], null],

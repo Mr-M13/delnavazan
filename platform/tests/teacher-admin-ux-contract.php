@@ -10,8 +10,11 @@ foreach (array('adminDirectory(string $search, string $status, int $page', '$wpd
     if (strpos($repo, $needle) === false) throw new RuntimeException('Teacher repository read contract missing: ' . $needle);
 }
 if (strpos($read, "current_user_can('dzn_manage_teachers')") === false || strpos($read, 'adminDirectory($search, $status, $page, 20, $sort, $direction)') === false) throw new RuntimeException('Teacher directory read must remain capability-gated through CoreReadService');
-foreach (array('Teacher directory', 'Contact', 'Instruments', 'Status', 'Availability', 'Golden hours', 'Students', 'Teaching', 'Introductions', 'Conversion', 'Rate', 'Payments', 'Actions', 'Open profile', 'Set unavailable', 'Archived records') as $needle) {
+foreach (array('Teacher directory', 'Contact', 'Instruments', 'Status', 'Students', 'Teaching', 'Introductions', 'Conversion', 'Rate', 'Payments', 'Actions', 'Open profile', 'Set unavailable', 'Archived records') as $needle) {
     if (strpos($view, $needle) === false) throw new RuntimeException('Teacher admin UX contract missing: ' . $needle);
+}
+foreach (array('scope="col">Availability<', 'scope="col">Golden hours<') as $removed) {
+    if (strpos($view, $removed) !== false) throw new RuntimeException('Teacher directory must not repeat availability in its own columns: ' . $removed);
 }
 foreach (array('canonical_lesson_delivery_outcomes', 'booking_request_intro_outcomes', 'teacher_availability_rules', 'finance_teacher_rates', 'finance_statements', 'payment_recorded', 'GoldenHourPolicyService') as $needle) {
     if (strpos($workspace, $needle) === false) throw new RuntimeException('Teacher directory statistics must use canonical records: ' . $needle);

@@ -4,7 +4,7 @@ namespace Delnavazan\Platform\Admin\Controller;
 /**
  * Protected legacy route for the former Settings → General staff-access panel.
  *
- * The canonical interface is Settings → Administration & Delegated Access. This route is kept
+ * The canonical interface is Settings → Roles. This route is kept
  * only so an old bookmark resolves safely; it renders no second access editor and accepts no
  * write operation. The underlying StaffAccessService remains the shared capability-mutation seam.
  */
@@ -17,7 +17,7 @@ final class StaffAccessController {
 
     public static function menu(): void {
         if (!function_exists('add_submenu_page')) return;
-        add_submenu_page(Menu::ROOT_SLUG, 'Administration & Delegated Access', 'Administration & Delegated Access', 'manage_options', self::MENU_SLUG, [self::class, 'screen']);
+        add_submenu_page(Menu::ROOT_SLUG, 'Roles', 'Roles', 'manage_options', self::MENU_SLUG, [self::class, 'screen']);
     }
 
     public static function screen(): void {

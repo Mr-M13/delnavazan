@@ -5,7 +5,7 @@ use Delnavazan\Platform\Core\Application\AccessRoleService;
 use Delnavazan\Platform\Core\Application\PermissionRegistry;
 
 /**
- * Settings → Administration & Delegated Access.
+ * Settings → Roles.
  *
  * This is the single interface for custom roles, staff assignments, explicit allow/deny
  * overrides and an effective-permission preview. It extends the existing capability model:
@@ -31,7 +31,7 @@ final class DelegatedAccessController {
 
     public static function menu(): void {
         if (!function_exists('add_submenu_page')) return;
-        add_submenu_page(Menu::ROOT_SLUG, 'Administration & Delegated Access', 'Administration & Delegated Access', self::CAPABILITY, self::MENU_SLUG, [self::class, 'screen']);
+        add_submenu_page(Menu::ROOT_SLUG, 'Roles', 'Roles', self::CAPABILITY, self::MENU_SLUG, [self::class, 'screen']);
     }
 
     public static function screen(): void {
@@ -43,8 +43,8 @@ final class DelegatedAccessController {
         $compare = isset($_GET['compare']) && is_array($_GET['compare']) ? array_values(array_filter(array_map('sanitize_key', wp_unslash($_GET['compare'])))) : [];
 
         echo '<div class="wrap dzn-settings-page dzn-access-page" dir="ltr">';
-        echo '<h1>Administration &amp; Delegated Access</h1>';
-        echo '<p class="dzn-settings-lede">Delegate individual actions without making anyone a WordPress Administrator. A permission grants only the existing canonical capability it names; every controller and endpoint still enforces that capability server-side.</p>';
+        echo '<h1>Roles</h1>';
+        echo '<p class="dzn-settings-lede">Roles and delegated access in one place. Each role grants only named canonical capabilities, and individual staff assignments can allow or deny them without making anyone a WordPress Administrator. Every controller and endpoint still enforces the capability server-side.</p>';
         self::flash();
         self::summary($service, $roles);
         self::rolesTable($service, $roles, $roleId, $compare);

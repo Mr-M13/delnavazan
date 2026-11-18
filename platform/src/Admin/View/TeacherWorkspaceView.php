@@ -55,13 +55,12 @@ final class TeacherWorkspaceView {
             return;
         }
         echo '<p class="dzn-tw-count">' . esc_html(number_format_i18n(count($rows))) . ' ' . ($showArchived ? 'archived record' : 'teacher') . (count($rows) === 1 ? '' : 's') . '</p>';
-        echo '<div class="dzn-tw-table-scroll" role="region" aria-label="Teacher directory table" tabindex="0"><table class="widefat striped dzn-tw-table dzn-tw-directory"><caption class="screen-reader-text">Complete teacher directory with contact, instruments, status, availability, golden-hour coverage, students, teaching, introductions, conversion, rate, payment and actions.</caption><thead><tr><th scope="col">Teacher</th><th scope="col">Contact</th><th scope="col">Instruments</th><th scope="col">Status</th><th scope="col">Availability</th><th scope="col">Golden hours</th><th scope="col">Students</th><th scope="col">Teaching</th><th scope="col">Introductions</th><th scope="col">Conversion</th><th scope="col">Rate</th><th scope="col">Payments</th><th scope="col">Actions</th></tr></thead><tbody>';
+        echo '<div class="dzn-tw-table-scroll" role="region" aria-label="Teacher directory table" tabindex="0"><table class="widefat striped dzn-tw-table dzn-tw-directory"><caption class="screen-reader-text">Complete teacher directory with contact, instruments, status, students, teaching, introductions, conversion, rate, payment and actions.</caption><thead><tr><th scope="col">Teacher</th><th scope="col">Contact</th><th scope="col">Instruments</th><th scope="col">Status</th><th scope="col">Students</th><th scope="col">Teaching</th><th scope="col">Introductions</th><th scope="col">Conversion</th><th scope="col">Rate</th><th scope="col">Payments</th><th scope="col">Actions</th></tr></thead><tbody>';
         foreach ($rows as $row) {
             $profileUrl = self::url($page, array('id' => (int) $row->id));
             $stats = (array) ($row->stats ?? array());
             $intro = (array) ($stats['intro'] ?? array());
             $response = (array) ($stats['response'] ?? array());
-            $golden = (array) ($stats['golden'] ?? array());
             $payment = (array) ($row->payment ?? array());
             $contact = trim(implode(' · ', array_filter(array((string) ($row->phone ?? ''), (string) ($row->whatsapp_phone ?? '')))));
             $instrumentSummary = trim((string) ($stats['instruments'] ?? ''));
@@ -72,8 +71,6 @@ final class TeacherWorkspaceView {
             echo '<td>' . esc_html($contact !== '' ? $contact : 'Not recorded') . '</td>';
             echo '<td>' . esc_html($instrumentSummary !== '' ? $instrumentSummary : 'None recorded') . '</td>';
             echo '<td><span class="dzn-tw-status dzn-tw-status--' . esc_attr($statusClass) . '">' . esc_html((string) $row->onboarding_label) . '</span></td>';
-            echo '<td>' . esc_html((string) $row->availability_label) . '</td>';
-            echo '<td>' . self::goldenCell($golden) . '</td>';
             echo '<td>' . esc_html(number_format_i18n((int) ($stats['students'] ?? 0))) . '</td>';
             echo '<td>' . esc_html(self::teachingLabel((int) ($stats['teaching_minutes'] ?? 0))) . '</td>';
             echo '<td>' . esc_html(number_format_i18n((int) ($intro['total'] ?? 0))) . '<span class="dzn-tw-sub">' . esc_html((int) ($intro['pending'] ?? 0) . ' pending') . '</span></td>';
@@ -718,15 +715,6 @@ final class TeacherWorkspaceView {
             default => 'unknown',
         };
         return '<span class="dzn-tw-status-icon dzn-tw-status-icon--' . esc_attr($class) . '" tabindex="0" role="img" aria-label="' . esc_attr($tip !== '' ? $tip : $label) . '" title="' . esc_attr($tip !== '' ? $tip : $label) . '" data-dzn-tip="' . esc_attr($tip !== '' ? $tip : $label) . '">' . esc_html($glyph) . '<span class="screen-reader-text">' . esc_html($label !== '' ? $label : $tip) . '</span></span>';
-    }
-
-    private static function goldenCell(array $golden): string {
-        $minutes = (int) ($golden['minutes'] ?? 0);
-        if ($minutes < 1) return '<span class="dzn-tw-muted">No overlap</span>';
-        $tip = (string) ($golden['label'] ?? '');
-        if (!empty($golden['windows'])) $tip .= ' · ' . implode('; ', (array) $golden['windows']);
-        $first = !empty($golden['windows']) ? (string) $golden['windows'][0] : '';
-        return '<span title="' . esc_attr($tip) . '">' . esc_html((string) ($golden['minutes_label'] ?? self::minutesLabel($minutes))) . '</span>' . ($first !== '' ? '<span class="dzn-tw-sub">' . esc_html($first) . '</span>' : '');
     }
 
     private static function rateCell(array $finance): string {

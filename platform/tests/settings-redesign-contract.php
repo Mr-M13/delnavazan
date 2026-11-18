@@ -25,12 +25,13 @@ $plugin = $read('../platform/delnavazan-platform.php');
 /* Settings has exactly six visible sections. */
 foreach (array(
     "'general' => ['General'",
-    "'access' => ['Administration & Delegated Access'",
+    "'access' => ['Roles'",
     "'policy' => ['Policy'",
     "'notifications' => ['Notifications'",
     "'integrations' => ['Integrations'",
     "'diagnostics' => ['Diagnostics'",
 ) as $needle) $fail(str_contains($shell, $needle), 'Missing Settings section: ' . $needle);
+$fail(strpos($shell, "'integrations' => ['Integrations'") < strpos($shell, "'access' => ['Roles'") && strpos($shell, "'access' => ['Roles'") < strpos($shell, "'diagnostics' => ['Diagnostics'"), 'Roles must sit between Integrations and Diagnostics');
 foreach (array("'recordings' => ['Recordings'", "'policies' => ['Policies'", "'messaging' =>", "'system' =>") as $removed) {
     $fail(!str_contains($shell, $removed), 'Obsolete Settings navigation remains: ' . $removed);
 }
@@ -44,6 +45,17 @@ foreach (array('renderPages', 'get_pages', 'renderLegalPages', 'LegalPageProvisi
 }
 $fail(!str_contains($general, 'admin@DelLavazon.com') || str_contains($general, 'were corrected'), 'The misspelt contact domain must be visibly corrected, not used');
 $fail(!str_contains($general, '0413 4113 004') || str_contains($general, 'were corrected'), 'The unverified phone digits must be visibly corrected, not used');
+
+/* General ends with a read-only backup and rollback status card. */
+foreach (array('Backup and rollback', 'id="backup-rollback"', 'id="backup-actions"', 'Daily at 03:07 UTC', 'The newest 2 points', 'DZN_BACKUP_REMOTE', 'RESTORE', 'dzn-backup-point.sh', 'dzn-restore-point.sh', 'install-production-host-tooling.yml', 'INSTALL_HOST_TOOLING', 'backup-point.log', 'docs/BACKUP-ROLLBACK-RUNBOOK.md') as $needle) {
+    $fail(str_contains($general, $needle), 'The General backup and rollback card is missing: ' . $needle);
+}
+$fail(strpos($general, 'Contact and public presence') < strpos($general, 'Backup and rollback') && strpos($general, 'renderContactAndPresence();') < strpos($general, 'renderBackupAndRollback('), 'The backup and rollback card must be the last General section');
+$fail(str_contains($general, 'Not observable from wp-admin'), 'An unreadable host log must be reported as not observable, never as a missing backup');
+foreach (array('admin_post_', 'check_admin_referer', 'shell_exec', 'proc_open', 'passthru', 'system(', 'wp_remote_', 'wpdb->query') as $forbidden) {
+    $fail(!str_contains($general, $forbidden), 'The read-only General surface must not execute or write: ' . $forbidden);
+}
+$fail(preg_match('/\$wpdb->(?:insert|update|delete)\(/', $general) !== 1, 'General must never write database rows');
 
 /* Policy is card-based and has one consent management surface plus legal pages. */
 foreach (array('policyCards', 'dzn-policy-card-grid', 'dzn-policy-card--', "'operational'=>", "'financial'=>", "'attendance'=>", "'cancellation'=>", "'consent'=>", 'Consent Management', 'legal-policy', 'LegalPageProvisioner', 'legalPages', 'consentManagement') as $needle) {
@@ -99,6 +111,7 @@ foreach (array('renderGoogleCard', 'Google Workspace &amp; Meet', 'Manage Google
     $fail(str_contains($integrations, $needle), 'Consolidated Google integration is missing: ' . $needle);
 }
 $fail(!str_contains($integrations, 'renderClassroomCard()'), 'A second Google Meet card remains');
+$fail(!str_contains($integrations, 'Routing and provider boundaries'), 'Integrations must not repeat the retired routing and provider-boundary section');
 $fail(str_contains($menu, "'Google Workspace & Meet'"), 'Google Workspace & Meet route label missing');
 
 /* Registration. */

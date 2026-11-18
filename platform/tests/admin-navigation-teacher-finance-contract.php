@@ -17,7 +17,7 @@ $need($shell, array(
     "['Teachers', 'dzn-teachers-menu', Menu::TEACHER_OPERATIONS_CAP]",
     "['Enrolment', 'dzn-enrolment-workspace'",
     "'dzn-recording-notices' => 'settings'", "'dzn-catalogue-workspace' => 'enrolment'",
-    "'access' => ['Administration & Delegated Access'", "'policy' => ['Policy'",
+    "'access' => ['Roles'", "'policy' => ['Policy'",
 ), 'Navigation must retain six work areas and protected routes');
 $need($menu, array('mappedCoreWorkflowCaps','TEACHER_OPERATIONS_CAP','ENROLMENT_TRIALS_CAP','ENROLLED_CLASSES_CAP','CATALOGUE_WORKSPACE_CAP','FINANCE_WORKSPACE_CAP'), 'Composite navigation must be capability-scoped');
 $need($general, array('Site information','Contact and public presence'), 'General must own site identity and frontline contact only');

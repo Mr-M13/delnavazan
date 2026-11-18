@@ -822,6 +822,7 @@ wp_set_current_user($teacherUser);
 $preparations->recordTeacherOutcome($existingTermBooking['confirmation'], $teacherId, 'delivered', 'Synthetic existing-term delivery');
 $existingTermPrep = $repository->preparationByBooking((int) $existingTermBooking['request']);
 dzn_pia_assert($existingTermPrep !== null, 'existing-term preparation');
+dzn_pia_assert((string) $existingTermPrep->state === 'prepared', 'existing-term preparation must be prepared, got ' . (string) $existingTermPrep->state . ' (' . (string) ($existingTermPrep->exception_code ?? '') . ': ' . (string) ($existingTermPrep->exception_detail ?? '') . ')');
 wp_set_current_user((int) $existingTermBooking['principal']);
 $continuePrepared((string) $existingTermPrep->uid, (int) $existingTermBooking['principal']);
 $existingTermPrep = $repository->preparationByBooking((int) $existingTermBooking['request']);

@@ -113,6 +113,7 @@ final class ScreenController {
             'revoke_remove_teacher_invitation' => 'dzn_manage_teachers',
             'reset_teacher_onboarding' => 'dzn_manage_onboarding',
             'save_teacher_rate' => 'dzn_manage_teacher_rates',
+            'set_teacher_booking_priority' => 'dzn_manage_teacher_rates',
             'draft_teacher_statement', 'issue_teacher_statement', 'record_teacher_statement_payment' => 'dzn_manage_finance_statements',
             'resolve_teacher_attendance' => 'dzn_manage_canonical_attendance_review',
             'confirm_teacher_reschedule', 'cancel_teacher_reschedule' => 'dzn_manage_lessons',
@@ -160,6 +161,7 @@ final class ScreenController {
                 'revoke_remove_teacher_invitation' => self::revokeRemoveTeacherInvitation($post),
                 'reset_teacher_onboarding' => self::resetTeacherOnboarding($post),
                 'save_teacher_rate' => self::saveTeacherRate($post),
+                'set_teacher_booking_priority' => self::setTeacherBookingPriority($post),
                 'draft_teacher_statement' => self::draftTeacherStatement($post),
                 'issue_teacher_statement' => self::issueTeacherStatement($post),
                 'record_teacher_statement_payment' => self::recordTeacherStatementPayment($post),
@@ -203,7 +205,7 @@ final class ScreenController {
                 default => throw new \InvalidArgumentException('Unsupported action'),
             };
             NonceLifecycleDiagnostic::logStage('mutation_complete');
-            $teacherActions=['update_teacher_profile','revoke_teacher_invitation','admin_link_teacher_principal','offboard_teacher_principal','approve_teacher_onboarding','return_teacher_onboarding','reject_teacher_onboarding','set_teacher_course_eligibility','remove_teacher_course_eligibility','set_teacher_accepting_state','set_availability_profile','set_availability_rule','set_availability_exception','retire_teacher_availability_rule','retire_teacher_availability_exception','apply_teacher_unavailability','clear_teacher_unavailability','revoke_remove_teacher_invitation','reset_teacher_onboarding','save_teacher_rate','draft_teacher_statement','issue_teacher_statement','record_teacher_statement_payment','resolve_teacher_attendance','confirm_teacher_reschedule','cancel_teacher_reschedule','pause_teacher_student','resume_teacher_student'];
+            $teacherActions=['update_teacher_profile','revoke_teacher_invitation','admin_link_teacher_principal','offboard_teacher_principal','approve_teacher_onboarding','return_teacher_onboarding','reject_teacher_onboarding','set_teacher_course_eligibility','remove_teacher_course_eligibility','set_teacher_accepting_state','set_availability_profile','set_availability_rule','set_availability_exception','retire_teacher_availability_rule','retire_teacher_availability_exception','apply_teacher_unavailability','clear_teacher_unavailability','revoke_remove_teacher_invitation','reset_teacher_onboarding','save_teacher_rate','set_teacher_booking_priority','draft_teacher_statement','issue_teacher_statement','record_teacher_statement_payment','resolve_teacher_attendance','confirm_teacher_reschedule','cancel_teacher_reschedule','pause_teacher_student','resume_teacher_student'];
             $teacherLifecycleAction=in_array($action,['archive','restore'],true)&&sanitize_key($post['entity']??'')==='teacher';
             $currentPage=sanitize_key(wp_unslash($_GET['page']??''));
             $teacherRemoved=$action==='revoke_remove_teacher_invitation';
@@ -494,6 +496,23 @@ final class ScreenController {
             'course_scope_id' => absint($post['course_scope_id'] ?? 0),
             'evidence_reference' => sanitize_text_field((string) ($post['evidence_reference'] ?? '')),
         ));
+        return $teacherId;
+    }
+
+    /** A reversible, audited first-offer priority; it never changes eligibility or availability. */
+    private static function setTeacherBookingPriority(array $post): int {
+        $teacherId = absint($post['teacher_id'] ?? 0);
+        $scopeValue = sanitize_text_field((string) ($post['priority_scope'] ?? 'teacher:0'));
+        $parts = array_pad(explode(':', $scopeValue, 2), 2, '0');
+        $scopeKind = sanitize_key((string) $parts[0]);
+        $courseScopeId = $scopeKind === 'teacher_course' ? absint($parts[1]) : 0;
+        $enabled = (string) ($post['priority_state'] ?? '') === 'active';
+        $reasonCode = sanitize_key((string) ($post['reason_code'] ?? ''));
+        $formId = sanitize_text_field((string) ($post['priority_form_id'] ?? ''));
+        (new \Delnavazan\Platform\Core\Application\Booking\TeacherBookingPriorityService())->set(
+            $teacherId, $scopeKind, $courseScopeId, $enabled, $reasonCode,
+            'teacher-priority:' . $teacherId . ':' . $scopeKind . ':' . $courseScopeId . ':' . $formId
+        );
         return $teacherId;
     }
 

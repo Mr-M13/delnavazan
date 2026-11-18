@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
 
+use Delnavazan\Platform\Core\Application\Booking\TeacherBookingPriorityService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestMatchAssessmentRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherDeliveryRepository;
@@ -15,6 +16,8 @@ final class BookingAllocationService {
     public const RESPONSE_SECONDS=BookingLeadTimePolicy::RESPONSE_WINDOW_SECONDS;
     /** No new offer is made inside T−12h; the request escalates. */
     public const TERMINAL_REFERRAL_REASON='terminal_offer_window_closed';
+    /** A prioritized Teacher always receives the first offer, for at most eight hours. */
+    public const PRIORITY_RESPONSE_SECONDS=28800;
     /** The silent, still-viable sole Teacher keeps the same pending offer. */
     public const HOLD_ALERT_REASON='sole_candidate_unanswered';
     // A response must finish before the lesson begins; leave an hour for
@@ -31,12 +34,14 @@ final class BookingAllocationService {
     public const LEAD_TIME_REFERRAL_REASON='requested_time_inside_lead_time';
     private BookingTeacherOccupancyReadService $occupancy;
     private BookingTeacherWorkloadService $workload;
+    private TeacherBookingPriorityService $priorities;
     public function __construct(
         private ?BookingAllocationRepository $repo=null,
         private ?BookingRequestMatchAssessmentRepository $matches=null,
         private ?BookingTeacherDeliveryRepository $deliveries=null,
         private ?TeacherAvailabilityService $availability=null,
-        ?BookingTeacherWorkloadService $workload=null
+        ?BookingTeacherWorkloadService $workload=null,
+        ?TeacherBookingPriorityService $priorities=null
     ){
         $this->repo??=new BookingAllocationRepository();
         $this->matches??=new BookingRequestMatchAssessmentRepository();
@@ -44,6 +49,7 @@ final class BookingAllocationService {
         $this->availability??=new TeacherAvailabilityService();
         $this->occupancy=new BookingTeacherOccupancyReadService();
         $this->workload=$workload??new BookingTeacherWorkloadService();
+        $this->priorities=$priorities??new TeacherBookingPriorityService();
     }
 
     /** Called inside the submission transaction, which already owns the new request. */
@@ -52,14 +58,65 @@ final class BookingAllocationService {
         $this->lockEligibleTeacherRoots($courseId,$now);
         $candidates=$this->candidates($courseId,$times,$now);
         if(!$candidates){$this->repo->referral($requestId,$this->emptyCandidatesReason($times,$now,true,'no_viable_teacher'),$now);return null;}
+        // A priority offer is not a round-robin turn: it does not move the cursor.
+        $priority=$this->prioritizedOffer($candidates,$courseId,$times,$now);
+        if($priority!==null)return $this->startOffer($requestId,$priority['candidate'],$priority['deadline'],$now);
         $last=$this->repo->cursor($courseId,$now);
         $chosen=$this->next($candidates,$last,array(),$now);
         $deadline=$this->deadlineFor($this->startForTimeId((int)$chosen['requested_time_id'],$times),$now,count($candidates));
         if($deadline===null){$this->repo->referral($requestId,self::TERMINAL_REFERRAL_REASON,$now);return null;}
         $this->repo->advanceCursor($courseId,$chosen['teacher_id'],$now);
-        $deliveryId=$this->deliveries->create(array('uid'=>Identifier::uid(),'booking_request_id'=>$requestId,'requested_time_id'=>$chosen['requested_time_id'],'teacher_id'=>$chosen['teacher_id'],'state'=>'pending_request','match_strength'=>$chosen['match_strength'],'created_at'=>$now,'updated_at'=>$now));
-        $this->repo->addOffer($requestId,$deliveryId,$chosen,1,$now,$deadline);
-        return array('delivery_id'=>$deliveryId,'teacher_id'=>$chosen['teacher_id'],'requested_time_id'=>$chosen['requested_time_id'],'state'=>'pending_request','match_strength'=>$chosen['match_strength'],'deadline_at'=>$deadline);
+        return $this->startOffer($requestId,$chosen,$deadline,$now);
+    }
+    private function startOffer(int $requestId,array $candidate,string $deadline,string $now):array{
+        $deliveryId=$this->deliveries->create(array('uid'=>Identifier::uid(),'booking_request_id'=>$requestId,'requested_time_id'=>$candidate['requested_time_id'],'teacher_id'=>$candidate['teacher_id'],'state'=>'pending_request','match_strength'=>$candidate['match_strength'],'created_at'=>$now,'updated_at'=>$now));
+        $this->repo->addOffer($requestId,$deliveryId,$candidate,1,$now,$deadline);
+        return array('delivery_id'=>$deliveryId,'teacher_id'=>$candidate['teacher_id'],'requested_time_id'=>$candidate['requested_time_id'],'state'=>'pending_request','match_strength'=>$candidate['match_strength'],'deadline_at'=>$deadline);
+    }
+    /**
+     * The best prioritized candidate for this request, if any.
+     *
+     * Priority never bypasses a guard: the candidate must already have passed
+     * eligibility, availability, occupancy and continuation checks. If the
+     * priority Teacher is not in that set, the normal channel runs untouched.
+     *
+     * @return array{candidate:array,deadline:string}|null
+     */
+    private function prioritizedOffer(array $candidates,int $courseId,array $times,string $now):?array{
+        if(!$candidates)return null;
+        $ids=$this->priorities->prioritizedTeachers(array_keys($candidates),$courseId,$now);
+        if(!$ids)return null;
+        $pool=array();
+        foreach($ids as $id)if(isset($candidates[(int)$id]))$pool[(int)$id]=$candidates[(int)$id];
+        if(!$pool)return null;
+        $candidate=$this->best($pool,$now);
+        if(!$candidate)return null;
+        $deadline=$this->priorityDeadlineFor($this->startForTimeId((int)$candidate['requested_time_id'],$times),$now);
+        if($deadline===null)return null;
+        return array('candidate'=>$candidate,'deadline'=>$deadline);
+    }
+    /** Priority ordering: match strength, weighted workload, then Teacher id. No cursor. */
+    private function best(array $pool,string $now):?array{
+        if(!$pool)return null;
+        $workload=$this->workload->scores(array_keys($pool),$now);
+        uasort($pool,function(array $a,array $b)use($workload):int{
+            $strengthA=$a['match_strength']==='strong'?0:1;
+            $strengthB=$b['match_strength']==='strong'?0:1;
+            if($strengthA!==$strengthB)return $strengthA<=>$strengthB;
+            $loadA=(float)($workload[$a['teacher_id']]['weighted']??0.0);
+            $loadB=(float)($workload[$b['teacher_id']]['weighted']??0.0);
+            if($loadA!=$loadB)return $loadA<=>$loadB;
+            return $a['teacher_id']<=>$b['teacher_id'];
+        });
+        return reset($pool);
+    }
+    /** Eight hours, capped by the same terminal stop as every new offer. */
+    private function priorityDeadlineFor(string $startUtc,string $now):?string{
+        $window=$this->deadlineFor($startUtc,$now,0);
+        if($window===null)return null;
+        $at=strtotime($now.' UTC');
+        $deadline=min($at+self::PRIORITY_RESPONSE_SECONDS,strtotime($window.' UTC'));
+        return $deadline>$at?gmdate('Y-m-d H:i:s',$deadline):null;
     }
 
     /** The caller owns the current delivery row lock and transaction. */

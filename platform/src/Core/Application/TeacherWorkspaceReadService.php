@@ -152,6 +152,7 @@ final class TeacherWorkspaceReadService {
             'tasks' => $this->tasks($record, $onboarding),
             'response' => $record->stats['response'] ?? $this->emptyResponse(),
             'finance' => $this->finance($teacherId),
+            'booking_priority' => (new \Delnavazan\Platform\Core\Application\Booking\TeacherBookingPriorityService())->forTeacher($teacherId),
             'account' => $this->account($record),
             'unavailability_conflicts' => $this->futureUnavailabilityConflicts($teacherId),
             'protected_history' => (new TeacherOnboardingLifecycleService())->protectedHistory($teacherId),

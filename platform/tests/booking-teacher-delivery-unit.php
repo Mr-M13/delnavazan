@@ -27,6 +27,12 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function create(array $data): int { $this->created[] = $data; return 77; }
     }
 }
+namespace Delnavazan\Platform\Core\Application\Booking {
+    final class TeacherBookingPriorityService {
+        public function __construct(mixed $repository = null) {}
+        public function prioritizedTeachers(array $teacherIds, int $courseId, string $now): array { return array(); }
+    }
+}
 namespace Delnavazan\Platform\Core\Application {
     final class TeacherAvailabilityService {
         public function instrumentIdForCourse(int $courseId): ?int { return 1; }

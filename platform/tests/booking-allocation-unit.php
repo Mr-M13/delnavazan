@@ -73,6 +73,15 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function transitionForAllocation(int $id, string $from, string $to, string $now): void { $this->repo->deliveryRow->state=$to; }
     }
 }
+namespace Delnavazan\Platform\Core\Application\Booking {
+    final class TeacherBookingPriorityService {
+        public static array $priorityIds = array();
+        public function __construct(mixed $repository = null) {}
+        public function prioritizedTeachers(array $teacherIds, int $courseId, string $now): array {
+            return array_values(array_intersect(self::$priorityIds, array_map('intval', $teacherIds)));
+        }
+    }
+}
 namespace Delnavazan\Platform\Core\Application {
     final class TeacherAvailabilityService {
         public static array $requestable = array();

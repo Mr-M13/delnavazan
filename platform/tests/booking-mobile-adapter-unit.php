@@ -64,7 +64,7 @@ $settings = new DznBookingAdapterSettings(array(
 $definition = TelnyxTemplateRegistry::definitions()['delnavazan_booking_confirmation_fa'];
 $template = (object) array(
     'provider' => 'telnyx', 'template_name' => 'delnavazan_booking_confirmation_fa', 'language' => 'fa',
-    'status' => 'APPROVED', 'event_key' => 'booking.requested.student', 'audience' => 'student',
+    'status' => 'APPROVED', 'category' => 'UTILITY', 'event_key' => 'booking.requested.student', 'audience' => 'student',
     'variable_order' => implode(',', $definition['variable_order']),
 );
 $provider = new DznBookingProviderRepository(array($template));
@@ -76,16 +76,16 @@ $http = static function (string $url, array $args) use (&$requests): object {
 };
 
 $whatsApp = new TelnyxWhatsAppAdapter($settings, $http, $provider, null, null, null, $authority);
-$result = $whatsApp->sendBookingNotification('09123456789', 81, 'booking.requested.student', array('name' => 'باران', 'course' => 'تار', 'when' => 'شنبه ۱۰ آبان'));
+$result = $whatsApp->sendBookingNotification('09123456789', 81, 'booking.requested.student', array('name' => 'باران', 'course' => 'تار', 'when' => 'شنبه ۱۰ آبان', 'portal_url' => 'https://example.invalid/student-portal/'));
 $assert(($result['acknowledged'] ?? false) === true, 'booking WhatsApp hand-off must be acknowledged');
 $assert(count($requests) === 1 && $requests[0]['url'] === 'https://api.telnyx.com/v2/messages/whatsapp', 'WhatsApp must use the Telnyx WhatsApp endpoint');
 $payload = json_decode($requests[0]['args']['body'], true);
 $params = $payload['whatsapp_message']['template']['components'][0]['parameters'] ?? array();
-$assert(array_column($params, 'text') === array('باران', 'تار', 'شنبه ۱۰ آبان'), 'booking WhatsApp must follow the approved registry variable order');
+$assert(array_column($params, 'text') === array('باران', 'تار', 'شنبه ۱۰ آبان', 'https://example.invalid/student-portal/'), 'booking WhatsApp must follow the approved registry variable order');
 $assert(($payload['to'] ?? '') === '+989123456789', 'booking WhatsApp must normalise the destination');
 $assert(isset($provider->messages['81:0']) && $provider->messages['81:0']->channel === 'whatsapp', 'booking WhatsApp must correlate the provider reference with attempt_id 0');
 
-$again = $whatsApp->sendBookingNotification('09123456789', 81, 'booking.requested.student', array('name' => 'باران', 'course' => 'تار', 'when' => 'شنبه ۱۰ آبان'));
+$again = $whatsApp->sendBookingNotification('09123456789', 81, 'booking.requested.student', array('name' => 'باران', 'course' => 'تار', 'when' => 'شنبه ۱۰ آبان', 'portal_url' => 'https://example.invalid/student-portal/'));
 $assert(($again['idempotent'] ?? false) === true && count($requests) === 1, 'a repeated booking hand-off must not call the provider twice');
 
 $smsProvider = new DznBookingProviderRepository();

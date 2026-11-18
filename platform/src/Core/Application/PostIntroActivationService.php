@@ -197,7 +197,9 @@ final class PostIntroActivationService {
 
             // notify() is idempotent (teacher_notified_at + insertNotificationIfMissing). It must
             // run on every activation retry because the preparation is already 'activated' while a
-            // failed delivery is being retried.
+            // failed delivery is being retried. This is the single Term-level notice: the per-Lesson
+            // access-ready producer is suppressed for the bulk projection, so a 12-class Term does not
+            // send 12 emails, 12 SMS and 12 WhatsApp messages to each recipient.
             $this->notify($preparation, $now);
 
             // Provider projection is a projection only. All canonical Lessons and schedules are

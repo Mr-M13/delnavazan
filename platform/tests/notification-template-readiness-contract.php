@@ -16,9 +16,11 @@ require_once $root . '/src/Integrations/Notifications/NotificationTemplateValida
 require_once $root . '/src/Integrations/Notifications/NotificationCatalogue.php';
 require_once $root . '/src/Integrations/Notifications/NotificationTemplateSanitizer.php';
 require_once $root . '/src/Integrations/Notifications/TelnyxTemplateRegistry.php';
+require_once $root . '/src/Integrations/Notifications/SmsIrTemplateRegistry.php';
 
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateSanitizer;
+use Delnavazan\Platform\Integrations\Notifications\SmsIrTemplateRegistry;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry;
 
 $fail = static function (string $name, bool $ok): void {
@@ -156,6 +158,7 @@ $fail('the approval is bound to a content digest', str_contains($librarySource, 
 $fail('the provider gate is a positive whitelist', str_contains($librarySource, '$state!==TelnyxTemplateAuthority::MAPPED') && str_contains($librarySource, "default=>'The provider approval state is unknown, so publication is refused.'"));
 $fail('the publish action is capability and nonce gated', substr_count($controller, 'check_admin_referer(') >= 2 && str_contains($controller, 'dzn_notification_approve_draft'));
 $fail('the workflow exposes a bulk approval step', str_contains($controller, 'dzn_notification_approve_operational') && str_contains($librarySource, 'public function approveOperationalDrafts'));
+$fail('the one-time owner approval is explicit, audited and one-use', str_contains($controller, 'dzn_notification_approve_all_drafts') && str_contains($controller, 'APPROVE ALL') && str_contains($librarySource, 'public function approveAndPublishEveryDraftOnce') && str_contains($librarySource, 'public function oneTimeAllDraftApproval') && str_contains($librarySource, 'already used'));
 $fail('the workflow reports each step persistently', str_contains($controller, 'dzn_notification_workflow_result') && str_contains($controller, 'private static function rememberWorkflowResult'));
 $fail('a canonical event awaiting sign-off is not labelled as missing copy', str_contains($controller, "'awaiting_approval'") && str_contains($controller, 'Awaiting approval'));
 $fail('a channel the event does not use is never shown as a fault', str_contains($controller, "'Not offered'") && str_contains($controller, 'if(!in_array($channel,(array)$row[') && str_contains($controller, 'continue;'));
@@ -198,5 +201,41 @@ foreach (array(
     $fail('the booking WhatsApp template is registered: ' . $templateName, $definition !== null && $definition['event_key'] === $eventKey);
     $fail('the booking WhatsApp registry order equals the Persian body first-appearance order: ' . $eventKey, array_values((array) $definition['variable_order']) === $firstAppearance((string) $fa['body']));
 }
+
+$manifestPath = dirname($root) . '/deployment/notifications/whatsapp-templates.json';
+$manifest = json_decode((string) file_get_contents($manifestPath), true);
+$manifestTemplates = is_array($manifest) ? (array) ($manifest['templates'] ?? $manifest) : array();
+$manifestByName = array();
+foreach ($manifestTemplates as $manifestTemplate) if (isset($manifestTemplate['name'])) $manifestByName[(string) $manifestTemplate['name']] = $manifestTemplate;
+$fail('the WhatsApp provider manifest is readable', $manifestByName !== array());
+$fail('the registry and the provider manifest cover the same templates', count($manifestByName) === count(TelnyxTemplateRegistry::definitions()));
+foreach (TelnyxTemplateRegistry::definitions() as $providerName => $definition) {
+    $manifestTemplate = $manifestByName[$providerName] ?? null;
+    $fail('the provider manifest carries the registry template: ' . $providerName, is_array($manifestTemplate));
+    $fail('the registry event matches the manifest: ' . $providerName, (string) ($manifestTemplate['event_key'] ?? '') === (string) $definition['event_key']);
+    $fail('the registry audience matches the manifest: ' . $providerName, (string) ($manifestTemplate['audience'] ?? '') === (string) $definition['audience']);
+    $fail('the registry variable order matches the approved provider manifest: ' . $providerName, array_values((array) ($manifestTemplate['variables'] ?? array())) === array_values((array) $definition['variable_order']));
+}
+
+/* 9. SMS.ir uses exactly two approved templates. The generic account-referral body covers every
+ *    event except a Teacher's new intro booking, which uses the intro-request template. Dedicated
+ *    one-time-secret SMS keeps its own secure body and is not presented as a general mapping. */
+$fail('the new booking event is mapped to the intro-request SMS template', SmsIrTemplateRegistry::keyForEvent('booking.new.teacher') === SmsIrTemplateRegistry::INTRO_BOOKING);
+foreach (array('booking.requested.student', 'lesson.access.student', 'lesson.reminder.teacher', 'lesson.cancelled.teacher') as $smsEvent) {
+    $fail('every other SMS event is mapped to the account-referral template: ' . $smsEvent, SmsIrTemplateRegistry::keyForEvent($smsEvent) === SmsIrTemplateRegistry::GENERIC);
+}
+$genericSms = SmsIrTemplateRegistry::renderForEvent('lesson.reminder.student', array('name' => 'باران'));
+$fail('the generic approved SMS body is exact', $genericSms === 'دلنوازان: باران عزیز، لطفا به حساب کاربری خود مراجعه کنید.');
+$introSms = SmsIrTemplateRegistry::renderForEvent('booking.new.teacher', array('teacher' => 'ندا', 'course' => 'تار', 'when' => 'شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰ تا ۱۸:۰۰ به وقت Asia/Tehran'));
+$fail('the new-booking SMS names the instrument', str_contains($introSms, 'کلاس آشنایی تار'));
+$fail('the new-booking SMS carries date and time', str_contains($introSms, 'در تاریخ شنبه ۱۰ آبان ۱۴۰۵ ساعت ۱۷:۰۰ تا ۱۸:۰۰'));
+$fail('the new-booking SMS asks for approval or rejection in the account', str_contains($introSms, 'برای تأیید یا رد به حساب کاربری سر بزنید'));
+$inventory = json_decode((string) file_get_contents($root . '/docs/NOTIFICATION-TEMPLATE-INVENTORY.json'), true);
+$fail('the generated inventory records both SMS.ir templates', is_array($inventory) && count((array) ($inventory['sms_registry'] ?? array())) === 2);
+$smsByEvent = array();
+foreach ((array) ($inventory['events'] ?? array()) as $inventoryEvent) if (isset($inventoryEvent['event_key'])) $smsByEvent[(string) $inventoryEvent['event_key']] = (array) ($inventoryEvent['provider'] ?? array());
+$fail('the inventory maps the new booking to the intro-request template', (string) ($smsByEvent['booking.new.teacher']['sms_registry_key'] ?? '') === SmsIrTemplateRegistry::INTRO_BOOKING);
+$fail('the inventory maps the reminder to the account-referral template', (string) ($smsByEvent['lesson.reminder.student']['sms_registry_key'] ?? '') === SmsIrTemplateRegistry::GENERIC);
+$fail('the inventory keeps the dedicated invitation SMS outside the general mapping', (string) ($smsByEvent['teacher.invitation_issued.teacher']['sms_state'] ?? '') === 'dedicated_secure_route');
 
 echo "Notification template readiness contract passed\n";

@@ -65,6 +65,25 @@ namespace {
     if (!function_exists('remove_action')) {
         function remove_action($hook, $callback, $priority = 10) { return true; }
     }
+    if (!function_exists('esc_html')) {
+        function esc_html($text) { return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8'); }
+    }
+    if (!function_exists('esc_attr')) {
+        function esc_attr($text) { return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8'); }
+    }
+    if (!function_exists('esc_url')) {
+        function esc_url($url) { return htmlspecialchars((string) $url, ENT_QUOTES, 'UTF-8'); }
+    }
+    if (!function_exists('esc_textarea')) {
+        function esc_textarea($text) { return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8'); }
+    }
+    if (!function_exists('wp_nonce_field')) {
+        function wp_nonce_field($action, $name = '_wpnonce', $echo = true) {
+            $field = '<input type="hidden" name="' . htmlspecialchars((string) $name, ENT_QUOTES, 'UTF-8') . '" value="test-nonce">';
+            if ($echo) echo $field;
+            return $field;
+        }
+    }
     $GLOBALS['dzn_test_options'] = array();
     $GLOBALS['dzn_test_mail'] = array();
     $GLOBALS['dzn_test_hooks'] = array();
@@ -445,7 +464,7 @@ namespace {
     $provider->upsertTemplate(array(
         'uid'=>'01TESTPROVIDERTEMPLATE0001','provider'=>'telnyx','template_name'=>'delnavazan_teacher_new_booking_fa','language'=>'fa',
         'provider_template_id'=>'meta-1','category'=>'UTILITY','status'=>'APPROVED','event_key'=>'booking.new.teacher','audience'=>'teacher',
-        'variable_order'=>'teacher,course,student,when','last_verified_at'=>'2026-11-01 00:00:00','created_at'=>'2026-11-01 00:00:00','updated_at'=>'2026-11-01 00:00:00',
+        'variable_order'=>'teacher,course,student,when,response_window,teacher_portal_url','last_verified_at'=>'2026-11-01 00:00:00','created_at'=>'2026-11-01 00:00:00','updated_at'=>'2026-11-01 00:00:00',
     ));
     $discoveredLibrary = new NotificationTemplateLibrary(null,null,new TelnyxTemplateAuthority($provider));
     $discoveredStatus = $discoveredLibrary->status('booking.new.teacher','whatsapp','fa-IR');
@@ -459,7 +478,7 @@ namespace {
     $provider->upsertTemplate(array(
         'uid'=>'01TESTMARKETINGTEMPLATE001','provider'=>'telnyx','template_name'=>'delnavazan_teacher_new_booking_fa','language'=>'fa',
         'provider_template_id'=>'meta-marketing','category'=>'MARKETING','status'=>'APPROVED','event_key'=>'booking.new.teacher','audience'=>'teacher',
-        'variable_order'=>'teacher,course,student,when','last_verified_at'=>'2026-11-01 00:00:00','created_at'=>'2026-11-01 00:00:00','updated_at'=>'2026-11-01 00:00:00',
+        'variable_order'=>'teacher,course,student,when,response_window,teacher_portal_url','last_verified_at'=>'2026-11-01 00:00:00','created_at'=>'2026-11-01 00:00:00','updated_at'=>'2026-11-01 00:00:00',
     ));
     $marketingLibrary = new NotificationTemplateLibrary(null,null,new TelnyxTemplateAuthority($provider));
     $fail('approved Marketing provider templates cannot map transactional notifications', $marketingLibrary->status('booking.new.teacher','whatsapp','fa-IR')['provider_state'] === 'contract_mismatch');
@@ -832,6 +851,50 @@ namespace {
     $library->publishReviewedDrafts();
     $fail('publishing never re-enables a channel the administrator switched off', $library->eventChannelEnabled($targetEvent, 'website') === false);
     $library->saveEventChannel($targetEvent, 'website', true);
+
+    /* 17. The explicit one-time owner action approves and publishes every stored draft once. The
+     *     standing fail-closed workflow above remains unchanged, and the one-time action cannot be
+     *     replayed as a permanent bypass. */
+    $library->saveEventChannel('lesson.reminder.student', 'whatsapp', false);
+    $oneTime = $library->approveAndPublishEveryDraftOnce();
+    $fail('the one-time action publishes the remaining drafts', count($oneTime['published']) > 0);
+    $fail('the one-time action records its use', is_array($library->oneTimeAllDraftApproval()) && (int)($library->oneTimeAllDraftApproval()['used_by'] ?? 0) === 7);
+    $fail('the one-time action leaves no draft behind', $library->workflowReport()['drafts'] === 0);
+    $fail('the one-time action never enables a delivery channel', $library->eventChannelEnabled('lesson.reminder.student', 'whatsapp') === false);
+    try {
+        $library->approveAndPublishEveryDraftOnce();
+        $fail('the one-time action refuses a second run', false);
+    } catch (Throwable $error) {
+        $fail('the one-time action refuses a second run', str_contains($error->getMessage(), 'already used'));
+    }
+
+    /* 18. The catalogue card and the tabbed editor render without WordPress and preserve the
+     *     requested information hierarchy. */
+    $cardEvent = 'booking.confirmed.student';
+    $cardDefinition = NotificationCatalogue::get($cardEvent);
+    $cardStates = array();
+    foreach (array('website', 'email', 'whatsapp', 'sms') as $cardChannel) $cardStates[$cardChannel] = $stateMethod->invoke(null, $library, $cardEvent, $cardChannel);
+    $cardRow = array('key' => $cardEvent, 'event' => $cardDefinition, 'offered' => (array) $cardDefinition['channels'], 'states' => $cardStates, 'readiness' => 'ready');
+    $cardMethod = new \ReflectionMethod($controllerClass, 'renderEventCard');
+    $cardMethod->setAccessible(true);
+    ob_start();
+    $cardMethod->invoke(null, $cardRow, $library);
+    $cardHtml = (string) ob_get_clean();
+    $fail('the card renders the clear notification title', str_contains($cardHtml, (string) $cardDefinition['label']));
+    $fail('the card renders all four delivery switches', substr_count($cardHtml, 'dzn-nc-channel ') === 4 && str_contains($cardHtml, '>Portal<') && str_contains($cardHtml, '>Email<') && str_contains($cardHtml, '>WhatsApp<') && str_contains($cardHtml, '>SMS<'));
+    $fail('the card has an Open action', str_contains($cardHtml, 'dzn-nc-open') && str_contains($cardHtml, '>Open<'));
+    $fail('the card no longer repeats the purpose paragraph', !str_contains($cardHtml, (string) ($cardDefinition['purpose'] ?? '')));
+    $fail('the card no longer carries the old event-level disable control', !str_contains($cardHtml, 'Disable notification'));
+
+    $editorMethod = new \ReflectionMethod($controllerClass, 'renderEditor');
+    $editorMethod->setAccessible(true);
+    ob_start();
+    $editorMethod->invoke(null, $library, $cardEvent, 'email', 'fa-IR');
+    $editorHtml = (string) ob_get_clean();
+    $fail('the editor consolidates the overview into one card', str_contains($editorHtml, 'dzn-nc-overview') && str_contains($editorHtml, 'Variable contract') && str_contains($editorHtml, 'dzn-nc-facts'));
+    $fail('the editor offers one tab per delivery method', str_contains($editorHtml, 'role="tablist"') && substr_count($editorHtml, 'dzn-nc-tab') >= 4 && str_contains($editorHtml, '>Portal<') && str_contains($editorHtml, '>Email<') && str_contains($editorHtml, '>WhatsApp<') && str_contains($editorHtml, '>SMS<'));
+    $fail('the editor keeps the preview, editor and history in the selected tab', str_contains($editorHtml, '<h3>Preview</h3>') && str_contains($editorHtml, 'id="dzn-notif-body"') && str_contains($editorHtml, 'Version History'));
+    $fail('the editor no longer duplicates the old Delivery and Status cards', !str_contains($editorHtml, '<h3>Delivery</h3>') && !str_contains($editorHtml, '<h3>Status</h3>'));
 
     echo "Notification management unit passed\n";
 }

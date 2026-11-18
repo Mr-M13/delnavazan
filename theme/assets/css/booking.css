@@ -201,6 +201,15 @@
 .dzn-booking__notice { margin-block: 1.5rem; border: 1px solid var(--dzn-color-warning-border); border-radius: var(--dzn-radius-md); background: var(--dzn-color-warning-surface); padding: 1rem 1.25rem; }
 .dzn-booking__notice h3 { margin-bottom: .4rem; }
 .dzn-booking__notice p { margin-bottom: 0; font-size: 1rem; }
+.dzn-booking__iran-warning { position: relative; overflow: hidden; border-inline-start: .3rem solid var(--dzn-color-warning); }
+.dzn-booking__iran-warning p + p { margin-block-start: .55rem; }
+.dzn-booking__dialog { inline-size: min(36rem, calc(100% - 2rem)); border: 1px solid var(--dzn-color-border); border-radius: var(--dzn-radius-lg); background: var(--dzn-color-surface-elevated); color: var(--dzn-color-text-primary); padding: 0; box-shadow: var(--dzn-shadow-soft); }
+.dzn-booking__dialog::backdrop { background: rgb(0 0 0 / .55); }
+.dzn-booking__dialog-body { display: grid; gap: .75rem; padding: clamp(1.1rem, 4vw, 1.7rem); }
+.dzn-booking__dialog-body h2 { margin: 0; font-size: clamp(1.25rem, 3vw, 1.55rem); }
+.dzn-booking__dialog-body p { margin: 0; line-height: 1.9; }
+.dzn-booking__dialog-actions { display: flex; flex-wrap: wrap; gap: .65rem; margin-block-start: .5rem; }
+.dzn-booking__dialog-actions .dzn-booking__button { flex: 1 1 12rem; }
 .dzn-booking__error { margin-block: 1rem; border: 1px solid var(--dzn-color-error-border); border-radius: var(--dzn-radius-sm); background: var(--dzn-color-error-surface); color: var(--dzn-color-error); padding: .8rem 1rem; }
 .dzn-booking__reference { display: inline-block; border-radius: var(--dzn-radius-sm); background: var(--dzn-color-surface); padding: .75rem 1rem; font-size: 1.25rem; font-weight: 800; }
 .dzn-booking__success-times { margin-block: .5rem 1.25rem; padding-inline-start: 1.4rem; }

@@ -18,5 +18,6 @@ $expect( false !== strpos( $js, "button.type = 'button';" ), 'Dynamically create
 
 $button_count = substr_count( $view, '<button' );
 $expect( $button_count > 0 && $button_count === substr_count( $view, 'type="button"' ), 'Server-rendered booking controls must be non-submitting buttons.' );
+$expect( false !== strpos( $view, 'data-iran-dialog' ) && false !== strpos( $view, 'data-iran-continue' ) && false !== strpos( $view, 'data-iran-cancel' ), 'The Iran-residency warning must be an accessible dialog with explicit continue and cancel controls.' );
 
 echo "Booking route state contract passed\n";

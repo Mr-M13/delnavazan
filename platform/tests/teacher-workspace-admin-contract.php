@@ -35,7 +35,7 @@ $contains($screen, array('TeacherWorkspaceController::screen()', "'dzn-teachers-
 $contains($controller, array('TeacherWorkspaceReadService', 'TeacherWorkspaceView::render', 'dzn-teachers-menu'), 'The workspace controller must compose the canonical read model and presentation.');
 $contains($view, array(
     'Teacher directory',
-    'Contact', 'Instruments', 'Status', 'Availability', 'Golden hours', 'Students', 'Teaching', 'Introductions', 'Conversion', 'Rate', 'Payments', 'Actions',
+    'Contact', 'Instruments', 'Status', 'Students', 'Teaching', 'Introductions', 'Conversion', 'Rate', 'Payments', 'Actions',
     'Archived records',
     'Teacher details', 'Operational status and student intake', 'Onboarding and account', 'Instruments and course eligibility',
     'Weekly availability and golden hours', 'Students and teaching activity', 'Classes and attendance', 'Tasks and response performance',
@@ -45,6 +45,7 @@ $contains($view, array(
     'data-dzn-tip', 'aria-label', 'screen-reader-text',
 ), 'The Teachers workspace must expose the directory, full profile and consolidated onboarding surfaces.');
 $expect(!str_contains($view, 'reference_code') && !str_contains($view, 'teacher_id]'), 'The directory must not present internal references as the teacher label.');
+$expect(!str_contains($view, 'scope="col">Availability<') && !str_contains($view, 'scope="col">Golden hours<'), 'The directory must not repeat availability or golden-hour coverage as its own columns; both stay on the Teacher profile.');
 $expect(!str_contains($view, 'paginate_links') && !str_contains($view, 'teacher_page'), 'The directory must not paginate the small Teacher set.');
 $expect(str_contains($service, "t.archived_at IS NULL AND t.status<>'archived'"), 'The default directory must exclude archived teachers.');
 $expect(str_contains($service, 'archivedDirectory'), 'Archived records must remain recoverable through a dedicated view.');

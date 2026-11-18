@@ -603,12 +603,6 @@ final class IntegrationControlPlaneController {
         $ads=\Delnavazan\Platform\Integrations\ChatGptAdsConversionWorker::class;
         echo '<section class="dzn-settings-card dzn-integration-card"><h2>ChatGPT Ads</h2><p>Server-side introductory booking conversion tracking.</p><p><strong>Status:</strong> '.esc_html($ads::configured()?'Enabled and configured':'Disabled or missing configuration').'</p><p><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page=dzn-integration-chatgpt-ads')).'">Configure</a></p></section>';
         echo '</div>';
-        echo '<section class="dzn-settings-card"><h2>Routing and provider boundaries</h2><ul class="dzn-settings-list">';
-        echo '<li><strong>Twilio WhatsApp is not implemented.</strong> No Twilio credential is read or stored, and no Twilio send can be enabled here.</li>';
-        echo '<li><strong>Telnyx / Meta routing remains authoritative.</strong> The notification workspace does not contain a second provider form.</li>';
-        echo '<li><strong>Google Workspace is centrally managed.</strong> Teachers are external co-hosts; no personal Google authorization is requested.</li>';
-        echo '<li><strong>Stripe configuration remains under Finance.</strong> This page links to that authority and does not create a second secret store.</li>';
-        echo '</ul></section>';
         echo '</div>';
     }
 

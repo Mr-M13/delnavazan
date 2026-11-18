@@ -134,7 +134,7 @@ ob_start();
 $settingsHtml = ob_get_clean();
 if ( ! str_contains( $settingsHtml, 'Settings sections' )
     || ! str_contains( $settingsHtml, 'General' )
-    || ! str_contains( $settingsHtml, 'Administration & Delegated Access' )
+    || ! str_contains( $settingsHtml, '>Roles<' )
     || ! str_contains( $settingsHtml, 'Policy' )
     || ! str_contains( $settingsHtml, 'Notifications' )
     || ! str_contains( $settingsHtml, 'Integrations' )
@@ -161,7 +161,7 @@ $restrictedSettings = ob_get_clean();
 if ( ! str_contains( $restrictedSettings, 'Notifications' )
     || str_contains( $restrictedSettings, '>General<' )
     || str_contains( $restrictedSettings, '>Policy<' )
-    || str_contains( $restrictedSettings, 'Administration & Delegated Access' )
+    || str_contains( $restrictedSettings, '>Roles<' )
     || str_contains( $restrictedSettings, '>Integrations<' )
     || str_contains( $restrictedSettings, '>Diagnostics<' )
     || str_contains( $restrictedSettings, 'Communications health' )

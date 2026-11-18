@@ -27,9 +27,9 @@ final class AdminShellController {
         ]],
         'settings' => ['Settings', [
             ['General', 'dzn-general', 'manage_options'],
-            ['Administration & Delegated Access', 'dzn-delegated-access', 'manage_options'],
             ['Policy', 'dzn-policies', Menu::POLICY_ACCESS_CAP],
             ['Integrations', 'dzn-integrations', 'dzn_access_integrations_overview'],
+            ['Roles', 'dzn-delegated-access', 'manage_options'],
             ['Diagnostics', 'dzn-system-health', 'dzn_access_system_health'],
         ]],
         'crm' => ['CRM', [
@@ -45,16 +45,19 @@ final class AdminShellController {
      * belong to a section (staff access, recording notices, provider details, recovery controls)
      * remain resolvable and highlight their canonical section. Retired recording-operations and
      * account-removal routes are no longer registered.
+     *
+     * Roles owns delegated access: the section label names the work (the role catalogue, its
+     * permission map and the staff assignments), not the delegation mechanism underneath it.
      */
     private const SETTINGS_SECTIONS = [
         'general' => ['General', ['dzn-general']],
-        'access' => ['Administration & Delegated Access', ['dzn-delegated-access', 'dzn-staff-access']],
         'policy' => ['Policy', ['dzn-policies', 'dzn-recording-notices']],
         // Notifications is a primary workspace. These routes remain protected aliases.
         'integrations' => ['Integrations', [
             'dzn-integrations', 'dzn-integration-email', 'dzn-integration-whatsapp',
             'dzn-integration-sms', 'dzn-integration-google', 'dzn-integration-chatgpt-ads', 'dzn-stripe-settings',
         ]],
+        'access' => ['Roles', ['dzn-delegated-access', 'dzn-staff-access']],
         'diagnostics' => ['Diagnostics', ['dzn-system-health', 'dzn-portal-capabilities', 'dzn-core-dataset-readiness']],
     ];
 

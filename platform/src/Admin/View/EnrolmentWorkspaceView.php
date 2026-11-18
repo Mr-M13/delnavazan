@@ -236,7 +236,7 @@ final class EnrolmentWorkspaceView {
         echo '<label><span>When</span><select name="when"><option value="">All dates</option><option value="today"' . selected($filters['when'], 'today', false) . '>Today only</option></select></label>';
         if (current_user_can('dzn_view_booking_requests') || current_user_can('dzn_manage_booking_request_coordination')) {
             echo '<label><span>Intro stage</span><select name="stage"><option value="">All intro stages</option>';
-            foreach (array('new' => 'New request', 'identity' => 'Identity needed', 'teacher_match' => 'Teacher matching', 'intro_scheduled' => 'Intro scheduled', 'intro_outcome' => 'Outcome due', 'post_intro' => 'Decision and payment', 'converted' => 'Converted') as $value => $label) echo '<option value="' . esc_attr($value) . '"' . selected($filters['stage'], $value, false) . '>' . esc_html($label) . '</option>';
+            foreach (array('new' => 'New request', 'identity' => 'Identity needed', 'teacher_match' => 'Teacher matching', 'teacher_agreed' => 'Teacher agreed', 'provisioning_pending' => 'Creating classroom', 'provisioning_failed' => 'Classroom creation failed', 'intro_payment_pending' => 'Teacher accepted; payment pending', 'intro_scheduled' => 'Intro scheduled', 'intro_outcome' => 'Outcome due', 'post_intro' => 'Decision and payment', 'converted' => 'Converted') as $value => $label) echo '<option value="' . esc_attr($value) . '"' . selected($filters['stage'], $value, false) . '>' . esc_html($label) . '</option>';
             echo '</select></label>';
         }
         if (current_user_can('dzn_manage_teachers') || current_user_can('dzn_manage_enrolments') || current_user_can('dzn_manage_lessons') || current_user_can('dzn_manage_canonical_lessons')) {

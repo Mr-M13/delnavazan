@@ -6,12 +6,17 @@
 if (!function_exists('current_user_can')) {
     function current_user_can(string $capability): bool { return $capability === 'dzn_view_booking_requests'; }
 }
+if (!function_exists('admin_url')) {
+    function admin_url(string $path = ''): string { return 'https://example.test/wp-admin/' . $path; }
+}
 
 final class DznStageFakeWpdb {
     public string $prefix = 'wp_';
     public string $last_error = '';
     /** @var list<string> */
     public array $queries = array();
+    /** @var list<object> */
+    public array $rows = array();
     public object $stageRow;
 
     public function __construct() {
@@ -37,7 +42,7 @@ final class DznStageFakeWpdb {
 
     public function get_results(string $sql): array {
         $this->queries[] = $sql;
-        return array();
+        return $this->rows;
     }
 
     public function prepare(string $sql, ...$args): string {
@@ -88,5 +93,42 @@ $expect(str_contains($queueSql, "br.lifecycle_status='closed' AND br.resolution_
 $expect(str_contains($queueSql, 'br.privacy_erased_at IS NULL'), 'Stage queues must exclude privacy-erased bookings');
 $expect(str_contains($queueSql, 'cc.id IS NOT NULL AND br.student_id IS NOT NULL AND asa.id IS NULL'), 'Acceptance queue must use the shared acceptance predicate');
 $expect(!str_contains($queueSql, 'br.student_id IS NULL AND asa.id IS NULL'), 'Queue must not retain the old overlapping predicates');
+
+$GLOBALS['wpdb']->queries = array();
+$service->stageQueue('needs_acceptance', 5);
+$detailSql = implode("\n", $GLOBALS['wpdb']->queries);
+$expect(str_contains($detailSql, 'cc.id IS NOT NULL AND br.student_id IS NOT NULL AND asa.id IS NULL'), 'Stage details must use the shared acceptance predicate');
+$expect(str_contains($detailSql, 'COUNT(*) FROM wp_dzn_coordination_case_candidates'), 'Stage details must explain the acceptance prerequisite from the coordination case');
+$expect(str_contains($detailSql, 'LIMIT %d'), 'Stage details must stay bounded');
+$rejected = false;
+try { $service->stageQueue('complete'); } catch (\InvalidArgumentException) { $rejected = true; }
+$expect($rejected, 'Stage details must refuse the complete and action-queue buckets');
+
+// The card must name the exact missing acceptance prerequisite, not imply that every
+// coordination case is ready for a final arrangement.
+$base = array(
+    'request_id' => 77, 'case_id' => 9, 'case_reference' => 'CC-9', 'case_state' => 'open',
+    'reference_code' => 'BR-77', 'learner_name' => 'Synthetic Learner', 'instrument_name' => 'Piano',
+    'course_name' => 'Introductory Piano', 'created_at' => gmdate('Y-m-d H:i:s'),
+);
+foreach (array(
+    array(0, 0, 0, 0, 'No Teacher candidate is recorded', 'teacher-matching'),
+    array(1, 0, 0, 0, 'Teacher agreement is not recorded', 'agreements'),
+    array(1, 1, 0, 0, 'No current Proposal is issued', 'proposals'),
+    array(1, 1, 1, 0, 'The learner response is not recorded', 'provisional'),
+    array(1, 1, 1, 1, 'Ready for final acceptance', 'acceptance'),
+) as [$candidates, $assents, $proposals, $responses, $expected, $anchor]) {
+    $GLOBALS['wpdb']->rows = array((object) array_merge($base, array(
+        'active_candidates' => $candidates,
+        'current_assents' => $assents,
+        'current_proposals' => $proposals,
+        'acceptance_events' => $responses,
+    )));
+    $details = $service->stageQueue('needs_acceptance', 1);
+    $expect(($details[0]['readiness'] ?? '') === $expected, 'Acceptance readiness must report: ' . $expected);
+    $expect(($details[0]['anchor'] ?? '') === $anchor, 'Acceptance detail must link at the missing section: ' . $anchor);
+}
+$expect(str_contains((string) ($details[0]['url'] ?? ''), 'page=dzn-enrolment-workspace&request_id=77'), 'An operator without coordination authority must land on the read-only request');
+$GLOBALS['wpdb']->rows = array();
 
 echo "Academy pipeline stage unit passed\n";

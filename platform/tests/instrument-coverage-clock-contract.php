@@ -46,7 +46,7 @@ $contains($availability, array('public function recurring(', 'without dated exce
 $contains($canonicalOccupancy, array('public function inRange(', 'every current fact'), 'Canonical occupancy must expose a validated range read.');
 $contains($occupancy, array('public function range(', 'conflictsRange('), 'Booking occupancy must expose a batched range read.');
 $contains($holdAuthority, array('activeHoldsInRange(', 'validForCase'), 'Active holds must be validated through the existing authority.');
-$contains($bookingQuery, array('conflictsRange(', "r.lifecycle_status='submitted'", "state NOT IN ('failed','cancelled')"), 'Booking offers and confirmations must keep their canonical predicates.');
+$contains($bookingQuery, array('conflictsRange(', "r.lifecycle_status='submitted'", "state NOT IN ('failed','cancelled','awaiting_payment')"), 'Booking offers and confirmations must keep their canonical predicates; an unpaid acceptance reserves nothing.');
 
 $contains($analyzer, array(
     'public const SLOT_MINUTES = 15', 'public const SEGMENTS_PER_DAY = 96',

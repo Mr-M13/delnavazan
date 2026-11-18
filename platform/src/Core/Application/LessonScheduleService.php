@@ -51,7 +51,7 @@ final class LessonScheduleService {
             $capacity->ensureAndLockTeacherRoot((int)$lesson->teacher_id,$now,$actor);
             $occupiedEnd=(new \DateTimeImmutable($start,new \DateTimeZone('UTC')))->modify('+'.self::LEGACY_BUFFER_MINUTES.' minutes')->format('Y-m-d H:i:s');
             $this->studentOccupancy->assertLessonIntervalAvailable((int)$lesson->student_id,$start,$occupiedEnd,$lessonId,$bookingRequestId);
-            if((new CanonicalTeacherOccupancyReadService($capacity))->overlapping((int)$lesson->teacher_id,$start,$end,$lessonId))throw new \InvalidArgumentException('teacher_slot_conflict');
+            if((new CanonicalTeacherOccupancyReadService($capacity))->overlapping((int)$lesson->teacher_id,$start,$end,$lessonId,$bookingRequestId))throw new \InvalidArgumentException('teacher_slot_conflict');
             CanonicalContinuationCapacityAuthority::assertNoActiveHold((int)$lesson->teacher_id,$start,$end);
             CommercialCapacityAuthority::assertNoConflictingClaim((int)$lesson->teacher_id,$start,$end);
             $versionId=$schedules->insert(array('lesson_id'=>$lessonId,'version_number'=>1,'starts_at_utc'=>$start,'ends_at_utc'=>$end,'schedule_timezone'=>$timezone,'local_wall_date'=>$date,'local_wall_time'=>$time,'reason'=>'confirmed_introductory_booking','changed_by'=>$actor?:null,'created_at'=>$now));
@@ -93,7 +93,7 @@ final class LessonScheduleService {
             $capacity->ensureAndLockTeacherRoot((int)$locked->teacher_id,$now,$actor);
             $occupiedEnd=(new \DateTimeImmutable($end,new \DateTimeZone('UTC')))->modify('+'.self::LEGACY_BUFFER_MINUTES.' minutes')->format('Y-m-d H:i:s');
             $this->studentOccupancy->assertLessonIntervalAvailable($studentIdHint,$start,$occupiedEnd,$id,(int)($locked->booking_request_id??0));
-            if((new CanonicalTeacherOccupancyReadService($capacity))->overlapping((int)$locked->teacher_id,$start,$occupiedEnd,$id))throw new \InvalidArgumentException('teacher_slot_conflict');
+            if((new CanonicalTeacherOccupancyReadService($capacity))->overlapping((int)$locked->teacher_id,$start,$occupiedEnd,$id,(int)($locked->booking_request_id??0)))throw new \InvalidArgumentException('teacher_slot_conflict');
             CanonicalContinuationCapacityAuthority::assertNoActiveHold((int)$locked->teacher_id,$start,$occupiedEnd);
             CommercialCapacityAuthority::assertNoConflictingClaim((int)$locked->teacher_id,$start,$occupiedEnd);
 

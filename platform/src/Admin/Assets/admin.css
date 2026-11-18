@@ -3774,6 +3774,39 @@ body.dzn-admin-page .dzn-coverage a.dzn-coverage__cell:focus-visible { color: va
   color: var(--dzn-teal-deep);
 }
 
+.dzn-offer-window {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--dzn-gold-soft);
+  color: var(--dzn-text);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dzn-offer-window strong {
+  font-weight: 800;
+}
+
+.dzn-offer-window.is-expired {
+  background: var(--dzn-accent-soft);
+  color: var(--dzn-accent);
+}
+
+.dzn-class-facts .dzn-offer-window {
+  background: var(--dzn-gold-soft);
+  color: var(--dzn-text);
+  font-size: 11px;
+}
+
+.dzn-class-facts .dzn-offer-window.is-expired {
+  background: var(--dzn-accent-soft);
+  color: var(--dzn-accent);
+}
+
 .dzn-action-panel {
   margin-block: 12px;
   border: 1px solid var(--dzn-border);
@@ -5172,6 +5205,8 @@ body.dzn-admin-page .dzn-coordination a.button-primary:focus-visible {
 .dzn-snapshot-stat--warn strong { color: var(--dzn-warning); }
 .dzn-snapshot-stat--danger { border-inline-start-color: var(--dzn-error); background: var(--dzn-accent-soft); }
 .dzn-snapshot-stat--danger strong { color: var(--dzn-error); }
+.dzn-snapshot-stat.is-zero { background: var(--dzn-surface); }
+.dzn-snapshot-stat.is-zero strong { color: var(--dzn-muted); }
 .dzn-enrolment-snapshot__note {
   margin-block: 16px 0;
   padding: 10px 12px;

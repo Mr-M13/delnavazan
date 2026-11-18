@@ -23,6 +23,8 @@ $response = $read('src/Core/Application/BookingTeacherResponseService.php');
 $css = $read('src/Admin/Assets/admin.css');
 $bootstrap = $read('delnavazan-platform.php');
 $worker = $read('src/Integrations/BookingStudentNotificationWorker.php');
+$allocationRepo = $read('src/Core/Infrastructure/Repository/BookingAllocationRepository.php');
+$adminJs = $read('src/Admin/Assets/admin.js');
 
 $expect(1 === preg_match_all("/\\['Enrolment', 'dzn-enrolment-workspace'/", $shell), 'Enrolment must expose one primary destination.');
 $expect(!str_contains($shell, "['Courses & instruments', 'dzn-catalogue-workspace'"), 'The visible catalogue subtab must be removed.');
@@ -184,6 +186,39 @@ $contains($postIntro, array(
 ), 'Post-intro sends must be policy-bounded, idempotent and must not claim delivery.');
 $contains($worker, array("post_intro_reminder", 'Reminder: complete your Delnavazan enrolment'), 'The notification worker must understand the distinct reminder kind.');
 $contains($readService, array('pendingDelivery(', "d.state='pending_request'", "'Awaiting teacher response'", "'Monitor the Teacher response'", "'Awaiting coordination'"), 'The workspace must show the pending Teacher delivery as a real match, not as an unselected Teacher.');
+$contains($readService, array(
+    "'intros_new'",
+    "'intros_new_aging'",
+    "'intros_new_urgent'",
+    'first_start',
+    'NOT EXISTS (SELECT 1 FROM {$this->p}coordination_cases',
+), 'The Enrolment snapshot must count new requests and classify their age/priority.');
+$contains($view, array(
+    "snapshotStat('New requests'",
+    '$newTone = $newUrgent > 0 ? \'danger\' : ($newAging > 0 ? \'warn\' : \'ok\')',
+    '$displayTone = $value > 0 ? $tone : \'neutral\'',
+    'is-zero',
+), 'Snapshot highlights must be conditional on pending work and the new-request stat must move green → yellow → red with priority.');
+$contains($allocationRepo, array('public function offerSummaries(', 'offered_teacher_count', 'COUNT(DISTINCT teacher_id)', 'response_deadline_at'), 'Offer summaries must expose the authoritative deadline and distinct Teachers already offered.');
+$contains($readService, array(
+    'public function pendingTeacherResponses(',
+    "'teacher_offer'",
+    "'offered_teacher_count'",
+    "'response_remaining_seconds'",
+    "'response_remaining_label'",
+    "'response_deadline_iso'",
+    'remainingLabel(',
+), 'Intro rows must carry the remaining acceptance time and the number of Teachers already offered.');
+$contains($view, array(
+    '<th>Teacher response</th>',
+    'teacherOfferCell(',
+    'Teachers offered',
+    'data-dzn-offer-deadline',
+    'data-dzn-offer-countdown',
+    'Offered to ',
+), 'Enrolment must show the Teacher response window and offer count in the intro queue and case facts.');
+$contains($adminJs, array('data-dzn-offer-deadline', 'offerRemainingLabel', 'updateOfferCountdowns', "classList.toggle('is-expired'"), 'The admin queue must refresh the remaining acceptance time from the authoritative UTC deadline.');
+$contains($css, array('.dzn-offer-window', '.dzn-offer-window.is-expired'), 'The response window and expired state need an explicit visual treatment.');
 $contains($css, array('.dzn-enrolment__hero', '.dzn-booking-table', '.dzn-class-table', '.dzn-case-grid', '.dzn-timeline', '@media (max-width: 782px)'), 'The workspace needs responsive desktop/tablet/mobile styling.');
 $expect(!str_contains($readService, 'SELECT * FROM {$this->p}booking_request_contact_snapshots'), 'The read projection must not leak full contact snapshots into unrelated rows.');
 

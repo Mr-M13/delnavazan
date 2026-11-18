@@ -19,6 +19,8 @@ final class EnrolmentWorkspaceReadService {
     private string $p;
     /** @var array<int,int> */
     private array $importCompletedCache = array();
+    /** @var array<int,array{offer_count:int,offered_teacher_count:int,response_deadline_at:?string,response_offer_sequence:?int}> */
+    private array $offerSummaryCache = array();
     /** @var array<string,mixed>|null */
     private ?array $organizerReadinessCache = null;
     private ?bool $teacherNoteTableCache = null;
@@ -32,6 +34,7 @@ final class EnrolmentWorkspaceReadService {
     public function bookingCases(array $filters, bool $history = false): array {
         $this->requireAny(array('dzn_view_booking_requests', 'dzn_manage_booking_request_coordination'));
         $rows = $this->bookingBaseRows($history);
+        $this->primeOfferSummaries(array_map(static fn(object $row): int => (int) ($row->id ?? 0), $rows));
         $search = trim((string) ($filters['q'] ?? ''));
         $stage = sanitize_key((string) ($filters['stage'] ?? ''));
         $result = array();
@@ -65,6 +68,7 @@ final class EnrolmentWorkspaceReadService {
         if ($requestId < 1) return null;
         $row = $this->bookingRow($requestId);
         if (!$row) return null;
+        $this->primeOfferSummaries(array($requestId));
         $history = !$this->isActiveBooking($row);
         $case = $this->composeBookingRow($row, $history);
         $case['timeline'] = $this->bookingTimeline($requestId);
@@ -76,6 +80,71 @@ final class EnrolmentWorkspaceReadService {
         $case['notifications'] = $this->bookingNotifications($requestId);
         $case['prior_bookings'] = (int) ($row->student_id ?? 0) > 0 ? $this->priorBookings((int) $row->student_id, $requestId) : array();
         return $case;
+    }
+
+    /**
+     * Active Teacher offers awaiting a response, with the authoritative deadline and
+     * the number of Teachers the request has already been offered to.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function pendingTeacherResponses(int $limit = 12): array {
+        $this->requireAny(array('dzn_view_booking_requests', 'dzn_manage_booking_request_coordination'));
+        global $wpdb;
+        $limit = max(1, min(50, $limit));
+        $rows = (array) $wpdb->get_results($wpdb->prepare(
+            "SELECT o.booking_request_id request_id,o.teacher_id,o.deadline_at,o.offer_sequence,
+                    r.reference_code,
+                    COALESCE(NULLIF(s.display_name,''),NULLIF(snap.full_name,''),'Learner') learner_name,
+                    COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name,'Teacher') teacher_name,
+                    COALESCE(NULLIF(course.name_en,''),course.name_fa,'Introductory course') course_name,
+                    COALESCE(NULLIF(i.name_en,''),i.name_fa,'Instrument') instrument_name,
+                    rt.starts_at_utc,rt.local_date,rt.local_start_time,rt.timezone
+               FROM {$this->p}booking_allocation_offers o
+               INNER JOIN {$this->p}booking_requests r ON r.id=o.booking_request_id
+               INNER JOIN {$this->p}teachers t ON t.id=o.teacher_id
+               INNER JOIN {$this->p}booking_request_requested_times rt ON rt.id=o.requested_time_id AND rt.booking_request_id=r.id
+               LEFT JOIN {$this->p}booking_request_contact_snapshots snap ON snap.booking_request_id=r.id AND snap.snapshot_sequence=1
+               LEFT JOIN {$this->p}students s ON s.id=r.student_id
+               LEFT JOIN {$this->p}courses course ON course.id=r.selected_intro_course_id
+               LEFT JOIN {$this->p}instruments i ON i.id=r.requested_instrument_id
+              WHERE o.state='pending' AND o.active_slot=1
+                AND r.lifecycle_status='submitted' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL
+                AND NOT EXISTS (SELECT 1 FROM {$this->p}booking_request_confirmations c WHERE c.booking_request_id=r.id AND c.state<>'failed')
+              ORDER BY o.deadline_at,o.id LIMIT %d",
+            $limit
+        ));
+        if ($wpdb->last_error !== '') throw new \RuntimeException('Intro Teacher response queue unavailable');
+        $this->primeOfferSummaries(array_map(static fn(object $row): int => (int) ($row->request_id ?? 0), $rows));
+        $out = array();
+        $now = time();
+        foreach ($rows as $row) {
+            $requestId = (int) $row->request_id;
+            $summary = $this->offerSummary($requestId);
+            $deadline = trim((string) ($row->deadline_at ?? ''));
+            $remaining = $deadline !== '' ? strtotime($deadline . ' UTC') - $now : 0;
+            $out[] = array(
+                'request_id' => $requestId,
+                'reference' => (string) ($row->reference_code ?: 'Request ' . $requestId),
+                'learner_name' => (string) $row->learner_name,
+                'teacher_id' => (int) $row->teacher_id,
+                'teacher_name' => (string) $row->teacher_name,
+                'instrument' => (string) $row->instrument_name,
+                'course' => (string) $row->course_name,
+                'starts_at_utc' => (string) $row->starts_at_utc,
+                'local_label' => $this->localLabel((string) $row->starts_at_utc, (string) $row->timezone),
+                'timezone' => (string) $row->timezone,
+                'response_deadline_at' => $deadline !== '' ? $deadline : null,
+                'response_deadline_iso' => $deadline !== '' ? str_replace(' ', 'T', $deadline) . 'Z' : '',
+                'response_remaining_seconds' => max(0, $remaining),
+                'response_remaining_label' => $this->remainingLabel($remaining),
+                'response_expired' => $remaining <= 0,
+                'offer_sequence' => (int) ($summary['response_offer_sequence'] ?? $row->offer_sequence ?? 0),
+                'offered_teacher_count' => (int) ($summary['offered_teacher_count'] ?? 0),
+                'url' => admin_url('admin.php?page=dzn-enrolment-workspace&request_id=' . $requestId),
+            );
+        }
+        return $out;
     }
 
     /** Intake evidence for one booking record. Teacher candidate search is explicit. */
@@ -306,7 +375,8 @@ final class EnrolmentWorkspaceReadService {
         global $wpdb;
         $now = gmdate('Y-m-d H:i:s');
         $from = gmdate('Y-m-d H:i:s', strtotime('-' . max(1, $days) . ' days'));
-        $report = (current_user_can('dzn_view_booking_requests') || current_user_can('dzn_manage_booking_request_coordination'))
+        $canBookings = current_user_can('dzn_view_booking_requests') || current_user_can('dzn_manage_booking_request_coordination');
+        $report = $canBookings
             ? $this->conversionReport(substr($from, 0, 10), substr($now, 0, 10))
             : array('denominator' => 0, 'converted' => 0, 'awaiting' => 0, 'did_not_convert' => 0, 'excluded' => 0, 'period' => array('from' => substr($from, 0, 10), 'to' => substr($now, 0, 10)));
         $scheduled = (int) $wpdb->get_var($wpdb->prepare(
@@ -330,6 +400,28 @@ final class EnrolmentWorkspaceReadService {
             $from,
             gmdate('Y-m-d H:i:s', strtotime('-4 hours'))
         ));
+        $newRequestRows = array();
+        if ($canBookings) {
+            $newRequestRows = $wpdb->get_results($wpdb->prepare(
+                "SELECT r.id,r.created_at,
+                        (SELECT MIN(rt.starts_at_utc) FROM {$this->p}booking_request_requested_times rt WHERE rt.booking_request_id=r.id) first_start
+                   FROM {$this->p}booking_requests r
+                  WHERE r.lifecycle_status='submitted' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL
+                    AND r.created_at>=%s
+                    AND NOT EXISTS (SELECT 1 FROM {$this->p}coordination_cases cc WHERE cc.booking_request_id=r.id)
+                  ORDER BY r.created_at",
+                $from
+            )) ?: array();
+        }
+        $newRequests = count($newRequestRows); $newRequestsAging = 0; $newRequestsUrgent = 0;
+        $nowTs = strtotime($now . ' UTC');
+        foreach ($newRequestRows as $requestRow) {
+            $age = $nowTs - strtotime((string) $requestRow->created_at . ' UTC');
+            $firstStart = trim((string) ($requestRow->first_start ?? ''));
+            $startsSoon = $firstStart !== '' && strtotime($firstStart . ' UTC') - $nowTs <= 172800;
+            if ($age >= 172800 || $startsSoon) $newRequestsUrgent++;
+            elseif ($age >= 86400) $newRequestsAging++;
+        }
         $terms = $wpdb->get_results(
             "SELECT t.id,t.sequence_number,t.lesson_allocation,t.starts_at,t.ends_at,
                     (SELECT COUNT(*) FROM {$this->p}lessons l
@@ -353,6 +445,9 @@ final class EnrolmentWorkspaceReadService {
         return array(
             'period' => array('days' => max(1, $days), 'from' => substr($from, 0, 10), 'to' => substr($now, 0, 10)),
             'intros_total' => (int) $report['denominator'],
+            'intros_new' => $newRequests,
+            'intros_new_aging' => $newRequestsAging,
+            'intros_new_urgent' => $newRequestsUrgent,
             'intros_scheduled' => $scheduled,
             'intros_completed' => $completed,
             'intros_converted' => (int) $report['converted'],
@@ -798,6 +893,7 @@ final class EnrolmentWorkspaceReadService {
         $coordination = $this->coordinationSummary($requestId);
         $confirmation = $this->confirmedBooking($requestId);
         $pending = $this->pendingDelivery($requestId);
+        $teacherOffer = $this->teacherOffer($requestId, $pending);
         $outcome = $this->introOutcome($requestId);
         $postIntro = $this->postIntro($requestId);
         $stage = $this->bookingStage($row, $times, $coordination, $confirmation, $outcome, $postIntro, $pending);
@@ -856,6 +952,7 @@ final class EnrolmentWorkspaceReadService {
             'teacher_id' => (int) ($confirmation['teacher_id'] ?? $coordination['teacher_id']),
             'teacher_name' => $teacher !== '' ? $teacher : 'Teacher not selected',
             'teacher_response' => $teacherResponse !== '' ? $teacherResponse : 'No response recorded',
+            'teacher_offer' => $teacherOffer,
             'match_attempts' => max((int) $coordination['candidate_count'], $confirmation !== null ? 1 : 0, $pending !== null ? 1 : 0),
             'availability_state' => $confirmation !== null
                 ? ((string) ($confirmation['state'] ?? '') === 'confirmed'
@@ -1082,7 +1179,43 @@ final class EnrolmentWorkspaceReadService {
         };
     }
 
-    /** @return array<string,mixed>|null */
+    /** @param list<int> $requestIds */
+    private function primeOfferSummaries(array $requestIds): void {
+        $missing = array_values(array_filter(array_unique(array_map('intval', $requestIds)), static fn(int $id): bool => $id > 0 && !array_key_exists($id, $this->offerSummaryCache)));
+        if (!$missing) return;
+        foreach ((new BookingAllocationRepository())->offerSummaries($missing) as $requestId => $summary) $this->offerSummaryCache[$requestId] = $summary;
+        foreach ($missing as $requestId) $this->offerSummaryCache[$requestId] ??= array('offer_count' => 0, 'offered_teacher_count' => 0, 'response_deadline_at' => null, 'response_offer_sequence' => null);
+    }
+
+    /** @return array{offer_count:int,offered_teacher_count:int,response_deadline_at:?string,response_offer_sequence:?int} */
+    private function offerSummary(int $requestId): array {
+        if (!array_key_exists($requestId, $this->offerSummaryCache)) $this->primeOfferSummaries(array($requestId));
+        return $this->offerSummaryCache[$requestId];
+    }
+
+    /**
+     * The as-of-now offer state shown beside the Teacher column. Deadline text is
+     * rendered server-side and refreshed by the admin countdown script.
+     *
+     * @return array{offer_count:int,offered_teacher_count:int,response_deadline_at:?string,response_deadline_iso:string,response_remaining_seconds:int,response_remaining_label:string,response_expired:bool,is_pending:bool}
+     */
+    private function teacherOffer(int $requestId, ?array $pendingDelivery): array {
+        $summary = $this->offerSummary($requestId);
+        $deadline = trim((string) ($summary['response_deadline_at'] ?? ''));
+        $remaining = $deadline !== '' ? strtotime($deadline . ' UTC') - time() : 0;
+        $awaitingResponse = $pendingDelivery !== null && $deadline !== '';
+        return array(
+            'offer_count' => (int) $summary['offer_count'],
+            'offered_teacher_count' => (int) $summary['offered_teacher_count'],
+            'response_deadline_at' => $deadline !== '' ? $deadline : null,
+            'response_deadline_iso' => $deadline !== '' ? str_replace(' ', 'T', $deadline) . 'Z' : '',
+            'response_remaining_seconds' => max(0, $remaining),
+            'response_remaining_label' => $deadline !== '' ? $this->remainingLabel($remaining) : 'Not offered yet',
+            'response_expired' => $awaitingResponse && $remaining <= 0,
+            'is_pending' => $awaitingResponse && $remaining > 0,
+        );
+    }
+
     /** @return array<string,mixed>|null */
     private function pendingDelivery(int $requestId): ?array {
         global $wpdb;
@@ -2009,6 +2142,18 @@ final class EnrolmentWorkspaceReadService {
         if ($seconds < 3600) return max(1, (int) floor($seconds / 60)) . ' min';
         if ($seconds < 86400) return (int) floor($seconds / 3600) . ' h';
         return (int) floor($seconds / 86400) . ' days';
+    }
+
+    private function remainingLabel(int $seconds): string {
+        if ($seconds <= 0) return 'Deadline passed';
+        $minutes = max(1, (int) ceil($seconds / 60));
+        if ($minutes < 60) return $minutes . ' min left';
+        $hours = intdiv($minutes, 60);
+        $extraMinutes = $minutes % 60;
+        if ($hours < 48) return $hours . 'h' . ($extraMinutes > 0 ? ' ' . $extraMinutes . 'm' : '') . ' left';
+        $days = intdiv($hours, 24);
+        $extraHours = $hours % 24;
+        return $days . 'd' . ($extraHours > 0 ? ' ' . $extraHours . 'h' : '') . ' left';
     }
 
     private function requireAny(array $capabilities): void {

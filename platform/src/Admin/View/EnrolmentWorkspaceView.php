@@ -116,6 +116,18 @@ final class EnrolmentWorkspaceView {
         if ($showIntros) {
             echo '<div class="dzn-enrolment-snapshot__group"><h3>Introductory lessons</h3><div class="dzn-enrolment-snapshot__grid">';
             self::snapshotStat('Intros', (int) $snapshot['intros_total'], 'Requests in period', 'neutral');
+            $newRequests = (int) ($snapshot['intros_new'] ?? 0);
+            $newAging = (int) ($snapshot['intros_new_aging'] ?? 0);
+            $newUrgent = (int) ($snapshot['intros_new_urgent'] ?? 0);
+            $newTone = $newUrgent > 0 ? 'danger' : ($newAging > 0 ? 'warn' : 'ok');
+            $newNote = $newRequests < 1
+                ? 'No request awaiting first coordination'
+                : ($newUrgent > 0
+                    ? number_format_i18n($newUrgent) . ' urgent · awaiting first coordination'
+                    : ($newAging > 0
+                        ? number_format_i18n($newAging) . ' waiting over 24h'
+                        : 'Received and awaiting first coordination'));
+            self::snapshotStat('New requests', $newRequests, $newNote, $newTone);
             self::snapshotStat('Scheduled', (int) $snapshot['intros_scheduled'], 'Upcoming confirmed intros', 'ok');
             self::snapshotStat('Completed', (int) $snapshot['intros_completed'], 'Outcome recorded', 'ok');
             self::snapshotStat('Converted', (int) $snapshot['intros_converted'], 'Enrolment activated', 'ok');
@@ -132,7 +144,10 @@ final class EnrolmentWorkspaceView {
     }
 
     private static function snapshotStat(string $label, int $value, string $note, string $tone): void {
-        echo '<div class="dzn-snapshot-stat dzn-snapshot-stat--' . esc_attr($tone) . '"><strong>' . esc_html(number_format_i18n($value)) . '</strong><span>' . esc_html($label) . '</span><small>' . esc_html($note) . '</small></div>';
+        // A priority colour is a signal for pending work, never decoration: an empty
+        // counter stays neutral so a zero can no longer look like an active warning.
+        $displayTone = $value > 0 ? $tone : 'neutral';
+        echo '<div class="dzn-snapshot-stat dzn-snapshot-stat--' . esc_attr($displayTone) . ($value < 1 ? ' is-zero' : '') . '"><strong>' . esc_html(number_format_i18n($value)) . '</strong><span>' . esc_html($label) . '</span><small>' . esc_html($note) . '</small></div>';
     }
 
     private static function createStandardPanel(EnrolmentWorkspaceReadService $read): void {
@@ -264,7 +279,7 @@ final class EnrolmentWorkspaceView {
     }
 
     private static function queueTable(array $rows, bool $history): void {
-        echo '<div class="dzn-table-scroll"><table class="widefat striped dzn-unified-table"><thead><tr><th>Priority</th><th>Date and time</th><th>Student</th><th>Teacher</th><th>Instrument</th><th>Term</th><th>Status</th><th><span class="screen-reader-text">Class admin</span></th></tr></thead><tbody>';
+        echo '<div class="dzn-table-scroll"><table class="widefat striped dzn-unified-table"><thead><tr><th>Priority</th><th>Date and time</th><th>Student</th><th>Teacher</th><th>Teacher response</th><th>Instrument</th><th>Term</th><th>Status</th><th><span class="screen-reader-text">Class admin</span></th></tr></thead><tbody>';
         foreach ($rows as $row) {
             $classes = array('dzn-unified-row', 'dzn-unified-row--' . (string) $row['kind']);
             if (!empty($row['attention'])) $classes[] = 'is-attention';
@@ -276,6 +291,7 @@ final class EnrolmentWorkspaceView {
             echo '<td><span class="dzn-badge ' . $priorityClass . '">' . esc_html($priorityLabel) . '</span><br><span class="dzn-type-chip">' . esc_html((string) $row['type_label']) . '</span>' . (!empty($row['attention_reason']) ? '<br><small>' . esc_html((string) $row['attention_reason']) . '</small>' : '') . '</td>';
             echo '<td><strong>' . esc_html((string) $row['date_label']) . '</strong><br><small>' . esc_html((string) $row['reference']) . '</small></td>';
             echo '<td>' . esc_html((string) $row['student_name']) . '</td><td>' . esc_html((string) $row['teacher_name']) . '</td>';
+            echo '<td>' . self::teacherOfferCell($row) . '</td>';
             echo '<td>' . esc_html((string) $row['instrument']) . '<br><small>' . esc_html((string) $row['course_name']) . '</small></td>';
             echo '<td>' . esc_html((string) ($row['term_reference'] ?: '—')) . (!empty($row['term_progress']) ? '<br><small>' . esc_html((string) $row['term_progress']) . '</small>' : '') . '</td>';
             echo '<td><span class="dzn-badge dzn-badge--soft">' . esc_html((string) $row['state_label']) . '</span><br><small>' . esc_html((string) $row['attendance_label']) . '</small></td>';
@@ -288,6 +304,34 @@ final class EnrolmentWorkspaceView {
             echo '</td></tr>';
         }
         echo '</tbody></table></div>';
+    }
+
+    /**
+     * The remaining acceptance time and how many Teachers have already been offered
+     * this introductory request. The page renders a server-side label; admin.js keeps
+     * it current from the same UTC deadline the Teacher authority enforces.
+     *
+     * @param array<string,mixed> $row
+     */
+    private static function teacherOfferCell(array $row): string {
+        if ((string) ($row['kind'] ?? '') !== 'intro') return '<span class="dzn-muted">—</span>';
+        $offer = (array) ($row['teacher_offer'] ?? array());
+        $count = (int) ($offer['offered_teacher_count'] ?? 0);
+        $countLabel = $count > 0
+            ? 'Offered to ' . number_format_i18n($count) . ' Teacher' . ($count === 1 ? '' : 's')
+            : 'Not offered to a Teacher yet';
+        $deadline = (string) ($offer['response_deadline_iso'] ?? '');
+        if (!empty($offer['is_pending']) && $deadline !== '') {
+            return '<span class="dzn-offer-window" data-dzn-offer-deadline="' . esc_attr($deadline) . '"><strong data-dzn-offer-countdown>' . esc_html((string) ($offer['response_remaining_label'] ?? '')) . '</strong> to accept</span><br><small>' . esc_html($countLabel) . '</small>';
+        }
+        if (!empty($offer['response_expired'])) {
+            return '<span class="dzn-offer-window is-expired"' . ($deadline !== '' ? ' data-dzn-offer-deadline="' . esc_attr($deadline) . '"' : '') . '><strong data-dzn-offer-countdown>Deadline passed</strong> · reassignment pending</span><br><small>' . esc_html($countLabel) . '</small>';
+        }
+        $response = trim((string) ($row['teacher_response'] ?? ''));
+        $detail = $response !== '' && strtolower($response) !== 'no response recorded'
+            ? $response . ' · ' . $countLabel
+            : $countLabel;
+        return '<small>' . esc_html($detail) . '</small>';
     }
 
     /** Group classes under their current Term without losing each class action. */
@@ -519,11 +563,20 @@ final class EnrolmentWorkspaceView {
         self::fact('Next action', $case['next_action']);
         self::fact('Teacher', $case['teacher_name']);
         self::fact('Teacher response', $case['teacher_response']);
+        $offer = (array) ($case['teacher_offer'] ?? array());
+        $offeredCount = (int) ($offer['offered_teacher_count'] ?? 0);
+        self::fact('Teachers offered', $offeredCount > 0 ? (string) $offeredCount : 'None yet', $offeredCount > 0 ? 'Distinct Teachers this request has already been offered to.' : 'No Teacher offer has been recorded.');
         self::fact('Match attempts', (string) $case['match_attempts']);
         self::fact('Availability / conflicts', $case['availability_state']);
         self::fact('Identity', $case['identity_state']['label']);
         if ($case['prior_booking_count'] !== null) self::fact('Prior bookings', (string) $case['prior_booking_count']);
         echo '</dl>';
+        $offerDeadline = (string) ($offer['response_deadline_iso'] ?? '');
+        if (!empty($offer['is_pending']) && $offerDeadline !== '') {
+            echo '<p class="dzn-offer-window" data-dzn-offer-deadline="' . esc_attr($offerDeadline) . '"><strong data-dzn-offer-countdown>' . esc_html((string) ($offer['response_remaining_label'] ?? '')) . '</strong> for the offered Teacher to accept.</p>';
+        } elseif (!empty($offer['response_expired'])) {
+            echo '<p class="dzn-offer-window is-expired"' . ($offerDeadline !== '' ? ' data-dzn-offer-deadline="' . esc_attr($offerDeadline) . '"' : '') . '><strong data-dzn-offer-countdown>Deadline passed</strong> · reassignment is due.</p>';
+        }
         echo '<h3>Requested times</h3>';
         if (!$case['requested_times']) echo '<p>No requested times recorded.</p>';
         else {

@@ -61,6 +61,15 @@ $contains($render, array(
 ), 'Overview must render the retained panels and introductory classes.');
 $notContains($render, array('self::hero()', 'self::quickActions()', 'self::kpiCards(', 'self::pipelinePanel(', 'self::activityPanel(', 'self::journeyQueue('), 'Removed Overview sections must not render.');
 $contains($dashboard, array('Needs Attention', 'Scheduled Introductory Classes', 'id="dzn-pending-work"', 'Intro class outcomes due', 'Post-intro enrolments needing attention', 'Payment webhooks refused'), 'Attention and intro sections must be retained.');
+$contains($dashboard, array(
+    'introResponseQueue()',
+    'Intro requests awaiting Teacher response',
+    'pendingTeacherResponses(',
+    'data-dzn-offer-deadline',
+    'data-dzn-offer-countdown',
+    'Teachers offered',
+    'offered_teacher_count',
+), 'Overview intro classes and requests must show the remaining Teacher acceptance time and how many Teachers were offered.');
 
 // Needs Attention is one inbox across every operational area, rendered above the class schedule.
 $attentionStart = strpos($dashboard, "if (AcademyDashboardScreen::shows('actions'))");

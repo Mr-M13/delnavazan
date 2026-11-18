@@ -36,6 +36,8 @@ $rule = static function ( string $selector, string $source ): string {
 $check( 'footer template renders .site-footer', str_contains( $footer, 'class="site-footer"' ) );
 $check( 'homepage renders the price finale section', str_contains( $pattern, 'dzn-story__finale' ) );
 $check( 'homepage renders the price ledger inside the price beat', str_contains( $pattern, 'dzn-story__price' ) && str_contains( $pattern, 'dzn-price-ledger' ) );
+$pricing_script = (string) file_get_contents( $theme . '/assets/js/pricing-region.js' );
+$check( 'price ledger presents the configured default region when no country price is linked', str_contains( $pricing_script, 'config.defaultRegion' ) && str_contains( $pricing_script, 'showDefault' ) );
 
 /* 2. Active CSS selectors and intended surfaces. */
 $footer_rule = $rule( '.site-footer', $css );

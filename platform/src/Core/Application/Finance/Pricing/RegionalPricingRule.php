@@ -37,6 +37,20 @@ final class RegionalPricingRule {
         'EE' => 'EU', 'LV' => 'EU', 'LT' => 'EU',
     );
 
+    /**
+     * The currency a country falls back to when it has no supported regional price.
+     *
+     * Every other country presents and settles in US dollars. The absence of a regional
+     * price never blocks a booking request or its Teacher acceptance.
+     */
+    public const DEFAULT_REGION = 'US';
+
+    /** Resolve one stored ISO country code to a supported price region, defaulting to USD. */
+    public static function regionForCountry(string $country): string {
+        $country = strtoupper(trim($country));
+        return self::COUNTRY_TO_REGION[$country] ?? self::DEFAULT_REGION;
+    }
+
     public static function region(string $regionCode): string {
         $region = strtoupper(trim($regionCode));
         if (!isset(self::REGIONS[$region])) throw new \InvalidArgumentException('unsupported_region');

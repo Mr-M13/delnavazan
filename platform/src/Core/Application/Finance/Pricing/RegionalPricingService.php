@@ -79,6 +79,7 @@ final class RegionalPricingService {
             'detectUrl' => 'https://ipwho.is/',
             'regions' => $regions,
             'countryToRegion' => RegionalPricingRule::COUNTRY_TO_REGION,
+            'defaultRegion' => RegionalPricingRule::DEFAULT_REGION,
         );
     }
 

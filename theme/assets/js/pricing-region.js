@@ -11,6 +11,7 @@
   const region = ledger.querySelector('[data-dzn-pricing-region]');
   const intro = ledger.querySelector('[data-dzn-pricing-intro]');
   const storageKey = String(config.storageKey || 'dzn-pricing-region');
+  const fallbackRegion = String(config.defaultRegion || 'US');
   let manuallySelected = false;
 
   const storage = {
@@ -39,12 +40,17 @@
     if (intro) intro.textContent = selected.introductoryLabel || '';
   };
 
+  const showDefault = () => {
+    if (fallbackRegion && config.regions[fallbackRegion]) showRegion(fallbackRegion);
+    else showNeutral();
+  };
+
   const stored = storage.get();
   if (stored && config.regions[stored]) {
     manuallySelected = true;
     showRegion(stored);
   } else {
-    showNeutral();
+    showDefault();
   }
 
   if (select) {
@@ -68,7 +74,11 @@
     showRegion(code);
   });
 
-  if (manuallySelected || !config.detectUrl || typeof window.fetch !== 'function') return;
+  if (manuallySelected) return;
+  if (!config.detectUrl || typeof window.fetch !== 'function') {
+    showDefault();
+    return;
+  }
 
   window.fetch(config.detectUrl, {
     cache: 'no-store',
@@ -79,11 +89,12 @@
     .then((payload) => {
       if (manuallySelected) return;
       const country = String(payload && payload.country_code ? payload.country_code : '').toUpperCase();
-      const code = config.countryToRegion && config.countryToRegion[country];
+      // A country without a supported regional price is presented in the USD default.
+      const code = (config.countryToRegion && config.countryToRegion[country]) || fallbackRegion;
       if (code && config.regions[code]) showRegion(code);
       else showNeutral();
     })
     .catch(() => {
-      if (!manuallySelected) showNeutral();
+      if (!manuallySelected) showDefault();
     });
 })();

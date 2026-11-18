@@ -22,19 +22,12 @@ final class IntroPricingService {
         ));
         if (!$row) throw new \InvalidArgumentException('intro_booking_required');
         $country = strtoupper(trim((string) ($row->country ?? '')));
-        $region = RegionalPricingRule::COUNTRY_TO_REGION[$country] ?? null;
-        if ($region === null) {
-            $active = $this->regional->activeAll();
-            if (count($active) === 0) {
-                return array('configured' => false, 'mode' => RegionalPricingRule::INTRO_FREE, 'amount_minor' => 0, 'currency' => null, 'region_code' => null);
-            }
-            if (count($active) !== 1) throw new \InvalidArgumentException('intro_price_region_unresolved');
-            $region = (string) $active[0]['region_code'];
-        }
+        // Countries outside the supported regional map settle in the USD default. This keeps
+        // Teacher acceptance available for every valid booking request and matches the public
+        // price ledger, which presents the same default currency.
+        $region = RegionalPricingRule::regionForCountry($country);
         $authority = $this->regional->activeForRegion($region);
-        if (!$authority) {
-            return array('configured' => false, 'mode' => RegionalPricingRule::INTRO_FREE, 'amount_minor' => 0, 'currency' => null, 'region_code' => $region);
-        }
+        if (!$authority) return $this->free($region);
         $mode = (string) $authority['introductory_mode'];
         $amount = RegionalPricingRule::introductoryAmountMinor($mode, $authority['introductory_amount_minor'] === null ? null : (int) $authority['introductory_amount_minor']);
         if ($mode === RegionalPricingRule::INTRO_PAID && $amount < 1) throw new \RuntimeException('intro_price_not_configured');
@@ -42,5 +35,10 @@ final class IntroPricingService {
             'configured' => true, 'mode' => $mode, 'amount_minor' => $amount,
             'currency' => (string) $authority['currency'], 'region_code' => $region,
         );
+    }
+
+    /** @return array{configured:bool,mode:string,amount_minor:int,currency:?string,region_code:?string} */
+    private function free(?string $regionCode = null): array {
+        return array('configured' => false, 'mode' => RegionalPricingRule::INTRO_FREE, 'amount_minor' => 0, 'currency' => null, 'region_code' => $regionCode);
     }
 }

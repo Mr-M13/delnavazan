@@ -33,6 +33,7 @@ function dzn_theme_pricing_presentation_config() {
 		'detectUrl'  => 'https://ipwho.is/',
 		'regions'    => array(),
 		'countryToRegion' => array(),
+		'defaultRegion' => 'US',
 	);
 }
 

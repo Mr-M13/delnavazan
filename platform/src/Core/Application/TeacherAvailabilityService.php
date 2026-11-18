@@ -95,6 +95,59 @@ final class TeacherAvailabilityService {
         }
     }
 
+    /**
+     * Copy the effective weekly schedule of one instrument to every other
+     * eligible instrument in one transaction. The source schedule is left
+     * untouched; each target becomes explicitly configured with the same
+     * ranges, so later edits to a general schedule cannot silently change it.
+     *
+     * @return int Number of target instruments updated.
+     */
+    public function copyOwnScheduleToAllInstruments(int $sourceInstrumentId): int {
+        $teacher = $this->selfServiceTeacher();
+        $source = Normalizer::id($sourceInstrumentId);
+        $this->assertInstrumentForTeacher($teacher, $source);
+        $profile = $this->repo->profile($teacher);
+        if (!$profile || (string) $profile->status !== 'active') throw new \InvalidArgumentException('Active availability profile required');
+        $timezone = $this->authorityTimezone((string) $profile->timezone);
+        $sourceRules = array_values(array_filter($this->repo->activeRules($teacher, $source), static fn(object $rule): bool => in_array((string) $rule->state, array('preferred', 'requestable'), true)));
+        if (!$sourceRules) throw new \InvalidArgumentException('No availability exists on the selected instrument');
+        $targets = array_values(array_filter($this->teacherInstrumentIds($teacher), static fn(int $instrument): bool => $instrument !== $source));
+        if (!$targets) throw new \InvalidArgumentException('No other eligible instrument exists');
+        $now = current_time('mysql', true);
+        $actor = (int) get_current_user_id();
+        $this->repo->begin();
+        try {
+            $this->usableTeacher($teacher);
+            $profile = $this->profileForMutation($teacher, $timezone);
+            foreach ($targets as $target) {
+                $this->repo->retireOwnInstrumentRules($teacher, $target, $now, $actor);
+                $this->repo->saveInstrumentState($teacher, $target, $now, $actor);
+                foreach ($sourceRules as $sourceRule) {
+                    $d = $this->rule(array(
+                        'teacher_id' => $teacher,
+                        'instrument_id' => $target,
+                        'weekday' => (int) $sourceRule->weekday,
+                        'local_start_time' => (string) $sourceRule->local_start_time,
+                        'local_end_time' => (string) $sourceRule->local_end_time === '24:00:00' ? '2400' : (string) $sourceRule->local_end_time,
+                        'state' => (string) $sourceRule->state,
+                        'timezone' => $timezone,
+                        'status' => 'active',
+                        'reason_code' => 'teacher_self_service_copy',
+                    ));
+                    $d['profile_id'] = (int) $profile->id;
+                    $this->repo->saveRule($d, $now, $actor);
+                }
+            }
+            $this->repo->commit();
+            (new TeacherOnboardingService())->refreshOwnProgress();
+        } catch (\Throwable $error) {
+            $this->repo->rollback();
+            throw $error;
+        }
+        return count($targets);
+    }
+
     /** Copy every active rule from one weekday to explicitly selected weekdays atomically. */
     public function copyOwnRecurringDay(int $sourceWeekday, array $targetWeekdays): void {
         $teacher=$this->ownTeacher(); $source=Normalizer::count($sourceWeekday,1,7); $targets=array_values(array_unique(array_map(static fn($day)=>Normalizer::count($day,1,7),$targetWeekdays)));
@@ -320,6 +373,19 @@ final class TeacherAvailabilityService {
     private function editableOwnRule(int $teacher,int $id,?int $instrument,string $now): object { $row=$this->repo->ruleForUpdate($id); if(!$row||(int)$row->teacher_id!==$teacher||(string)$row->status!=='active')throw new \InvalidArgumentException('Active availability rule not found'); if($instrument===null||$row->instrument_id!==null){if($instrument!==null&&$row->instrument_id!==null&&(int)$row->instrument_id!==$instrument)throw new \InvalidArgumentException('Availability rule belongs to another instrument');return $row;} $this->prepareInstrument($teacher,$instrument,$now); foreach($this->repo->activeRules($teacher,$instrument) as $candidate)if((int)$candidate->weekday===(int)$row->weekday&&(string)$candidate->local_start_time===(string)$row->local_start_time&&(string)$candidate->local_end_time===(string)$row->local_end_time&&(string)$candidate->state===(string)$row->state&&(string)$candidate->timezone===(string)$row->timezone)return $this->repo->ruleForUpdate((int)$candidate->id); throw new \InvalidArgumentException('Instrument availability rule not found'); }
     private function prepareInstrument(int $teacher,int $instrument,string $now):void { $this->assertInstrumentForTeacher($teacher,$instrument); if($this->repo->instrumentConfigured($teacher,$instrument))return; foreach($this->repo->activeRules($teacher,null) as $legacy){if($legacy->instrument_id!==null)continue;$copy=get_object_vars($legacy);unset($copy['id'],$copy['created_at'],$copy['updated_at'],$copy['created_by'],$copy['updated_by'],$copy['version']);$copy['instrument_id']=$instrument;$copy['reason_code']='instrument_schedule_migrated';$this->repo->saveRule($copy,$now,get_current_user_id());} $this->repo->saveInstrumentState($teacher,$instrument,$now,get_current_user_id()); }
     private function assertInstrumentForTeacher(int $teacher,int $instrument):void { global $wpdb; $allowed=(int)$wpdb->get_var($wpdb->prepare("SELECT 1 FROM {$wpdb->prefix}dzn_teacher_course_eligibilities e INNER JOIN {$wpdb->prefix}dzn_courses c ON c.id=e.course_id WHERE e.teacher_id=%d AND c.instrument_id=%d AND e.status='active' AND c.status='active' AND c.archived_at IS NULL LIMIT 1",$teacher,$instrument)); if(!$allowed)throw new \InvalidArgumentException('Instrument is not eligible for this Teacher'); }
+    /** @return list<int> Every instrument the Teacher is currently eligible to teach. */
+    private function teacherInstrumentIds(int $teacher): array {
+        global $wpdb;
+        $ids = $wpdb->get_col($wpdb->prepare(
+            "SELECT DISTINCT c.instrument_id
+             FROM {$wpdb->prefix}dzn_teacher_course_eligibilities e
+             INNER JOIN {$wpdb->prefix}dzn_courses c ON c.id=e.course_id
+             WHERE e.teacher_id=%d AND e.status='active' AND c.status='active' AND c.archived_at IS NULL
+             ORDER BY c.instrument_id",
+            $teacher
+        ));
+        return array_values(array_unique(array_map('intval', is_array($ids) ? $ids : array())));
+    }
     private function state(mixed $value): string { return Normalizer::one( $value, self::STATES, 'availability state' ); }
     private function utc(string $value): string { $date = \DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', $value, new \DateTimeZone( 'UTC' ) ); if ( ! $date || $date->format( 'Y-m-d H:i:s' ) !== $value ) throw new \InvalidArgumentException( 'Canonical UTC datetime required' ); return $value; }
     private function append(array &$facts, array $interval, string $state, string $source, int $id): void { $facts[] = $interval + array( 'state' => $state, 'source' => $source, 'id' => $id, 'source_rank' => $source === 'exception' ? 2 : 1, 'state_rank' => array( 'requestable' => 1, 'preferred' => 2, 'blocked' => 3 )[ $state ] ); }

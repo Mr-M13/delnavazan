@@ -190,6 +190,7 @@
 		var rangesField = root.querySelector('[data-dzn-ap-ranges-field]');
 		var instrumentField = root.querySelector('[data-dzn-ap-instrument-field]');
 		var emptyInstrumentField = root.querySelector('[data-dzn-ap-empty-instrument-field]');
+		var copyInstrumentField = root.querySelector('[data-dzn-ap-copy-instrument-field]');
 		var emptyForm = root.querySelector('[data-dzn-ap-empty-form]');
 		var labels = data.labels || {};
 		var days = labels.days || {};
@@ -218,6 +219,7 @@
 		function syncFields() {
 			if (instrumentField) instrumentField.value = String(state.instrument);
 			if (emptyInstrumentField) emptyInstrumentField.value = String(state.instrument);
+			if (copyInstrumentField) copyInstrumentField.value = String(state.instrument);
 			if (rangesField) {
 				var ranges = [];
 				WEEK_ORDER.forEach(function (weekday) {

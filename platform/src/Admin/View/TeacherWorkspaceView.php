@@ -319,33 +319,38 @@ final class TeacherWorkspaceView {
         $rules = (array) ($availability['rules'] ?? array());
         $exceptions = (array) ($availability['exceptions'] ?? array());
         $golden = (array) ($availability['golden'] ?? array());
-        $weeklyMinutes = 0;
-        foreach ($rules as $rule) {
-            if (!in_array((string) $rule->state, array('preferred', 'requestable'), true)) continue;
-            $start = self::minutes((string) $rule->local_start_time);
-            $end = self::minutes((string) $rule->local_end_time);
-            if ($start !== null && $end !== null && $end > $start) $weeklyMinutes += $end - $start;
-        }
+        $weeklyMinutes = max(0, (int) ($availability['weekly_minutes'] ?? 0));
+        $weeklyInstruments = max(0, (int) ($availability['weekly_instrument_count'] ?? 0));
+        $instrumentTotals = (array) ($availability['instrument_totals'] ?? array());
         $capacity = 0;
         foreach ($eligibility as $course) {
             if ((string) $course->status !== 'active') continue;
             $slot = max(1, (int) $course->default_duration_minutes + (int) $course->default_buffer_minutes);
             $capacity = max($capacity, (int) floor($weeklyMinutes / $slot));
         }
-        echo '<section class="dzn-tw-section" id="teacher-availability"><div class="dzn-tw-section__head"><div><h2>Weekly availability and golden hours</h2><p>Uses the same canonical availability service as the Teacher portal. Unselected times are unavailable by default; golden-hour slots are highlighted from the existing finance policy.</p></div></div>';
-        echo '<div class="dzn-tw-inline-cards"><div class="dzn-tw-inline-card"><span>Timezone</span><strong>' . esc_html((string) ($profile->timezone ?? $record->timezone ?? 'Not configured')) . '</strong><small>Local wall-clock availability authority.</small></div><div class="dzn-tw-inline-card"><span>Weekly availability</span><strong>' . esc_html(self::minutesLabel($weeklyMinutes)) . '</strong><small>' . esc_html(number_format_i18n(count($rules)) . ' selected window' . (count($rules) === 1 ? '' : 's')) . '</small></div><div class="dzn-tw-inline-card"><span>Golden-hour coverage</span><strong>' . esc_html((string) ($golden['minutes_label'] ?? 'Not available')) . '</strong><small>' . esc_html((string) ($golden['label'] ?? 'No eligible overlap')) . '</small></div><div class="dzn-tw-inline-card"><span>Estimated capacity</span><strong>' . esc_html($capacity > 0 ? number_format_i18n($capacity) . ' classes/week' : 'Not available') . '</strong><small>Uses each eligible course duration + buffer.</small></div></div>';
+        echo '<section class="dzn-tw-section" id="teacher-availability"><div class="dzn-tw-section__head"><div><h2>Weekly availability and golden hours</h2><p>Uses the same canonical availability service as the Teacher portal. Unselected times are unavailable by default; golden-hour slots are highlighted from the existing finance policy. Each window is labelled with its instrument, and overlapping hours across instruments are counted once in the total because a Teacher can only teach one class at a time.</p></div></div>';
+        echo '<div class="dzn-tw-inline-cards"><div class="dzn-tw-inline-card"><span>Timezone</span><strong>' . esc_html((string) ($profile->timezone ?? $record->timezone ?? 'Not configured')) . '</strong><small>Local wall-clock availability authority.</small></div><div class="dzn-tw-inline-card"><span>Weekly availability</span><strong>' . esc_html(self::minutesLabel($weeklyMinutes)) . '</strong><small>' . esc_html(number_format_i18n(count($rules)) . ' selected window' . (count($rules) === 1 ? '' : 's') . ' across ' . number_format_i18n($weeklyInstruments) . ' instrument' . ($weeklyInstruments === 1 ? '' : 's')) . '</small></div><div class="dzn-tw-inline-card"><span>Golden-hour coverage</span><strong>' . esc_html((string) ($golden['minutes_label'] ?? 'Not available')) . '</strong><small>' . esc_html((string) ($golden['label'] ?? 'No eligible overlap')) . '</small></div><div class="dzn-tw-inline-card"><span>Estimated capacity</span><strong>' . esc_html($capacity > 0 ? number_format_i18n($capacity) . ' classes/week' : 'Not available') . '</strong><small>Uses each eligible course duration + buffer.</small></div></div>';
+        if ($instrumentTotals) {
+            echo '<div class="dzn-tw-golden"><strong>Weekly availability by instrument</strong><ul class="dzn-tw-list">';
+            foreach ($instrumentTotals as $instrument) echo '<li>' . esc_html((string) ($instrument['label'] ?? 'Instrument')) . ': ' . esc_html(self::minutesLabel((int) ($instrument['minutes'] ?? 0))) . '</li>';
+            echo '</ul><small>These per-instrument totals may overlap. The Weekly availability card is the unique total across all instruments.</small></div>';
+        }
         if (!empty($golden['windows'])) {
             echo '<div class="dzn-tw-golden"><strong>Selected golden-hour windows</strong><ul class="dzn-tw-list">';
-            foreach ((array) $golden['windows'] as $window) echo '<li>' . esc_html((string) $window) . '</li>';
+            $goldenWindows = !empty($golden['instrument_windows']) ? (array) $golden['instrument_windows'] : (array) $golden['windows'];
+            foreach ($goldenWindows as $window) echo '<li>' . esc_html((string) $window) . '</li>';
             echo '</ul><small>Policy bonus: +' . esc_html((string) ($golden['percentage_label'] ?? '0')) . '%. Potential eligibility only; the committed bonus is determined by the finance snapshot after delivery.</small></div>';
         }
         echo '<h3>Weekly windows</h3>';
         if (!$rules) {
             echo '<p class="dzn-tw-empty">No active weekly availability is recorded.</p>';
         } else {
-            echo '<table class="widefat striped"><thead><tr><th>Day</th><th>From</th><th>To</th><th>Availability</th><th>Timezone</th><th>Action</th></tr></thead><tbody>';
+            echo '<table class="widefat striped"><thead><tr><th>Day</th><th>From</th><th>To</th><th>Instrument</th><th>Availability</th><th>Timezone</th><th>Action</th></tr></thead><tbody>';
             foreach ($rules as $rule) {
-                echo '<tr><td>' . esc_html(self::weekday((int) $rule->weekday)) . '</td><td>' . esc_html(substr((string) $rule->local_start_time, 0, 5)) . '</td><td>' . esc_html(substr((string) $rule->local_end_time, 0, 5)) . '</td><td>' . esc_html(self::availabilityState((string) $rule->state)) . '</td><td>' . esc_html((string) $rule->timezone) . '</td><td>';
+                $instrumentLabel = isset($rule->instrument_id) && $rule->instrument_id !== null
+                    ? (string) ($rule->instrument_name ?: 'Instrument #' . (int) $rule->instrument_id)
+                    : 'All instruments (general)';
+                echo '<tr><td>' . esc_html(self::weekday((int) $rule->weekday)) . '</td><td>' . esc_html(substr((string) $rule->local_start_time, 0, 5)) . '</td><td>' . esc_html(substr((string) $rule->local_end_time, 0, 5)) . '</td><td>' . esc_html($instrumentLabel) . '</td><td>' . esc_html(self::availabilityState((string) $rule->state)) . '</td><td>' . esc_html((string) $rule->timezone) . '</td><td>';
                 if (current_user_can('dzn_manage_teacher_availability')) {
                     echo '<form method="post" class="dzn-tw-inline-form" onsubmit="return confirm(\'Remove this weekly availability window? Existing lessons are not moved.\')">';
                     self::formFields('retire_teacher_availability_rule', $teacherId);

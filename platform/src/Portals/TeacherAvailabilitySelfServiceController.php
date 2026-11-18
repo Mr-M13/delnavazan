@@ -5,7 +5,7 @@ use Delnavazan\Platform\Core\Application\TeacherOnboardingService;
 use Delnavazan\Platform\Core\Application\TeachingEligibilityService;
 /** Authenticated boundary for approved teachers maintaining canonical availability. */
 final class TeacherAvailabilitySelfServiceController {
- public static function register():void{add_action('admin_post_dzn_teacher_availability_rule',[self::class,'rule']);add_action('admin_post_dzn_teacher_availability_schedule',[self::class,'schedule']);add_action('admin_post_dzn_teacher_availability_instrument_empty',[self::class,'instrumentEmpty']);add_action('admin_post_dzn_teacher_availability_range_remove',[self::class,'rangeRemove']);add_action('admin_post_dzn_teacher_availability_retire',[self::class,'retire']);add_action('admin_post_dzn_teacher_day_off',[self::class,'dayOff']);add_action('admin_post_dzn_teacher_day_off_remove',[self::class,'removeDayOff']);add_action('admin_post_dzn_teacher_instruments',[self::class,'instruments']);add_action('admin_post_dzn_teacher_accepting',[self::class,'accepting']);}
+ public static function register():void{add_action('admin_post_dzn_teacher_availability_rule',[self::class,'rule']);add_action('admin_post_dzn_teacher_availability_schedule',[self::class,'schedule']);add_action('admin_post_dzn_teacher_availability_copy_all',[self::class,'copyAll']);add_action('admin_post_dzn_teacher_availability_instrument_empty',[self::class,'instrumentEmpty']);add_action('admin_post_dzn_teacher_availability_range_remove',[self::class,'rangeRemove']);add_action('admin_post_dzn_teacher_availability_retire',[self::class,'retire']);add_action('admin_post_dzn_teacher_day_off',[self::class,'dayOff']);add_action('admin_post_dzn_teacher_day_off_remove',[self::class,'removeDayOff']);add_action('admin_post_dzn_teacher_instruments',[self::class,'instruments']);add_action('admin_post_dzn_teacher_accepting',[self::class,'accepting']);}
  public static function rule():never{
   if(!is_user_logged_in())wp_die('Access denied.','Delnavazan',['response'=>403]);check_admin_referer('dzn_teacher_availability_rule');
   try{
@@ -40,6 +40,11 @@ final class TeacherAvailabilitySelfServiceController {
    $availability->replaceOwnWeeklySchedule((int)($_POST['instrument_id']??0),$ranges);
    self::go('برنامهٔ هفتگی ذخیره شد.',false,'tp-availability');
   }catch(\Throwable){self::go('برنامهٔ هفتگی ذخیره نشد. بازه‌ها و منطقهٔ زمانی را بررسی کنید.',true,'tp-availability');}
+ }
+ public static function copyAll():never{
+  if(!is_user_logged_in())wp_die('Access denied.','Delnavazan',['response'=>403]);check_admin_referer('dzn_teacher_availability_copy_all');
+  try{$copied=(new TeacherAvailabilityService())->copyOwnScheduleToAllInstruments((int)($_POST['instrument_id']??0));self::go('برنامهٔ این ساز روی '.number_format_i18n($copied).' ساز دیگر کپی شد.',false,'tp-availability');}
+  catch(\Throwable){self::go('کپی برنامه روی همهٔ سازها انجام نشد. برنامهٔ ساز مبدأ را بررسی کنید.',true,'tp-availability');}
  }
  public static function instrumentEmpty():never{if(!is_user_logged_in())wp_die('Access denied.','Delnavazan',['response'=>403]);check_admin_referer('dzn_teacher_availability_instrument_empty');try{(new TeacherAvailabilityService())->configureOwnInstrument((int)($_POST['instrument_id']??0));self::go('برنامهٔ این ساز عمداً خالی ذخیره شد.',false,'tp-availability');}catch(\Throwable){self::go('برنامهٔ ساز ذخیره نشد.',true,'tp-availability');}}
  public static function rangeRemove():never{if(!is_user_logged_in())wp_die('Access denied.','Delnavazan',['response'=>403]);check_admin_referer('dzn_teacher_availability_range_remove');try{(new TeacherAvailabilityService())->removeOwnRecurringRangePart((int)($_POST['rule_id']??0),self::time($_POST['local_start_time']??''),self::time($_POST['local_end_time']??''),(int)($_POST['instrument_id']??0)?:null);self::go('بخشی از زمان حذف شد.',false,'tp-availability');}catch(\Throwable){self::go('حذف بخشی از زمان انجام نشد. بازهٔ انتخابی را بررسی کنید.',true,'tp-availability');}}

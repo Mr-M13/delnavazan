@@ -66,6 +66,7 @@ $payload = array(
 );
 $save_url = admin_url( 'admin-post.php?action=dzn_teacher_availability_schedule' );
 $empty_url = admin_url( 'admin-post.php?action=dzn_teacher_availability_instrument_empty' );
+$copy_all_url = admin_url( 'admin-post.php?action=dzn_teacher_availability_copy_all' );
 ?>
 <section class="dzn-tp-section dzn-ap" id="tp-availability" aria-labelledby="tp-availability-title" data-dzn-planner-root>
 	<div class="dzn-tp-heading">
@@ -140,6 +141,13 @@ $empty_url = admin_url( 'admin-post.php?action=dzn_teacher_availability_instrume
 					<input type="hidden" name="instrument_id" value="<?php echo (int) $selected; ?>" data-dzn-ap-empty-instrument-field>
 					<button type="submit" class="dzn-button dzn-button--secondary" data-dzn-ap-empty>این ساز زمانی ندارد</button>
 				</form>
+				<?php if ( count( $instruments ) > 1 ) : ?>
+				<form method="post" action="<?php echo esc_url( $copy_all_url ); ?>" data-dzn-ap-copy-form onsubmit="return confirm('برنامهٔ ساز انتخاب‌شده روی همهٔ سازهای دیگر کپی می‌شود و برنامهٔ فعلی آن‌ها جایگزین خواهد شد. ادامه می‌دهید؟');">
+					<?php dzn_theme_nonce_field( 'dzn_teacher_availability_copy_all' ); ?>
+					<input type="hidden" name="instrument_id" value="<?php echo (int) $selected; ?>" data-dzn-ap-copy-instrument-field>
+					<button type="submit" class="dzn-button dzn-button--secondary">کپی این برنامه به همهٔ سازها</button>
+				</form>
+				<?php endif; ?>
 			</div>
 			<p class="dzn-tp-action-status" role="status" aria-live="polite" data-dzn-ap-status></p>
 		</div>

@@ -6,7 +6,7 @@ use Delnavazan\Platform\Core\Application\PeopleDirectoryImportService;
 use Delnavazan\Platform\Core\Application\PeopleDirectoryReadService;
 
 /**
- * Read-only People directory: Students, Teachers and Leads in one capability-gated
+ * Read-only CRM directory: Students, Teachers and Leads in one capability-gated
  * administration surface, plus the owner-driven generic contact import.
  *
  * The screen itself never edits or deletes a person. The only write is the CSV

@@ -5,7 +5,7 @@ use Delnavazan\Platform\Admin\Controller\PeopleDirectoryController;
 use Delnavazan\Platform\Core\Application\PeopleDirectoryImportService;
 use Delnavazan\Platform\Core\Application\PeopleDirectoryReadService;
 
-/** Accessible presentation for the read-only People directory. */
+/** Accessible presentation for the read-only CRM directory. */
 final class PeopleDirectoryView {
 	/** @param array<string,mixed> $query */
 	public static function directory( PeopleDirectoryReadService $read, array $query ): void {
@@ -20,7 +20,7 @@ final class PeopleDirectoryView {
 		$result = $read->directory( $filters );
 		$counts = $read->groupCounts();
 
-		echo '<div class="wrap dzn-people"><h1>People</h1>';
+		echo '<div class="wrap dzn-people"><h1>CRM</h1>';
 		self::notices();
 		echo '<p>Students, Teachers and Leads in one read-only directory. A row links through to the existing Student or Teacher workspace.</p>';
 		echo '<p><a class="button" href="' . esc_url( admin_url( 'admin.php?page=' . PeopleDirectoryController::PAGE . '&view=import' ) ) . '">Import contacts (CSV)</a></p>';
@@ -39,8 +39,8 @@ final class PeopleDirectoryView {
 
 	public static function import( PeopleDirectoryReadService $read ): void {
 		$preview = PeopleDirectoryController::storedPreview();
-		echo '<div class="wrap dzn-people"><h1>People · import contacts</h1>';
-		echo '<p><a href="' . esc_url( admin_url( 'admin.php?page=' . PeopleDirectoryController::PAGE ) ) . '">← Back to People</a></p>';
+		echo '<div class="wrap dzn-people"><h1>CRM · import contacts</h1>';
+		echo '<p><a href="' . esc_url( admin_url( 'admin.php?page=' . PeopleDirectoryController::PAGE ) ) . '">← Back to CRM</a></p>';
 		self::notices();
 
 		if ( $preview ) {

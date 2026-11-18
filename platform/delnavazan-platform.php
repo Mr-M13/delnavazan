@@ -191,3 +191,7 @@ add_action( 'dzn_teacher_activated', static function ( int $teacherId ): void {
 }, 10, 1 );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Portals\\StudentCheckoutController', 'register' ) );
 add_action( 'rest_api_init', array( 'Delnavazan\\Platform\\Public\\CommercialPromotionRestController', 'register' ) );
+// Editorial SEO meta (Rank Math) is not REST-registered upstream; without this the article
+// pipeline creates posts with an empty SEO title/description. Registered on `init` so the post
+// types exist, and authorised per object by `edit_post`.
+add_action( 'init', array( 'Delnavazan\\Platform\\Integrations\\Content\\RankMathRestMeta', 'register' ), 20 );

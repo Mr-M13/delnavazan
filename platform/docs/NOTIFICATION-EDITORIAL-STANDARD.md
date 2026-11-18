@@ -205,6 +205,6 @@ administration surface must not merge them into one badge.
 | Awaiting approval | Sensitive canonical copy (security) needs its security owner | publish it from the editor after that sign-off |
 | Missing template | No usable copy exists for this route | prepare and approve a draft |
 | Missing provider | Provider configuration or approval is absent | configure the provider, or wait for Meta approval |
-| Not offered | This notification does not use this delivery method | none |
+| Not offered | A direct link names a delivery method this notification does not use; the workspace itself lists only offered methods | none |
 | Notification disabled | The event-wide switch is off | switch the notification on |
 | No producer | No service raises this event yet | implement the producer |

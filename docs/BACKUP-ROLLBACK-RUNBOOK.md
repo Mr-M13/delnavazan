@@ -170,20 +170,47 @@ storage provider, with the rclone configuration **outside** the repository and o
   diagnostic is exposed: rotate it (below) instead of waiting for evidence of use.
 
 1. Install rclone on the host (static binary in `$HOME/bin` is enough; no root needed).
-2. Create the storage remote, for example Google Drive over the owner's own account:
+2. **Create your own Google OAuth client.** rclone's shared client is being retired during 2026,
+   and a dedicated client keeps the backup credential separate from the platform's
+   Calendar/Meet client, so revoking one never touches the other. In the owner's Google Cloud
+   project:
+
+   1. create a project, then enable the **Google Drive API** in it;
+   2. Google Auth Platform → *Get started* → user type **External**, then in *Data access* add
+      `.../auth/drive`;
+   3. in *Audience*, publish the app (**In production**). An app left in **Testing** gets its
+      refresh token expired by Google after **7 days**, which silently breaks the nightly copy;
+      publishing keeps it unverified, which only adds a warning screen at consent time;
+   4. in *Clients*, create an OAuth client of type **Desktop app** and record its client ID and
+      secret.
+
+   The client secret for a desktop app is not confidential (Google ships it inside installed
+   apps); the refresh token is, and it never goes on a command line — see the credential rules
+   above.
+
+3. Create the storage remote against that client:
 
    ```sh
-   rclone config create gdrive drive scope drive
+   rclone config create gdrive drive scope drive \
+     client_id <id>.apps.googleusercontent.com \
+     client_secret <secret>
    rclone config reconnect gdrive:
    rclone mkdir gdrive:delnavazan-rollback
    ```
 
-   `reconnect` prints an authorisation URL; complete it in a browser as the owner. When the host
-   has no browser, rclone says so and you run `rclone authorize "drive"` on a workstation instead,
-   then paste the block it prints into the host prompt. No client secret is stored in this
-   repository and none may be committed.
+   `reconnect` prints an authorisation URL; complete it in a browser as the owner. On a headless
+   host, answer `n` to *"Use web browser to automatically authenticate"* and paste the block
+   printed by `rclone authorize "drive" --drive-client-id <id>.apps.googleusercontent.com
+   --drive-client-secret <secret>` — the client flags are required, or the token is minted for
+   rclone's shared client and the host rejects it. A token issued under a different client fails
+   with `unauthorized_client`, which means the pair does not match.
 
-3. Create the encrypted layer on top of it:
+   Switching an existing remote from the shared client leaves the old grant behind: revoke the
+   stale `rclone` entry in the account's third-party access list after the new client works, so
+   only the app you control remains. No client secret is stored in this repository and none may
+   be committed.
+
+4. Create the encrypted layer on top of it:
 
    ```sh
    rclone config create rclone-crypt crypt \
@@ -195,7 +222,7 @@ storage provider, with the rclone configuration **outside** the repository and o
    Store the generated crypt password and salt in the owner's password manager. **Losing them
    loses every off-site point**, because the remote contains no plaintext names or contents.
 
-4. Point the tooling at it and verify. The path segment is a label of your choosing, but it must be
+5. Point the tooling at it and verify. The path segment is a label of your choosing, but it must be
    **identical** to the `DZN_BACKUP_REMOTE` value in the cron line from §3, or the nightly push and
    the verification below look at different directories:
 
@@ -213,18 +240,20 @@ ever purged, so unrelated content on the remote is never deleted.
 
 ### Rotating an exposed rclone credential
 
-rclone authorises through its own Google OAuth client — it appears as `rclone` (`https://rclone.org`)
-in the account's third-party access list, separately from the `Delnavazan` client the platform uses
-for Calendar/Meet. Revoking the rclone grant therefore does not interrupt lesson provisioning, and
-revoking the platform grant does not break backups: check which entry you are removing before you
-remove it.
+rclone authorises through a Google OAuth client that is separate from the `Delnavazan` client the
+platform uses for Calendar/Meet. With the dedicated client from §4 step 2 the entry carries your
+app's name (for example `Delnavazan Backup`); an older install shows it as `rclone`
+(`https://rclone.org`). Either way, revoking the backup grant does not interrupt lesson
+provisioning, and revoking the platform grant does not break backups — check which entry you are
+removing before you remove it.
 
-1. Google Account → Security → Third-party access → `rclone` → **Remove all access**. This is the
-   only step that invalidates an already-issued refresh token; deleting files or config does not.
+1. Google Account → Security → Third-party access → the rclone app → **Remove all access**. This is
+   the only step that invalidates an already-issued refresh token; deleting files or config does
+   not.
 2. Delete every staged copy and check the history:
    `rm -f /tmp/drive-token.json` and `grep -n 'drive-token\|refresh_token' ~/.bash_history`.
 3. Re-authorise without a token on the command line: `rclone config reconnect gdrive:` on the host,
-   falling back to `rclone authorize "drive"` on a workstation as described in §4 step 2.
+   falling back to `rclone authorize "drive"` on a workstation as described in §4 step 3.
 4. Prove the remote and the tooling before trusting the night's run: `rclone lsf rclone-crypt:`
    lists the points directory, and `bash "$HOME/bin/dzn-backup-point.sh"` ends with `OFFSITE=ok`.
    Existing Drive content is untouched by a revoke — only access to it is replaced.

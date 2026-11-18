@@ -746,8 +746,8 @@ final class NotificationCatalogue {
             'en'=>array('website'=>array('subject'=>'New intro booking received','body'=>'Request {{booking_reference}} from {{learner_name}} for {{instrument}} ({{course}}) was submitted for {{requested_time}} and is awaiting coordination. Coordination queue: {{queue_url}}')),
         ));
         $out[]=self::event('booking.escalation.admin','Intro Booking Escalated','booking','admin','BookingAllocationWorker','queue',array('website'),'operational',true,array(),'booking.escalation.admin',array(
-            self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'فوری · درخواست آشنایی بیش از ۷۲ ساعت','body'=>'درخواست آشنایی هنوز تأیید نشده و از زمان ثبت اولیه بیش از ۷۲ ساعت گذشته است. در صف هماهنگی پیگیری کنید.')),
-            'en'=>array('website'=>array('subject'=>'Urgent · intro request older than 72 hours','body'=>'The intro request is still not confirmed and more than 72 hours have passed since it was first recorded. Follow up in the coordination queue.')),
+            self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'فوری · درخواست آشنایی در آستانهٔ توقف پاسخ','body'=>'درخواست آشنایی هنوز تأیید نشده و به آستانهٔ توقف (۱۲ ساعت پیش از شروع کلاس) رسیده است. در صف هماهنگی پیگیری کنید.')),
+            'en'=>array('website'=>array('subject'=>'Urgent · intro request at the terminal threshold','body'=>'The intro request is still not confirmed and has reached the terminal threshold (12 hours before the class start). Follow up in the coordination queue.')),
         ));
         foreach(array(
             'change'=>array('label'=>'Lesson Change','faLabel'=>'تغییر زمان کلاس'),

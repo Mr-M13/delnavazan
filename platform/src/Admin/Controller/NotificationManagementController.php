@@ -150,7 +150,7 @@ final class NotificationManagementController {
         foreach(array('student'=>'Student','teacher'=>'Teacher','guardian'=>'Guardian','admin'=>'Admin') as $value=>$label)echo '<option value="'.esc_attr($value).'"'.($recipientFilter===$value?' selected':'').'>'.esc_html($label).'</option>';
         echo '</select></label><label>Channel <select name="channel"><option value="">All</option>';
         foreach(array('email'=>'Email','whatsapp'=>'WhatsApp','sms'=>'SMS','website'=>'Portal') as $value=>$label)echo '<option value="'.esc_attr($value).'"'.($channelFilter===$value?' selected':'').'>'.esc_html($label).'</option>';
-        echo '</select></label><label>Status <select name="status"><option value="">All</option><option value="enabled"'.($statusFilter==='enabled'?' selected':'').'>Enabled</option><option value="partial"'.($statusFilter==='partial'?' selected':'').'>Partially available</option><option value="disabled"'.($statusFilter==='disabled'?' selected':'').'>Disabled</option><option value="policy_disabled"'.($statusFilter==='policy_disabled'?' selected':'').'>Disabled by SMS policy</option><option value="missing_template"'.($statusFilter==='missing_template'?' selected':'').'>Missing template</option><option value="awaiting_approval"'.($statusFilter==='awaiting_approval'?' selected':'').'>Awaiting approval</option><option value="missing_provider"'.($statusFilter==='missing_provider'?' selected':'').'>Missing provider</option><option value="draft"'.($statusFilter==='draft'?' selected':'').'>Draft awaiting review</option><option value="ready"'.($statusFilter==='ready'?' selected':'').'>Ready</option><option value="no_producer"'.($statusFilter==='no_producer'?' selected':'').'>No producer yet</option></select></label><button class="button">Filter</button> <a class="button-link" href="'.esc_url(self::url(array('tab'=>'events'))).'">Reset</a></form>';
+        echo '</select></label><label>Status <select name="status"><option value="">All</option><option value="enabled"'.($statusFilter==='enabled'?' selected':'').'>Enabled</option><option value="partial"'.($statusFilter==='partial'?' selected':'').'>Partially available</option><option value="disabled"'.($statusFilter==='disabled'?' selected':'').'>Disabled</option><option value="policy_disabled"'.($statusFilter==='policy_disabled'?' selected':'').'>Disabled by SMS policy</option><option value="missing_template"'.($statusFilter==='missing_template'?' selected':'').'>Missing template</option><option value="awaiting_approval"'.($statusFilter==='awaiting_approval'?' selected':'').'>Awaiting approval</option><option value="missing_provider"'.($statusFilter==='missing_provider'?' selected':'').'>Missing provider</option><option value="unsupported"'.($statusFilter==='unsupported'?' selected':'').'>Unsupported</option><option value="draft"'.($statusFilter==='draft'?' selected':'').'>Draft awaiting review</option><option value="ready"'.($statusFilter==='ready'?' selected':'').'>Ready</option><option value="no_producer"'.($statusFilter==='no_producer'?' selected':'').'>No producer yet</option></select></label><button class="button">Filter</button> <a class="button-link" href="'.esc_url(self::url(array('tab'=>'events'))).'">Reset</a></form>';
         echo '<div class="dzn-notif-chips">';
         echo '<a class="dzn-notif-chip'.($statusFilter==='awaiting_approval'?' is-active':'').'" href="'.esc_url(self::url(array('tab'=>'events','status'=>'awaiting_approval'))).'">Held for approval</a>';
         echo '<a class="dzn-notif-chip'.($statusFilter==='no_producer'?' is-active':'').'" href="'.esc_url(self::url(array('tab'=>'events','status'=>'no_producer'))).'">No producer</a>';
@@ -171,16 +171,7 @@ final class NotificationManagementController {
         if(($filters['category']??'')!==''&&(string)($event['category']??'')!==(string)$filters['category'])return false;
         if(($filters['recipient']??'')!==''&&(string)($event['audience']??'')!==(string)$filters['recipient'])return false;
         if(($filters['channel']??'')!==''&&!in_array((string)$filters['channel'],(array)($row['offered']??array()),true))return false;
-        if(($filters['status']??'')!==''){
-            // Only the states of methods the event offers can match. The states map also carries
-            // "unsupported" placeholders for methods that are never rendered, and letting those
-            // satisfy a status filter made "Unsupported" list nearly the whole catalogue.
-            $matchesStatus=(string)($row['readiness']??'')===(string)$filters['status'];
-            foreach((array)($row['offered']??array()) as $offeredChannel){
-                if((string)($row['states'][$offeredChannel]['state']??'')===(string)$filters['status']){$matchesStatus=true;break;}
-            }
-            if(!$matchesStatus)return false;
-        }
+        if(($filters['status']??'')!==''&&!in_array((string)$filters['status'],array_column((array)($row['states']??array()),'state'),true)&&(string)($row['readiness']??'')!==(string)$filters['status'])return false;
         return true;
     }
 
@@ -201,10 +192,7 @@ final class NotificationManagementController {
 
         echo '<div class="dzn-nc-channel-buttons" role="group" aria-label="Delivery methods">';
         foreach(array('website','email','whatsapp','sms') as $channel){
-            // A method the event does not use is not a delivery control at all. Rendering it as a
-            // red "Not offered" switch made every card look partly broken; the catalogue's channel
-            // list is the complete set of methods this notification can actually send.
-            if(!in_array($channel,(array)$row['offered'],true))continue;
+            if(!in_array($channel,(array)$row['offered'],true)){self::renderCardChannelButton($eventKey,$channel,array('state'=>'unsupported','label'=>'Not offered','reason'=>'This notification does not use this delivery method.'),$eventEnabled);continue;}
             self::renderCardChannelButton($eventKey,$channel,$row['states'][$channel],$eventEnabled);
         }
         echo '</div>';
@@ -745,10 +733,9 @@ final class NotificationManagementController {
     private static function renderChannelTabs(NotificationTemplateLibrary $library,string $eventKey,string $activeChannel,string $locale):void{
         echo '<nav class="dzn-nc-tabs" role="tablist" aria-label="Delivery methods">';
         foreach(array('website','email','whatsapp','sms') as $channel){
-            // Only methods this notification offers are tabs. A channel it never uses belongs to no
-            // delivery decision and must not appear as an empty "Not offered" destination.
-            if(!$library->channelOffered($eventKey,$channel))continue;
-            $on=self::channelStateIsOn((string)self::effectiveChannelState($library,$eventKey,$channel)['state']);
+            $offered=$library->channelOffered($eventKey,$channel);
+            $state=$offered?self::effectiveChannelState($library,$eventKey,$channel):array('state'=>'unsupported');
+            $on=self::channelStateIsOn((string)$state['state']);
             echo '<a role="tab" aria-selected="'.($channel===$activeChannel?'true':'false').'" class="dzn-nc-tab'.($channel===$activeChannel?' is-active':'').'" href="'.esc_url(self::editorUrl($eventKey,$channel,$locale)).'#event-'.esc_attr($eventKey).'"><span class="dzn-nc-dot '.($on?'is-on':'is-off').'" aria-hidden="true"></span>'.esc_html(self::channelLabel($channel)).'</a>';
         }
         echo '</nav>';

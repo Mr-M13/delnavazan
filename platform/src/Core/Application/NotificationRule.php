@@ -52,6 +52,14 @@ final class NotificationRule {
     /** The intent R2 declares but no R2 writer publishes: reserved-unbound, never registered or delivered. */
     public const UNBOUND_INTENTS=array('GUARANTEE_EXPIRED');
 
+    /**
+     * The canonical subject aggregates this delivery authority owns inside the shared
+     * `platform_outbox`. Finance statement/reconciliation intents, teacher invitations
+     * and other seams share the same table and must never be counted as notification
+     * delivery failures by their absence from `INTENTS`.
+     */
+    public const OUTBOX_AGGREGATES=array('renewal_cycle','collection_intent','recovery_case','refund_review','student_account_claim');
+
     /** The proposed workflow keys and audiences of §4. A key is identity, not authority. */
     public const INTENT_WORKFLOW_KEYS=array(
         'AUTOMATIC_RENEWAL_UPCOMING'=>'renewal.automatic_upcoming',

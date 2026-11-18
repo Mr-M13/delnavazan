@@ -90,8 +90,10 @@ $contains($dashboard, array(
     'Notification delivery failures',
 ), 'Needs Attention must collect every administrator task and group it by operational area.');
 $contains($css, array('.dzn-attention-group', '.dzn-attention-group__title'), 'The attention inbox needs grouped-area styling.');
-$contains($dashboard, array('coordinationQueue(5)', 'dzn-action-card__details', "'learner_name'", "'requested_time'", "'source'", 'Open intro bookings'), 'The coordination card must list who asked, for what, from where and how old each new request is.');
-$contains($journey, array('public function coordinationQueue', 'ELIGIBLE_SQL', "stageSql('needs_coordination')", 'contact.full_name', 'booking_request_requested_times'), 'The coordination queue must reuse the canonical eligible/stage predicates and current contact snapshot.');
+$contains($dashboard, array('dzn-action-card__details', "'learner_name'", "'requested_time'", "'source'", 'Open intro bookings', 'stageQueue((string) $stage, 5)', "'action' => 'Review acceptance'"), 'Every learner card must list the records it counts and open the section that resolves the missing link.');
+$contains($journey, array('public function stageQueue', 'ELIGIBLE_SQL', 'stageSql($stage)', 'contact.full_name', 'booking_request_requested_times', 'Ready for final acceptance', 'active_candidates'), 'The stage queue must reuse the canonical eligible/stage predicates, the current contact snapshot and the acceptance readiness facts.');
+$contains($dashboard, array('notificationAttention(', 'dzn-system-health', "'component' => 'notifications'", 'dzn-notifications', "'retry_exhausted'", "'stuck_lease'", "'orphan_outbox_row'", "'unregistered_intent'", 'Open notification diagnostics'), 'Notification failures must land on the diagnostics surface with one resolving path per failure class.');
+$notContains($dashboard, array("'dzn-communications'", 'Open communications diagnostics'), 'Notification failures must not point at the legacy communications stub.');
 $contains($screenOptions, array("'actions' => 'Needs Attention'", "'finance' => 'Finance snapshot'", "'coverage' => 'Coverage Clock'"), 'Screen Options must describe retained sections.');
 
 // Today’s classes only, with authoritative details and canonical actions.

@@ -36,12 +36,16 @@ final class NotificationDiagnosticsReadService {
             $version=$this->workflows->activeVersionForIntent($intent);
             if($version===null)$registered[$intent]=true;
         }
+        $aggregates=NotificationRule::OUTBOX_AGGREGATES;
         $unregistered=(int)$wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$prefix}platform_outbox WHERE notification_id IS NULL AND invitation_id IS NULL AND generation_id IS NULL AND status='pending' AND event_type NOT IN (".implode(',',array_fill(0,count(NotificationRule::INTENTS),'%s')).")",
-            ...NotificationRule::INTENTS
+            "SELECT COUNT(*) FROM {$prefix}platform_outbox WHERE aggregate_type IN (".implode(',',array_fill(0,count($aggregates),'%s')).") AND notification_id IS NULL AND invitation_id IS NULL AND generation_id IS NULL AND status='pending' AND event_type NOT IN (".implode(',',array_fill(0,count(NotificationRule::INTENTS),'%s')).")",
+            ...array_merge($aggregates,NotificationRule::INTENTS)
         ));
         $backlog=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$prefix}notifications WHERE state IN ('pending','scheduled') AND scheduled_for IS NOT NULL AND scheduled_for<=%s",$now));
-        $stuck=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$prefix}platform_outbox WHERE status='leased' AND leased_at IS NOT NULL AND available_at<=%s",$now));
+        // The outbox is shared with the Finance, recurring-delivery and invitation seams.
+        // Only a leased row that owns a notification can testify about notification delivery;
+        // another seam's lease is never a notification failure.
+        $stuck=(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$prefix}platform_outbox WHERE notification_id IS NOT NULL AND status='leased' AND leased_at IS NOT NULL AND available_at<=%s",$now));
         $orphan=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$prefix}platform_outbox WHERE notification_id IS NOT NULL AND notification_id NOT IN (SELECT id FROM {$prefix}notifications)");
         $expiredLeases=count($this->attempts->expiredLeases($now,200));
         $exhausted=(int)($states['failed']??0);

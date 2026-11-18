@@ -201,9 +201,13 @@ final class AcademyOperationsController {
             foreach ($details as $detail) {
                 $reference = trim((string) ($detail['reference'] ?? ''));
                 $name = trim((string) ($detail['learner_name'] ?? 'Learner'));
-                $subject = implode(' · ', array_filter(array(trim((string) ($detail['instrument'] ?? '')), trim((string) ($detail['course'] ?? '')))));
-                $context = implode(' · ', array_filter(array(trim((string) ($detail['contact'] ?? '')), trim((string) ($detail['location'] ?? '')), trim((string) ($detail['requested_time'] ?? '')), trim((string) ($detail['age'] ?? '')), trim((string) ($detail['source'] ?? '')))));
-                echo '<li><a href="' . esc_url((string) ($detail['url'] ?? $url)) . '"><strong>' . esc_html($reference !== '' ? $name . ' · ' . $reference : $name) . '</strong></a>';
+                $heading = trim((string) ($detail['heading'] ?? ''));
+                if ($heading === '') $heading = $reference !== '' ? $name . ' · ' . $reference : $name;
+                $meta = trim((string) ($detail['meta'] ?? ''));
+                $subject = $meta !== '' ? $meta : implode(' · ', array_filter(array(trim((string) ($detail['instrument'] ?? '')), trim((string) ($detail['course'] ?? '')))));
+                $note = trim((string) ($detail['note'] ?? ''));
+                $context = $note !== '' ? $note : implode(' · ', array_filter(array(trim((string) ($detail['readiness'] ?? '')), trim((string) ($detail['contact'] ?? '')), trim((string) ($detail['location'] ?? '')), trim((string) ($detail['requested_time'] ?? '')), trim((string) ($detail['age'] ?? '')), trim((string) ($detail['source'] ?? '')))));
+                echo '<li><a href="' . esc_url((string) ($detail['url'] ?? $url)) . '"><strong>' . esc_html($heading) . '</strong></a>';
                 if ($subject !== '') echo '<span>' . esc_html($subject) . '</span>';
                 if ($context !== '') echo '<small>' . esc_html($context) . '</small>';
                 echo '</li>';
@@ -222,12 +226,84 @@ final class AcademyOperationsController {
         $pipeline = (array) ($summary['pipeline'] ?? array());
         $items = array();
         if (current_user_can('dzn_view_booking_requests')) {
-            try { $coordinationQueue = (new AcademyJourneyReadService())->coordinationQueue(5); } catch (\Throwable) { $coordinationQueue = array(); }
-            $items[] = array('area' => 'learners', 'label' => 'Bookings awaiting coordination', 'count' => (int) ($pipeline['needs_coordination'] ?? 0), 'page' => 'dzn-enrolment-workspace', 'action' => 'Open intro bookings', 'args' => array('type' => 'intro', 'stage' => 'new'), 'description' => 'A submitted booking has no coordination case yet. The newest requests are listed below with the learner, instrument/course, requested time and source; contact the learner and propose a Teacher.', 'urgent' => true, 'anchor' => '', 'details' => $coordinationQueue);
-            $items[] = array('area' => 'learners', 'label' => 'Identities awaiting review', 'count' => (int) ($pipeline['needs_identity'] ?? 0), 'page' => 'dzn-enrolment-workspace', 'action' => 'Review identity blockers', 'args' => array('type' => 'intro', 'stage' => 'identity'), 'description' => 'Coordination exists but the learner identity is unresolved. Review the evidence and resolve it or record an outcome.', 'urgent' => true, 'anchor' => '');
-            $items[] = array('area' => 'learners', 'label' => 'Service arrangements awaiting acceptance', 'count' => (int) ($pipeline['needs_acceptance'] ?? 0), 'page' => 'dzn-enrolment-workspace', 'action' => 'Confirm acceptance', 'args' => array('type' => 'intro', 'stage' => 'teacher_agreed'), 'description' => 'The identity is resolved but no accepted Service Arrangement exists. Confirm acceptance authority and complete coordination.', 'urgent' => false, 'anchor' => '');
-            $items[] = array('area' => 'learners', 'label' => 'Accepted arrangements awaiting enrolment', 'count' => (int) ($pipeline['needs_enrolment'] ?? 0), 'page' => 'dzn-enrolment-workspace', 'action' => 'Convert to enrolment', 'args' => array('type' => 'intro', 'stage' => 'post_intro'), 'description' => 'An accepted Service Arrangement has not been converted to an Enrolment.', 'urgent' => false, 'anchor' => '');
-            $items[] = array('area' => 'learners', 'label' => 'Enrolments awaiting a Teacher assignment', 'count' => (int) ($pipeline['needs_assignment'] ?? 0), 'page' => 'dzn-enrolment-workspace', 'action' => 'Review enrolments', 'args' => array('type' => 'intro'), 'description' => 'An Enrolment exists without a current Teacher Assignment. Assign the accepted Teacher before a Term or Lesson can start.', 'urgent' => false, 'anchor' => '');
+            $journey = new AcademyJourneyReadService();
+            $canCoordinate = current_user_can('dzn_manage_booking_request_coordination');
+            $learnerCards = array(
+                'needs_coordination' => array(
+                    'label' => 'Bookings awaiting coordination',
+                    'action' => 'Open intro bookings',
+                    'description' => 'A submitted booking has no coordination case yet. The newest requests are listed below with the learner, instrument/course, requested time and source; contact the learner and propose a Teacher.',
+                    'urgent' => true,
+                    'anchor' => '',
+                ),
+                'needs_identity' => array(
+                    'label' => 'Identities awaiting review',
+                    'action' => 'Resolve identity blockers',
+                    'description' => 'Coordination exists but the learner identity is unresolved. Review the evidence and resolve it or record an outcome.',
+                    'urgent' => true,
+                    'anchor' => 'identity',
+                ),
+                'needs_acceptance' => array(
+                    'label' => 'Service arrangements awaiting acceptance',
+                    'action' => 'Review acceptance',
+                    'description' => 'The identity is resolved but no accepted Service Arrangement exists. The list names the missing acceptance prerequisite; open the case to complete coordination and record final acceptance.',
+                    'urgent' => false,
+                    'anchor' => 'acceptance',
+                ),
+                'needs_enrolment' => array(
+                    'label' => 'Accepted arrangements awaiting enrolment',
+                    'action' => 'Convert to enrolment',
+                    'description' => 'An accepted Service Arrangement has not been converted to an Enrolment. Open the case to run the canonical conversion authority.',
+                    'urgent' => false,
+                    'anchor' => 'enrolment',
+                ),
+                'needs_assignment' => array(
+                    'label' => 'Enrolments awaiting a Teacher assignment',
+                    'action' => 'Assign accepted Teacher',
+                    'description' => 'An Enrolment exists without a current Teacher Assignment. Assign the accepted Teacher before a Term or Lesson can start.',
+                    'urgent' => false,
+                    'anchor' => 'enrolment',
+                ),
+            );
+            foreach ($learnerCards as $stage => $card) {
+                $count = (int) ($pipeline[$stage] ?? 0);
+                $details = array();
+                if ($count > 0) {
+                    try { $details = $journey->stageQueue((string) $stage, 5); }
+                    catch (\Throwable) { $details = array(); }
+                }
+                $page = $canCoordinate ? 'dzn-booking-request-coordination' : 'dzn-enrolment-workspace';
+                $args = $canCoordinate ? array() : array('type' => 'intro');
+                $anchor = (string) $card['anchor'];
+                // A single record opens directly at the section that resolves it. A larger
+                // stage opens the command centre, and every detail row still deep-links.
+                if ($count === 1 && count($details) === 1) {
+                    if ($canCoordinate) {
+                        $caseId = (int) ($details[0]['case_id'] ?? 0);
+                        $args = $stage === 'needs_coordination' || $caseId < 1
+                            ? array('booking_request_id' => (int) ($details[0]['request_id'] ?? 0))
+                            : array('case_id' => $caseId);
+                        if ($caseId > 0) $anchor = (string) ($details[0]['anchor'] ?? $anchor);
+                    } else {
+                        $args = array('request_id' => (int) ($details[0]['request_id'] ?? 0));
+                        $anchor = '';
+                    }
+                } else {
+                    $anchor = '';
+                }
+                $items[] = array(
+                    'area' => 'learners',
+                    'label' => (string) $card['label'],
+                    'count' => $count,
+                    'page' => $page,
+                    'action' => (string) $card['action'],
+                    'args' => $args,
+                    'description' => (string) $card['description'],
+                    'urgent' => (bool) $card['urgent'],
+                    'anchor' => $anchor,
+                    'details' => $details,
+                );
+            }
         }
         if (current_user_can('dzn_manage_post_intro_automation')) {
             $outcomesDue = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_confirmations c INNER JOIN {$p}booking_requests r ON r.id=c.booking_request_id LEFT JOIN {$p}booking_request_intro_outcomes o ON o.confirmation_id=c.id WHERE c.state='confirmed' AND c.ends_at_utc<UTC_TIMESTAMP() AND r.privacy_erased_at IS NULL AND o.id IS NULL");
@@ -292,8 +368,8 @@ final class AcademyOperationsController {
             } catch (\Throwable) {
                 $report = array();
             }
-            $deliveryFailures = (int) ($report['retry_exhausted'] ?? 0) + (int) ($report['retry_window_exhausted'] ?? 0) + (int) ($report['stuck_lease'] ?? 0) + (int) ($report['orphan_outbox_row'] ?? 0) + (int) ($report['unroutable_intent'] ?? 0) + (int) ($report['unregistered_intent'] ?? 0);
-            $items[] = array('area' => 'platform', 'label' => 'Notification delivery failures', 'count' => $deliveryFailures, 'page' => 'dzn-communications', 'action' => 'Open communications diagnostics', 'args' => array(), 'description' => 'A notification exhausted its retries, lost its lease, has no routable workflow or points at a missing record. Messages are not being delivered until it is reviewed.', 'urgent' => $deliveryFailures > 0, 'anchor' => '');
+            $attention = self::notificationAttention($report);
+            $items[] = array('area' => 'platform', 'label' => 'Notification delivery failures', 'count' => $attention['count'], 'page' => $attention['page'], 'action' => 'Open notification diagnostics', 'args' => $attention['args'], 'description' => 'A notification exhausted its retries, lost its lease, a queued event has no registered route, or a queue row points at a missing record. Each class below names the surface that resolves it; a provider hand-off is never reported as delivery.', 'urgent' => $attention['count'] > 0, 'anchor' => '', 'details' => $attention['details']);
         }
         if (current_user_can('dzn_manage_exceptions')) {
             $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}operational_exceptions WHERE status='open'");
@@ -301,6 +377,77 @@ final class AcademyOperationsController {
         }
         self::$pendingCache = $items;
         return $items;
+    }
+
+    /**
+     * Translate the notification diagnostics vocabulary into the exact failures an
+     * administrator can act on, with the resolving surface for each class.
+     *
+     * Two diagnostics are deliberately not counted as open delivery failures:
+     * `unroutable_intent` reports a registered event that has no active workflow
+     * route, which can be true before that event is ever used and does not describe
+     * a queued message; `retry_window_exhausted` is a closed outcome whose send
+     * window has already passed, so it is history rather than work an operator can
+     * complete. Both remain visible in Diagnostics. Counting them here made the
+     * Overview warning permanently un-clearable.
+     *
+     * @param array<string,mixed> $report
+     * @return array{count:int,page:string,args:array<string,mixed>,details:list<array<string,mixed>>}
+     */
+    private static function notificationAttention(array $report): array {
+        $canDiagnostics = current_user_can('dzn_view_diagnostics') || current_user_can('manage_options');
+        $page = $canDiagnostics ? 'dzn-system-health' : 'dzn-notifications';
+        $args = $canDiagnostics ? array('component' => 'notifications') : array();
+        $surface = static function (string $state, string $fragment) use ($canDiagnostics): string {
+            if (!$canDiagnostics) return admin_url('admin.php?page=dzn-notifications');
+            $url = 'admin.php?page=dzn-system-health&component=notifications&ndays=0';
+            if ($state !== '') $url .= '&nstate=' . $state;
+            return admin_url($url . ($fragment !== '' ? '#' . $fragment : ''));
+        };
+        $classes = array(
+            'retry_exhausted' => array(
+                'one' => 'notification exhausted its retries',
+                'many' => 'notifications exhausted their retries',
+                'guidance' => 'Open the owning record and retry the exact notification where its window still allows it.',
+                'note' => 'Opens the delivery register filtered to failed notifications.',
+                'url' => $surface('failed', 'notification-register'),
+            ),
+            'stuck_lease' => array(
+                'one' => 'delivery lease is stuck',
+                'many' => 'delivery leases are stuck',
+                'guidance' => 'Release only expired leases through the state-changing recovery action; it creates no message.',
+                'note' => 'Opens the recovery actions on the diagnostics page.',
+                'url' => $surface('', 'diagnostic-recovery'),
+            ),
+            'orphan_outbox_row' => array(
+                'one' => 'queue row points at a missing notification',
+                'many' => 'queue rows point at a missing notification',
+                'guidance' => 'This is queue damage, not a resend. Copy the sanitised support bundle and record an operational exception for the platform owner.',
+                'note' => 'Opens the support bundle on this page; the row has no notification to show in the register.',
+                'url' => $surface('', 'diagnostic-support'),
+            ),
+            'unregistered_intent' => array(
+                'one' => 'queued event has no registered route',
+                'many' => 'queued events have no registered route',
+                'guidance' => 'A pending outbox row names an event this delivery authority does not own. Review the support bundle with the platform owner; do not re-send blindly.',
+                'note' => 'Opens the support bundle on this page; the register lists only notifications that exist.',
+                'url' => $surface('', 'diagnostic-support'),
+            ),
+        );
+        $count = 0;
+        $details = array();
+        foreach ($classes as $key => $class) {
+            $total = (int) ($report[$key] ?? 0);
+            if ($total < 1) continue;
+            $count += $total;
+            $details[] = array(
+                'heading' => number_format_i18n($total) . ' ' . ($total === 1 ? $class['one'] : $class['many']),
+                'meta' => (string) $class['guidance'],
+                'note' => (string) $class['note'],
+                'url' => (string) $class['url'],
+            );
+        }
+        return array('count' => $count, 'page' => $page, 'args' => $args, 'details' => $details);
     }
 
     /** Today’s classes only, using the Academy timezone and authoritative class facts. */

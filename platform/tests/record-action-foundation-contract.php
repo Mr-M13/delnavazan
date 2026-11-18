@@ -88,6 +88,11 @@ $contains($renderer, array(
     'showModal',
     'renderNotices',
 ), 'Focused action forms must be dialog-based, accessible, CSRF-protected and consequence-aware');
+$expect(
+    str_contains($renderer, 'private static $dialogInstance = 0;')
+    && str_contains($renderer, '++self::$dialogInstance'),
+    'Every rendered action instance must own a unique dialog id: a record view can render the same action twice, and a shared id lets a grid trigger open a hidden dialog inside a collapsed section, leaving the page modal and inert.'
+);
 $contains($assets, array(
     '.dzn-record-action-dialog',
     'max-inline-size',

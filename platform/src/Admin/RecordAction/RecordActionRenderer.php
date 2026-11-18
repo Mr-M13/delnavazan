@@ -10,6 +10,18 @@ namespace Delnavazan\Platform\Admin\RecordAction;
 final class RecordActionRenderer {
     private static $scriptPrinted = false;
 
+    /**
+     * Dialog ids must be unique per rendered instance, not per action key.
+     *
+     * A record view can render the same action twice: once beside the section it
+     * belongs to and again in the consolidated action grid. Reusing the id made
+     * `getElementById()` return the first dialog, which may be inside a collapsed
+     * `<details>` and therefore render at 0×0 while the document is modal and
+     * inert — the page looks frozen. The counter keeps every trigger bound to its
+     * own dialog.
+     */
+    private static $dialogInstance = 0;
+
     public static function render(string $recordType, object $record, string $page): void {
         self::renderSelected($recordType, $record, $page, array_keys(RecordActionRegistry::forRecord($recordType, $record)));
     }
@@ -40,7 +52,7 @@ final class RecordActionRenderer {
     /** @param array<string, mixed> $definition */
     private static function renderAction(string $key, array $definition, string $recordType, int $recordId, string $page, object $record): void {
         $safeKey = sanitize_key($key);
-        $dialogId = 'dzn-record-action-' . $safeKey . '-' . $recordId;
+        $dialogId = 'dzn-record-action-' . $safeKey . '-' . $recordId . '-' . ++self::$dialogInstance;
         $titleId = $dialogId . '-title';
         $descriptionId = $dialogId . '-description';
         $token = RecordActionToken::issue($key, $recordType, $recordId, $page, get_current_user_id());

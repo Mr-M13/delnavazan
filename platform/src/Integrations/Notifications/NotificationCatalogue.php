@@ -23,7 +23,7 @@ namespace Delnavazan\Platform\Integrations\Notifications;
  *   never rendered into a message.
  */
 final class NotificationCatalogue {
-    public const VERSION='2026-11-17.7';
+    public const VERSION='2026-11-18.1';
     public const PRIMARY_LOCALE='fa-IR';
     public const SUPPORTED_LOCALES=array('fa-IR','en');
 
@@ -523,6 +523,10 @@ final class NotificationCatalogue {
         $out[]=self::event('booking.referral.admin','Intro Booking Needs Coordination','booking','admin','BookingAllocationWorker','queue',array('website'),'operational',true,array(),'booking.referral.admin',array(
             self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'درخواست آشنایی نیازمند هماهنگی است','body'=>'مدرس مناسبی برای درخواست پیدا نشد یا نوبت همهٔ مدرس‌ها پایان یافت. درخواست را در صف هماهنگی بررسی کنید.')),
             'en'=>array('website'=>array('subject'=>'Intro booking needs coordination','body'=>'No suitable Teacher was found for the request, or every Teacher turn has ended. Review the request in the coordination queue.')),
+        ));
+        $out[]=self::event('booking.submitted.admin','New Intro Booking Received','booking','admin','BookingRequestSubmissionService','queue',array('website'),'operational',true,array('booking_reference','learner_name','instrument','course','requested_time','queue_url'),'booking.submitted.admin',array(
+            self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'درخواست کلاس آشنایی جدید ثبت شد','body'=>'درخواست {{booking_reference}} از {{learner_name}} برای {{instrument}} ({{course}}) با زمان پیشنهادی {{requested_time}} ثبت شد و در انتظار هماهنگی است. صف هماهنگی: {{queue_url}}')),
+            'en'=>array('website'=>array('subject'=>'New intro booking received','body'=>'Request {{booking_reference}} from {{learner_name}} for {{instrument}} ({{course}}) was submitted for {{requested_time}} and is awaiting coordination. Coordination queue: {{queue_url}}')),
         ));
         $out[]=self::event('booking.escalation.admin','Intro Booking Escalated','booking','admin','BookingAllocationWorker','queue',array('website'),'operational',true,array(),'booking.escalation.admin',array(
             self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'فوری · درخواست آشنایی بیش از ۷۲ ساعت','body'=>'درخواست آشنایی هنوز تأیید نشده و از زمان ثبت اولیه بیش از ۷۲ ساعت گذشته است. در صف هماهنگی پیگیری کنید.')),

@@ -16,6 +16,7 @@ $notContains = static function (string $source, array $needles, string $message)
 $shell = $read('src/Admin/Controller/AdminShellController.php');
 $dashboard = $read('src/Admin/Controller/AcademyOperationsController.php');
 $readService = $read('src/Core/Application/AcademyDashboardReadService.php');
+$journey = $read('src/Core/Application/AcademyJourneyReadService.php');
 $lessonRead = $read('src/Core/Application/LessonOperationsReadService.php');
 $screenOptions = $read('src/Admin/AcademyDashboardScreen.php');
 $menu = $read('src/Admin/Controller/Menu.php');
@@ -89,6 +90,8 @@ $contains($dashboard, array(
     'Notification delivery failures',
 ), 'Needs Attention must collect every administrator task and group it by operational area.');
 $contains($css, array('.dzn-attention-group', '.dzn-attention-group__title'), 'The attention inbox needs grouped-area styling.');
+$contains($dashboard, array('coordinationQueue(5)', 'dzn-action-card__details', "'learner_name'", "'requested_time'", "'source'", 'Open intro bookings'), 'The coordination card must list who asked, for what, from where and how old each new request is.');
+$contains($journey, array('public function coordinationQueue', 'ELIGIBLE_SQL', "stageSql('needs_coordination')", 'contact.full_name', 'booking_request_requested_times'), 'The coordination queue must reuse the canonical eligible/stage predicates and current contact snapshot.');
 $contains($screenOptions, array("'actions' => 'Needs Attention'", "'finance' => 'Finance snapshot'", "'coverage' => 'Coverage Clock'"), 'Screen Options must describe retained sections.');
 
 // Today’s classes only, with authoritative details and canonical actions.

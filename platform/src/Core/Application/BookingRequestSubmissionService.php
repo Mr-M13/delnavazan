@@ -120,6 +120,21 @@ final class BookingRequestSubmissionService {
                 if($delivery!==null)(new BookingTeacherResponseRepository())->queueRequestedNotifications((int)$delivery['delivery_id'],$now);
             }
             foreach($this->intake->matchingContactRequests($digests,$id) as $match)$this->intake->createDuplicateFlag($id,$match['candidate_id'],$match['type'],$match['digest'],$now);
-            $this->intake->completeSubmissionKey((int)$operation->id,$id,$reference,$now); return array( 'success' => true, 'request_reference' => $reference, 'request_id' => $id, 'replayed' => false );
+            $this->intake->completeSubmissionKey((int)$operation->id,$id,$reference,$now);
+            $firstTime = (array) ($data['times'][0] ?? array());
+            $requestedTime = trim((string) ($firstTime['local_date'] ?? '') . ' ' . substr((string) ($firstTime['local_start_time'] ?? ''), 0, 5));
+            if ($requestedTime !== '' && (string) ($firstTime['timezone'] ?? '') !== '') $requestedTime .= ' · ' . (string) $firstTime['timezone'];
+            $queueUrl = admin_url('admin.php?page=dzn-booking-requests&request_id=' . $id);
+            $instrumentName = trim((string) ($instrument->name_fa ?? '')) !== '' ? (string) $instrument->name_fa : (string) ($instrument->name_en ?? '');
+            $courseName = $course ? (trim((string) ($course->name_fa ?? '')) !== '' ? (string) $course->name_fa : (string) ($course->name_en ?? '')) : '';
+            PortalNotificationRecorder::admin('booking.submitted.admin', 'booking_request', $id, array(
+                'booking_reference' => $reference,
+                'learner_name' => (string) ($data['contact']['full_name'] ?? ''),
+                'instrument' => $instrumentName,
+                'course' => $courseName,
+                'requested_time' => $requestedTime,
+                'queue_url' => $queueUrl,
+            ), $queueUrl);
+            return array( 'success' => true, 'request_reference' => $reference, 'request_id' => $id, 'replayed' => false );
     }
 }

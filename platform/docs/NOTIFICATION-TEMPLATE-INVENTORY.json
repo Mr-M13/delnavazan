@@ -1,42 +1,42 @@
 {
-    "generated_at": "2026-11-16T23:05:18+00:00",
-    "catalogue_version": "2026-11-17.7",
+    "generated_at": "2026-11-18T00:08:58+00:00",
+    "catalogue_version": "2026-11-18.1",
     "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
     "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
     "totals": {
-        "events": 77,
-        "supported_event_channel_combinations": 186,
-        "required_templates": 372,
-        "existing_valid_templates": 372,
+        "events": 78,
+        "supported_event_channel_combinations": 187,
+        "required_templates": 374,
+        "existing_valid_templates": 374,
         "missing_templates": 0,
         "invalid_templates": 0,
         "missing_translations": 0,
         "unpublished_canonical_templates": "live_check_required",
         "missing_provider_mappings": 1,
-        "unsupported_routes": 122,
+        "unsupported_routes": 125,
         "events_without_registered_producer": 0
     },
     "by_category": {
         "security": 2,
         "lesson": 38,
-        "booking": 13,
+        "booking": 14,
         "account": 13,
         "payment": 11
     },
     "by_recipient": {
         "student": 37,
         "teacher": 25,
-        "admin": 14,
+        "admin": 15,
         "guardian": 1
     },
     "events_per_channel": {
         "email": 70,
         "whatsapp": 41,
         "sms": 10,
-        "website": 65
+        "website": 66
     },
     "implementation": {
-        "implemented": 67,
+        "implemented": 68,
         "partial": 10,
         "declared": 0
     },
@@ -512,6 +512,9 @@
         "booking.rescheduled.student.sms",
         "booking.rescheduled.teacher.whatsapp",
         "booking.rescheduled.teacher.sms",
+        "booking.submitted.admin.email",
+        "booking.submitted.admin.whatsapp",
+        "booking.submitted.admin.sms",
         "consent.admin_attention.admin.email",
         "consent.admin_attention.admin.whatsapp",
         "consent.admin_attention.admin.sms",
@@ -1289,6 +1292,39 @@
                 },
                 "website.en": {
                     "template_key": "booking.rescheduled.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "unsupported",
+                "sms_state": "unsupported"
+            }
+        },
+        {
+            "event_key": "booking.submitted.admin",
+            "notification": "New Intro Booking Received",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "admin",
+            "producer": "BookingRequestSubmissionService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "website"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "booking.submitted.admin.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.submitted.admin.website.en",
                     "status": "present",
                     "errors": []
                 }

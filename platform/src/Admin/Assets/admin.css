@@ -674,6 +674,43 @@ body.dzn-admin-page .nav-tab-active:hover {
   line-height: 1.6;
 }
 
+.dzn-action-card__details {
+  display: grid;
+  gap: 6px;
+  margin: 2px 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.dzn-action-card__details li {
+  display: grid;
+  gap: 2px;
+  padding: 7px 8px;
+  border: 1px solid var(--dzn-border);
+  border-radius: 6px;
+  background: var(--dzn-surface);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dzn-action-card__details a {
+  color: var(--dzn-text);
+  text-decoration: none;
+}
+
+.dzn-action-card__details a:hover {
+  text-decoration: underline;
+}
+
+.dzn-action-card__details span,
+.dzn-action-card__details small {
+  overflow-wrap: anywhere;
+}
+
+.dzn-action-card__details small {
+  color: var(--dzn-muted);
+}
+
 .dzn-action-card .button {
   justify-self: start;
 }

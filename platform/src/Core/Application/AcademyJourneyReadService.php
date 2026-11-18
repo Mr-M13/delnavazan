@@ -106,4 +106,66 @@ final class AcademyJourneyReadService {
         global $wpdb; $p=$wpdb->prefix.'dzn_';
         return $wpdb->get_results("SELECT br.id request_id,br.reference_code request_ref,br.student_id,i.name_fa instrument_fa,i.name_en instrument_en,c.name_fa course_fa,c.name_en course_en,s.display_name student_name,oe.error_code match_attention_code,cc.id case_id,asa.id arrangement_id,accepted_teacher.display_name accepted_teacher_name,e.id enrolment_id,ta.id assignment_id,assigned_teacher.display_name assigned_teacher_name,t.id term_id,COUNT(DISTINCT l.id) lesson_count,SUM(CASE WHEN l.lifecycle_state='completed' THEN 1 ELSE 0 END) completed_lessons,claim.id claim_invitation_id,claim.state claim_state FROM {$p}booking_requests br LEFT JOIN {$p}instruments i ON i.id=br.requested_instrument_id LEFT JOIN {$p}courses c ON c.id=br.selected_intro_course_id LEFT JOIN {$p}students s ON s.id=br.student_id LEFT JOIN {$p}operational_exceptions oe ON oe.entity_type='booking_request' AND oe.entity_id=br.id AND oe.exception_type='booking_request_match_attention' AND oe.status IN ('open','acknowledged') LEFT JOIN {$p}coordination_cases cc ON cc.booking_request_id=br.id LEFT JOIN {$p}accepted_service_arrangements asa ON asa.booking_request_id=br.id LEFT JOIN {$p}teachers accepted_teacher ON accepted_teacher.id=asa.teacher_id LEFT JOIN {$p}enrolments e ON e.accepted_service_arrangement_id=asa.id AND e.archived_at IS NULL LEFT JOIN {$p}student_account_claim_invitations claim ON claim.student_id=br.student_id LEFT JOIN {$p}teacher_assignments ta ON ta.enrolment_id=e.id AND ta.applicable_slot=1 LEFT JOIN {$p}teachers assigned_teacher ON assigned_teacher.id=ta.teacher_id LEFT JOIN {$p}terms t ON t.enrolment_id=e.id AND t.applicable_slot=1 AND t.archived_at IS NULL LEFT JOIN {$p}lessons l ON l.enrolment_id=e.id AND l.archived_at IS NULL WHERE br.privacy_erased_at IS NULL GROUP BY br.id,i.id,c.id,s.id,oe.id,cc.id,asa.id,accepted_teacher.id,e.id,claim.id,ta.id,assigned_teacher.id,t.id ORDER BY br.id DESC LIMIT 100") ?: array();
     }
+
+    /**
+     * Newest submitted bookings that still have no coordination case. The
+     * dashboard card uses this bounded projection so an administrator can see
+     * who asked, for which instrument/course and from where without opening the
+     * full Enrolment workspace first. It remains read-only and capability-gated.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function coordinationQueue(int $limit = 5): array {
+        if (!current_user_can('dzn_view_booking_requests')) throw new \RuntimeException('Unauthorized');
+        $limit = max(1, min(10, $limit));
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $sql = "SELECT br.id request_id,br.reference_code,br.created_at,
+                       contact.full_name,contact.email,contact.mobile,contact.country,contact.city,contact.timezone,contact.submission_source,
+                       COALESCE(NULLIF(i.name_en,''),NULLIF(i.name_fa,''),'') instrument_name,
+                       COALESCE(NULLIF(c.name_en,''),NULLIF(c.name_fa,''),'') course_name,
+                       rt.local_date,rt.local_start_time,rt.timezone requested_timezone
+                FROM {$p}booking_requests br
+                LEFT JOIN {$p}instruments i ON i.id=br.requested_instrument_id
+                LEFT JOIN {$p}courses c ON c.id=br.selected_intro_course_id
+                LEFT JOIN {$p}booking_request_contact_snapshots contact ON contact.id=(SELECT cs.id FROM {$p}booking_request_contact_snapshots cs WHERE cs.booking_request_id=br.id ORDER BY cs.snapshot_sequence DESC,cs.id DESC LIMIT 1)
+                LEFT JOIN {$p}booking_request_requested_times rt ON rt.id=(SELECT rt2.id FROM {$p}booking_request_requested_times rt2 WHERE rt2.booking_request_id=br.id ORDER BY rt2.sequence_number ASC,rt2.id ASC LIMIT 1)
+                LEFT JOIN {$p}coordination_cases cc ON cc.booking_request_id=br.id
+                LEFT JOIN {$p}accepted_service_arrangements asa ON asa.booking_request_id=br.id
+                LEFT JOIN {$p}enrolments e ON e.accepted_service_arrangement_id=asa.id AND e.archived_at IS NULL
+                LEFT JOIN {$p}teacher_assignments ta ON ta.enrolment_id=e.id AND ta.applicable_slot=1
+                WHERE " . self::ELIGIBLE_SQL . " AND " . self::stageSql('needs_coordination') . "
+                ORDER BY br.created_at DESC,br.id DESC LIMIT %d";
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $limit)) ?: array();
+        return array_map(function (object $row): array {
+            $created = (string) ($row->created_at ?? '');
+            $source = (string) ($row->submission_source ?? '');
+            $contact = trim((string) ($row->email ?? '')) !== '' ? (string) $row->email : (string) ($row->mobile ?? '');
+            $location = implode(', ', array_filter(array(trim((string) ($row->city ?? '')), trim((string) ($row->country ?? '')))));
+            $requested = trim(trim((string) ($row->local_date ?? '')) . ' ' . substr((string) ($row->local_start_time ?? ''), 0, 5));
+            if ($requested !== '' && (string) ($row->requested_timezone ?? '') !== '') $requested .= ' · ' . (string) $row->requested_timezone;
+            return array(
+                'request_id' => (int) ($row->request_id ?? 0),
+                'reference' => (string) ($row->reference_code ?? ''),
+                'learner_name' => trim((string) ($row->full_name ?? '')) !== '' ? (string) $row->full_name : 'Learner',
+                'instrument' => (string) ($row->instrument_name ?? ''),
+                'course' => (string) ($row->course_name ?? ''),
+                'contact' => $contact,
+                'location' => $location,
+                'requested_time' => $requested,
+                'source' => $source !== '' && str_contains($source, 'public_rest') ? 'Public booking form' : ($source !== '' ? ucfirst(str_replace('_', ' ', $source)) : 'Not recorded'),
+                'age' => $this->ageLabel($created),
+                'url' => admin_url('admin.php?page=dzn-booking-requests&request_id=' . (int) ($row->request_id ?? 0)),
+            );
+        }, $rows);
+    }
+
+    private function ageLabel(string $createdAt): string {
+        $timestamp = strtotime(trim($createdAt) . ' UTC');
+        if ($timestamp === false) return 'Age unavailable';
+        $seconds = max(0, time() - $timestamp);
+        if ($seconds < 3600) return max(1, intdiv($seconds, 60)) . ' min ago';
+        if ($seconds < 86400) return intdiv($seconds, 3600) . ' h ago';
+        return intdiv($seconds, 86400) . ' d ago';
+    }
 }

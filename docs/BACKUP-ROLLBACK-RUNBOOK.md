@@ -124,6 +124,17 @@ non-zero and therefore mails cron, because a silent off-site gap defeats the cop
 valid either way and is named in the output. Setting up rclone stays an **owner action**: neither
 the workflow nor an agent configures a remote or stores a crypt password.
 
+Prove the line actually reached cron — a missing or misspelled one fails **silently**:
+
+```sh
+crontab -l | grep -F 'DZN_BACKUP_REMOTE'
+tail -20 "$HOME/backups/delnavazan-rollback-points/backup-point.log"
+```
+
+Without it, every nightly run still prints `OFFSITE=skipped`, exits 0 and looks healthy while the
+only copy stays on the host. The first run after adding the line must report `OFFSITE=ok`; a
+`skipped` in the log is a defect, not a preference.
+
 Re-dispatching the workflow is safe by design: the script copies are rewritten from the pinned SHA,
 the cron line is left alone because its marker is present, and the run simply takes another point
 (retention keeps the newest two). Do not dispatch it while a deploy is running — both share the
@@ -145,6 +156,19 @@ The copy must be encrypted at rest and readable only by the owner. Use a `crypt`
 storage provider, with the rclone configuration **outside** the repository and outside
 `public_html` (default `$HOME/.config/rclone/rclone.conf`, mode `0600`).
 
+**Credential rules.** The rclone token is a bearer credential for the owner's whole Google Drive
+(`scope drive`), so it is handled like the archives themselves:
+
+- Never pass a token on a command line. `--drive-token`, `rclone config create <remote> drive
+  token '<json>'` and every variant put the refresh token in the process list, where any process
+  running as the same user — and the provider's own diagnostics — can read it. It happened on this
+  host on 16 November 2026, and the exposure outlived the process by two days.
+- Never stage a token in a file to feed a command, and never leave one in `/tmp`. The only place a
+  token belongs is `rclone.conf`, mode `0600`.
+- Authorise interactively, and paste nothing into a shell variable, a log or a ticket.
+- A token that has been visible in a process list, a temp file, a shell history, a log or a support
+  diagnostic is exposed: rotate it (below) instead of waiting for evidence of use.
+
 1. Install rclone on the host (static binary in `$HOME/bin` is enough; no root needed).
 2. Create the storage remote, for example Google Drive over the owner's own account:
 
@@ -154,8 +178,10 @@ storage provider, with the rclone configuration **outside** the repository and o
    rclone mkdir gdrive:delnavazan-rollback
    ```
 
-   `reconnect` prints an authorisation URL; complete it in a browser as the owner. No client
-   secret is stored in this repository and none may be committed.
+   `reconnect` prints an authorisation URL; complete it in a browser as the owner. When the host
+   has no browser, rclone says so and you run `rclone authorize "drive"` on a workstation instead,
+   then paste the block it prints into the host prompt. No client secret is stored in this
+   repository and none may be committed.
 
 3. Create the encrypted layer on top of it:
 
@@ -169,19 +195,41 @@ storage provider, with the rclone configuration **outside** the repository and o
    Store the generated crypt password and salt in the owner's password manager. **Losing them
    loses every off-site point**, because the remote contains no plaintext names or contents.
 
-4. Point the tooling at it and verify:
+4. Point the tooling at it and verify. The path segment is a label of your choosing, but it must be
+   **identical** to the `DZN_BACKUP_REMOTE` value in the cron line from §3, or the nightly push and
+   the verification below look at different directories:
 
    ```sh
-   export DZN_BACKUP_REMOTE=rclone-crypt:points
+   export DZN_BACKUP_REMOTE=rclone-crypt:delnavazan-rollback-points
    rclone lsd rclone-crypt:          # empty but reachable
    rclone check "$HOME/backups/delnavazan-rollback-points/points/<UTC>" \
-     rclone-crypt:points/<UTC> --one-way
+     rclone-crypt:delnavazan-rollback-points/<UTC> --one-way
    ```
 
 The push copies the new point, lists it back and requires `manifest.json`,
 `database.sql.gz` and `public_html.tar.gz` to be present before it prunes anything. Remote
 retention is the same newest two points; only directory names matching `YYYYMMDDTHHMMSSZ` are
 ever purged, so unrelated content on the remote is never deleted.
+
+### Rotating an exposed rclone credential
+
+rclone authorises through its own Google OAuth client — it appears as `rclone` (`https://rclone.org`)
+in the account's third-party access list, separately from the `Delnavazan` client the platform uses
+for Calendar/Meet. Revoking the rclone grant therefore does not interrupt lesson provisioning, and
+revoking the platform grant does not break backups: check which entry you are removing before you
+remove it.
+
+1. Google Account → Security → Third-party access → `rclone` → **Remove all access**. This is the
+   only step that invalidates an already-issued refresh token; deleting files or config does not.
+2. Delete every staged copy and check the history:
+   `rm -f /tmp/drive-token.json` and `grep -n 'drive-token\|refresh_token' ~/.bash_history`.
+3. Re-authorise without a token on the command line: `rclone config reconnect gdrive:` on the host,
+   falling back to `rclone authorize "drive"` on a workstation as described in §4 step 2.
+4. Prove the remote and the tooling before trusting the night's run: `rclone lsf rclone-crypt:`
+   lists the points directory, and `bash "$HOME/bin/dzn-backup-point.sh"` ends with `OFFSITE=ok`.
+   Existing Drive content is untouched by a revoke — only access to it is replaced.
+5. Ask the provider to purge the exposed value from any diagnostic that captured it, and record the
+   rotation in the change ticket.
 
 ## 5. Taking a point by hand
 

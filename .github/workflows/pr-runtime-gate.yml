@@ -447,6 +447,8 @@ jobs:
           bash deployment/qa/production-calendar-projection-dispatch-contract.sh
           bash deployment/qa/purge-test-data-contract.sh
           bash deployment/qa/purge-production-test-data-contract.sh
+          bash -n deployment/qa/delete-test-student.sh
+          bash deployment/qa/delete-test-student-contract.sh
           bash deployment/qa/backup-rollback-contract.sh
           bash -n deployment/qa/install-host-tooling-contract.sh
           bash deployment/qa/install-host-tooling-contract.sh

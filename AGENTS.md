@@ -202,6 +202,19 @@ is optional strict parity. Docker is required only for the runtime suites.
   fingerprint and the confirm token. It requires the production-only
   `PURGE_ATTESTATION_TOKEN` secret and refuses a second run after the durable one-shot marker
   exists. A session never runs the execute mode directly.
+- **Targeted test-account deletion:** the guarded single-account path is
+  `deployment/qa/delete-test-student.sh` (report, then execute with a pre-state fingerprint and a
+  verified full database export). The target is accepted only as the SHA-256 of the account email;
+  the retained administrator hash and any administrator target are refused. The destructive mode
+  is dispatched only through the protected, workflow-dispatch-only
+  `delete-test-student.yml` from `main`, with the pinned tool source SHA, the deployed build SHA,
+  the target email hash, the report fingerprint and the `DELETE_TEST_STUDENT` confirm token. It
+  reuses the production-only `PURGE_ATTESTATION_TOKEN` secret and is serialized with production
+  deploys. It deletes only rows reachable from the exact Student/booking/WP-user graph inside the
+  reviewed purge table classification, preserves the catalogue/configuration counts, and verifies
+  zero target rows remain. Its offline source contract,
+  `bash deployment/qa/delete-test-student-contract.sh`, runs in the PR gate's production-tooling
+  step. A session never runs the execute mode directly.
 - **Backup and rollback tooling:** `deployment/qa/backup-point.sh` takes one verified production
   rollback point on the host — a gzip + SHA-256 database export, a `public_html` archive without
   `wp-content/cache`, and a manifest recording the `main-<12 SHA>` build identity and

@@ -103,12 +103,12 @@ $assert(str_contains($repository, 'function requeueJob') && str_contains($reposi
 $assert(str_contains($preparation, 'standardCoursesForInstrument'), 'the ongoing Course must be resolved from the instrument');
 $assert(str_contains($preparation, 'count($courses) !== 1'), 'ambiguous standard Courses must fail closed');
 $assert(str_contains($preparation, "candidate->format('Y-m-d H:i:s')"), 'DST spring-forward wall clocks must fail closed instead of shifting');
-$assert(str_contains($preparation, 'commercial_region_unresolved'), 'an unresolved commercial region must be an exception');
+$assert(str_contains($preparation, 'RegionalPricingRule::regionForCountry') && str_contains($preparation, 'commercial_price_unresolved'), 'an unsupported country must resolve the shared USD default and a missing price for that region must fail closed');
 $assert(str_contains($preparation, 'teacher_not_eligible_for_standard_course'), 'Teacher eligibility must be re-proved');
 $assert(str_contains($preparation, "'state' => 'exception'"), 'preparation failures must become an explicit exception state');
 $assert(str_contains($preparation, 'intro_student_no_show') && str_contains($preparation, 'intro_cancelled'), 'no-show and cancellation must never invite continuation');
 $assert(str_contains($preparation, 'self::OUTCOME_DELIVERED'), 'only a delivered outcome may continue');
-$assert(str_contains($preparation, 'EU_COUNTRIES') && str_contains($preparation, "\$region = 'EU'"), 'EU member countries must resolve to the EU price region');
+$assert(!str_contains($preparation, 'EU_COUNTRIES') && !str_contains($preparation, 'commercial_region_unresolved'), 'post-intro finance must not keep a second country-to-region table or reject an unmapped country');
 $assert(str_contains($preparation, 'get_current_user_id()') && str_contains($preparation, "'teacher_portal', \$recordedBy"), 'teacher outcomes must audit the authenticated WordPress actor');
 $assert(str_contains($preparation, 'intro_outcome_already_recorded') && str_contains($preparation, '$prepared = $this->prepare((int) $existing->id)'), 'replaying an existing outcome must resume preparation without silently changing it');
 

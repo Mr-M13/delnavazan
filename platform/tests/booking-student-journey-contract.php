@@ -29,4 +29,6 @@ $assert(str_contains($bookingScript, 'validateAccountPassword') && str_contains(
 $assert(str_contains($booking, 'data-iran-warning') && str_contains($booking, 'data-iran-dialog') && str_contains($booking, 'مدیر هنری دلنوازان (ایران)') && str_contains($booking, 'tel:+989101401910'), 'Booking must warn Iran residents before submission and expose the artistic-director contact.');
 $assert(str_contains($booking, 'دلنوازان امکان پذیرش هنرجوی ساکن داخل ایران را ندارد') && str_contains($booking, 'آموزش حضوری همیشه بر آموزش آنلاین ترجیح داده می‌شود'), 'The Iran warning must carry the requested residency and in-person-learning message.');
 $assert(str_contains($bookingScript, 'confirmIran') && str_contains($bookingScript, 'syncIranWarning') && str_contains($bookingScript, 'iranAcknowledged'), 'The Iran warning must be a client-side confirmation gate that keeps the country field editable.');
+$submission=file_get_contents($root.'/src/Core/Application/BookingRequestSubmissionService.php');
+$assert(!str_contains($submission, 'RegionalPricingService') && !str_contains($submission, 'IntroPricingService'), 'Booking submission must stay independent of regional pricing so a request from any valid country can be submitted.');
 echo "Booking to student journey contract passed\n";

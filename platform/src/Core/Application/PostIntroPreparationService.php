@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
 
+use Delnavazan\Platform\Core\Application\Finance\Pricing\RegionalPricingRule;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
 
@@ -18,10 +19,6 @@ final class PostIntroPreparationService {
     public const OUTCOME_STUDENT_NO_SHOW = 'student_no_show';
     public const OUTCOME_TEACHER_CANCELLED = 'teacher_cancelled';
     public const OUTCOME_STUDENT_CANCELLED = 'student_cancelled';
-    private const EU_COUNTRIES = array(
-        'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE',
-        'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE',
-    );
 
     private PostIntroRepository $repository;
 
@@ -371,29 +368,12 @@ final class PostIntroPreparationService {
         $products = $repository->productsForCourse((int) $course->id);
         if (count($products) !== 1) throw new \RuntimeException('commercial_product_unresolved');
         $product = $products[0];
-        $prices = $repository->activePricesForProduct((int) $product->id);
-        if (!$prices) throw new \RuntimeException('commercial_price_unresolved');
 
+        // Every country without a supported regional price settles in the USD default. This is
+        // the same authority the public ledger and the introductory price use, so a Student can
+        // always book and continue even when their country has no local currency.
         $country = strtoupper(trim((string) ($confirmation->country ?? '')));
-        $directRegions = array('AU', 'NZ', 'US', 'CA', 'GB');
-        $region = null;
-        if (in_array($country, $directRegions, true)) {
-            $region = $country;
-        } elseif (in_array($country, self::EU_COUNTRIES, true)) {
-            // A stored EU member country selects the supported EU price region; the raw country
-            // code is not itself a price region.
-            $region = 'EU';
-        }
-        if ($region !== null) {
-            $matched = false;
-            foreach ($prices as $price) {
-                if (strtoupper((string) $price->region_code) === $region) { $matched = true; break; }
-            }
-            if (!$matched) $region = null;
-        }
-        if ($region === null && count($prices) === 1) $region = strtoupper((string) $prices[0]->region_code);
-        if ($region === null) throw new \RuntimeException('commercial_region_unresolved');
-        if (!in_array($region, array('AU', 'NZ', 'US', 'CA', 'EU', 'GB'), true)) throw new \RuntimeException('commercial_region_unresolved');
+        $region = RegionalPricingRule::regionForCountry($country);
         $price = $repository->priceForProductRegion((int) $product->id, $region);
         if (!$price) throw new \RuntimeException('commercial_price_unresolved');
 

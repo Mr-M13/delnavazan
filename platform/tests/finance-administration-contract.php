@@ -64,16 +64,23 @@ $assert(!str_contains($migration, 'DELETE FROM {$p}commercial_prices') && !str_c
 $contains($pricing, array(
     'activeForRegion', 'saveRegion', 'syncProducts', 'assertProductPriceAllowed',
     'RegionalPricingRule::standardPrice', 'PricingMoney::format', 'ensureProductPrice',
-    'standard_amount_minor', 'introductory_amount_minor', 'operator_decision',
-), 'Regional pricing service must own the authoritative amount and intro configuration');
+    'standard_amount_minor', 'introductory_amount_minor', 'operator_decision', 'defaultRegion',
+), 'Regional pricing service must own the authoritative amount, intro configuration and USD default');
 $assert(!str_contains($pricing, '250') && !str_contains($pricing, '150'), 'No hardcoded public price may remain in the pricing authority');
 $contains($money, array('toMinor', 'fromMinor', 'minorDigits', 'TOM', 'Persian/Arabic'), 'Money conversion must handle exact minor units and Persian digits');
-$contains($rule, array('REGIONS', 'COUNTRY_TO_REGION', 'INTRO_FREE', 'INTRO_PAID', 'currency_region_mismatch'), 'Regional and introductory rules must be structural and preserved');
+$contains($rule, array('REGIONS', 'COUNTRY_TO_REGION', 'DEFAULT_REGION', 'regionForCountry', 'INTRO_FREE', 'INTRO_PAID', 'currency_region_mismatch'), 'Regional and introductory rules must be structural and preserved');
+$assert(str_contains($rule, "DEFAULT_REGION = 'US'"), 'A country without a linked regional price must default to US dollars.');
+$introPricing = $read('src/Core/Application/Finance/Pricing/IntroPricingService.php');
+$contains($introPricing, array('RegionalPricingRule::regionForCountry'), 'Teacher acceptance must resolve the same USD default as presentation.');
+$postIntro = $read('src/Core/Application/PostIntroPreparationService.php');
+$contains($postIntro, array('RegionalPricingRule::regionForCountry'), 'Post-intro finance must resolve the same USD default as presentation.');
+$assert(!str_contains($postIntro, 'EU_COUNTRIES'), 'Post-intro finance must not keep a second, divergent country-to-region table.');
 $contains($catalogue, array('RegionalPricingService', 'assertProductPriceAllowed', 'ensureProductPrice'), 'Catalogue and checkout price resolution must use the shared authority');
 $catalogueController = $read('src/Admin/Controller/CommercialCatalogueController.php');
 foreach (array('name="operator_key"', 'name="amount_minor"', 'name="evidence_at"', 'staff_record') as $forbiddenField) $assert(!str_contains($catalogueController, $forbiddenField), 'Ordinary catalogue administration must not expose technical field: ' . $forbiddenField);
 $assert(!str_contains($read('src/Core/Application/CatalogueService.php'), 'paid_introductory_lesson_unsupported'), 'Introductory pricing must not be rejected by instrument setup');
-$contains($themePricing, array('RegionalPricingService', 'publicConfig', 'dzn_theme_introductory_pricing_note'), 'Homepage must read the authoritative price');
+$contains($themePricing, array('RegionalPricingService', 'publicConfig', 'dzn_theme_introductory_pricing_note', 'defaultRegion'), 'Homepage must read the authoritative price and its USD default');
+$contains($read('../theme/assets/js/pricing-region.js'), array('config.defaultRegion', 'showDefault'), 'The public price ledger must present the USD default when the visitor has no linked regional price');
 $assert(!str_contains($themePricing, "amount' => 250") && !str_contains($themePricing, "'display' => 'A$250'"), 'Homepage must not keep hardcoded prices');
 $assert(!str_contains($read('../theme/patterns/homepage-editorial.php'), '۲۵۰ دلار آمریکا'), 'Homepage markup must not keep a hardcoded fallback price');
 

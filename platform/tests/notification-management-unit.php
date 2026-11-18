@@ -562,6 +562,7 @@ namespace {
     $fail('off SMS still shows unavailable selected routes', $offSms['state']==='disabled' && !empty($offSms['enable_blocked']) && str_contains($offSms['reason'], 'unavailable'));
     $controllerSource=(string)file_get_contents(dirname(__DIR__).'/src/Admin/Controller/NotificationManagementController.php');
     $fail('enabling a blocked channel stores intent and keeps the blocker visible', str_contains($controllerSource, 'self::channelBlocker($library,$eventKey,$channel)') && str_contains($controllerSource, 'Sending will start when this is resolved.'));
+    $fail('a card toggle returns without a template key while the editor keeps it', str_contains($controllerSource, "if(\$source==='editor')\$extra=array('template'=>\$eventKey,'template_channel'=>\$channel)"));
 
     /* 10. Template/provider readiness is evaluated independently of the current on/off value. A
      * configured WhatsApp provider with no mapped template must still block enabling, and the
@@ -884,6 +885,7 @@ namespace {
     $cardHtml = (string) ob_get_clean();
     $fail('the card renders the clear notification title', str_contains($cardHtml, (string) $cardDefinition['label']));
     $fail('the card renders all four delivery switches', substr_count($cardHtml, 'dzn-nc-channel ') === 4 && str_contains($cardHtml, '>Portal<') && str_contains($cardHtml, '>Email<') && str_contains($cardHtml, '>WhatsApp<') && str_contains($cardHtml, '>SMS<'));
+    $fail('the card switch posts a card-source toggle and never opens the editor', str_contains($cardHtml, 'name="source" value="card"') && !str_contains($cardHtml, 'name="source" value="editor"'));
     $fail('the card has an Open action', str_contains($cardHtml, 'dzn-nc-open') && str_contains($cardHtml, '>Open<'));
     $fail('the card no longer repeats the purpose paragraph', !str_contains($cardHtml, (string) ($cardDefinition['purpose'] ?? '')));
     $fail('the card no longer carries the old event-level disable control', !str_contains($cardHtml, 'Disable notification'));
@@ -894,6 +896,7 @@ namespace {
     $editorMethod->invoke(null, $library, $cardEvent, 'email', 'fa-IR');
     $editorHtml = (string) ob_get_clean();
     $fail('the editor consolidates the overview into one card', str_contains($editorHtml, 'dzn-nc-overview') && str_contains($editorHtml, 'Variable contract') && str_contains($editorHtml, 'dzn-nc-facts'));
+    $fail('the editor switch posts an editor-source toggle', str_contains($editorHtml, 'name="source" value="editor"'));
     $fail('the editor offers one tab per delivery method', str_contains($editorHtml, 'role="tablist"') && substr_count($editorHtml, 'dzn-nc-tab') >= 4 && str_contains($editorHtml, '>Portal<') && str_contains($editorHtml, '>Email<') && str_contains($editorHtml, '>WhatsApp<') && str_contains($editorHtml, '>SMS<'));
     $fail('the editor keeps the preview, editor and history in the selected tab', str_contains($editorHtml, '<h3>Preview</h3>') && str_contains($editorHtml, 'id="dzn-notif-body"') && str_contains($editorHtml, 'Version History'));
     $fail('the editor no longer duplicates the old Delivery and Status cards', !str_contains($editorHtml, '<h3>Delivery</h3>') && !str_contains($editorHtml, '<h3>Status</h3>'));

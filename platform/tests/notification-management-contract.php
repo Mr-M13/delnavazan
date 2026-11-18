@@ -17,6 +17,7 @@ $migration = (string) file_get_contents($root . '/src/Core/Infrastructure/Migrat
 $studentShell = (string) file_get_contents($root . '/../theme/template-parts/portal/shell.php');
 $teacherShell = (string) file_get_contents($root . '/../theme/template-parts/teacher-portal/shell.php');
 $studentInbox = (string) file_get_contents($root . '/../theme/template-parts/portal/notifications.php');
+$submission = (string) file_get_contents($root . '/src/Core/Application/BookingRequestSubmissionService.php');
 $fail = static function (string $name, bool $ok): void { if (!$ok) throw new RuntimeException('Notification management contract failed: ' . $name); };
 
 /* 1. Every mutation is capability- and nonce-gated and every redirect is same-site. */
@@ -84,6 +85,7 @@ foreach (array('CATEGORIES', 'TASKS', 'taskKey', 'AUTHORITIES', 'IMPLEMENTATION'
 $fail('one-time secret events stay security-only', str_contains($catalogue, "'account.claim_issued.student'") && str_contains($catalogue, "'teacher.invitation_issued.teacher'"));
 $fail('rejected account-claim mobile routes stay blocked', str_contains($library, "\$eventKey==='account.claim_issued.student'") && str_contains($library, "'notification_channel_secure_route'"));
 $fail('only Utility provider templates can map transactional messages', str_contains($authority, "\$utility=strtoupper") && str_contains($authority, "not a Utility template"));
+$fail('new intro bookings record an admin inbox alert', str_contains($catalogue, "'booking.submitted.admin'") && str_contains($submission, "PortalNotificationRecorder::admin('booking.submitted.admin'"));
 
 /* 4. Inbox storage is contact-free and read state is scoped to the linked WordPress user. */
 $fail('migration creates the inbox table', str_contains($migration, 'portal_notifications') && str_contains($migration, 'UNIQUE KEY dedupe_key'));

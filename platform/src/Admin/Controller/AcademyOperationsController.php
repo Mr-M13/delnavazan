@@ -194,10 +194,26 @@ final class AcademyOperationsController {
     private static function attentionCard(array $item): void {
         $url = add_query_arg(array_merge(array('page' => $item['page']), $item['args']), admin_url('admin.php'));
         if (!empty($item['anchor'])) $url .= '#' . $item['anchor'];
-        echo '<article class="dzn-action-card' . (!empty($item['urgent']) ? ' is-urgent' : '') . '"><div class="dzn-action-card__top"><span class="dzn-action-card__count">' . esc_html(number_format_i18n((int) $item['count'])) . '</span><span class="dzn-badge' . (!empty($item['urgent']) ? ' dzn-badge--red' : ' dzn-badge--gold') . '">' . (!empty($item['urgent']) ? 'Needs attention' : 'Waiting') . '</span></div><h3>' . esc_html($item['label']) . '</h3><p>' . esc_html($item['description']) . '</p><a class="button' . (!empty($item['urgent']) ? ' button-primary' : '') . '" href="' . esc_url($url) . '">' . esc_html($item['action']) . '</a></article>';
+        echo '<article class="dzn-action-card' . (!empty($item['urgent']) ? ' is-urgent' : '') . '"><div class="dzn-action-card__top"><span class="dzn-action-card__count">' . esc_html(number_format_i18n((int) $item['count'])) . '</span><span class="dzn-badge' . (!empty($item['urgent']) ? ' dzn-badge--red' : ' dzn-badge--gold') . '">' . (!empty($item['urgent']) ? 'Needs attention' : 'Waiting') . '</span></div><h3>' . esc_html($item['label']) . '</h3><p>' . esc_html($item['description']) . '</p>';
+        $details = (array) ($item['details'] ?? array());
+        if ($details) {
+            echo '<ul class="dzn-action-card__details">';
+            foreach ($details as $detail) {
+                $reference = trim((string) ($detail['reference'] ?? ''));
+                $name = trim((string) ($detail['learner_name'] ?? 'Learner'));
+                $subject = implode(' · ', array_filter(array(trim((string) ($detail['instrument'] ?? '')), trim((string) ($detail['course'] ?? '')))));
+                $context = implode(' · ', array_filter(array(trim((string) ($detail['contact'] ?? '')), trim((string) ($detail['location'] ?? '')), trim((string) ($detail['requested_time'] ?? '')), trim((string) ($detail['age'] ?? '')), trim((string) ($detail['source'] ?? '')))));
+                echo '<li><a href="' . esc_url((string) ($detail['url'] ?? $url)) . '"><strong>' . esc_html($reference !== '' ? $name . ' · ' . $reference : $name) . '</strong></a>';
+                if ($subject !== '') echo '<span>' . esc_html($subject) . '</span>';
+                if ($context !== '') echo '<small>' . esc_html($context) . '</small>';
+                echo '</li>';
+            }
+            echo '</ul>';
+        }
+        echo '<a class="button' . (!empty($item['urgent']) ? ' button-primary' : '') . '" href="' . esc_url($url) . '">' . esc_html($item['action']) . '</a></article>';
     }
 
-    /** @return list<array{area:string,label:string,count:int,page:string,action:string,args:array<string,mixed>,description:string,urgent:bool,anchor:string}> */
+    /** @return list<array{area:string,label:string,count:int,page:string,action:string,args:array<string,mixed>,description:string,urgent:bool,anchor:string,details?:list<array<string,mixed>>}> */
     private static function pendingActionItems(array $summary = array()): array {
         if (self::$pendingCache !== null) return self::$pendingCache;
         global $wpdb;
@@ -206,7 +222,8 @@ final class AcademyOperationsController {
         $pipeline = (array) ($summary['pipeline'] ?? array());
         $items = array();
         if (current_user_can('dzn_view_booking_requests')) {
-            $items[] = array('area' => 'learners', 'label' => 'Bookings awaiting coordination', 'count' => (int) ($pipeline['needs_coordination'] ?? 0), 'page' => 'dzn-enrolment-workspace', 'action' => 'Open intro bookings', 'args' => array('type' => 'intro', 'stage' => 'new'), 'description' => 'A submitted booking has no coordination case yet. Contact the learner and propose a Teacher.', 'urgent' => true, 'anchor' => '');
+            try { $coordinationQueue = (new AcademyJourneyReadService())->coordinationQueue(5); } catch (\Throwable) { $coordinationQueue = array(); }
+            $items[] = array('area' => 'learners', 'label' => 'Bookings awaiting coordination', 'count' => (int) ($pipeline['needs_coordination'] ?? 0), 'page' => 'dzn-enrolment-workspace', 'action' => 'Open intro bookings', 'args' => array('type' => 'intro', 'stage' => 'new'), 'description' => 'A submitted booking has no coordination case yet. The newest requests are listed below with the learner, instrument/course, requested time and source; contact the learner and propose a Teacher.', 'urgent' => true, 'anchor' => '', 'details' => $coordinationQueue);
             $items[] = array('area' => 'learners', 'label' => 'Identities awaiting review', 'count' => (int) ($pipeline['needs_identity'] ?? 0), 'page' => 'dzn-enrolment-workspace', 'action' => 'Review identity blockers', 'args' => array('type' => 'intro', 'stage' => 'identity'), 'description' => 'Coordination exists but the learner identity is unresolved. Review the evidence and resolve it or record an outcome.', 'urgent' => true, 'anchor' => '');
             $items[] = array('area' => 'learners', 'label' => 'Service arrangements awaiting acceptance', 'count' => (int) ($pipeline['needs_acceptance'] ?? 0), 'page' => 'dzn-enrolment-workspace', 'action' => 'Confirm acceptance', 'args' => array('type' => 'intro', 'stage' => 'teacher_agreed'), 'description' => 'The identity is resolved but no accepted Service Arrangement exists. Confirm acceptance authority and complete coordination.', 'urgent' => false, 'anchor' => '');
             $items[] = array('area' => 'learners', 'label' => 'Accepted arrangements awaiting enrolment', 'count' => (int) ($pipeline['needs_enrolment'] ?? 0), 'page' => 'dzn-enrolment-workspace', 'action' => 'Convert to enrolment', 'args' => array('type' => 'intro', 'stage' => 'post_intro'), 'description' => 'An accepted Service Arrangement has not been converted to an Enrolment.', 'urgent' => false, 'anchor' => '');

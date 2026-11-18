@@ -24,8 +24,10 @@ final class BrandIdentity {
     public const SUPPORT_MAILTO = 'mailto:admin@delnavazan.com';
 
     /**
-     * Iran-based artistic director contact, shown only on Teacher-facing surfaces and in
-     * Teacher email footers. It is deliberately separate from the public support identity.
+     * Iran-based artistic director contact, shown on Teacher-facing surfaces, in
+     * Teacher email footers and in the public Iran-residency booking advisory.
+     * It is deliberately separate from the public support identity, which remains
+     * the general public contact for all other enquiries.
      */
     public const TEACHER_CONTACT_LABEL = 'مدیر هنری دلنوازان (ایران)';
     public const TEACHER_CONTACT_LABEL_EN = 'Delnavazan artistic director (Iran)';

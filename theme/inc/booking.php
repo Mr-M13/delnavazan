@@ -99,6 +99,20 @@ function dzn_theme_render_booking_route(): void {
         ? dzn_theme_platform_calendar_preference( (string) ( $booking_profile['calendar_preference'] ?? '' ), $booking_locale )
         : 'gregorian';
     if ( ! in_array( $booking_calendar, array( 'persian', 'gregorian' ), true ) ) { $booking_calendar = 'gregorian'; }
+    $iran_brand = dzn_theme_brand_identity();
+    $iran_contact_label = (string) ( $iran_brand['teacher_contact_label'] ?? 'مدیر هنری دلنوازان (ایران)' );
+    $iran_contact_display = (string) ( $iran_brand['teacher_contact_display'] ?? '09101401910' );
+    $iran_contact_href = (string) ( $iran_brand['teacher_contact_href'] ?? 'tel:+989101401910' );
+    $render_iran_warning = static function () use ( $booking_country, $iran_contact_label, $iran_contact_display, $iran_contact_href ): void {
+        ?>
+        <aside class="dzn-booking__notice dzn-booking__iran-warning" data-iran-warning role="note"<?php echo 'IR' === $booking_country ? '' : ' hidden'; ?>>
+            <h3>پیش از ادامه بخوانید</h3>
+            <p>دلنوازان امکان پذیرش هنرجوی ساکن داخل ایران را ندارد. توصیه می‌کنیم با مؤسسه یا مدرس موسیقی محلی خود در ارتباط باشید؛ در صورت امکان، آموزش حضوری همیشه بر آموزش آنلاین ترجیح داده می‌شود.</p>
+            <p>اگر با این حال مایل به ادامه هستید، لطفاً با <strong><?php echo esc_html( $iran_contact_label ); ?></strong> به شمارهٔ <a href="<?php echo esc_url( $iran_contact_href ); ?>" dir="ltr"><?php echo esc_html( $iran_contact_display ); ?></a> تماس بگیرید.</p>
+            <p class="dzn-booking__field-help">اگر خارج از ایران زندگی می‌کنید، کشور محل زندگی خود را تغییر دهید تا این هشدار نمایش داده نشود.</p>
+        </aside>
+        <?php
+    };
     foreach ( $options as $option ) {
         if ( ( $requested !== '' && $requested === (string) $option['slug'] ) || ( $requested_name !== '' && ( $requested_name === (string) $option['name_fa'] || $requested_name === (string) $option['name_en'] ) ) ) { $selected = $option; break; }
     }
@@ -230,6 +244,7 @@ function dzn_theme_render_booking_route(): void {
                             <p>منطقهٔ زمانی دستگاه شما در صورت شناسایی به‌طور خودکار انتخاب می‌شود؛ در صورت نیاز می‌توانید آن را تغییر دهید.</p>
                         </div>
                         </div>
+                        <?php $render_iran_warning(); ?>
                         <p class="dzn-booking__whatsapp-note">شمارهٔ موبایل شما برای تماس و هماهنگی این درخواست استفاده می‌شود. اعلان‌های واتساپ یا پیامک فقط در صورت فعال بودن آن کانال ارسال می‌شوند.</p>
                         <div class="dzn-booking__consents">
                             <label class="dzn-booking__privacy dzn-booking__consent"><input type="checkbox" data-privacy data-adult-attested required> <span><strong>۱۸ سال یا بیشتر دارم</strong> و می‌پذیرم اطلاعات تماس و زمان‌های پیشنهادی من برای بررسی این درخواست در دلنوازان ثبت شود و تا ۲۴ ماه نگهداری شود.<span class="dzn-booking__consent-note">برای هنرجوی زیر ۱۸ سال، پیش از ثبت با پشتیبانی تماس بگیرید.</span></span></label>
@@ -245,6 +260,7 @@ function dzn_theme_render_booking_route(): void {
                     <section class="dzn-booking__step" data-step="review" aria-labelledby="dzn-booking-review-title" hidden>
                         <p class="dzn-booking__kicker">بازبینی نهایی</p>
                         <h2 id="dzn-booking-review-title" tabindex="-1">خلاصهٔ درخواست شما</h2>
+                        <?php $render_iran_warning(); ?>
                         <div class="dzn-booking__inline-review">
                             <h3>خلاصهٔ درخواست</h3><div data-review class="dzn-booking__review"></div>
                             <aside class="dzn-booking__notice dzn-booking__summary-note">
@@ -273,6 +289,19 @@ function dzn_theme_render_booking_route(): void {
                         <p>هنوز زمان جلسه تأیید یا رزرو نشده است. درخواست در حساب هنرجویی شما با وضعیت در انتظار بررسی نمایش داده می‌شود.</p>
                         <a class="dzn-booking__button" data-dashboard-link href="<?php echo esc_url( home_url( '/student-portal/' ) ); ?>">رفتن به داشبورد هنرجو</a>
                     </section>
+                    <dialog class="dzn-booking__dialog" data-iran-dialog aria-labelledby="dzn-booking-iran-dialog-title">
+                        <div class="dzn-booking__dialog-body">
+                            <p class="dzn-booking__kicker">توجه</p>
+                            <h2 id="dzn-booking-iran-dialog-title">دلنوازان در ایران هنرجو نمی‌پذیرد</h2>
+                            <p>دلنوازان امکان پذیرش هنرجوی ساکن داخل ایران را ندارد. توصیه می‌کنیم با مؤسسه یا مدرس موسیقی محلی خود در ارتباط باشید؛ در صورت امکان، آموزش حضوری همیشه بر آموزش آنلاین ترجیح داده می‌شود.</p>
+                            <p>اگر با این حال مایل به ادامه هستید، لطفاً با <strong><?php echo esc_html( $iran_contact_label ); ?></strong> به شمارهٔ <a href="<?php echo esc_url( $iran_contact_href ); ?>" dir="ltr"><?php echo esc_html( $iran_contact_display ); ?></a> تماس بگیرید.</p>
+                            <p class="dzn-booking__field-help">اگر خارج از ایران زندگی می‌کنید، بازگردید و کشور محل زندگی خود را تغییر دهید.</p>
+                            <div class="dzn-booking__dialog-actions">
+                                <button type="button" class="dzn-booking__button" data-iran-continue>متوجه شدم، ادامه می‌دهم</button>
+                                <button type="button" class="dzn-booking__button dzn-booking__button--secondary" data-iran-cancel>بازگشت و تغییر کشور</button>
+                            </div>
+                        </div>
+                    </dialog>
                 </section>
             <?php endif; ?>
         </div>

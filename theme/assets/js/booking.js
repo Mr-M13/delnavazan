@@ -14,6 +14,8 @@
   const preferenceCount = root.querySelector('[data-preference-count]');
   const errorBox = root.querySelector('[data-error]');
   const country = root.querySelector('[data-contact="country"]');
+  const iranWarnings = root.querySelectorAll('[data-iran-warning]');
+  const iranDialog = root.querySelector('[data-iran-dialog]');
   const city = root.querySelector('[data-contact="city"]');
   const cityList = root.querySelector('[data-city-list]');
   const accountPassword = root.querySelector('[data-account-password]');
@@ -29,6 +31,7 @@
   const calendarLocale = bookingCalendar === 'persian' ? 'fa-IR-u-ca-persian' : 'fa-IR-u-ca-gregory';
   let idempotencyKey = '';
   let submissionPending = false;
+  let iranAcknowledged = false;
   let availabilityRequestId = 0;
   let availabilityPreviewFailed = false;
   let availabilityPreviewPending = false;
@@ -194,6 +197,35 @@
     if (prefix !== '+…') suggestedPhonePrefix = prefix;
   };
 
+  const isIran = () => country.value === 'IR';
+  const syncIranWarning = () => {
+    iranWarnings.forEach((node) => { node.hidden = !isIran(); });
+    if (!isIran()) iranAcknowledged = false;
+  };
+  const confirmIran = () => {
+    if (!isIran() || iranAcknowledged) return Promise.resolve(true);
+    if (!iranDialog || typeof iranDialog.showModal !== 'function') {
+      iranAcknowledged = true;
+      return Promise.resolve(true);
+    }
+    return new Promise((resolve) => {
+      const onClose = () => {
+        iranDialog.removeEventListener('close', onClose);
+        const proceed = iranDialog.returnValue === 'continue';
+        if (proceed) iranAcknowledged = true;
+        resolve(proceed);
+      };
+      iranDialog.returnValue = '';
+      iranDialog.addEventListener('close', onClose);
+      iranDialog.showModal();
+    });
+  };
+  if (iranDialog) {
+    iranDialog.querySelector('[data-iran-continue]')?.addEventListener('click', () => iranDialog.close('continue'));
+    iranDialog.querySelector('[data-iran-cancel]')?.addEventListener('click', () => iranDialog.close('cancel'));
+    iranDialog.addEventListener('click', (event) => { if (event.target === iranDialog) iranDialog.close('cancel'); });
+  }
+
   const countryCodes = 'AF AL DZ AD AO AG AR AM AU AT AZ BS BH BD BB BY BE BZ BJ BT BO BA BW BR BN BG BF BI CV KH CM CA CF TD CL CN CO KM CG CD CR CI HR CU CY CZ DK DJ DM DO EC EG SV GQ ER EE SZ ET FJ FI FR GA GM GE DE GH GR GD GT GN GW GY HT HN HU IS IN ID IR IQ IE IL IT JM JP JO KZ KE KI XK KW KG LA LV LB LS LR LY LI LT LU MG MW MY MV ML MT MH MR MU MX FM MD MC MN ME MA MZ MM NA NR NP NL NZ NI NE NG KP MK NO OM PK PW PA PG PY PE PH PL PT QA RO RU RW KN LC VC WS SM ST SA SN RS SC SL SG SK SI SB SO ZA KR SS ES LK SD SR SE CH SY TW TJ TZ TH TL TG TO TT TN TR TM TV UG UA AE GB US UY UZ VU VA VE VN YE ZM ZW'.split(' ');
   const citiesByCountry = {
     AU: ['Brisbane','Sydney','Melbourne','Perth','Adelaide','Gold Coast','Canberra','Hobart','Darwin'],
@@ -245,7 +277,8 @@
     populateCities();
   };
   populateCountries();
-  country.addEventListener('change', () => { updatePhoneHint(); city.value = ''; populateCities(); });
+  syncIranWarning();
+  country.addEventListener('change', () => { updatePhoneHint(); city.value = ''; populateCities(); syncIranWarning(); });
 
   const renderCalendarView = () => {
     calendar.replaceChildren();
@@ -713,6 +746,11 @@
   root.querySelector('[data-submit]').addEventListener('click', async (event) => {
     showError('');
     if (submissionPending || !validateSection('contact') || !validateAccountPassword()) return;
+    if (!(await confirmIran())) {
+      goTo('contact');
+      country.focus();
+      return;
+    }
     submissionPending = true;
     const button = event.currentTarget;
     button.disabled = true;

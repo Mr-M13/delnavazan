@@ -26,4 +26,7 @@ $assert(str_contains($bookingScript, 'const prefilledCountry = country.value') &
 $assert(str_contains($bookingScript, 'current === suggestedPhonePrefix'), 'An untouched suggested phone prefix should follow country changes without overwriting an edited number.');
 $assert(str_contains($bookingScript, "if (prefix !== '+…') suggestedPhonePrefix = prefix"), 'A generic placeholder must not replace the last concrete auto-suggested phone prefix.');
 $assert(str_contains($bookingScript, 'validateAccountPassword') && str_contains($bookingScript, 'تکرار رمز با رمز حساب یکسان نیست.'), 'Password confirmation must identify the mismatched field without disclosing account existence.');
+$assert(str_contains($booking, 'data-iran-warning') && str_contains($booking, 'data-iran-dialog') && str_contains($booking, 'مدیر هنری دلنوازان (ایران)') && str_contains($booking, 'tel:+989101401910'), 'Booking must warn Iran residents before submission and expose the artistic-director contact.');
+$assert(str_contains($booking, 'دلنوازان امکان پذیرش هنرجوی ساکن داخل ایران را ندارد') && str_contains($booking, 'آموزش حضوری همیشه بر آموزش آنلاین ترجیح داده می‌شود'), 'The Iran warning must carry the requested residency and in-person-learning message.');
+$assert(str_contains($bookingScript, 'confirmIran') && str_contains($bookingScript, 'syncIranWarning') && str_contains($bookingScript, 'iranAcknowledged'), 'The Iran warning must be a client-side confirmation gate that keeps the country field editable.');
 echo "Booking to student journey contract passed\n";

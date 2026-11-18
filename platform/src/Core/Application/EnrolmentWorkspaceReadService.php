@@ -21,6 +21,8 @@ final class EnrolmentWorkspaceReadService {
     private array $importCompletedCache = array();
     /** @var array<int,array{offer_count:int,offered_teacher_count:int,response_deadline_at:?string,response_offer_sequence:?int}> */
     private array $offerSummaryCache = array();
+    /** A failed optional read must never take the operator screen down. */
+    private bool $offerSummaryUnavailable = false;
     /** @var array<string,mixed>|null */
     private ?array $organizerReadinessCache = null;
     private ?bool $teacherNoteTableCache = null;
@@ -92,29 +94,34 @@ final class EnrolmentWorkspaceReadService {
         $this->requireAny(array('dzn_view_booking_requests', 'dzn_manage_booking_request_coordination'));
         global $wpdb;
         $limit = max(1, min(50, $limit));
-        $rows = (array) $wpdb->get_results($wpdb->prepare(
-            "SELECT o.booking_request_id request_id,o.teacher_id,o.deadline_at,o.offer_sequence,
-                    r.reference_code,
-                    COALESCE(NULLIF(s.display_name,''),NULLIF(snap.full_name,''),'Learner') learner_name,
-                    COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name,'Teacher') teacher_name,
-                    COALESCE(NULLIF(course.name_en,''),course.name_fa,'Introductory course') course_name,
-                    COALESCE(NULLIF(i.name_en,''),i.name_fa,'Instrument') instrument_name,
-                    rt.starts_at_utc,rt.local_date,rt.local_start_time,rt.timezone
-               FROM {$this->p}booking_allocation_offers o
-               INNER JOIN {$this->p}booking_requests r ON r.id=o.booking_request_id
-               INNER JOIN {$this->p}teachers t ON t.id=o.teacher_id
-               INNER JOIN {$this->p}booking_request_requested_times rt ON rt.id=o.requested_time_id AND rt.booking_request_id=r.id
-               LEFT JOIN {$this->p}booking_request_contact_snapshots snap ON snap.booking_request_id=r.id AND snap.snapshot_sequence=1
-               LEFT JOIN {$this->p}students s ON s.id=r.student_id
-               LEFT JOIN {$this->p}courses course ON course.id=r.selected_intro_course_id
-               LEFT JOIN {$this->p}instruments i ON i.id=r.requested_instrument_id
-              WHERE o.state='pending' AND o.active_slot=1
-                AND r.lifecycle_status='submitted' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL
-                AND NOT EXISTS (SELECT 1 FROM {$this->p}booking_request_confirmations c WHERE c.booking_request_id=r.id AND c.state<>'failed')
-              ORDER BY o.deadline_at,o.id LIMIT %d",
-            $limit
-        ));
-        if ($wpdb->last_error !== '') throw new \RuntimeException('Intro Teacher response queue unavailable');
+        try {
+            $rows = (array) $wpdb->get_results($wpdb->prepare(
+                "SELECT o.booking_request_id request_id,o.teacher_id,o.deadline_at,o.offer_sequence,
+                        r.reference_code,
+                        COALESCE(NULLIF(s.display_name,''),NULLIF(snap.full_name,''),'Learner') learner_name,
+                        COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name,'Teacher') teacher_name,
+                        COALESCE(NULLIF(course.name_en,''),course.name_fa,'Introductory course') course_name,
+                        COALESCE(NULLIF(i.name_en,''),i.name_fa,'Instrument') instrument_name,
+                        rt.starts_at_utc,rt.local_date,rt.local_start_time,rt.timezone
+                   FROM {$this->p}booking_allocation_offers o
+                   INNER JOIN {$this->p}booking_requests r ON r.id=o.booking_request_id
+                   INNER JOIN {$this->p}teachers t ON t.id=o.teacher_id
+                   INNER JOIN {$this->p}booking_request_requested_times rt ON rt.id=o.requested_time_id AND rt.booking_request_id=r.id
+                   LEFT JOIN {$this->p}booking_request_contact_snapshots snap ON snap.booking_request_id=r.id AND snap.snapshot_sequence=1
+                   LEFT JOIN {$this->p}students s ON s.id=r.student_id
+                   LEFT JOIN {$this->p}courses course ON course.id=r.selected_intro_course_id
+                   LEFT JOIN {$this->p}instruments i ON i.id=r.requested_instrument_id
+                  WHERE o.state='pending' AND o.active_slot=1
+                    AND r.lifecycle_status='submitted' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL
+                    AND NOT EXISTS (SELECT 1 FROM {$this->p}booking_request_confirmations c WHERE c.booking_request_id=r.id AND c.state<>'failed')
+                  ORDER BY o.deadline_at,o.id LIMIT %d",
+                $limit
+            ));
+            if ($wpdb->last_error !== '') throw new \RuntimeException('Intro Teacher response queue unavailable');
+        } catch (\Throwable $error) {
+            error_log('[Delnavazan intro teacher responses] ' . get_class($error) . ': ' . $error->getMessage());
+            return array();
+        }
         $this->primeOfferSummaries(array_map(static fn(object $row): int => (int) ($row->request_id ?? 0), $rows));
         $out = array();
         $now = time();
@@ -402,16 +409,21 @@ final class EnrolmentWorkspaceReadService {
         ));
         $newRequestRows = array();
         if ($canBookings) {
-            $newRequestRows = $wpdb->get_results($wpdb->prepare(
-                "SELECT r.id,r.created_at,
-                        (SELECT MIN(rt.starts_at_utc) FROM {$this->p}booking_request_requested_times rt WHERE rt.booking_request_id=r.id) first_start
-                   FROM {$this->p}booking_requests r
-                  WHERE r.lifecycle_status='submitted' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL
-                    AND r.created_at>=%s
-                    AND NOT EXISTS (SELECT 1 FROM {$this->p}coordination_cases cc WHERE cc.booking_request_id=r.id)
-                  ORDER BY r.created_at",
-                $from
-            )) ?: array();
+            try {
+                $newRequestRows = $wpdb->get_results($wpdb->prepare(
+                    "SELECT r.id,r.created_at,
+                            (SELECT MIN(rt.starts_at_utc) FROM {$this->p}booking_request_requested_times rt WHERE rt.booking_request_id=r.id) first_start
+                       FROM {$this->p}booking_requests r
+                      WHERE r.lifecycle_status='submitted' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL
+                        AND r.created_at>=%s
+                        AND NOT EXISTS (SELECT 1 FROM {$this->p}coordination_cases cc WHERE cc.booking_request_id=r.id)
+                      ORDER BY r.created_at",
+                    $from
+                )) ?: array();
+            } catch (\Throwable $error) {
+                error_log('[Delnavazan enrolment snapshot] ' . get_class($error) . ': ' . $error->getMessage());
+                $newRequestRows = array();
+            }
         }
         $newRequests = count($newRequestRows); $newRequestsAging = 0; $newRequestsUrgent = 0;
         $nowTs = strtotime($now . ' UTC');
@@ -1181,9 +1193,17 @@ final class EnrolmentWorkspaceReadService {
 
     /** @param list<int> $requestIds */
     private function primeOfferSummaries(array $requestIds): void {
-        $missing = array_values(array_filter(array_unique(array_map('intval', $requestIds)), static fn(int $id): bool => $id > 0 && !array_key_exists($id, $this->offerSummaryCache)));
+        $missing = array_values(array_filter(array_unique(array_map('intval', $requestIds)), fn(int $id): bool => $id > 0 && !array_key_exists($id, $this->offerSummaryCache)));
         if (!$missing) return;
-        foreach ((new BookingAllocationRepository())->offerSummaries($missing) as $requestId => $summary) $this->offerSummaryCache[$requestId] = $summary;
+        try {
+            $summaries = (new BookingAllocationRepository())->offerSummaries($missing);
+        } catch (\Throwable $error) {
+            // Optional evidence: a failed read must not block the operator queue.
+            error_log('[Delnavazan offer summary] ' . get_class($error) . ': ' . $error->getMessage());
+            $this->offerSummaryUnavailable = true;
+            $summaries = array();
+        }
+        foreach ($summaries as $requestId => $summary) $this->offerSummaryCache[$requestId] = $summary;
         foreach ($missing as $requestId) $this->offerSummaryCache[$requestId] ??= array('offer_count' => 0, 'offered_teacher_count' => 0, 'response_deadline_at' => null, 'response_offer_sequence' => null);
     }
 
@@ -1197,7 +1217,7 @@ final class EnrolmentWorkspaceReadService {
      * The as-of-now offer state shown beside the Teacher column. Deadline text is
      * rendered server-side and refreshed by the admin countdown script.
      *
-     * @return array{offer_count:int,offered_teacher_count:int,response_deadline_at:?string,response_deadline_iso:string,response_remaining_seconds:int,response_remaining_label:string,response_expired:bool,is_pending:bool}
+     * @return array{offer_count:int,offered_teacher_count:int,response_deadline_at:?string,response_deadline_iso:string,response_remaining_seconds:int,response_remaining_label:string,response_expired:bool,is_pending:bool,unavailable:bool}
      */
     private function teacherOffer(int $requestId, ?array $pendingDelivery): array {
         $summary = $this->offerSummary($requestId);
@@ -1213,6 +1233,7 @@ final class EnrolmentWorkspaceReadService {
             'response_remaining_label' => $deadline !== '' ? $this->remainingLabel($remaining) : 'Not offered yet',
             'response_expired' => $awaitingResponse && $remaining <= 0,
             'is_pending' => $awaitingResponse && $remaining > 0,
+            'unavailable' => $this->offerSummaryUnavailable,
         );
     }
 

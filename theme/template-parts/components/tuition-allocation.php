@@ -19,12 +19,11 @@ if ( class_exists( '\Delnavazan\Platform\Core\Application\Finance\TuitionAllocat
 ?>
 <section class="dzn-allocation dzn-allocation--transparency" aria-labelledby="<?php echo esc_attr( $id ); ?>">
 	<div class="dzn-allocation__heading">
-		<h2 id="<?php echo esc_attr( $id ); ?>">مبلغ دریافتی یک ترم و تخصیص هزینه‌ها</h2>
+		<h2 id="<?php echo esc_attr( $id ); ?>">دلنوازان شهریه دریافتی رو چگونه هزینه می کند. (تخمینی و صرفا جهت اطلاع)</h2>
 	</div>
 	<p class="dzn-allocation__notice" role="note">این اطلاعات صرفاً برآوردی است و بر اساس تعداد ترم‌های فعال می‌تواند تغییر کند؛ دلنوازان تلاش می‌کند این تخمین را به‌روز نگه دارد.</p>
 	<?php if ( $categories ) : ?>
-		<details class="dzn-allocation__details">
-			<summary>مشاهدهٔ درصدهای برآوردی تخصیص</summary>
+		<div class="dzn-allocation__details">
 			<p class="dzn-allocation__intro">شهریهٔ دریافتی، پس از کسر سهم دلنوازان، به نسبت‌های زیر برای ادارهٔ آموزش، پشتیبانی و رشد دلنوازان در نظر گرفته می‌شود. این نسبت‌ها یک برآورد برنامه‌ریزی‌شده است، نه گزارش هزینهٔ حسابرسی‌شده.</p>
 			<div class="dzn-allocation__bar" aria-hidden="true">
 				<?php foreach ( $categories as $row ) : ?>
@@ -45,7 +44,7 @@ if ( class_exists( '\Delnavazan\Platform\Core\Application\Finance\TuitionAllocat
 					<tfoot><tr><th scope="row">جمع</th><td dir="ltr">100.0%</td></tr></tfoot>
 				</table>
 			</div>
-		</details>
+		</div>
 	<?php else : ?>
 		<p class="dzn-allocation__empty" role="status">جزئیات برآوردی تخصیص شهریه در حال حاضر در دسترس نیست.</p>
 	<?php endif; ?>

@@ -140,6 +140,7 @@ $show_provisioning = 'ok' === $state && $provisioning
 			<?php dzn_theme_portal_component( 'profile', array( 'profile' => $model['profile'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'account-status', array( 'status' => $model['account_status'] ?? array() ) ); ?>
 			<?php dzn_theme_portal_component( 'recording-choices', array( 'recording' => $model['recording_choices'] ?? array() ) ); ?>
+			<?php dzn_theme_component( 'tuition-allocation', array( 'id' => 'student-tuition-allocation' ) ); ?>
 		<?php else : ?>
 			<?php dzn_theme_portal_component( 'reschedule', array( 'items' => $model['reschedule_proposals'] ?? array() ) ); ?>
 			<?php

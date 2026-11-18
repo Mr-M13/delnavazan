@@ -97,7 +97,15 @@ $fail('the account claim keeps its dedicated secure authority contract', $claim[
 $fail('the account claim preview never shows a real code', NotificationCatalogue::previewVariables('account.claim_issued.student')['claim_code'] === '[one-time code]');
 $invitation = NotificationCatalogue::get('teacher.invitation_issued.teacher');
 $fail('the teacher invitation is owned by a dedicated authority', $invitation['authority'] === 'dedicated' && in_array('dedicated_authority', NotificationCatalogue::reviewFor('teacher.invitation_issued.teacher'), true));
-$fail('a dedicated event never offers a general editor path', $invitation['channels'] === array('email','sms'));
+$fail('a dedicated event keeps every non-email copy notification-only', (static function () use ($placeholders): bool {
+    foreach (array('website', 'whatsapp', 'sms') as $channel) {
+        foreach (NotificationCatalogue::SUPPORTED_LOCALES as $locale) {
+            $copy = NotificationCatalogue::exactCopy('teacher.invitation_issued.teacher', $channel, $locale);
+            if (!is_array($copy) || $placeholders((string) $copy['body']) !== array()) return false;
+        }
+    }
+    return true;
+})());
 $fail('the teacher invitation SMS copy is notification-only: present in both locales and carries no code or link', NotificationCatalogue::exactCopy('teacher.invitation_issued.teacher','sms','fa-IR')['body']!==null && NotificationCatalogue::exactCopy('teacher.invitation_issued.teacher','sms','en')['body']!==null && $placeholders((string) NotificationCatalogue::exactCopy('teacher.invitation_issued.teacher','sms','fa-IR')['body']) === array() && $placeholders((string) NotificationCatalogue::exactCopy('teacher.invitation_issued.teacher','sms','en')['body']) === array());
 foreach (NotificationCatalogue::events() as $eventKey => $event) {
     foreach ((array) $event['channels'] as $channel) {
@@ -146,6 +154,7 @@ $fail('the inventory is generated from the current catalogue version', (string) 
 /* 6. The administration surface separates completeness, drafts, publication, approvals, delivery and
  *    producer state, and the bulk publish path is gated by an explicit editorial approval. */
 $controller = (string) file_get_contents($root . '/src/Admin/Controller/NotificationManagementController.php');
+$fail('a dedicated event never opens the general editor', str_contains($controller, '$isDedicated') && str_contains($controller, '$editable=self::canEdit()&&!$isDedicated&&$offered;'));
 $librarySource = (string) file_get_contents($root . '/src/Integrations/Notifications/NotificationTemplateLibrary.php');
 foreach (array('Catalogue copy', 'Drafts', 'Publication', 'Approvals', 'Delivery', 'Producer') as $dimension) {
     $fail('the catalogue row reports ' . $dimension . ' separately', str_contains($controller, "'" . $dimension . "'"));

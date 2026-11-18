@@ -119,9 +119,14 @@ final class NotificationTemplateSanitizer {
         // The inbox row carries its own link and must never contain a one-time secret, so website copy
         // has no mandatory placeholder beyond being non-empty.
         if($channel==='website')return array();
+        $event=NotificationCatalogue::get($eventKey);
+        $dedicated=is_array($event)&&(string)($event['authority']??'')==='dedicated';
         $required=array();
         foreach(array('when','claim_code','claim_url','invitation_code','join_url') as $code){
             if($code==='join_url'&&$channel==='sms')continue;
+            // A dedicated one-time invitation carries its secret only in the email. Its portal,
+            // WhatsApp and SMS copies are notification-only, so they are never forced to re-add it.
+            if($dedicated&&in_array($channel,array('sms','whatsapp'),true)&&in_array($code,array('claim_url','invitation_code','claim_code'),true))continue;
             // The invitation SMS is deliberately notification-only: the one-time code and the claim link
             // are delivered only in the email, so an SMS edit can never be forced to re-add the secret.
             if($channel==='sms'&&in_array($code,array('claim_url','invitation_code'),true))continue;
@@ -138,6 +143,10 @@ final class NotificationTemplateSanitizer {
      */
     public static function requiredActionLinks(string $eventKey,string $channel='email'):array{
         if(in_array($channel,array('website','sms'),true))return array();
+        // A dedicated one-time invitation keeps its secret link in the email only. Its WhatsApp copy
+        // is a notification that the invitation was issued, so it carries no action destination.
+        $event=NotificationCatalogue::get($eventKey);
+        if($channel==='whatsapp'&&is_array($event)&&(string)($event['authority']??'')==='dedicated')return array();
         $variables=NotificationCatalogue::variables($eventKey);
         $links=array();
         foreach(array('portal_url','teacher_portal_url','payment_url','survey_url','claim_url','join_url') as $code){

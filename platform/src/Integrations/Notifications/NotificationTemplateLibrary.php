@@ -129,7 +129,6 @@ final class NotificationTemplateLibrary {
     /** The per-event control supplements category defaults; it never overrides a legal safeguard. */
     public function eventChannelEnabled(string $eventKey,string $channel):bool{
         if(!$this->channelOffered($eventKey,$channel))return false;
-        if($eventKey==='account.claim_issued.student'&&in_array($channel,array('whatsapp','sms'),true))return false;
         $saved=$this->option(self::OPTION_EVENT_CHANNELS);
         if(isset($saved[$eventKey])&&array_key_exists($channel,(array)$saved[$eventKey]))return !empty($saved[$eventKey][$channel]);
         // The catalogue owns defaults. Email and portal begin enabled when an event supports them;
@@ -140,9 +139,6 @@ final class NotificationTemplateLibrary {
     public function saveEventChannel(string $eventKey,string $channel,bool $enabled):array{
         $event=NotificationCatalogue::get($eventKey);
         if($event===null||!in_array($channel,(array)$event['channels'],true))throw new \InvalidArgumentException('notification_channel_unknown');
-        // The discovered account-claim WhatsApp template is rejected. One-time account claims must
-        // remain on their dedicated secure email route until a separately reviewed authority exists.
-        if($enabled&&$eventKey==='account.claim_issued.student'&&in_array($channel,array('whatsapp','sms'),true))throw new \InvalidArgumentException('notification_channel_secure_route');
         $saved=$this->option(self::OPTION_EVENT_CHANNELS);
         $saved[$eventKey]=is_array($saved[$eventKey]??null)?$saved[$eventKey]:array();
         $saved[$eventKey][$channel]=$enabled;

@@ -16,7 +16,7 @@ The catalogue still preserves every source event key and does not silently activ
 
 ## 2026-11-18 follow-up
 
-- The catalogue card is now a title, the four delivery switches (Portal, Email, WhatsApp, SMS) and Open. Green means effectively active; red means inactive or blocked. The purpose paragraph and the duplicate event-level control were removed.
+- The catalogue card is now a title, four delivery switches (Portal, Email, WhatsApp, SMS) and Open. Green means effectively active; red means inactive or blocked. Every event offers every method. Where an event has no authored copy for a method, the catalogue derives an editable default from that event's own copy in the same language, never carrying a one-time secret into another channel. The administrator can switch a method on or off even before it is ready; sending remains fail-closed and the tooltip names the exact blocker. The purpose paragraph and the duplicate event-level control were removed.
 - The editor consolidates Delivery, Variable Contract and Status into one overview card, then shows one tab per delivery method with that method's preview, copy, provider mapping, draft approval and history.
 - A Teacher's new introductory booking request creates the whole Term in one projection. The per-class access-ready notice is suppressed for that projection; the existing enrolment-activated notice is the single Term-level message. A normal single schedule still sends access-ready.
 - The one-time catalogue action approves and publishes every stored draft once. It is capability/nonce gated, requires the literal confirmation `APPROVE ALL`, records its use and refuses a second run. It never enables a channel or sends a message.

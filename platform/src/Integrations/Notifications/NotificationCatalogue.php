@@ -23,9 +23,20 @@ namespace Delnavazan\Platform\Integrations\Notifications;
  *   never rendered into a message.
  */
 final class NotificationCatalogue {
-    public const VERSION='2026-11-18.1';
+    public const VERSION='2026-11-18.2';
     public const PRIMARY_LOCALE='fa-IR';
     public const SUPPORTED_LOCALES=array('fa-IR','en');
+
+    /**
+     * Every notification exposes every supported delivery method. The administrator decides which
+     * methods are on for an event; a method is never removed from the workspace because a copy or a
+     * producer is not ready yet. Readiness reports what each route still needs, and the copy is
+     * editable before the route is enabled.
+     */
+    public const CHANNELS=array('website','email','whatsapp','sms');
+
+    /** One-time secrets that a derived copy must never carry into another channel. */
+    private const SECRET_VARIABLES=array('claim_code','claim_url','invitation_code');
 
     /** Notification categories, their editorial tone and their channel policy class. */
     public const CATEGORIES=array(
@@ -121,13 +132,18 @@ final class NotificationCatalogue {
         $defaults=(array)($event['defaults']??array());
         if(isset($defaults[$locale][$channel]))return (array)$defaults[$locale][$channel];
         if(isset($defaults[self::PRIMARY_LOCALE][$channel]))return (array)$defaults[self::PRIMARY_LOCALE][$channel];
-        return null;
+        return self::derivedCopy($eventKey,$channel,$locale);
     }
 
     /**
      * The copy authored in exactly this language, or null. The administration workflow uses this rather
      * than `defaultCopy` so a missing English translation is reported instead of silently rendering the
      * Persian wording to an English recipient.
+     *
+     * An event that does not carry an explicit default for a method still gets a derived, editable
+     * default from its other authored copy in the same language. The derivation never invents facts:
+     * it reuses the event's own copy, keeps the required placeholders and never carries a one-time
+     * secret into another channel.
      *
      * @return array{subject:string,body:string}|null
      */
@@ -136,7 +152,106 @@ final class NotificationCatalogue {
         if($event===null)return null;
         $locale=self::normaliseLocale($locale);
         $copy=$event['defaults'][$locale][$channel]??null;
-        return is_array($copy)?(array)$copy:null;
+        if(is_array($copy))return (array)$copy;
+        return self::derivedCopy($eventKey,$channel,$locale);
+    }
+
+    /**
+     * Build a usable default for a method the event has no authored copy for. The source is the
+     * event's own longest-form copy in the same language, in an order that keeps the derived message
+     * short enough for the target channel. A security/dedicated event is stripped of every one-time
+     * secret first, so a portal, WhatsApp or SMS copy can never expose the claim code or claim link.
+     *
+     * @return array{subject:string,body:string}|null
+     */
+    private static function derivedCopy(string $eventKey,string $channel,string $locale):?array{
+        $event=self::get($eventKey);
+        if($event===null)return null;
+        $locale=self::normaliseLocale($locale);
+        $defaults=(array)($event['defaults']??array());
+        $sourceChannel=self::derivationSource($defaults,$locale,$channel);
+        if($sourceChannel===null)return null;
+        $source=(array)$defaults[$locale][$sourceChannel];
+        $body=trim((string)($source['body']??''));
+        if($body==='')return null;
+        $subject=trim((string)($source['subject']??''));
+        if($subject==='')$subject=(string)($event['label']??$eventKey);
+        $secure=(string)($event['authority']??'')==='dedicated'||(string)($event['consent']??'')==='security'||$eventKey==='account.claim_issued.student';
+        if($secure)$body=self::withoutSecrets($body);
+        $variables=(array)($event['variables']??array());
+        $link=self::derivedLinkVariable($event,$secure);
+        if($channel==='website'){
+            // The inbox row is a short summary, not a copy of the email. Take the first paragraph,
+            // drop a greeting/signature if the source was the email, and keep one safe destination.
+            $summary=trim((string)preg_replace('/\s+/u',' ',$body));
+            $summary=(string)preg_replace('/^(درود[^،]*،|Hello[^,]*,\s*)/u','',$summary);
+            $summary=(string)preg_replace('/(با احترام، دلنوازان|Delnavazan)$/u','',$summary);
+            $summary=trim($summary);
+            if(mb_strlen($summary)>300)$summary=mb_substr($summary,0,300);
+            $body=$summary;
+            if($link!==null&&!str_contains($body,'{{'.$link.'}}'))$body.=' '.($locale==='en'?'Details':'جزئیات').': {{'.$link.'}}';
+            return array('subject'=>mb_substr($subject,0,60),'body'=>$body);
+        }
+        if($channel==='sms'){
+            // SMS is a short notification, never the email body. Use the state-specific opening of
+            // the event's own copy (placeholders removed), then re-add only the required time and one
+            // safe destination, so the message stays inside two UCS-2 segments and never collides
+            // with a sibling state's SMS.
+            $excerpt=trim((string)preg_replace('/\s+/u',' ',(string)preg_replace('/\{\{[^}]*\}\}/','',$body)));
+            $parts=array(mb_substr($excerpt,0,80));
+            if(in_array('when',$variables,true))$parts[]='{{when}}';
+            if($link!==null)$parts[]='{{'.$link.'}}';
+            return array('body'=>($locale==='en'?'Delnavazan: ':'دلنوازان: ').implode(' — ',array_filter($parts)));
+        }
+        if($channel==='whatsapp'){
+            $body=trim((string)preg_replace('/\s+/u',' ',$body));
+            if(mb_strlen($body)>600)$body=mb_substr($body,0,600);
+            if($link!==null&&!str_contains($body,'{{'.$link.'}}'))$body.=' '.($locale==='en'?'Details':'جزئیات').': {{'.$link.'}}';
+            return array('body'=>($locale==='en'?'Hello, ':'درود، ').$body);
+        }
+        if($channel==='email'){
+            if($locale==='en'){
+                if(preg_match('/^\s*Hello\b/i',$body)!==1)$body="Hello,\n\n".$body;
+                $body.="\n\nDelnavazan";
+            }else{
+                if(str_starts_with(ltrim($body),'درود')!==true)$body="درود،\n\n".$body;
+                $body.="\n\nبا احترام، دلنوازان";
+            }
+            if($link!==null&&!str_contains($body,'{{'.$link.'}}'))$body.=($locale==='en'?"\n\nDetails:\n": "\n\nجزئیات:\n").'{{'.$link.'}}';
+        }
+        if($channel==='email')$subject=mb_substr($subject,0,60);
+        return array('subject'=>$subject,'body'=>$body);
+    }
+
+    /** @param array<string,array<string,array<string,string>>> $defaults */
+    private static function derivationSource(array $defaults,string $locale,string $channel):?string{
+        $order=match($channel){
+            'website'=>array('email','whatsapp','sms'),
+            'email'=>array('website','whatsapp','sms'),
+            'whatsapp'=>array('website','sms','email'),
+            'sms'=>array('website','whatsapp','email'),
+            default=>array(),
+        };
+        foreach($order as $candidate){
+            $copy=$defaults[$locale][$candidate]??null;
+            if(is_array($copy)&&trim((string)($copy['body']??''))!=='')return $candidate;
+        }
+        return null;
+    }
+
+    /** The one destination a derived message may safely use; never a one-time claim link. */
+    private static function derivedLinkVariable(array $event,bool $secure):?string{
+        $variables=(array)($event['variables']??array());
+        $order=$secure?array('portal_url','teacher_portal_url','payment_url','survey_url','join_url'):array('portal_url','teacher_portal_url','payment_url','survey_url','join_url','claim_url');
+        foreach($order as $code)if(in_array($code,$variables,true))return $code;
+        return null;
+    }
+
+    private static function withoutSecrets(string $body):string{
+        foreach(self::SECRET_VARIABLES as $variable){
+            $body=str_replace('{{'.$variable.'}}','',$body);
+        }
+        return trim((string)preg_replace('/[ \t]+\n/u',"\n",$body));
     }
 
     /**
@@ -427,10 +542,14 @@ final class NotificationCatalogue {
         $out[]=self::event('teacher.invitation_issued.teacher','Teacher Invitation','security','teacher','TeacherInvitationDeliveryWorker','dedicated',array('email','sms'),'security',true,array('invitation_code','claim_url'),'teacher.invitation',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دعوت به همکاری با دلنوازان','body'=>"درود،\n\nبرای شما دعوت‌نامهٔ همکاری با آکادمی موسیقی دلنوازان صادر شده است.\n\nبرای شروع، پیوند زیر را باز کنید و کد یک‌بارمصرف را وارد کنید:\n{{claim_url}}\n\nکد دعوت: {{invitation_code}}\n\nاین کد فقط یک‌بار قابل استفاده است و باید محرمانه بماند. اگر این دعوت را انتظار نداشتید، این پیام را نادیده بگیرید.\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'دعوت به همکاری با دلنوازان','body'=>'دعوت‌نامهٔ همکاری برای شما صادر شد. پیوند و کد یک‌بارمصرف فقط در ایمیل شماست.'),
+                'whatsapp'=>array('body'=>'دلنوازان: دعوت‌نامهٔ همکاری برای شما صادر شد. پیوند و کد یک‌بارمصرف در ایمیل شماست.'),
                 'sms'=>array('body'=>'دلنوازان: دعوت‌نامهٔ همکاری برای شما صادر شد. کد و پیوند در ایمیل شماست.'),
             ),
             'en'=>array(
                 'email'=>array('subject'=>'An invitation to teach with Delnavazan','body'=>"Hello,\n\nYou have been invited to teach with the Delnavazan music academy.\n\nTo begin, open the link below and enter the one-time code:\n{{claim_url}}\n\nInvitation code: {{invitation_code}}\n\nThis code can be used once and must stay confidential. If you did not expect this invitation, ignore this message.\n\nDelnavazan"),
+                'website'=>array('subject'=>'An invitation to teach with Delnavazan','body'=>'Your teaching invitation has been issued. The one-time link and code are only in your email.'),
+                'whatsapp'=>array('body'=>'Delnavazan: your teaching invitation has been issued. The one-time link and code are in your email.'),
                 'sms'=>array('body'=>'Delnavazan: your teaching invitation has been issued. The code and link are in your email.'),
             ),
         ),array('security','dedicated_authority'));
@@ -1042,6 +1161,11 @@ final class NotificationCatalogue {
         if(!isset(self::AUTHORITIES[$authority]))throw new \InvalidArgumentException('notification_authority_invalid');
         foreach($variables as $variable)if(preg_match('/^[a-z][a-z0-9_]{0,63}$/',$variable)!==1)throw new \InvalidArgumentException('notification_variable_invalid');
         foreach($review as $code)if(!isset(self::REVIEW[$code]))throw new \InvalidArgumentException('notification_review_invalid');
+        // The per-event list records which methods a producer was originally built for, but it no
+        // longer removes a method from the administrator's workspace. Every event offers every
+        // method; readiness decides whether a route can send, and the administrator decides whether
+        // it is on. `$channels` stays in the signature so the historical declaration is readable.
+        $channels=self::CHANNELS;
         return array(
             'key'=>$key,'label'=>$label,'purpose'=>self::purpose($key,$label,$audience),'category'=>$category,'audience'=>$audience,'producer'=>$producer,
             'authority'=>$authority,'channels'=>$channels,'consent'=>$consent,'mandatory'=>$mandatory,

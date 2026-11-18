@@ -561,7 +561,7 @@ namespace {
     $offSms = $stateMethod->invoke(null, $library, $smsEvent, 'sms');
     $fail('off SMS still shows unavailable selected routes', $offSms['state']==='disabled' && !empty($offSms['enable_blocked']) && str_contains($offSms['reason'], 'unavailable'));
     $controllerSource=(string)file_get_contents(dirname(__DIR__).'/src/Admin/Controller/NotificationManagementController.php');
-    $fail('server rejects enabling blocked channels', str_contains($controllerSource, "notification_channel_unavailable") && str_contains($controllerSource, 'channelBlocker'));
+    $fail('enabling a blocked channel stores intent and keeps the blocker visible', str_contains($controllerSource, 'self::channelBlocker($library,$eventKey,$channel)') && str_contains($controllerSource, 'Sending will start when this is resolved.'));
 
     /* 10. Template/provider readiness is evaluated independently of the current on/off value. A
      * configured WhatsApp provider with no mapped template must still block enabling, and the
@@ -580,7 +580,7 @@ namespace {
     $fail('a configured provider without a mapping stays not_mapped', $unmappedStatus['provider_state'] === 'not_mapped');
     $fail('an off channel keeps both the off notice and its provider issue', str_contains($unmappedIssues, 'disabled') && str_contains($unmappedIssues, 'Meta'));
     $unmappedState = $stateMethod->invoke(null, $library, $unmappedEvent, 'whatsapp');
-    $fail('configured provider without a mapping blocks enabling', $unmappedState['state'] === 'disabled' && $unmappedState['enable_blocked'] === true && str_contains($unmappedState['reason'], 'Provider approval'));
+    $fail('configured provider without a mapping keeps the blocker visible while off', $unmappedState['state'] === 'disabled' && $unmappedState['enable_blocked'] === true && str_contains($unmappedState['reason'], 'Provider approval'));
     $unmappedBlocker = $blockerMethod->invoke(null, $library, $unmappedEvent, 'whatsapp');
     $fail('the toggle handler receives the same unavailable blocker', is_array($unmappedBlocker) && $unmappedBlocker['state'] === 'missing_provider');
     $canonicalBlocker = $blockerMethod->invoke(null, $library, 'account.claim_issued.student', 'whatsapp');
@@ -588,7 +588,7 @@ namespace {
     $operationalFinanceBlocker = $blockerMethod->invoke(null, $library, 'renewal.automatic_charged.student', 'email');
     $fail('a wired finance event is never held for editorial approval', is_array($operationalFinanceBlocker) && $operationalFinanceBlocker['state'] !== 'awaiting_approval');
     $fail('an unsupported channel is not described as a fault', (static function () use ($stateMethod, $library): bool {
-        $unsupported = $stateMethod->invoke(null, $library, 'account.claim_issued.student', 'website');
+        $unsupported = $stateMethod->invoke(null, $library, 'unknown.event', 'email');
         return $unsupported['state'] === 'unsupported' && $unsupported['label'] === 'Not offered';
     })());
     $fail('a ready channel has no blocker', $blockerMethod->invoke(null, $library, $event, 'website') === null);
@@ -679,7 +679,7 @@ namespace {
     $fail('the coverage report tracks prepared and approved drafts separately', isset($coverage['drafts'], $coverage['drafts_approved']) && $coverage['drafts'] > $coverage['drafts_approved']);
     $fail('the coverage report keeps canonical gaps visible', in_array('account.claim_issued.student', $coverage['unpublished_canonical'], true));
     $fail('the coverage report no longer marks wired renewal producers declared-only', $coverage['declared_only'] === array());
-    $fail('the coverage report classifies unsupported routes separately', in_array('booking.confirmed.student.sms', $coverage['unsupported'], true));
+    $fail('the coverage report has no unsupported route once every event offers every method', $coverage['unsupported'] === array());
     $fail('the coverage report keeps unmapped WhatsApp routes visible', in_array('lesson.reminder.student', $coverage['unmapped_whatsapp'], true));
 
     /* 12. Exhaustive administration matrix: every catalogue event and every offered channel can be
@@ -698,7 +698,6 @@ namespace {
             $library->saveEventChannel($matrixEvent, (string) $matrixChannel, false);
             $fail('every offered channel can be disabled: ' . $matrixEvent . '/' . $matrixChannel, $library->eventChannelEnabled($matrixEvent, (string) $matrixChannel) === false);
             $fail('a disabled channel never dispatches: ' . $matrixEvent . '/' . $matrixChannel, NotificationChannelPolicy::allows($matrixEvent, (string) $matrixChannel) === false);
-            if ($matrixEvent === 'account.claim_issued.student' && in_array($matrixChannel, array('whatsapp', 'sms'), true)) continue;
             $library->saveEventChannel($matrixEvent, (string) $matrixChannel, true);
             $fail('a re-enabled channel preference is restored: ' . $matrixEvent . '/' . $matrixChannel, $library->eventChannelEnabled($matrixEvent, (string) $matrixChannel) === true);
         }
@@ -718,9 +717,12 @@ namespace {
     $controllerSource = (string) file_get_contents(dirname(__DIR__) . '/src/Admin/Controller/NotificationManagementController.php');
     $fail('SMS is presented as an independent method, never a fallback', !str_contains($controllerSource, 'SMS fallback') && !str_contains($controllerSource, 'WhatsApp → SMS') && !str_contains($controllerSource, 'notification_event_mandatory'));
     $fail('the workspace never claims a locked mandatory channel', !str_contains($controllerSource, 'cannot disable all channels') && !str_contains($controllerSource, 'Mandatory and locked'));
-    $fail('the restricted account-claim mobile route is still refused', (static function () use ($library): bool {
-        try { $library->saveEventChannel('account.claim_issued.student', 'whatsapp', true); } catch (InvalidArgumentException $error) { return $error->getMessage() === 'notification_channel_secure_route'; }
-        return false;
+    $fail('the account-claim mobile route is administrator-controllable', (static function () use ($library): bool {
+        $was = $library->eventChannelEnabled('account.claim_issued.student', 'whatsapp');
+        $library->saveEventChannel('account.claim_issued.student', 'whatsapp', true);
+        $on = $library->eventChannelEnabled('account.claim_issued.student', 'whatsapp');
+        $library->saveEventChannel('account.claim_issued.student', 'whatsapp', $was);
+        return $on && $library->eventChannelEnabled('account.claim_issued.student', 'whatsapp') === $was;
     })());
 
     /* 13. The administrator switch is consulted at provider hand-off, not only when the work was

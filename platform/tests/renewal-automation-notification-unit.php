@@ -40,7 +40,7 @@ namespace {
         $fail($key . ' is declared', is_array($event));
         $fail($key . ' targets the student', $event['audience'] === 'student');
         $fail($key . ' is a payment event', $event['category'] === 'payment');
-        $fail($key . ' offers email, website and whatsapp', $event['channels'] === array('email', 'website', 'whatsapp'));
+        $fail($key . ' offers every delivery method', $event['channels'] === NotificationCatalogue::CHANNELS);
         $fail($key . ' is financial and mandatory', $event['consent'] === 'financial' && $event['mandatory'] === true);
         $fail($key . ' has a registered producer', $event['implementation'] === 'implemented' && $event['producer_registered'] === true);
         $fail($key . ' is produced by the dedicated renewal service', $event['producer'] === 'RenewalAutomationNotificationService');

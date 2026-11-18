@@ -154,9 +154,15 @@ is never used to justify a booking, class, payment or security message.
 
 ## 10. Administrator delivery control
 
-An administrator may switch off any notification and any offered channel, including security, account and
+An administrator may switch off any notification and any delivery method, including security, account and
 payment notices, and including the portal and email routes that used to be locked.
 
+- Every notification offers every delivery method (portal, email, WhatsApp and SMS). The administrator
+  decides which methods are on; a method is never removed from the workspace because its copy or
+  provider is not ready.
+- Enabling a method records the administrator's intent. Sending remains fail-closed: a route with no
+  valid copy, no provider, no selected SMS route or no approved Meta WhatsApp template does not send.
+  The workspace names the exact blocker and keeps the switch available so the decision is visible.
 - Disabling delivery is never a business decision. It does not cancel a class, reverse a payment, revoke an
   account, refuse consent or alter a transaction record. Those authorities stay with the services that own
   them.
@@ -164,8 +170,6 @@ payment notices, and including the portal and email routes that used to be locke
   explicit before the change is saved.
 - A notification-wide switch off keeps the saved per-channel preferences. Re-enabling the notification
   restores exactly the channels that were on.
-- A channel that is genuinely unsupported, missing its copy, missing its provider or awaiting Meta approval
-  cannot be switched on. Disabling is always possible; enabling is fail-closed.
 - Every administrator change is written to the notification audit log.
 - Suppression is evaluated at enqueue, at claim and immediately before provider hand-off, so a queued
   notification or a retry obeys the current switch rather than the value it was created with.
@@ -205,6 +209,6 @@ administration surface must not merge them into one badge.
 | Awaiting approval | Sensitive canonical copy (security) needs its security owner | publish it from the editor after that sign-off |
 | Missing template | No usable copy exists for this route | prepare and approve a draft |
 | Missing provider | Provider configuration or approval is absent | configure the provider, or wait for Meta approval |
-| Not offered | This notification does not use this delivery method | none |
+| Not offered | Defensive state for an unknown event key or a method outside the closed four-method catalogue; every catalogue event offers all four | none |
 | Notification disabled | The event-wide switch is off | switch the notification on |
 | No producer | No service raises this event yet | implement the producer |

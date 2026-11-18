@@ -106,7 +106,9 @@ final class CanonicalLessonScheduleService {
             $eventId=$this->insertEvent($lesson,$facts,$applicable?'rescheduled':'scheduled',$applicable?(int)$applicable->id:null,$versionId,$now,$actor);
             do_action('dzn_phase_2a2n_after_event_insert',$operation,$lessonId);
             $this->insertCommand($digest,$payload,$operation,$facts,$resolved,$basis,$versionId,$eventId,'scheduled',$now,$actor);
-            do_action('dzn_phase_2a2n_after_command_insert',$operation,$lessonId);
+            // The controlled reason code lets a downstream listener distinguish a single manual
+            // schedule from a bulk term projection without guessing from the lesson identity.
+            do_action('dzn_phase_2a2n_after_command_insert',$operation,$lessonId,(string)($intent['reason_code']??''));
             return array('lesson_id'=>(int)$lesson->id,'schedule_version_id'=>$versionId,'created'=>true,'operation'=>$operation);
         });
     }

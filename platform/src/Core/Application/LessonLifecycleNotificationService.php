@@ -88,9 +88,9 @@ final class LessonLifecycleNotificationService {
             return PortalNotificationRecorder::teacher($recipientId,$eventKey,$sourceKind,$sourceId,$variables,$linkUrl);
         };
         $this->seen=$seen??array(__CLASS__,'alreadyRecorded');
-        $this->smsSender=$smsSender??static function(string $provider,string $to,int $notificationId,string $body):array{
+        $this->smsSender=$smsSender??static function(string $provider,string $to,int $notificationId,string $body,string $eventKey='',array $variables=array()):array{
             $settings=new IntegrationSettingsService();
-            if($provider==='sms_ir')return (new SmsIrAdapter($settings))->sendBookingNotification($to,$notificationId,$body);
+            if($provider==='sms_ir')return (new SmsIrAdapter($settings))->sendBookingNotification($to,$notificationId,$body,$eventKey,$variables);
             return (new TelnyxSmsAdapter($settings))->sendBookingNotification($to,$notificationId,$body);
         };
         $this->smsAllowed=$smsAllowed??static function(string $eventKey):bool{
@@ -113,14 +113,18 @@ final class LessonLifecycleNotificationService {
     }
 
     public static function register():void{
-        add_action('dzn_phase_2a2n_after_command_insert',array(__CLASS__,'onScheduleCommand'),10,2);
+        add_action('dzn_phase_2a2n_after_command_insert',array(__CLASS__,'onScheduleCommand'),10,3);
         add_action('dzn_phase_2a2m_after_lesson_transition',array(__CLASS__,'onLessonTransition'),10,2);
         add_action(self::DISPATCH_HOOK,array(__CLASS__,'onDispatch'),10,2);
     }
 
     /** Access is ready the moment the canonical schedule is first created, for both audiences. */
-    public static function onScheduleCommand(string $operation,int $lessonId):void{
+    public static function onScheduleCommand(string $operation,int $lessonId,string $reasonCode=''):void{
         if($operation==='schedule_initial'){
+            // Post-intro activation creates the whole Term in one projection. The single
+            // `post_intro.activated` notice is the Term-level message, so the per-Lesson
+            // access-ready notice must not be repeated once for every class in the Term.
+            if($reasonCode==='confirmed_booking_recurrence')return;
             self::queue(self::ACCESS_EVENT,$lessonId);
             self::queue(self::STUDENT_ACCESS_EVENT,$lessonId);
         }
@@ -302,7 +306,7 @@ final class LessonLifecycleNotificationService {
         if(class_exists(NotificationCopyResolver::class))$copy=NotificationCopyResolver::message($eventKey,'sms',NotificationCatalogue::PRIMARY_LOCALE,$variables,$copy);
         $body=trim((string)($copy['body']??''));
         if($body==='')return array('state'=>'skipped','reason'=>'sms_copy_unavailable');
-        try{$outcome=($this->smsSender)($provider,$e164,$notificationId,$body);}
+        try{$outcome=($this->smsSender)($provider,$e164,$notificationId,$body,$eventKey,$variables);}
         catch(\Throwable){return array('state'=>'failed','provider'=>$provider,'reason'=>'sms_exception');}
         if(!empty($outcome['acknowledged']))return array('state'=>'accepted','provider'=>$provider);
         $failure=(string)($outcome['permanent_failure']??'');

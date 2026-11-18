@@ -23,6 +23,7 @@ final class NotificationTemplateLibrary {
     public const OPTION_COPY_VERSIONS='dzn_notification_copy_versions';
     public const OPTION_DRAFTS='dzn_notification_copy_drafts';
     public const OPTION_APPROVALS='dzn_notification_copy_approvals';
+    public const OPTION_ONETIME_ALL='dzn_notification_one_time_all_drafts';
     public const OPTION_AUDIT='dzn_notification_copy_audit';
     public const OPTION_WHATSAPP='dzn_notification_whatsapp_templates';
     public const OPTION_EVENT_ENABLED='dzn_notification_event_enabled';
@@ -527,6 +528,58 @@ final class NotificationTemplateLibrary {
         }
         $this->audit('approve_operational_drafts','','','',null,'Bulk approval of '.$approved.' operational draft(s)');
         return array('approved'=>$approved,'skipped'=>$skipped);
+    }
+
+    /**
+     * The one-time owner action requested for the current catalogue migration.
+     *
+     * It approves and publishes every stored draft, including copy held by the normal bulk workflow
+     * for a security or provider review. Dedicated one-time-secret drafts remain with their owning
+     * secure sender. It is deliberately separate from `approveOperationalDrafts()` and
+     * `publishReviewedDrafts()`: those keep their fail-closed gates for every future draft. This action
+     * records its use once and then refuses a second run, so it cannot become a standing bypass. It
+     * never enables a delivery channel and never sends a message.
+     *
+     * @return array{published:string[],blocked:array<int,array{template_key:string,reason:string}>}
+     */
+    public function approveAndPublishEveryDraftOnce():array{
+        $used=$this->oneTimeAllDraftApproval();
+        if($used!==null)throw new \RuntimeException('The one-time all-draft approval was already used on '.$used['used_at'].' UTC by user '.$used['used_by'].'.');
+        $published=array();$blocked=array();$attempted=0;
+        foreach($this->drafts() as $key=>$row){
+            if(!is_array($row))continue;
+            $eventKey=(string)($row['event_key']??'');
+            $channel=(string)($row['channel']??'');
+            $locale=NotificationCatalogue::normaliseLocale((string)($row['locale']??''));
+            $event=NotificationCatalogue::get($eventKey);
+            if($event===null){$blocked[]=array('template_key'=>(string)$key,'reason'=>'Unknown notification event.');continue;}
+            if((string)($event['authority']??'')==='dedicated'){$blocked[]=array('template_key'=>(string)$key,'reason'=>'Owned by a dedicated secure delivery authority.');continue;}
+            $attempted++;
+            try{
+                // Approve the exact stored copy first, then publish it as a new immutable version. The
+                // approval digest is what proves the owner approved this wording; it is consumed by the
+                // publish rather than left behind as a reusable blanket permission.
+                $this->approveDraft($eventKey,$channel,$locale);
+                $this->publish($eventKey,$channel,$locale,(string)($row['subject']??''),(string)($row['body']??''),'authored');
+                $published[]=(string)$key;
+            }catch(\Throwable $error){
+                $blocked[]=array('template_key'=>(string)$key,'reason'=>$error->getMessage());
+            }
+        }
+        if($attempted>0){
+            $this->putOption(self::OPTION_ONETIME_ALL,array(
+                'used_at'=>$this->now(),'used_by'=>$this->actor(),
+                'published'=>count($published),'blocked'=>count($blocked),
+            ));
+            $this->audit('approve_and_publish_all_once','','','',null,'One-time approval and publication of every draft: '.count($published).' published, '.count($blocked).' blocked');
+        }
+        return array('published'=>$published,'blocked'=>$blocked);
+    }
+
+    /** The recorded one-time all-draft approval, or null when it has not been used. */
+    public function oneTimeAllDraftApproval():?array{
+        $row=$this->option(self::OPTION_ONETIME_ALL);
+        return is_array($row)&&isset($row['used_at'])?$row:null;
     }
 
     /**

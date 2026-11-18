@@ -9,7 +9,7 @@ namespace {
     function home_url(string $path = ''): string { return 'https://example.invalid' . $path; }
     function add_action(...$args): void {}
     function do_action(...$args): void {}
-    function wp_schedule_single_event(...$args): void {}
+    function wp_schedule_single_event(...$args): void { $GLOBALS['dzn_scheduled_events'][] = $args; }
     function wp_next_scheduled(...$args) { return false; }
 
     require_once dirname(__DIR__, 2) . '/platform/src/Integrations/Notifications/NotificationCatalogue.php';
@@ -19,6 +19,8 @@ namespace {
 
     use Delnavazan\Platform\Core\Application\LessonLifecycleNotificationService;
     use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
+
+    $GLOBALS['dzn_scheduled_events'] = array();
 
     $fail = static function (string $name, bool $ok): void {
         if (!$ok) throw new RuntimeException('Lesson lifecycle notification unit failed: ' . $name);
@@ -387,6 +389,15 @@ namespace {
     $fail('WhatsApp is delivered only through the existing provider-template adapter', str_contains($source, 'TelnyxWhatsAppAdapter') && str_contains($source, 'sendBookingNotification'));
     $fail('WhatsApp skips with a stable unmapped-template reason', str_contains($source, 'provider_template_not_mapped'));
     $fail('WhatsApp skips with a stable unconfigured-provider reason', str_contains($source, 'provider_not_configured'));
+
+    /* A post-intro Term creates every class in one projection. One activation notice covers the
+     * Term, so the per-class access-ready notice is not queued for that bulk schedule reason. */
+    $scheduledBefore = count($GLOBALS['dzn_scheduled_events']);
+    LessonLifecycleNotificationService::onScheduleCommand('schedule_initial', 901, 'confirmed_booking_recurrence');
+    $fail('the post-intro Term projection queues no per-class access-ready notice', count($GLOBALS['dzn_scheduled_events']) === $scheduledBefore);
+    LessonLifecycleNotificationService::onScheduleCommand('schedule_initial', 902);
+    $fail('a normal schedule still queues access-ready for both audiences', count($GLOBALS['dzn_scheduled_events']) === $scheduledBefore + 2);
+    $fail('the Term-level reason is explicit in the producer', str_contains($source, 'confirmed_booking_recurrence'));
 
     $worker = (string) file_get_contents(dirname(__DIR__, 2) . '/platform/src/Integrations/LessonReminderWorker.php');
     $fail('the reminder worker produces for both audiences without a duplicate send', str_contains($worker, 'notifyReminder(') && str_contains($worker, 'notifyStudentReminder('));

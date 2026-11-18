@@ -21,9 +21,11 @@ require_once $root . '/platform/src/Integrations/Notifications/NotificationTempl
 require_once $root . '/platform/src/Integrations/Notifications/NotificationCatalogue.php';
 require_once $root . '/platform/src/Integrations/Notifications/NotificationTemplateSanitizer.php';
 require_once $root . '/platform/src/Integrations/Notifications/TelnyxTemplateRegistry.php';
+require_once $root . '/platform/src/Integrations/Notifications/SmsIrTemplateRegistry.php';
 
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateSanitizer;
+use Delnavazan\Platform\Integrations\Notifications\SmsIrTemplateRegistry;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry;
 
 $catalogue = NotificationCatalogue::events();
@@ -71,7 +73,8 @@ foreach ($catalogue as $eventKey => $event) {
         'provider' => array(
             'whatsapp_registry_name' => $mappedWhatsApp,
             'whatsapp_state' => in_array('whatsapp', $channels, true) ? ($mappedWhatsApp === null ? 'not_mapped' : 'registry_present_discovery_unverified') : 'unsupported',
-            'sms_state' => in_array('sms', $channels, true) ? 'event_owned_route' : 'unsupported',
+            'sms_registry_key' => in_array('sms', $channels, true) && (string) $event['authority'] !== 'dedicated' ? SmsIrTemplateRegistry::keyForEvent($eventKey) : null,
+            'sms_state' => in_array('sms', $channels, true) ? ((string) $event['authority'] === 'dedicated' ? 'dedicated_secure_route' : 'approved_template_mapped') : 'unsupported',
         ),
     );
     foreach ($channels as $channel) {
@@ -150,6 +153,17 @@ foreach (TelnyxTemplateRegistry::definitions() as $name => $definition) {
     );
 }
 
+$smsRegistry = array();
+foreach (SmsIrTemplateRegistry::definitions() as $key => $definition) {
+    $smsRegistry[] = array(
+        'template_key' => $key,
+        'label' => (string) $definition['label'],
+        'body' => (string) $definition['body'],
+        'variables' => array_values((array) $definition['variables']),
+        'events' => $definition['events'] === '*' ? 'every SMS event' : array_values((array) $definition['events']),
+    );
+}
+
 $document = array(
     'generated_at' => gmdate('c'),
     'catalogue_version' => NotificationCatalogue::VERSION,
@@ -177,6 +191,7 @@ $document = array(
     'events_with_outstanding_review' => $reviewRequired,
     'whatsapp_routes_without_registry_mapping' => $unmappedWhatsApp,
     'whatsapp_registry' => $registry,
+    'sms_registry' => $smsRegistry,
     'unsupported_routes' => $unsupportedRoutes,
     'invalid_templates' => $invalid,
     'events' => $rows,
@@ -186,6 +201,7 @@ $document = array(
         'dzn_notification_copy_drafts and dzn_notification_copy_versions option presence',
         'dzn_notification_event_enabled and dzn_notification_event_channels option values',
         'Telnyx/Meta template approval status for every registry entry',
+        'SMS.ir approval status and the two configured provider template IDs',
         'Which provider templates were rejected (the account-claim template was rejected at last inspection)',
         'Integrated provider configuration for email, WhatsApp and each SMS route',
     ),
@@ -258,7 +274,7 @@ foreach ($rows as $row) {
     $copy = $copyMissing === 0 ? 'complete (fa + en)' : $copyMissing . ' missing';
     $provider = array();
     if (in_array('whatsapp', $row['channels'], true)) $provider[] = $row['provider']['whatsapp_state'] === 'not_mapped' ? 'WhatsApp: no Meta template' : 'WhatsApp: registry entry, approval unverified';
-    if (in_array('sms', $row['channels'], true)) $provider[] = 'SMS: event-owned route';
+    if (in_array('sms', $row['channels'], true)) $provider[] = $row['provider']['sms_state'] === 'dedicated_secure_route' ? 'SMS: dedicated secure route' : 'SMS: ' . (SmsIrTemplateRegistry::forEvent($row['event_key'])['label']) . ' (approved SMS.ir template)';
     if (in_array('email', $row['channels'], true)) $provider[] = 'Email: shell provider';
     if ($provider === array()) $provider[] = 'Portal only';
     $markdown[] = $line(
@@ -286,6 +302,25 @@ $markdown[] = '';
 $markdown[] = 'These routes keep their local copy for provider submission and remain disabled until an approved';
 $markdown[] = 'template is mapped. A locally prepared draft is never presented as a Meta-approved template.';
 $markdown[] = '';
+$markdown[] = '## 4b. SMS.ir provider templates';
+$markdown[] = '';
+$markdown[] = 'SMS.ir is the Iranian (+98) route. Every booking, lesson and renewal event-owned SMS uses one of';
+$markdown[] = 'the two approved bodies below; dedicated one-time-secret messages keep their own secure body.';
+$markdown[] = 'Telnyx carries international SMS with the catalogue copy. When a provider template ID is configured,';
+$markdown[] = 'the adapter calls the SMS.ir template endpoint with the uppercase parameter names; otherwise it sends';
+$markdown[] = 'the exact approved body through the bulk endpoint.';
+$markdown[] = '';
+$markdown[] = '| Template key | Label | Variables | Events |';
+$markdown[] = '|---|---|---|---|';
+foreach ($smsRegistry as $entry) {
+    $events = is_array($entry['events']) ? '`' . implode('`, `', $entry['events']) . '`' : $entry['events'];
+    $markdown[] = $line('`' . $entry['template_key'] . '` | ' . $entry['label'] . ' | ' . implode(', ', $entry['variables']) . ' | ' . $events);
+}
+$markdown[] = '';
+foreach ($smsRegistry as $entry) {
+    $markdown[] = '`' . $entry['template_key'] . '`: ' . str_replace("\n", ' / ', (string) $entry['body']);
+    $markdown[] = '';
+}
 $markdown[] = '## 5. Outstanding review';
 $markdown[] = '';
 if ($reviewRequired === array()) {

@@ -72,7 +72,7 @@ final class BookingNotificationMobileDispatcher {
         if (!$whatsappAttempted && !$studentWhatsAppPreferred && $this->allowed($eventKey, 'sms') && $smsProvider !== 'off' && $smsReady && (string) $contact['sms'] !== '') {
             $body = $this->smsBody($eventKey, $variables);
             if ($body === null) $results['sms'] = array('acknowledged' => false, 'permanent_failure' => 'sms_copy_unavailable');
-            else try {$results['sms'] = $this->sendSms((string) $contact['sms'], (int) $row->id, $body, $smsProvider);}
+            else try {$results['sms'] = $this->sendSms((string) $contact['sms'], (int) $row->id, $body, $smsProvider, $eventKey, $variables);}
             catch (\Throwable $error) {$this->report('sms_exception', (int) $row->id, $error->getMessage());$results['sms'] = array('acknowledged' => false, 'permanent_failure' => 'sms_exception');}
         }
         if ($results === array()) return self::skipped('no_enabled_mobile_channel');
@@ -140,9 +140,9 @@ final class BookingNotificationMobileDispatcher {
         return (new TelnyxWhatsAppAdapter($this->settings))->sendBookingNotification($to, $notificationId, $eventKey, $parameters);
     }
 
-    private function sendSms(string $to, int $notificationId, string $body, string $provider): array {
-        if (is_callable($this->smsSender)) return (array) ($this->smsSender)($to, $notificationId, $body);
-        if ($provider === 'sms_ir') return (new SmsIrAdapter($this->settings))->sendBookingNotification($to, $notificationId, $body);
+    private function sendSms(string $to, int $notificationId, string $body, string $provider, string $eventKey = '', array $variables = array()): array {
+        if (is_callable($this->smsSender)) return (array) ($this->smsSender)($to, $notificationId, $body, $eventKey, $variables);
+        if ($provider === 'sms_ir') return (new SmsIrAdapter($this->settings))->sendBookingNotification($to, $notificationId, $body, $eventKey, $variables);
         return (new TelnyxSmsAdapter($this->settings))->sendBookingNotification($to, $notificationId, $body);
     }
 

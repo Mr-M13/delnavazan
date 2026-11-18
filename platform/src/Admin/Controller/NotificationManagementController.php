@@ -15,6 +15,7 @@ use Delnavazan\Platform\Integrations\Notifications\NotificationManualSendService
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary;
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateSanitizer;
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateValidationException;
+use Delnavazan\Platform\Integrations\Notifications\SmsIrTemplateRegistry;
 use Delnavazan\Platform\Portals\PortalNotificationInbox;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 
@@ -42,6 +43,7 @@ final class NotificationManagementController {
         add_action('admin_post_dzn_notification_copy_save_draft',array(__CLASS__,'saveDraft'));
         add_action('admin_post_dzn_notification_prepare_drafts',array(__CLASS__,'prepareCatalogueDrafts'));
         add_action('admin_post_dzn_notification_approve_operational',array(__CLASS__,'approveOperationalDrafts'));
+        add_action('admin_post_dzn_notification_approve_all_drafts',array(__CLASS__,'approveAllDraftsOnce'));
         add_action('admin_post_dzn_notification_publish_drafts',array(__CLASS__,'publishReviewedDrafts'));
         add_action('admin_post_dzn_notification_approve_draft',array(__CLASS__,'approveDraft'));
         add_action('admin_post_dzn_notification_revoke_approval',array(__CLASS__,'revokeDraftApproval'));
@@ -70,6 +72,7 @@ final class NotificationManagementController {
         if($tab!=='events')$tab='events';
         $templateKey=isset($_GET['template'])?self::eventKey(wp_unslash((string)$_GET['template'])):'';
         echo '<div class="wrap dzn-notif-admin" dir="ltr"><style>.dzn-notif-admin{direction:ltr;max-width:100%;box-sizing:border-box}.dzn-notif-admin .nav-tab-wrapper{margin-block-end:16px}.dzn-notif-lede{max-width:78ch;color:#50575e}.dzn-notif-panel{background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:18px 20px;max-width:100%;box-sizing:border-box}.dzn-notif-panel h2{margin-block-start:6px}.dzn-notif-meta{color:#646970;font-size:12px;line-height:1.9;overflow-wrap:anywhere}.dzn-notif-note{color:#50575e;font-size:12px;line-height:1.9;background:#f6f7f7;border-inline-start:3px solid #0E8C8C;padding:8px 12px;border-radius:3px}.dzn-notif-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-block:14px}.dzn-notif-card{border:1px solid #dcdcde;border-radius:6px;padding:14px}.dzn-notif-card h3{margin-block-start:0}.dzn-notif-list{margin:0;padding-inline-start:18px;line-height:2}.dzn-notif-table td,.dzn-notif-table th{vertical-align:top}.dzn-notif-table details{margin-block:4px}.dzn-notif-table details pre{white-space:pre-wrap;font-family:Tahoma,Arial,sans-serif;line-height:1.9;margin:6px 0;max-height:180px;overflow:auto}.dzn-notif-preview{background:#FBF7EE;border:1px solid #e6dfd2;border-radius:8px;padding:10px}.dzn-notif-preview pre{white-space:pre-wrap;font-family:Tahoma,Arial,sans-serif;direction:rtl;margin:0;line-height:2}.dzn-notif-preview--text{background:#fff}.dzn-notif-editor textarea{font-family:Tahoma,Arial,sans-serif;line-height:2;direction:rtl}.dzn-notif-actions{display:flex;gap:8px;flex-wrap:wrap}.dzn-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#f0f0f1;color:#3c434a}.dzn-badge.is-ok{background:#edfaef;color:#1e6b2f}.dzn-badge.is-warn{background:#fcf3e6;color:#8a4b00}.dzn-badge.is-locked{background:#fbeaea;color:#8a1f1f}.dzn-notif-inline-form{display:flex;gap:4px;align-items:center;flex-wrap:wrap}.dzn-notif-admin code{direction:ltr;unicode-bidi:embed;overflow-wrap:anywhere;word-break:break-word}.dzn-notif-admin details pre{max-height:220px;overflow:auto;white-space:pre-wrap}.dzn-notif-record-status{border:1px solid #dcdcde;border-radius:6px;padding:12px 14px;margin-block:18px}.dzn-notif-record-status h2{margin-block-start:0}.dzn-channel-strip{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.dzn-channel-strip a{text-decoration:none}.dzn-notif-dialog{width:min(1080px,94vw);max-width:1080px;max-height:90vh;padding:0;border:0;border-radius:10px;box-shadow:0 24px 60px rgba(15,23,42,.35);direction:ltr;background:#fff}.dzn-notif-dialog::backdrop{background:rgba(15,23,42,.55)}.dzn-notif-dialog-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;background:#fff;border-block-end:1px solid #dcdcde}.dzn-notif-dialog-bar h2{margin:0;font-size:16px}.dzn-notif-dialog-body{max-height:calc(90vh - 56px);overflow:auto;padding:4px 20px 20px}.dzn-notif-lifecycle{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;margin:8px 0 0;font-size:11px;line-height:1.7}.dzn-notif-lifecycle dt{color:#646970;white-space:nowrap}.dzn-notif-lifecycle dd{margin:0}.dzn-notif-toolbar{position:sticky;top:32px;z-index:30;background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:10px 12px;margin-block:12px}.dzn-notif-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;border-top:1px solid #f0f0f1;padding-top:10px}.dzn-notif-chip{display:inline-block;padding:3px 12px;border:1px solid #dcdcde;border-radius:999px;font-size:12px;text-decoration:none;color:#1d2327;background:#fff}.dzn-notif-chip.is-active{background:#0E8C8C;border-color:#0E8C8C;color:#fff}.dzn-notif-task{margin-block:22px;max-width:100%;box-sizing:border-box}.dzn-notif-task h3{margin:0 0 10px}.dzn-notif-grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:12px;width:100%;max-width:100%;box-sizing:border-box}.dzn-notif-cardrow{border:1px solid #dcdcde;border-radius:8px;padding:12px 14px;background:#fff;display:flex;flex-direction:column;gap:8px;scroll-margin-top:150px;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}.dzn-notif-cardrow:hover{border-color:#0E8C8C;box-shadow:0 2px 8px rgba(15,23,42,.08)}.dzn-notif-cardhead{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:6px 8px}.dzn-notif-cardhead>div{min-width:0;flex:1 1 60%}.dzn-notif-cardhead>div>*{overflow-wrap:anywhere}.dzn-notif-cardhead .dzn-badge{flex:0 0 auto}.dzn-notif-cardhead strong{font-size:14px}.dzn-notif-cardrow-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px}.dzn-notif-channel-chips{display:flex;gap:6px;flex-wrap:wrap}.dzn-notif-channel-chip{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700}.chip-ok{background:#edfaef;color:#1e6b2f}.chip-warn{background:#fcf3e6;color:#8a4b00}.chip-off{background:#f0f0f1;color:#646970}.chip-locked{background:#fbeaea;color:#8a1f1f}.dzn-notif-drawer-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(15,23,42,.45);z-index:9990}.dzn-notif-drawer{position:fixed;top:32px;right:0;bottom:0;width:min(680px,96vw);background:#fff;border-inline-start:1px solid #dcdcde;box-shadow:-24px 0 60px rgba(15,23,42,.28);z-index:9991;overflow-y:auto;padding:20px}.dzn-notif-drawer-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.dzn-notif-drawer-bar h2{margin:0}@media(max-width:782px){.dzn-notif-drawer{top:46px;width:100vw}}</style><h1>Notifications</h1>';
+        echo '<style>'.self::redesignStyles().'</style>';
         echo '<p class="dzn-notif-lede">Choose which notifications are sent and edit their copy. Provider configuration is under Integrations; detailed delivery evidence is under Diagnostics. This workspace never changes a recipient, authorises a payment, alters a lesson or bypasses the business authority that produced the notification.</p>';
         self::renderFlash();
         if($requested!==$tab){
@@ -176,36 +179,68 @@ final class NotificationManagementController {
         $eventKey=$row['key'];$event=$row['event'];
         $category=NotificationCatalogue::CATEGORIES[(string)($event['category']??'')]??array('label'=>(string)($event['category']??''));
         $eventEnabled=$library->eventEnabled($eventKey);
-        $attention=self::attentionLabel((string)$row['readiness']);
-        $primaryChannel=(string)((array)($event['channels']??array())[0]??'email');
+        $primaryChannel=self::preferredOpenChannel($row);
 
-        echo '<article class="dzn-notif-cardrow" id="event-'.esc_attr($eventKey).'">';
-        echo '<div class="dzn-notif-cardhead"><div><strong>'.esc_html((string)($event['label']??$eventKey)).'</strong>';
-        echo '<div class="dzn-notif-meta">'.esc_html(self::audienceLabel((string)($event['audience']??''))).' · '.esc_html((string)$category['label']).' · <code dir="ltr">'.esc_html($eventKey).'</code></div>';
-        echo '<div class="dzn-notif-meta">'.esc_html((string)($event['purpose']??'')).'</div></div>';
-        echo '<span class="dzn-badge '.esc_attr($attention['class']).'">'.esc_html($attention['label']).'</span></div>';
+        // The card is deliberately only a title, the four delivery switches and Open. The business
+        // purpose lives in the catalogue and the full delivery evidence lives in the editor; repeating
+        // either here made the list longer without helping an administrator act.
+        echo '<article class="dzn-nc-card" id="event-'.esc_attr($eventKey).'" data-event="'.esc_attr($eventKey).'">';
+        echo '<div class="dzn-nc-card-head">';
+        echo '<span class="dzn-nc-eyebrow">'.esc_html(self::audienceLabel((string)($event['audience']??''))).' · '.esc_html((string)$category['label']).'</span>';
+        echo '<h4 class="dzn-nc-card-title" title="'.esc_attr($eventKey).'">'.esc_html((string)($event['label']??$eventKey)).'</h4>';
+        echo '</div>';
 
-        echo '<div class="dzn-notif-channel-chips">';
+        echo '<div class="dzn-nc-channel-buttons" role="group" aria-label="Delivery methods">';
         foreach(array('website','email','whatsapp','sms') as $channel){
-            if(!in_array($channel,(array)$row['offered'],true))continue;
-            $state=$row['states'][$channel];
-            $tip=$state['label'].($state['reason']!==''?': '.$state['reason']:'');
-            echo '<span class="dzn-notif-channel-chip '.esc_attr(self::chipClass((string)$state['state'])).'" title="'.esc_attr($tip).'">'.esc_html(self::channelLabel($channel)).': '.esc_html((string)$state['label']).'</span>';
+            if(!in_array($channel,(array)$row['offered'],true)){self::renderCardChannelButton($eventKey,$channel,array('state'=>'unsupported','label'=>'Not offered','reason'=>'This notification does not use this delivery method.'),$eventEnabled);continue;}
+            self::renderCardChannelButton($eventKey,$channel,$row['states'][$channel],$eventEnabled);
         }
         echo '</div>';
 
-        echo '<div class="dzn-notif-cardrow-actions">';
-        if(self::canEdit()){
-            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="enabled" value="'.($eventEnabled?'0':'1').'">';
-            foreach(self::tableContext() as $contextKey=>$contextValue)echo '<input type="hidden" name="filter_'.esc_attr($contextKey).'" value="'.esc_attr((string)$contextValue).'">';
-            wp_nonce_field('dzn_notification_event_toggle');
-            echo '<button class="button button-small" type="submit">'.($eventEnabled?'Disable notification':'Enable notification').'</button></form>';
-        }else{
-            echo '<span class="dzn-badge '.($eventEnabled?'is-ok':'is-warn').'">'.($eventEnabled?'Enabled':'Disabled').'</span>';
+        echo '<div class="dzn-nc-card-foot">';
+        echo '<a class="button dzn-nc-open" href="'.esc_url(self::editorUrl($eventKey,$primaryChannel,NotificationCatalogue::PRIMARY_LOCALE)).'#event-'.esc_attr($eventKey).'">Open</a>';
+        echo '</div></article>';
+    }
+
+    /**
+     * One card switch. Green means the method is effectively active for this exact event; red means it
+     * is inactive. Nothing else is printed on the card, so the four switches read at a glance.
+     *
+     * A red switch stays clickable only when the administrator can actually turn the method on. A
+     * blocked route (missing template, unapproved provider, secure-only event or a disabled event)
+     * stays red and disabled, and its tooltip carries the exact reason.
+     */
+    private static function renderCardChannelButton(string $eventKey,string $channel,array $state,bool $eventEnabled):void{
+        $label=self::channelLabel($channel);
+        $stateKey=(string)($state['state']??'unsupported');
+        $on=self::channelStateIsOn($stateKey);
+        $unavailable=in_array($stateKey,array('unsupported','missing_template','awaiting_approval','missing_provider','policy_disabled'),true);
+        $blocked=$unavailable||!empty($state['enable_blocked'])||(!$eventEnabled&&$stateKey!=='unsupported');
+        $reason=trim((string)($state['label']??'').(($state['reason']??'')!==''?': '.(string)$state['reason']:''));
+        if(!self::canEdit()||$blocked){
+            echo '<button type="button" class="dzn-nc-channel '.($on?'is-on':'is-off').'" disabled aria-pressed="'.($on?'true':'false').'" title="'.esc_attr($reason!==''?$reason:($on?'Active':'Inactive')).'">'.esc_html($label).'</button>';
+            return;
         }
-        echo '<a class="button button-small dzn-notif-open" href="'.esc_url(self::editorUrl($eventKey,$primaryChannel,NotificationCatalogue::PRIMARY_LOCALE)).'#event-'.esc_attr($eventKey).'">Open</a></div>';
-        if(NotificationCatalogue::isMandatory($eventKey))echo '<div class="dzn-notif-meta">Sensitive notification — disabling delivery may prevent important account, security or payment messages. Core rules are unchanged.</div>';
-        echo '</article>';
+        echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-nc-channel-form">';
+        echo '<input type="hidden" name="action" value="dzn_notification_event_channel_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="enabled" value="'.($on?'0':'1').'">';
+        self::renderTableContextInputs();
+        wp_nonce_field('dzn_notification_event_channel_toggle');
+        echo '<button type="submit" class="dzn-nc-channel '.($on?'is-on':'is-off').'" aria-pressed="'.($on?'true':'false').'" title="'.esc_attr($on?'Active. Click to turn this method off.':'Inactive. Click to turn this method on.').'">'.esc_html($label).'</button></form>';
+    }
+
+    /** @param array<string,array{state:string,label:string,reason:string}> $row */
+    private static function preferredOpenChannel(array $row):string{
+        foreach(array('website','email','whatsapp','sms') as $channel){
+            if(!in_array($channel,(array)$row['offered'],true))continue;
+            if(self::channelStateIsOn((string)($row['states'][$channel]['state']??'')))return $channel;
+        }
+        $first=(string)((array)($row['offered']??array())[0]??'');
+        return $first!==''?$first:'email';
+    }
+
+    /** Green is reserved for an effective channel; every other state is inactive. */
+    private static function channelStateIsOn(string $state):bool{
+        return in_array($state,array('enabled','partial'),true);
     }
 
     /** The one badge that summarises a card, ordered so the most urgent fact wins. */
@@ -406,6 +441,21 @@ final class NotificationManagementController {
             echo '<p class="dzn-notif-meta">The provider test under Integrations proves transport only. Event delivery stays off until its channel is enabled here; this button does not enable sensitive, blocked or unmapped events.</p>';
         }
 
+        $oneTimeAll=$library->oneTimeAllDraftApproval();
+        echo '<div class="dzn-nc-onetime"><strong>One-time catalogue approval</strong>';
+        if($oneTimeAll!==null){
+            echo '<p>Used on <code dir="ltr">'.esc_html((string)$oneTimeAll['used_at']).' UTC</code> by user <code dir="ltr">'.esc_html((string)$oneTimeAll['used_by']).'</code>. The standing workflow above remains the only repeatable path.</p>';
+        }elseif(self::canEdit()){
+            echo '<p>Approves and publishes every stored draft once, including copy normally held for a security or provider review. Dedicated one-time-secret copy stays with its own secure sender. It never enables a delivery channel and never sends a message. It cannot be run a second time.</p>';
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_approve_all_drafts">';
+            wp_nonce_field('dzn_notification_approve_all_drafts');
+            echo '<label>Type <code dir="ltr">APPROVE ALL</code> <input name="confirm" type="text" class="regular-text" autocomplete="off" aria-label="Type APPROVE ALL to confirm"></label>';
+            echo '<button class="button" type="submit" onclick="return this.form.confirm.value===\'APPROVE ALL\'||confirm(\'Type APPROVE ALL to approve and publish every draft once.\')">Approve &amp; publish every draft once</button></form>';
+        }else{
+            echo '<p>Read-only access. This action requires the <code>dzn_manage_notification_templates</code> capability.</p>';
+        }
+        echo '</div>';
+
         if($workflow['held']>0){
             echo '<div class="notice notice-warning inline"><p><strong>'.esc_html((string)$workflow['held']).' draft(s) are held and cannot be bulk-approved/published yet.</strong></p><ul class="dzn-notif-list">';
             foreach($workflow['held_by_reason'] as $reason=>$count)echo '<li>'.esc_html($reason).': '.esc_html((string)$count).'</li>';
@@ -538,62 +588,114 @@ final class NotificationManagementController {
         $status=$library->status($eventKey,$channel,$locale);
         $working=$library->workingCopy($eventKey,$channel,$locale);
         $offered=$library->channelOffered($eventKey,$channel);
-        $enabled=$library->eventChannelEnabled($eventKey,$channel);
         $isDedicated=(string)$event['authority']==='dedicated';
         $editable=self::canEdit()&&!$isDedicated&&$offered;
+        $eventEnabled=$library->eventEnabled($eventKey);
+        $state=$offered?self::effectiveChannelState($library,$eventKey,$channel):array('state'=>'unsupported','label'=>'Not offered','reason'=>'This notification does not use this delivery method.');
+        $stateOn=self::channelStateIsOn((string)$state['state']);
+        $attention=self::attentionLabel(self::readiness($library,$eventKey,(array)$event['channels']));
         // A previously rejected submission wins over the stored draft so the administrator never has
         // to retype what the validator refused.
         $rejected=self::rejectedSubmission($eventKey,$channel,$locale);
         $editorSubject=(string)($rejected['subject']??($working['editable']['subject']??''));
         $editorBody=(string)($rejected['body']??($working['editable']['body']??''));
-        echo '<p><a href="'.esc_url(self::url(array_merge(array('tab'=>'events'),self::tableContext()))).'">‹ Back to notification catalogue</a></p>';
         $task=NotificationCatalogue::taskForEvent($eventKey)??array('label'=>'Support');
-        echo '<h2>'.esc_html((string)$event['label']).'</h2><p class="dzn-notif-meta"><code dir="ltr">'.esc_html($eventKey).'</code> · '.esc_html(self::channelLabel($channel)).' · '.esc_html($locale).' · Task: '.esc_html((string)$task['label']).' · Delivery policy: '.esc_html((string)(NotificationCatalogue::CATEGORIES[(string)$event['category']]['label']??'')).'</p>';
-        echo '<p class="dzn-notif-actions">';
-        foreach((array)$event['channels'] as $availableChannel)echo '<a class="button button-small'.($availableChannel===$channel?' button-primary':'').'" href="'.esc_url(self::editorUrl($eventKey,$availableChannel,$locale)).'">'.esc_html(self::channelLabel($availableChannel)).'</a> ';
-        foreach(NotificationCatalogue::SUPPORTED_LOCALES as $availableLocale)echo '<a class="button button-small'.($availableLocale===$locale?' button-primary':'').'" href="'.esc_url(self::editorUrl($eventKey,$channel,$availableLocale)).'">'.esc_html($availableLocale).'</a> ';
-        echo '</p>';
-        if(!$offered)echo '<div class="notice notice-warning inline"><p>This channel is not supported by this event and cannot be edited or sent.</p></div>';
-        elseif(!$enabled)echo '<div class="notice notice-info inline"><p>This channel is currently disabled for this notification. You may prepare and publish its copy, but it cannot send until it is enabled.</p></div>';
-        echo '<div class="dzn-notif-grid">';
-        self::renderDeliveryControls($library,$eventKey);
-        echo '<section class="dzn-notif-card"><h3>Variable Contract</h3><p>Allowed placeholders:</p><p>';
+        $category=NotificationCatalogue::CATEGORIES[(string)($event['category']??'')]??array('label'=>(string)($event['category']??''));
+
+        echo '<p class="dzn-nc-back"><a href="'.esc_url(self::url(array_merge(array('tab'=>'events'),self::tableContext()))).'">‹ Back to notification catalogue</a></p>';
+        echo '<header class="dzn-nc-editor-head"><div><span class="dzn-nc-eyebrow">'.esc_html(self::audienceLabel((string)($event['audience']??''))).' · '.esc_html((string)$category['label']).' · '.esc_html((string)$task['label']).'</span>';
+        echo '<h2>'.esc_html((string)$event['label']).'</h2><div class="dzn-nc-key"><code dir="ltr">'.esc_html($eventKey).'</code> · '.esc_html($locale).'</div></div>';
+        echo '<div class="dzn-nc-editor-tools"><div class="dzn-nc-locales" aria-label="Language">';
+        foreach(NotificationCatalogue::SUPPORTED_LOCALES as $availableLocale)echo '<a class="button button-small'.($availableLocale===$locale?' button-primary':'').'" href="'.esc_url(self::editorUrl($eventKey,$channel,$availableLocale)).'#event-'.esc_attr($eventKey).'">'.esc_html($availableLocale).'</a>';
+        echo '</div><span class="dzn-badge '.esc_attr($attention['class']).'">'.esc_html($attention['label']).'</span></div></header>';
+
+        // One consolidated card replaces the former Delivery, Variable Contract and Status boxes. The
+        // lifecycle facts are deliberately separate dimensions: complete copy is not published copy,
+        // and neither is proof that a provider can deliver.
+        echo '<section class="dzn-nc-overview" aria-label="Notification overview">';
+        echo '<div class="dzn-nc-overview-top"><div><span class="dzn-nc-eyebrow">Notification delivery</span><strong class="dzn-nc-overview-value '.($eventEnabled?'is-on':'is-off').'">'.($eventEnabled?'Enabled for this event':'Disabled for this event').'</strong></div>';
+        if(self::canEdit()){
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="enabled" value="'.($eventEnabled?'0':'1').'">';
+            self::renderTableContextInputs();
+            wp_nonce_field('dzn_notification_event_toggle');
+            echo '<button class="button button-small" type="submit">'.($eventEnabled?'Disable notification':'Enable notification').'</button></form>';
+        }else{
+            echo '<span class="dzn-badge '.($eventEnabled?'is-ok':'is-warn').'">'.($eventEnabled?'Enabled':'Disabled').'</span>';
+        }
+        echo '</div>';
+        echo '<div class="dzn-nc-facts">';
+        foreach(self::lifecycleSummary($library,$eventKey,(array)$event['channels']) as $factLabel=>$fact){
+            echo '<div class="dzn-nc-fact"><span>'.esc_html($factLabel).'</span><strong class="'.esc_attr((string)$fact['class']).'">'.esc_html((string)$fact['text']).'</strong></div>';
+        }
+        echo '</div>';
+        echo '<details class="dzn-nc-contract"><summary><strong>Variable contract</strong></summary>';
+        echo '<p class="dzn-notif-meta"><strong>Allowed placeholders</strong><br>';
         foreach(NotificationCatalogue::variables($eventKey) as $variable)echo '<code>{{'.esc_html($variable).'}}</code> ';
-        echo '</p><p>Required placeholders for this channel:</p><p>';
-        foreach(NotificationTemplateSanitizer::requiredVariables($eventKey,$channel) as $variable)echo '<code>{{'.esc_html($variable).'}}</code> ';
+        echo '</p><p class="dzn-notif-meta"><strong>Required for '.esc_html(self::channelLabel($channel)).'</strong><br>';
+        $required=NotificationTemplateSanitizer::requiredVariables($eventKey,$channel);
+        if($required===array())echo '<em>None</em>';
+        foreach($required as $variable)echo '<code>{{'.esc_html($variable).'}}</code> ';
         $actionLinks=NotificationTemplateSanitizer::requiredActionLinks($eventKey,$channel);
         if($actionLinks!==array()){
-            echo '</p><p>Action link (keep at least one):</p><p>';
+            echo '</p><p class="dzn-notif-meta"><strong>Action link (keep at least one)</strong><br>';
             foreach($actionLinks as $variable)echo '<code>{{'.esc_html($variable).'}}</code> ';
         }
-        echo '</p><p class="dzn-notif-note">Copy is stored as plain text. The system supplies the HTML structure and brand presentation. Scripts, PHP, HTML tags and browser event handlers are rejected. Previews use synthetic values and never reveal a one-time secret.</p></section>';
-        echo '<section class="dzn-notif-card"><h3>Status</h3><ul class="dzn-notif-list">';
-        echo '<li>Delivery choice: '.esc_html($offered?($enabled?'Enabled':'Disabled'):'Not supported').'</li>';
-        echo '<li>Active version: '.esc_html($status['active_version_number']!==null?('#'.$status['active_version_number']):'—').'</li>';
-        echo '<li>Stored active copy: '.esc_html($status['published']?'Yes':'No').'</li>';
-        echo '<li>Draft: '.esc_html($status['draft']!==null?'Present':'None').'</li>';
-        echo '<li>Provider status: '.esc_html(self::providerStateLabel((string)$status['provider_state'])).'</li></ul>';
-        if($status['issues']){echo '<div class="notice notice-warning inline"><ul>';foreach($status['issues'] as $issue)echo '<li>'.esc_html((string)$issue).'</li>';echo '</ul></div>';}
-        if($isDedicated&&self::canEditTeacherInvitation()){echo '<div class="notice notice-info inline"><p>This message belongs to a dedicated secure delivery authority. Edit its copy on the <a href="'.esc_url(admin_url('admin.php?page=dzn-communications-templates')).'">Teacher invitation template page</a> so the one-time code stays out of general notifications.</p></div>';}
-        echo '</section></div>';
+        echo '</p><p class="dzn-notif-meta">Copy is stored as plain text; the system supplies the HTML structure and brand presentation. Scripts, PHP, HTML tags and browser event handlers are rejected. Previews use synthetic values and never reveal a one-time secret.</p></details>';
+        echo '</section>';
 
-        if($isDedicated){
-            self::renderHistory($library,$eventKey,$channel,$locale,$status);
+        self::renderChannelTabs($library,$eventKey,$channel,$locale);
+        echo '<section class="dzn-nc-panel" role="tabpanel" aria-label="'.esc_attr(self::channelLabel($channel).' delivery').'">';
+        if(!$offered){
+            echo '<div class="dzn-nc-empty"><strong>Not offered</strong><p>This notification does not use the '.esc_html(self::channelLabel($channel)).' delivery method. Choose another tab above.</p></div>';
+            echo '</section>';
             return;
         }
 
-        echo '<h3>Preview</h3>';
+        echo '<div class="dzn-nc-panel-head"><div><span class="dzn-nc-eyebrow">'.esc_html(self::channelLabel($channel)).'</span><span class="dzn-nc-state '.($stateOn?'is-on':'is-off').'">'.esc_html((string)($state['label']??'')).(($state['reason']??'')!==''?' — '.esc_html((string)$state['reason']):'').'</span></div>';
+        if(self::canEdit()){
+            $blocked=!empty($state['enable_blocked'])||in_array((string)$state['state'],array('missing_template','awaiting_approval','missing_provider','policy_disabled'),true)||!$eventEnabled;
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_channel_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="enabled" value="'.($stateOn?'0':'1').'">';
+            self::renderTableContextInputs();
+            wp_nonce_field('dzn_notification_event_channel_toggle');
+            if($stateOn)echo '<button class="button button-small" type="submit">Turn off</button>';
+            elseif(!$blocked)echo '<button class="button button-small" type="submit">Turn on</button>';
+            else echo '<button class="button button-small" type="button" disabled title="'.esc_attr((string)($state['reason']??'This delivery method cannot be enabled yet.')).'">Turn on</button>';
+            echo '</form>';
+        }
+        echo '</div>';
+        $stateReason=(string)($state['reason']??'');
+        $extraIssues=array();
+        foreach((array)($status['issues']??array()) as $issue){$issue=trim((string)$issue);if($issue!==''&&($stateReason===''||!str_contains($stateReason,$issue)))$extraIssues[]=$issue;}
+        if($extraIssues!==array()){
+            echo '<div class="dzn-nc-issues"><strong>Readiness details</strong><ul class="dzn-notif-list">';
+            foreach(array_values(array_unique($extraIssues)) as $issue)echo '<li>'.esc_html($issue).'</li>';
+            echo '</ul></div>';
+        }
+
+        if($isDedicated){
+            if(self::canEditTeacherInvitation())echo '<div class="notice notice-info inline"><p>This message belongs to a dedicated secure delivery authority. Edit its copy on the <a href="'.esc_url(admin_url('admin.php?page=dzn-communications-templates')).'">Teacher invitation template page</a> so the one-time code stays out of general notifications.</p></div>';
+            self::renderHistory($library,$eventKey,$channel,$locale,$status);
+            echo '</section>';
+            return;
+        }
+
+        if($channel==='whatsapp')self::renderProviderMapping($library,$eventKey,$channel,$locale,$status);
+        if($channel==='sms')self::renderSmsProviderMapping($eventKey);
+
+        echo '<div class="dzn-nc-preview-block"><h3>Preview</h3>';
+        if($channel==='sms')echo '<p class="dzn-notif-meta"><strong>International (Telnyx) preview.</strong> Iranian destinations use the approved SMS.ir template shown above.</p>';
         $preview=$library->preview($eventKey,$channel,$editorSubject,$editorBody,$locale);
         echo '<p class="dzn-notif-note">Preview uses synthetic data — no message is sent and no one-time secret is shown.</p>';
         if($channel==='email'){
-            echo '<div class="dzn-notif-preview"><iframe title="Email preview" sandbox="" srcdoc="'.esc_attr((string)$preview['html']).'" style="width:100%;min-height:560px;border:1px solid #dccfc0;border-radius:8px;background:#fff;"></iframe></div>';
+            echo '<div class="dzn-notif-preview"><iframe title="Email preview" sandbox="" srcdoc="'.esc_attr((string)$preview['html']).'" style="width:100%;min-height:520px;border:1px solid #dccfc0;border-radius:8px;background:#fff;"></iframe></div>';
         }else{
             echo '<div class="dzn-notif-preview dzn-notif-preview--text" dir="rtl" lang="fa"><strong>'.esc_html((string)($preview['subject']??'')).'</strong><pre>'.esc_html((string)($preview['text']??'')).'</pre>';
             if(is_array($preview['segments']??null))echo '<p class="dzn-notif-meta">'.esc_html('Length: '.$preview['segments']['length'].' · Segments: '.$preview['segments']['segments'].' · Encoding: '.$preview['segments']['encoding']).'</p>';
             echo '</div>';
         }
-        if($channel==='whatsapp')self::renderProviderMapping($library,$eventKey,$channel,$locale,$status);
-        echo '<h3>Edit Message</h3>';
+        echo '</div>';
+
+        echo '<div class="dzn-nc-edit-block"><h3>Edit Message</h3>';
         if($rejected!==null){
             echo '<div class="notice notice-error inline"><p><strong>Your last change was not saved.</strong> The message below is exactly what you submitted, so you can correct it and submit again.</p><ul class="dzn-notif-list">';
             foreach((array)($rejected['reasons']??array()) as $reason)echo '<li>'.esc_html((string)$reason).'</li>';
@@ -605,7 +707,7 @@ final class NotificationManagementController {
         // Pressing Enter in a field must never publish: the hidden default saves a draft, and a clicked
         // button's own action value is submitted after it and therefore wins.
         echo '<input type="hidden" name="action" value="dzn_notification_copy_save_draft"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="locale" value="'.esc_attr($locale).'">';
-        foreach(self::tableContext() as $contextKey=>$contextValue)echo '<input type="hidden" name="filter_'.esc_attr($contextKey).'" value="'.esc_attr((string)$contextValue).'">';
+        self::renderTableContextInputs();
         wp_nonce_field('dzn_notification_copy_save_draft','dzn_draft_nonce');
         wp_nonce_field('dzn_notification_copy_publish','dzn_publish_nonce');
         wp_nonce_field('dzn_notification_copy_discard','dzn_discard_nonce');
@@ -621,9 +723,22 @@ final class NotificationManagementController {
             echo '<button class="button" name="action" value="dzn_notification_copy_restore_default" onclick="return confirm(\'Publish the default copy as a new version?\')">Restore Default</button>';
             echo '</p>';
         }
-        echo '</form>';
+        echo '</form></div>';
         self::renderDraftApproval($library,$eventKey,$channel,$locale,$status);
         self::renderHistory($library,$eventKey,$channel,$locale,$status);
+        echo '</section>';
+    }
+
+    /** One tab per delivery method; the dot is the same green/red truth as the catalogue card. */
+    private static function renderChannelTabs(NotificationTemplateLibrary $library,string $eventKey,string $activeChannel,string $locale):void{
+        echo '<nav class="dzn-nc-tabs" role="tablist" aria-label="Delivery methods">';
+        foreach(array('website','email','whatsapp','sms') as $channel){
+            $offered=$library->channelOffered($eventKey,$channel);
+            $state=$offered?self::effectiveChannelState($library,$eventKey,$channel):array('state'=>'unsupported');
+            $on=self::channelStateIsOn((string)$state['state']);
+            echo '<a role="tab" aria-selected="'.($channel===$activeChannel?'true':'false').'" class="dzn-nc-tab'.($channel===$activeChannel?' is-active':'').'" href="'.esc_url(self::editorUrl($eventKey,$channel,$locale)).'#event-'.esc_attr($eventKey).'"><span class="dzn-nc-dot '.($on?'is-on':'is-off').'" aria-hidden="true"></span>'.esc_html(self::channelLabel($channel)).'</a>';
+        }
+        echo '</nav>';
     }
 
     /**
@@ -678,6 +793,31 @@ final class NotificationManagementController {
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_provider_mapping"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="whatsapp"><input type="hidden" name="locale" value="'.esc_attr($locale).'">';
         wp_nonce_field('dzn_notification_provider_mapping');
         echo '<input name="provider_name" placeholder="template_name" value="'.esc_attr($mapping['name']).'" maxlength="191" dir="ltr"><input name="provider_language" placeholder="fa" value="'.esc_attr($mapping['language']).'" maxlength="10" dir="ltr" size="6"><button class="button button-small">Record Mapping</button></form>';
+    }
+
+    /**
+     * The SMS.ir approved templates are fixed outside this platform. This panel makes the mapping
+     * explicit and read-only: the generic account-referral template for every event, and the
+     * new-intro-booking template only for a Teacher's new booking request. Editing the catalogue
+     * copy cannot silently change the approved provider wording.
+     */
+    private static function renderSmsProviderMapping(string $eventKey):void{
+        if(!class_exists(SmsIrTemplateRegistry::class))return;
+        $template=SmsIrTemplateRegistry::forEvent($eventKey);
+        $field=$template['key']===SmsIrTemplateRegistry::INTRO_BOOKING?'template_intro_booking_id':'template_account_referral_id';
+        $templateId=0;
+        try{$templateId=(int)(new IntegrationSettingsService())->value('sms_ir',$field);}catch(\Throwable){$templateId=0;}
+        echo '<section class="dzn-nc-provider"><h3>SMS.ir (Iran) approved template</h3>';
+        echo '<p>Iranian (+98) destinations use SMS.ir with the approved template <strong>'.esc_html((string)$template['label']).'</strong>. International destinations use Telnyx SMS with the catalogue copy. Each route stands alone; there is no provider fallback.</p>';
+        echo '<pre class="dzn-nc-provider-body" dir="rtl" lang="fa">'.esc_html((string)$template['body']).'</pre>';
+        echo '<p class="dzn-notif-meta">';
+        if($templateId>0){
+            echo 'Provider template ID <code dir="ltr">'.esc_html((string)$templateId).'</code> is configured; event SMS uses the SMS.ir template endpoint.';
+        }else{
+            echo 'No provider template ID is configured yet; the exact approved body is sent through the SMS.ir bulk endpoint. Add the ID under <a href="'.esc_url(admin_url('admin.php?page=dzn-integration-sms')).'">Integrations → SMS.ir</a> to use the template endpoint.';
+        }
+        echo '</p>';
+        echo '<p class="dzn-notif-meta">Approved by the SMS.ir account. Changing this text requires a new provider template and a fresh approval; the notification editor never rewrites it.</p></section>';
     }
 
     private static function renderHistory(NotificationTemplateLibrary $library,string $eventKey,string $channel,string $locale,array $status):void{
@@ -774,6 +914,23 @@ final class NotificationManagementController {
         }catch(\Throwable $error){
             self::rememberWorkflowResult('Step 2 failed: '.$error->getMessage());
             self::flash('error','Could not approve the drafts: '.$error->getMessage());
+        }
+        self::redirectBack('events',array());
+    }
+
+    public static function approveAllDraftsOnce():never{
+        self::authorizeEdit();
+        check_admin_referer('dzn_notification_approve_all_drafts');
+        if((string)(wp_unslash($_POST['confirm']??''))!=='APPROVE ALL'){self::flash('error','Type APPROVE ALL exactly. Nothing was approved or published.');self::redirectBack('events',array());}
+        try{
+            $result=(new NotificationTemplateLibrary())->approveAndPublishEveryDraftOnce();
+            $message=sprintf('One-time approval complete: published %d draft(s); %d need attention. No delivery channel was enabled and no message was sent.',count($result['published']),count($result['blocked']));
+            self::rememberWorkflowResult($message);
+            self::flash(count($result['blocked'])===0?'success':'warning',$message);
+            if($result['blocked']!==array())update_option('dzn_notification_one_time_all_blocked',array('blocked'=>$result['blocked'],'created_at'=>gmdate('c')),false);
+        }catch(\Throwable $error){
+            self::rememberWorkflowResult('One-time approval failed: '.$error->getMessage());
+            self::flash('error','The one-time approval did not run: '.$error->getMessage());
         }
         self::redirectBack('events',array());
     }
@@ -980,6 +1137,84 @@ final class NotificationManagementController {
     }
 
     // ------------------------------------------------------------------ helpers
+
+    private static function redesignStyles():string{
+        return <<<'CSS'
+/* Catalogue cards: title + four delivery switches + Open. */
+.dzn-notif-grid-cards{gap:14px}
+.dzn-nc-card{position:relative;display:flex;flex-direction:column;gap:15px;background:#fff;border:1px solid #dfe7e4;border-radius:16px;padding:17px 17px 14px 19px;box-shadow:0 1px 2px rgba(15,42,38,.04);transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease;overflow:hidden;scroll-margin-top:150px;min-width:0}
+.dzn-nc-card::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:linear-gradient(180deg,#0E8C8C,#57b8a9);opacity:.9}
+.dzn-nc-card:hover{transform:translateY(-1px);border-color:#b9d8d3;box-shadow:0 10px 24px rgba(15,42,38,.09)}
+.dzn-nc-card-head{min-width:0}
+.dzn-nc-eyebrow{display:block;color:#687976;font-size:10.5px;font-weight:700;letter-spacing:.08em;line-height:1.5;text-transform:uppercase;overflow-wrap:anywhere}
+.dzn-nc-card-title{margin:5px 0 0;color:#122825;font-size:16px;font-weight:700;line-height:1.35;overflow-wrap:anywhere}
+.dzn-nc-channel-buttons{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.dzn-nc-channel-form{display:contents;margin:0}
+.dzn-nc-channel{appearance:none;border:1px solid transparent;border-radius:999px;padding:7px 12px;font-size:11.5px;font-weight:700;line-height:1;letter-spacing:.01em;cursor:pointer;transition:background .15s ease,border-color .15s ease,opacity .15s ease;white-space:nowrap}
+.dzn-nc-channel.is-on{background:#0b7a53;border-color:#0b7a53;color:#fff}
+.dzn-nc-channel.is-on:hover{background:#086344;border-color:#086344}
+.dzn-nc-channel.is-off{background:#c0392b;border-color:#c0392b;color:#fff}
+.dzn-nc-channel.is-off:hover{background:#a93226;border-color:#a93226}
+.dzn-nc-channel:disabled{cursor:not-allowed;opacity:.58}
+.dzn-nc-channel:focus-visible{outline:2px solid #0E8C8C;outline-offset:2px}
+.dzn-nc-card-foot{display:flex;justify-content:flex-end;border-top:1px solid #eef3f1;padding-top:12px}
+.dzn-nc-open{border-color:#0E8C8C!important;color:#0b6b5e!important;font-weight:600;border-radius:8px}
+.dzn-nc-open:hover{background:#eef8f6!important;border-color:#0b6b5e!important}
+
+/* Drawer: one overview card, then one tab per delivery method. */
+.dzn-notif-drawer{width:min(820px,96vw)}
+.dzn-nc-back{margin:0 0 10px}
+.dzn-nc-editor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:16px}
+.dzn-nc-editor-head h2{margin:4px 0 6px;font-size:22px;line-height:1.3;color:#122825}
+.dzn-nc-key{color:#687976;font-size:11.5px;overflow-wrap:anywhere}
+.dzn-nc-editor-tools{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:0 0 auto}
+.dzn-nc-locales{display:flex;gap:4px;flex-wrap:wrap}
+.dzn-nc-overview{background:linear-gradient(180deg,#fbfdfc,#fff);border:1px solid #dfe7e4;border-radius:14px;padding:16px;margin-bottom:16px}
+.dzn-nc-overview-top{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #edf3f0;padding-bottom:12px;margin-bottom:12px}
+.dzn-nc-overview-value{display:block;margin-top:3px;font-size:13px}
+.dzn-nc-overview-value.is-on{color:#067647}
+.dzn-nc-overview-value.is-off{color:#b42318}
+.dzn-nc-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:9px}
+.dzn-nc-fact{display:flex;flex-direction:column;gap:2px;background:#fff;border:1px solid #edf3f0;border-radius:10px;padding:9px 11px;min-width:0}
+.dzn-nc-fact span{color:#687976;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.dzn-nc-fact strong{color:#1d2b29;font-size:12.5px;line-height:1.45;overflow-wrap:anywhere}
+.dzn-nc-fact strong.is-ok{color:#067647}
+.dzn-nc-fact strong.is-warn{color:#b54708}
+.dzn-nc-contract{margin-top:13px;border-top:1px solid #edf3f0;padding-top:11px}
+.dzn-nc-contract summary{cursor:pointer;color:#1d2b29;font-size:12.5px}
+.dzn-nc-contract summary::marker{color:#0E8C8C}
+.dzn-nc-tabs{display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid #dfe7e4;margin:0 0 16px}
+.dzn-nc-tab{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border:1px solid transparent;border-bottom:0;border-radius:10px 10px 0 0;color:#50575e;font-size:12.5px;font-weight:600;text-decoration:none;transition:background .14s ease,color .14s ease}
+.dzn-nc-tab:hover{background:#f4f9f7;color:#122825}
+.dzn-nc-tab.is-active{background:#fff;border-color:#dfe7e4;border-bottom-color:#fff;color:#0b6b5e;margin-bottom:-1px}
+.dzn-nc-dot{display:inline-block;width:8px;height:8px;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.7)}
+.dzn-nc-dot.is-on{background:#0b7a53}
+.dzn-nc-dot.is-off{background:#c0392b}
+.dzn-nc-panel{background:#fff;border:1px solid #dfe7e4;border-radius:0 12px 12px 12px;padding:18px}
+.dzn-nc-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid #edf3f0;padding-bottom:12px;margin-bottom:14px}
+.dzn-nc-state{display:inline-flex;align-items:center;gap:5px;margin-top:4px;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:600;line-height:1.5}
+.dzn-nc-state.is-on{background:#edfaf3;color:#067647}
+.dzn-nc-state.is-off{background:#fdecea;color:#b42318}
+.dzn-nc-issues{margin:0 0 14px;padding:10px 12px;background:#fffaf0;border:1px solid #f1d9ab;border-radius:9px;font-size:12px}
+.dzn-nc-issues strong{display:block;margin-bottom:4px;color:#7a3e00}
+.dzn-nc-issues ul{line-height:1.8;margin:0}
+.dzn-nc-empty{background:#fbfcfc;border:1px dashed #cbd8d4;border-radius:10px;padding:22px;text-align:center}
+.dzn-nc-empty strong{display:block;color:#1d2b29;font-size:14px;margin-bottom:4px}
+.dzn-nc-empty p{margin:0;color:#687976}
+.dzn-nc-onetime{margin-block:14px;padding:13px 15px;background:#fff8eb;border:1px solid #f3d9a4;border-radius:10px}
+.dzn-nc-onetime strong{display:block;color:#7a3e00;margin-bottom:4px}
+.dzn-nc-onetime p{margin:4px 0 8px;color:#5f4a2a}
+.dzn-nc-provider{background:#f8fbfa;border:1px solid #e1ece8;border-radius:11px;padding:13px 15px;margin:14px 0}
+.dzn-nc-provider h3{margin:0 0 8px;font-size:14px}
+.dzn-nc-provider p{margin:6px 0}
+.dzn-nc-provider-body{white-space:pre-wrap;margin:10px 0;padding:11px 13px;background:#fff;border:1px solid #e1ece8;border-radius:8px;font-family:Tahoma,Arial,sans-serif;font-size:12.5px;line-height:2;color:#1d2b29}
+.dzn-nc-preview-block,.dzn-nc-edit-block{border-top:1px solid #edf3f0;margin-top:16px;padding-top:4px}
+.dzn-nc-preview-block h3,.dzn-nc-edit-block h3{margin-top:14px}
+.dzn-nc-panel .dzn-notif-preview{border-radius:10px}
+.dzn-nc-panel .dzn-notif-preview pre{max-height:320px;overflow:auto}
+@media(max-width:782px){.dzn-nc-editor-head{flex-direction:column}.dzn-nc-overview-top{align-items:flex-start;flex-direction:column}.dzn-nc-panel{padding:14px}.dzn-nc-tab{padding:8px 10px}}
+CSS;
+    }
 
     private static function authorizeView():void{
         if(!current_user_can('manage_options')&&!current_user_can(self::CAP_VIEW)&&!current_user_can(self::CAP_EDIT))wp_die('Forbidden',403);
@@ -1226,6 +1461,11 @@ final class NotificationManagementController {
             if(isset($_GET[$source])&&is_scalar($_GET[$source]))$out[$key]=sanitize_text_field(wp_unslash((string)$_GET[$source]));
         }
         return $out;
+    }
+
+    /** Keep the catalogue's search and filters after a card or panel action. */
+    private static function renderTableContextInputs():void{
+        foreach(self::tableContext() as $contextKey=>$contextValue)echo '<input type="hidden" name="filter_'.esc_attr($contextKey).'" value="'.esc_attr((string)$contextValue).'">';
     }
     private static function postTableContext():array{
         $out=array();

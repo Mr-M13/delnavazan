@@ -48,7 +48,7 @@ the live site before any delivery channel is switched on.
 
 | Event key | Notification | Recipient | Category | Authority | Implementation | Channels | Copy | Provider | Review |
 |---|---|---|---|---|---|---|---|---|---|
-| `account.claim_issued.student` | Student Account Invitation | student | security | canonical | implemented | email, whatsapp, sms | complete (fa + en) | WhatsApp: no Meta template; SMS: event-owned route; Email: shell provider | security |
+| `account.claim_issued.student` | Student Account Invitation | student | security | canonical | implemented | email, whatsapp, sms | complete (fa + en) | WhatsApp: no Meta template; SMS: Account referral (approved SMS.ir template); Email: shell provider | security |
 | `attendance.absence_reported.teacher` | Student Absence Notice | teacher | lesson | queue | implemented | email, website | complete (fa + en) | Email: shell provider | — |
 | `attendance.missed_class_claim.teacher` | Missed Class Claim | teacher | lesson | queue | implemented | email, website | complete (fa + en) | Email: shell provider | — |
 | `booking.cancelled.student` | Intro Lesson Cancelled | student | booking | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
@@ -57,9 +57,9 @@ the live site before any delivery channel is switched on.
 | `booking.declined.student` | Intro Lesson Declined | student | booking | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `booking.escalation.admin` | Intro Booking Escalated | admin | booking | queue | implemented | website | complete (fa + en) | Portal only | — |
 | `booking.expired.teacher` | Intro Offer Expired | teacher | booking | queue | implemented | website | complete (fa + en) | Portal only | — |
-| `booking.new.teacher` | New Booking for Teacher | teacher | booking | queue | implemented | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: event-owned route; Email: shell provider | — |
+| `booking.new.teacher` | New Booking for Teacher | teacher | booking | queue | implemented | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: New intro booking request (approved SMS.ir template); Email: shell provider | — |
 | `booking.referral.admin` | Intro Booking Needs Coordination | admin | booking | queue | implemented | website | complete (fa + en) | Portal only | — |
-| `booking.requested.student` | Intro Lesson Request Received | student | booking | queue | implemented | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: event-owned route; Email: shell provider | — |
+| `booking.requested.student` | Intro Lesson Request Received | student | booking | queue | implemented | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: Account referral (approved SMS.ir template); Email: shell provider | — |
 | `booking.rescheduled.student` | Intro Lesson Rescheduled | student | booking | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `booking.rescheduled.teacher` | Intro Lesson Rescheduled | teacher | booking | queue | implemented | email, website | complete (fa + en) | Email: shell provider | — |
 | `booking.submitted.admin` | New Intro Booking Received | admin | booking | queue | implemented | website | complete (fa + en) | Portal only | — |
@@ -73,12 +73,12 @@ the live site before any delivery channel is switched on.
 | `consent.teacher_required.teacher` | Teacher Consent Required | teacher | account | queue | partial | email, website | complete (fa + en) | Email: shell provider | — |
 | `consent.withdrawal_confirmed.student` | Student Consent Withdrawal Confirmed | student | account | queue | partial | email, website | complete (fa + en) | Email: shell provider | — |
 | `consent.withdrawal_confirmed.teacher` | Teacher Consent Withdrawal Confirmed | teacher | account | queue | partial | email, website | complete (fa + en) | Email: shell provider | — |
-| `lesson.access.student` | Class Access Ready | student | lesson | queue | implemented | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: event-owned route; Email: shell provider | — |
-| `lesson.access.teacher` | Class Access Ready | teacher | lesson | dedicated | implemented | email, website, sms | complete (fa + en) | SMS: event-owned route; Email: shell provider | dedicated_authority |
-| `lesson.cancelled.student` | Class Cancelled | student | lesson | queue | implemented | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: event-owned route; Email: shell provider | — |
-| `lesson.cancelled.teacher` | Class Cancelled | teacher | lesson | dedicated | implemented | email, website, sms | complete (fa + en) | SMS: event-owned route; Email: shell provider | dedicated_authority |
-| `lesson.reminder.student` | Class Reminder | student | lesson | queue | implemented | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: event-owned route; Email: shell provider | — |
-| `lesson.reminder.teacher` | Class Reminder | teacher | lesson | dedicated | implemented | email, website, sms | complete (fa + en) | SMS: event-owned route; Email: shell provider | dedicated_authority |
+| `lesson.access.student` | Class Access Ready | student | lesson | queue | implemented | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: Account referral (approved SMS.ir template); Email: shell provider | — |
+| `lesson.access.teacher` | Class Access Ready | teacher | lesson | dedicated | implemented | email, website, sms | complete (fa + en) | SMS: dedicated secure route; Email: shell provider | dedicated_authority |
+| `lesson.cancelled.student` | Class Cancelled | student | lesson | queue | implemented | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: Account referral (approved SMS.ir template); Email: shell provider | — |
+| `lesson.cancelled.teacher` | Class Cancelled | teacher | lesson | dedicated | implemented | email, website, sms | complete (fa + en) | SMS: dedicated secure route; Email: shell provider | dedicated_authority |
+| `lesson.reminder.student` | Class Reminder | student | lesson | queue | implemented | email, website, whatsapp, sms | complete (fa + en) | WhatsApp: registry entry, approval unverified; SMS: Account referral (approved SMS.ir template); Email: shell provider | — |
+| `lesson.reminder.teacher` | Class Reminder | teacher | lesson | dedicated | implemented | email, website, sms | complete (fa + en) | SMS: dedicated secure route; Email: shell provider | dedicated_authority |
 | `payment.failed.student` | Payment Failed | student | payment | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `payment.recovered.student` | Payment Recovered | student | payment | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `post_intro.activated.student` | Enrolment Activated | student | account | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
@@ -125,7 +125,7 @@ the live site before any delivery channel is switched on.
 | `reschedule.replacement.rejected.student` | Replacement Session · Rejected · Student | student | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `reschedule.replacement.rejected.teacher` | Replacement Session · Rejected · Teacher | teacher | lesson | queue | implemented | email, website, whatsapp | complete (fa + en) | WhatsApp: registry entry, approval unverified; Email: shell provider | — |
 | `system.inbox_check.admin` | Portal Notification Check | admin | account | queue | implemented | website | complete (fa + en) | Portal only | — |
-| `teacher.invitation_issued.teacher` | Teacher Invitation | teacher | security | dedicated | implemented | email, sms | complete (fa + en) | SMS: event-owned route; Email: shell provider | security, dedicated_authority |
+| `teacher.invitation_issued.teacher` | Teacher Invitation | teacher | security | dedicated | implemented | email, sms | complete (fa + en) | SMS: dedicated secure route; Email: shell provider | security, dedicated_authority |
 
 ## 4. WhatsApp provider registry
 
@@ -135,23 +135,23 @@ exactly one APPROVED Utility row whose variable order matches the local contract
 
 | Provider template | Event | Audience | Variable order |
 |---|---|---|---|
-| `delnavazan_booking_confirmation_fa` | `booking.requested.student` | student | name, course, when |
-| `delnavazan_intro_confirmed_fa` | `booking.confirmed.student` | student | name, course, teacher, when |
+| `delnavazan_booking_confirmation_fa` | `booking.requested.student` | student | name, course, when, portal_url |
+| `delnavazan_intro_confirmed_fa` | `booking.confirmed.student` | student | name, course, teacher, when, portal_url |
 | `delnavazan_intro_cancelled_fa` | `booking.cancelled.student` | student | name, course, teacher, when, portal_url |
 | `delnavazan_intro_declined_fa` | `booking.declined.student` | student | name, teacher, course, portal_url |
 | `delnavazan_intro_rescheduled_fa` | `booking.rescheduled.student` | student | name, course, teacher, when, portal_url |
-| `delnavazan_class_rescheduled_fa` | `reschedule.change.accepted.student` | student | name, course, teacher, previous_when, new_when |
-| `delnavazan_class_reminder_fa` | `lesson.reminder.student` | student | name, course, teacher, when |
-| `delnavazan_reschedule_request_fa` | `reschedule.change.proposed.student` | student | name, teacher, course, current_when, new_when |
-| `delnavazan_enrolment_confirmation_fa` | `post_intro.activated.student` | student | name, course, teacher |
-| `delnavazan_payment_due_fa` | `renewal.manual_payment_required.student` | student | name, amount, course, due_date |
-| `delnavazan_payment_received_fa` | `payment.recovered.student` | student | name, amount, course, paid_date |
-| `delnavazan_renewal_reminder_fa` | `renewal.automatic_upcoming.student` | student | name, course, due_date, amount |
-| `delnavazan_class_cancelled_fa` | `lesson.cancelled.student` | student | name, course, teacher, when |
-| `delnavazan_teacher_new_booking_fa` | `booking.new.teacher` | teacher | teacher, course, student, when |
-| `delnavazan_teacher_schedule_change_fa` | `reschedule.change.accepted.teacher` | teacher | teacher, course, student, previous_when, new_when |
-| `delnavazan_reschedule_rejected_fa` | `reschedule.change.rejected.student` | student | name, course, teacher, when |
-| `delnavazan_class_access_fa` | `lesson.access.student` | student | name, course, teacher, when |
+| `delnavazan_class_rescheduled_fa` | `reschedule.change.accepted.student` | student | name, when, timezone, portal_url |
+| `delnavazan_class_reminder_fa` | `lesson.reminder.student` | student | name, course, teacher, when, portal_url |
+| `delnavazan_reschedule_request_fa` | `reschedule.change.proposed.student` | student | name, when, timezone, portal_url |
+| `delnavazan_enrolment_confirmation_fa` | `post_intro.activated.student` | student | name, course, teacher, portal_url |
+| `delnavazan_payment_due_fa` | `renewal.manual_payment_required.student` | student | name, course, amount, due_date, portal_url |
+| `delnavazan_payment_received_fa` | `payment.recovered.student` | student | name, course, amount, paid_date, portal_url |
+| `delnavazan_renewal_reminder_fa` | `renewal.automatic_upcoming.student` | student | name, course, due_date, amount, portal_url |
+| `delnavazan_class_cancelled_fa` | `lesson.cancelled.student` | student | name, course, teacher, when, portal_url |
+| `delnavazan_teacher_new_booking_fa` | `booking.new.teacher` | teacher | teacher, course, student, when, response_window, teacher_portal_url |
+| `delnavazan_teacher_schedule_change_fa` | `reschedule.change.accepted.teacher` | teacher | teacher, when, timezone, teacher_portal_url |
+| `delnavazan_reschedule_rejected_fa` | `reschedule.change.rejected.student` | student | name, when, portal_url |
+| `delnavazan_class_access_fa` | `lesson.access.student` | student | name, course, teacher, when, portal_url |
 | `delnavazan_payment_failed_student_fa` | `payment.failed.student` | student | name, course, amount, portal_url |
 | `delnavazan_refund_resolved_student_fa` | `refund.resolved.student` | student | name, amount, portal_url |
 | `delnavazan_refund_review_required_student_fa` | `refund.review_required.student` | student | name, amount, portal_url |
@@ -180,6 +180,23 @@ Events offering WhatsApp with no registry entry (1): `account.claim_issued.stude
 
 These routes keep their local copy for provider submission and remain disabled until an approved
 template is mapped. A locally prepared draft is never presented as a Meta-approved template.
+
+## 4b. SMS.ir provider templates
+
+SMS.ir is the Iranian (+98) route. Every booking, lesson and renewal event-owned SMS uses one of
+the two approved bodies below; dedicated one-time-secret messages keep their own secure body.
+Telnyx carries international SMS with the catalogue copy. When a provider template ID is configured,
+the adapter calls the SMS.ir template endpoint with the uppercase parameter names; otherwise it sends
+the exact approved body through the bulk endpoint.
+
+| Template key | Label | Variables | Events |
+|---|---|---|---|
+| `account_referral` | Account referral | name | every SMS event |
+| `intro_booking_request` | New intro booking request | name, instrument, date, time | `booking.new.teacher` |
+
+`account_referral`: دلنوازان: #NAME# عزیز، لطفا به حساب کاربری خود مراجعه کنید.
+
+`intro_booking_request`: دلنوازان : درود #NAME# عزیز / هنرجویی برای کلاس آشنایی #INSTRUMENT# در تاریخ #DATE# ساعت #TIME# از شما درخواست کرده. / لطفا برای تأیید یا رد به حساب کاربری سر بزنید. / با تشکر،
 
 ## 5. Outstanding review
 
@@ -214,5 +231,6 @@ these routes cannot be enabled and no message is sent.
 - dzn_notification_copy_drafts and dzn_notification_copy_versions option presence
 - dzn_notification_event_enabled and dzn_notification_event_channels option values
 - Telnyx/Meta template approval status for every registry entry
+- SMS.ir approval status and the two configured provider template IDs
 - Which provider templates were rejected (the account-claim template was rejected at last inspection)
 - Integrated provider configuration for email, WhatsApp and each SMS route

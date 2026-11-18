@@ -27,7 +27,7 @@ foreach (array(
     'dzn_notification_event_toggle', 'dzn_notification_event_channel_toggle', 'dzn_notification_inbox_prune', 'dzn_notification_inbox_test',
     'dzn_notification_recover_leases', 'dzn_notification_prepare_drafts', 'dzn_notification_publish_drafts',
     'dzn_notification_approve_draft', 'dzn_notification_revoke_approval', 'dzn_notification_approve_operational',
-    'dzn_notification_manual_send',
+    'dzn_notification_approve_all_drafts', 'dzn_notification_manual_send',
 ) as $action) {
     $fail('registered action ' . $action, str_contains($controller, "admin_post_" . $action));}
 $fail('editing uses the canonical template capability', str_contains($controller, "CAP_EDIT='dzn_manage_notification_templates'"));

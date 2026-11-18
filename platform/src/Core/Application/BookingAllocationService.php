@@ -105,18 +105,64 @@ final class BookingAllocationService {
         if(!$candidate||(int)$candidate['requested_time_id']!==$requestedTimeId)throw new \InvalidArgumentException('Booking time is no longer available');
         return !empty($candidate['availability_overridden']);
     }
-    public function acceptedLocked(object $delivery,string $now):void{
+    /**
+     * A Teacher's acceptance has been committed to the delivery.
+     *
+     * A free introduction goes straight to provider projection, so it is already
+     * a committed winner and retires every overlapping pending offer to the same
+     * Teacher. A paid introduction stops at `awaiting_payment`; it has not
+     * secured the slot yet (Option B), so it must not retire other offers. The
+     * payment path calls `assertPaidSlotAvailable()` and, once it has committed
+     * this confirmation, `retireOverlappingOffers()`.
+     */
+    public function acceptedLocked(object $delivery,string $now,bool $slotSecured=true):void{
         $offer=$this->repo->offer((int)$delivery->booking_request_id,true);
         if(!$offer||(int)$offer->teacher_id!==(int)$delivery->teacher_id)throw new \RuntimeException('Booking offer changed');
-        $this->retireCompetingOffers($delivery,$now);
+        if($slotSecured)$this->retireCompetingOffers($delivery,$now);
         $this->repo->transitionOffer((int)$offer->id,'accepted',$now,'teacher_accepted');
         $this->repo->resolveAlerts((int)$delivery->booking_request_id,$now);
     }
-    public function administratorAcceptedLocked(object $delivery,string $now):void{
+    public function administratorAcceptedLocked(object $delivery,string $now,bool $slotSecured=true):void{
         $offer=$this->repo->offer((int)$delivery->booking_request_id,true);
-        $this->retireCompetingOffers($delivery,$now);
+        if($slotSecured)$this->retireCompetingOffers($delivery,$now);
         if($offer)$this->repo->transitionOffer((int)$offer->id,'superseded',$now,'administrator_agreement');
         $this->repo->resolveAlerts((int)$delivery->booking_request_id,$now);
+    }
+    /**
+     * Verify that a settled paid acceptance can still own its slot.
+     *
+     * The caller owns the transaction. The Student scheduling root is taken
+     * before the Teacher root, matching every other booking write; the
+     * confirmation row is re-locked by the caller only after these roots are
+     * held, so no acceptance path can invert the order.
+     *
+     * The check uses committed capacity only: canonical schedules plus committed
+     * introductory confirmations. Pending offers and `awaiting_payment`
+     * confirmations deliberately do not count, because an unpaid acceptance
+     * reserves nothing. Nothing is retired here: the caller must prove its own
+     * confirmation is still `awaiting_payment` before calling
+     * `retireOverlappingOffers()`.
+     *
+     * @return array{starts_at_utc:string,occupied_ends_at_utc:string}|null null when the slot is already taken
+     */
+    public function assertPaidSlotAvailable(int $requestId,int $teacherId,int $requestedTimeId,int $studentId,string $startsAtUtc,string $occupiedEndUtc,string $now):?array{
+        $start=trim($startsAtUtc);$end=trim($occupiedEndUtc);
+        if($requestedTimeId>0){
+            $time=$this->repo->requestedTime($requestedTimeId);
+            if(!$time||(int)$time->booking_request_id!==$requestId)throw new \RuntimeException('Booking requested time is unavailable');
+            $start=(string)$time->starts_at_utc;$end=(string)$time->occupied_ends_at_utc;
+        }
+        if($start===''||$end===''||$end<=$start)throw new \RuntimeException('Booking requested time is unavailable');
+        $actor=function_exists('get_current_user_id')?max(0,(int)get_current_user_id()):0;
+        $this->repo->ensureAndLockStudentRoot($studentId,$now,$actor);
+        $this->repo->ensureAndLockTeacherRoot($teacherId,$now,$actor);
+        if((new CanonicalTeacherOccupancyReadService())->overlapping($teacherId,$start,$end,0,$requestId))return null;
+        return array('starts_at_utc'=>$start,'occupied_ends_at_utc'=>$end);
+    }
+    /** A committed paid winner makes every overlapping pending offer impossible. */
+    public function retireOverlappingOffers(int $requestId,int $teacherId,string $start,string $end,string $now):void{
+        if($start===''||$end===''||$end<=$start)return;
+        $this->retireCompetingOffers((object)array('id'=>0,'booking_request_id'=>$requestId,'teacher_id'=>$teacherId,'starts_at_utc'=>$start,'occupied_ends_at_utc'=>$end),$now);
     }
     /** A committed winner makes every overlapping pending offer to this Teacher impossible. */
     private function retireCompetingOffers(object $delivery,string $now):void{

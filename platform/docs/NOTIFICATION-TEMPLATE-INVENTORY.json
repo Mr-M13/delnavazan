@@ -1,42 +1,42 @@
 {
-    "generated_at": "2026-11-18T13:11:16+00:00",
-    "catalogue_version": "2026-11-18.2",
+    "generated_at": "2026-11-18T22:43:02+00:00",
+    "catalogue_version": "2026-11-19.1",
     "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
     "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
     "totals": {
-        "events": 78,
-        "supported_event_channel_combinations": 312,
-        "required_templates": 624,
-        "existing_valid_templates": 624,
+        "events": 82,
+        "supported_event_channel_combinations": 328,
+        "required_templates": 656,
+        "existing_valid_templates": 656,
         "missing_templates": 0,
         "invalid_templates": 0,
         "missing_translations": 0,
         "unpublished_canonical_templates": "live_check_required",
-        "missing_provider_mappings": 38,
+        "missing_provider_mappings": 42,
         "unsupported_routes": 0,
         "events_without_registered_producer": 0
     },
     "by_category": {
         "security": 2,
         "lesson": 38,
-        "booking": 14,
+        "booking": 18,
         "account": 13,
         "payment": 11
     },
     "by_recipient": {
-        "student": 37,
-        "teacher": 25,
-        "admin": 15,
+        "student": 39,
+        "teacher": 26,
+        "admin": 16,
         "guardian": 1
     },
     "events_per_channel": {
-        "website": 78,
-        "email": 78,
-        "whatsapp": 78,
-        "sms": 78
+        "website": 82,
+        "email": 82,
+        "whatsapp": 82,
+        "sms": 82
     },
     "implementation": {
-        "implemented": 68,
+        "implemented": 72,
         "partial": 10,
         "declared": 0
     },
@@ -67,6 +67,10 @@
         "booking.cancelled.teacher",
         "booking.escalation.admin",
         "booking.expired.teacher",
+        "booking.payment_conflict.admin",
+        "booking.payment_conflict.student",
+        "booking.payment_lapsed.student",
+        "booking.payment_lapsed.teacher",
         "booking.referral.admin",
         "booking.rescheduled.teacher",
         "booking.submitted.admin",
@@ -1230,6 +1234,274 @@
                 "whatsapp_registry_name": "delnavazan_teacher_new_booking_fa",
                 "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_registry_key": "intro_booking_request",
+                "sms_state": "approved_template_mapped"
+            }
+        },
+        {
+            "event_key": "booking.payment_conflict.admin",
+            "notification": "Intro Payment Slot Conflict",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "admin",
+            "producer": "IntroPaymentService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "website",
+                "email",
+                "whatsapp",
+                "sms"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "booking.payment_conflict.admin.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.payment_conflict.admin.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.fa-IR": {
+                    "template_key": "booking.payment_conflict.admin.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.payment_conflict.admin.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "booking.payment_conflict.admin.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "booking.payment_conflict.admin.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "booking.payment_conflict.admin.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "booking.payment_conflict.admin.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_registry_key": "account_referral",
+                "sms_state": "approved_template_mapped"
+            }
+        },
+        {
+            "event_key": "booking.payment_conflict.student",
+            "notification": "Intro Payment Slot Conflict",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "student",
+            "producer": "IntroPaymentService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "website",
+                "email",
+                "whatsapp",
+                "sms"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "booking.payment_conflict.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.payment_conflict.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.fa-IR": {
+                    "template_key": "booking.payment_conflict.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.payment_conflict.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "booking.payment_conflict.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "booking.payment_conflict.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "booking.payment_conflict.student.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "booking.payment_conflict.student.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_registry_key": "account_referral",
+                "sms_state": "approved_template_mapped"
+            }
+        },
+        {
+            "event_key": "booking.payment_lapsed.student",
+            "notification": "Intro Payment Deadline Lapsed",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "student",
+            "producer": "IntroPaymentExpiryWorker",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "website",
+                "email",
+                "whatsapp",
+                "sms"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "booking.payment_lapsed.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.payment_lapsed.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.fa-IR": {
+                    "template_key": "booking.payment_lapsed.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.payment_lapsed.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "booking.payment_lapsed.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "booking.payment_lapsed.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "booking.payment_lapsed.student.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "booking.payment_lapsed.student.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_registry_key": "account_referral",
+                "sms_state": "approved_template_mapped"
+            }
+        },
+        {
+            "event_key": "booking.payment_lapsed.teacher",
+            "notification": "Intro Payment Deadline Lapsed",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "teacher",
+            "producer": "IntroPaymentExpiryWorker",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "website",
+                "email",
+                "whatsapp",
+                "sms"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "booking.payment_lapsed.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.payment_lapsed.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.fa-IR": {
+                    "template_key": "booking.payment_lapsed.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.payment_lapsed.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "booking.payment_lapsed.teacher.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "booking.payment_lapsed.teacher.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "booking.payment_lapsed.teacher.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "booking.payment_lapsed.teacher.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_registry_key": "account_referral",
                 "sms_state": "approved_template_mapped"
             }
         },

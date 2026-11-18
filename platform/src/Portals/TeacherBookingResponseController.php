@@ -33,6 +33,8 @@ final class TeacherBookingResponseController {
                 str_contains($message,'Booking request is no longer pending')=>'این فرصت دیگر در دسترس نیست؛ ممکن است مدرس دیگری آن را پذیرفته باشد.',
                 str_contains($message,'student_slot_conflict')=>'این زمان با کلاس یا درخواست دیگری از این هنرجو تداخل دارد؛ درخواست پذیرفته نشد.',
                 str_contains($message,'teacher_slot_conflict')=>'زمان انتخاب‌شده با کلاس دیگری از شما تداخل دارد.',
+                str_contains($message,'payment_deadline_lapsed')=>'مهلت پرداخت این هنرجو گذشته است؛ این جایگاه آزاد شده و نیازی به پاسخ نیست.',
+                str_contains($message,'slot_taken_after_payment')=>'این زمان پیش از نهایی‌شدن پرداخت توسط رزرو دیگری گرفته شد؛ پرداخت هنرجو به‌عنوان اعتبار نگه داشته شده و آموزشگاه برای زمان تازه هماهنگی می‌کند.',
                 str_contains($message,'Google Calendar'),str_starts_with($message,'meet_'),str_starts_with($message,'provider_')=>'ساخت کلاس با حساب سازمانی دلنوازان ممکن نشد؛ لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.',
                 default=>'پاسخ ثبت نشد یا درخواست دیگر در انتظار پاسخ نیست.',
             };

@@ -65,7 +65,7 @@ final class BookingTeacherResponseService {
             $overridden=(bool)$this->allocation->assertAcceptable($delivery,$now,$selectedTimeId,$allowOverride);
             if($overridden)$this->auditAvailabilityOverride($delivery,$selectedTimeId,$actor,$keyDigest,$now);
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($delivery,$teacher,$actor,$keyDigest,$payloadDigest,$now);
-            $this->allocation->acceptedLocked($delivery,$now);
+            $this->allocation->acceptedLocked($delivery,$now,!$paid);
             $this->repository->commit();
         }catch(\Throwable $error){
             $contention=BookingContention::capture($error,BookingContentionException::TEACHER_BUSY);
@@ -134,7 +134,7 @@ final class BookingTeacherResponseService {
             $overridden=(bool)$this->allocation->assertAcceptable($locked,$now,$requestedTimeId,true);
             $this->auditClaim($locked,$requestedTimeId,$overridden,$actor,$keyDigest,$now);
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($locked,$teacher,$actor,$keyDigest,$payloadDigest,$now);
-            $this->allocation->acceptedLocked($locked,$now);
+            $this->allocation->acceptedLocked($locked,$now,!$paid);
             $this->repository->commit();
         }catch(\Throwable $error){
             $contention=BookingContention::capture($error,BookingContentionException::TEACHER_BUSY);
@@ -215,7 +215,7 @@ final class BookingTeacherResponseService {
             $delivery=$this->repository->delivery($deliveryId,true);
             if(!$delivery||(string)$delivery->state!=='pending_request'||(string)$delivery->lifecycle_status!=='submitted'||(string)$delivery->resolution_state!=='unresolved'||$delivery->privacy_erased_at!==null)throw new \InvalidArgumentException('Booking request is no longer pending');
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($delivery,$teacher,$actor,$keyDigest,$payloadDigest,$now);
-            $this->allocation->administratorAcceptedLocked($delivery,$now);
+            $this->allocation->administratorAcceptedLocked($delivery,$now,!$paid);
             $this->repository->commit();
         }catch(\Throwable $error){
             $contention=BookingContention::capture($error,BookingContentionException::TEACHER_BUSY);
@@ -307,6 +307,9 @@ final class BookingTeacherResponseService {
                 'student_id'=>(int)$delivery->student_id,'teacher_id'=>(int)$teacher->id,
                 'course_id'=>(int)$delivery->selected_intro_course_id,'region_code'=>(string)$pricing['region_code'],
                 'currency'=>(string)$pricing['currency'],'amount_minor'=>(int)$pricing['amount_minor'],
+                // The payment deadline is min(created_at + 7 days, class start). The
+                // obligation service owns the arithmetic; the acceptance supplies the start.
+                'starts_at_utc'=>(string)$delivery->starts_at_utc,
             ),'intro-payment-obligation:'.$confirmationId,true);
             $introUid=(string)$obligation['uid'];
         }

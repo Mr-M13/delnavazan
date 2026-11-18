@@ -58,6 +58,9 @@ final class BookingStudentNotificationWorker {
             if((string)$row->notification_kind==='rescheduled_teacher')$eventKey='booking.rescheduled.teacher';
             if((string)$row->notification_kind==='post_intro_invitation'||(string)$row->notification_kind==='post_intro_reminder')$eventKey='post_intro.invitation.student';
             if((string)$row->notification_kind==='post_intro_activated')$eventKey='post_intro.activated.student';
+            if((string)$row->notification_kind==='payment_lapsed')$eventKey='booking.payment_lapsed.student';
+            if((string)$row->notification_kind==='payment_lapsed_teacher')$eventKey='booking.payment_lapsed.teacher';
+            if((string)$row->notification_kind==='payment_conflict')$eventKey='booking.payment_conflict.student';
             if((string)$row->notification_kind===PostIntroSurveyWorker::NOTIFICATION_KIND)$eventKey=PostIntroSurveyWorker::EVENT_KEY;
             $copy=array('subject'=>$subject,'body'=>$body);
             if(class_exists(NotificationCopyResolver::class)){
@@ -123,6 +126,9 @@ final class BookingStudentNotificationWorker {
     /** Mobile is fail-soft: it can never roll back the durable booking or the email hand-off. */
     private static function mobile(object $row,string $eventKey,array $variables):array{
         if($eventKey===PostIntroSurveyWorker::EVENT_KEY)return array('state'=>'skipped','reason'=>'survey_email_portal_only');
+        // Payment-lapse and slot-conflict notices are website/email operations: they
+        // must not create WhatsApp or SMS provider traffic or require new templates.
+        if(in_array($eventKey,array('booking.payment_lapsed.student','booking.payment_lapsed.teacher','booking.payment_conflict.student'),true))return array('state'=>'skipped','reason'=>'website_email_only');
         if(!class_exists(BookingNotificationMobileDispatcher::class))return array('state'=>'skipped','reason'=>'runtime_unavailable');
         try{return (new BookingNotificationMobileDispatcher())->dispatch($row,$eventKey,$variables);}
         catch(\Throwable $error){do_action('dzn_booking_mobile_notification_failed',(int)$row->id,get_class($error));return array('state'=>'failed','reason'=>'runtime_exception');}
@@ -191,6 +197,21 @@ final class BookingStudentNotificationWorker {
             $timezone=in_array((string)$row->teacher_timezone,timezone_identifiers_list(),true)?(string)$row->teacher_timezone:(string)$row->schedule_timezone;
             $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,'gregorian');
             return array('Delnavazan introductory lesson rescheduled',"Hello {$teacher},\n\nThe introductory {$course} lesson with {$name} has been rescheduled to {$when}.\n\nOpen your Teacher Portal: {$teacherPortal}\n\nDelnavazan",$base+array('when'=>$when));
+        }
+        if((string)$row->notification_kind==='payment_lapsed'){
+            $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;
+            $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,self::calendarPreference($row));
+            return array('دلنوازان · مهلت پرداخت کلاس آشنایی گذشت',"درود {$name}،\n\nمهلت پرداخت هزینهٔ کلاس آشنایی «{$course}» با {$teacher} در {$when} به پایان رسید. چون پرداخت در این بازه ثبت نشد، این جایگاه آزاد شد و کلاس ساخته نشد.\n\nاگر همچنان می‌خواهید کلاس آشنایی را داشته باشید، از حساب کاربری زمان تازه‌ای انتخاب کنید:\n{$portal}\n\nبا احترام، دلنوازان",$base+array('when'=>$when));
+        }
+        if((string)$row->notification_kind==='payment_lapsed_teacher'){
+            $timezone=in_array((string)$row->teacher_timezone,timezone_identifiers_list(),true)?(string)$row->teacher_timezone:(string)$row->schedule_timezone;
+            $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,'gregorian');
+            return array('دلنوازان · مهلت پرداخت هنرجو گذشت',"درود {$teacher}،\n\nمهلت پرداخت کلاس آشنایی «{$course}» با هنرجو {$name} در {$when} گذشت. پرداخت ثبت نشد، بنابراین این جایگاه آزاد شد و رویداد تقویم یا کلاس آنلاین ساخته نمی‌شود.\n\nنیازی به اقدام نیست؛ در صورت هماهنگی تازه، آموزشگاه با شما تماس می‌گیرد.\n\nپرتال مدرس:\n{$teacherPortal}\n\nبا احترام، دلنوازان",$base+array('when'=>$when));
+        }
+        if((string)$row->notification_kind==='payment_conflict'){
+            $timezone=in_array((string)$row->student_timezone,timezone_identifiers_list(),true)?(string)$row->student_timezone:(string)$row->schedule_timezone;
+            $when=self::formatWhen((string)$row->starts_at_utc,(string)$row->ends_at_utc,$timezone,self::calendarPreference($row));
+            return array('دلنوازان · پرداخت شما ثبت شد؛ زمان کلاس در حال هماهنگی است',"درود {$name}،\n\nپرداخت شما برای کلاس آشنایی «{$course}» با {$teacher} با موفقیت ثبت شد؛ اما پیش از نهایی‌شدن پرداخت، زمان {$when} توسط رزرو دیگری گرفته شد.\n\nپرداخت شما ایمن است و به‌عنوان اعتبار نزد دلنوازان نگه داشته می‌شود. آموزشگاه برای هماهنگی زمان تازه با شما تماس می‌گیرد و نیازی به پرداخت دوباره نیست.\n\nجزئیات در حساب کاربری:\n{$portal}\n\nبا احترام، دلنوازان",$base+array('when'=>$when));
         }
         if((string)$row->notification_kind==='post_intro_invitation')return array('Your Delnavazan enrolment is ready',"Hello {$name},\n\n{$teacher} confirmed that your introductory {$course} lesson was delivered. You can now complete payment and confirm your enrolment with the same Teacher.\n\nOpen your account: {$portal}\n\nYour enrolment, weekly schedule and future lessons are activated automatically after the payment is verified. No further Teacher approval is required.\n\nDelnavazan",$base);
         if((string)$row->notification_kind==='post_intro_reminder')return array('Reminder: complete your Delnavazan enrolment',"Hello {$name},\n\nThis is a reminder that your introductory {$course} lesson with {$teacher} is complete and your continuation decision and payment are still outstanding. The available reservation expires at the deadline shown in your account.\n\nOpen your account: {$portal}\n\nIf you have already paid, no further action is required and the payment evidence will be reviewed.\n\nDelnavazan",$base);

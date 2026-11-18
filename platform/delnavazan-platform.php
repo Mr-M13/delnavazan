@@ -137,6 +137,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\BookingStudentNotificationWorker::register();
 	Delnavazan\Platform\Integrations\BookingAllocationWorker::register();
 	Delnavazan\Platform\Integrations\BookingAllocationNotificationWorker::register();
+	Delnavazan\Platform\Integrations\IntroPaymentExpiryWorker::register();
 	Delnavazan\Platform\Integrations\BookingCancellationRetractionWorker::register();
 	Delnavazan\Platform\Integrations\TeacherClassJoinController::register();
 	Delnavazan\Platform\Integrations\StudentClassJoinController::register();

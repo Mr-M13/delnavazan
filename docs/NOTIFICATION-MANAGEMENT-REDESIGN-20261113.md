@@ -16,8 +16,8 @@ The catalogue still preserves every source event key and does not silently activ
 
 ## 2026-11-18 follow-up
 
-- The catalogue card is now a title, one delivery switch per method the event actually offers (Portal, Email, WhatsApp, SMS) and Open. Green means effectively active; red means inactive or blocked. A method the event does not use is not rendered as a switch, so no notification appears to have a broken delivery option. The purpose paragraph and the duplicate event-level control were removed.
-- The editor consolidates Delivery, Variable Contract and Status into one overview card, then shows one tab per offered delivery method with that method's preview, copy, provider mapping, draft approval and history. A direct link that names a method the event does not use explains that it is not offered instead of opening an editor.
+- The catalogue card is now a title, the four delivery switches (Portal, Email, WhatsApp, SMS) and Open. Green means effectively active; red means inactive or blocked. The purpose paragraph and the duplicate event-level control were removed.
+- The editor consolidates Delivery, Variable Contract and Status into one overview card, then shows one tab per delivery method with that method's preview, copy, provider mapping, draft approval and history.
 - A Teacher's new introductory booking request creates the whole Term in one projection. The per-class access-ready notice is suppressed for that projection; the existing enrolment-activated notice is the single Term-level message. A normal single schedule still sends access-ready.
 - The one-time catalogue action approves and publishes every stored draft once. It is capability/nonce gated, requires the literal confirmation `APPROVE ALL`, records its use and refuses a second run. It never enables a channel or sends a message.
 - The WhatsApp registry variable order now matches the approved provider manifest for all 40 templates. A discovery refresh after deploy is required so the corrected local mapping replaces the previously truncated rows.

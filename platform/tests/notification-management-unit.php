@@ -551,6 +551,9 @@ namespace {
     $hiddenRow = array('event'=>array('category'=>'finance','audience'=>'admin'),'offered'=>array('email'),'states'=>array('email'=>array('state'=>'enabled')),'search_text'=>'statement');
     $allFilters = array('search'=>'lesson','category'=>'booking','recipient'=>'student','channel'=>'email','status'=>'enabled');
     $fail('displayed table rows apply all preserved filters', $matches->invoke(null,$visibleRow,$allFilters)===true && $matches->invoke(null,$hiddenRow,$allFilters)===false);
+    $unofferedStateRow = array('event'=>array(),'offered'=>array('email'),'states'=>array('email'=>array('state'=>'enabled'),'sms'=>array('state'=>'unsupported')),'search_text'=>'');
+    $fail('a status filter ignores methods the event does not offer', $matches->invoke(null,$unofferedStateRow,array('status'=>'unsupported'))===false);
+    $fail('an offered channel state still matches its status filter', $matches->invoke(null,$unofferedStateRow,array('status'=>'enabled'))===true);
     $stateMethod = new \ReflectionMethod($controllerClass, 'effectiveChannelState');
     $stateMethod->setAccessible(true);
     $library->saveEventChannel($event, 'whatsapp', false);
@@ -869,7 +872,8 @@ namespace {
     }
 
     /* 18. The catalogue card and the tabbed editor render without WordPress and preserve the
-     *     requested information hierarchy. */
+     *     requested information hierarchy. A method the event does not use is not a control:
+     *     exactly the catalogue's offered channels appear as switches and tabs. */
     $cardEvent = 'booking.confirmed.student';
     $cardDefinition = NotificationCatalogue::get($cardEvent);
     $cardStates = array();
@@ -881,10 +885,18 @@ namespace {
     $cardMethod->invoke(null, $cardRow, $library);
     $cardHtml = (string) ob_get_clean();
     $fail('the card renders the clear notification title', str_contains($cardHtml, (string) $cardDefinition['label']));
-    $fail('the card renders all four delivery switches', substr_count($cardHtml, 'dzn-nc-channel ') === 4 && str_contains($cardHtml, '>Portal<') && str_contains($cardHtml, '>Email<') && str_contains($cardHtml, '>WhatsApp<') && str_contains($cardHtml, '>SMS<'));
+    $fail('the card renders one switch per offered delivery method', substr_count($cardHtml, 'dzn-nc-channel ') === count($cardDefinition['channels']) && str_contains($cardHtml, '>Portal<') && str_contains($cardHtml, '>Email<') && str_contains($cardHtml, '>WhatsApp<') && !str_contains($cardHtml, '>SMS<') && !str_contains($cardHtml, 'Not offered'));
     $fail('the card has an Open action', str_contains($cardHtml, 'dzn-nc-open') && str_contains($cardHtml, '>Open<'));
     $fail('the card no longer repeats the purpose paragraph', !str_contains($cardHtml, (string) ($cardDefinition['purpose'] ?? '')));
     $fail('the card no longer carries the old event-level disable control', !str_contains($cardHtml, 'Disable notification'));
+
+    $portalEvent = 'booking.expired.teacher';
+    $portalDefinition = NotificationCatalogue::get($portalEvent);
+    $portalRow = array('key' => $portalEvent, 'event' => $portalDefinition, 'offered' => (array) $portalDefinition['channels'], 'states' => array('website' => $stateMethod->invoke(null, $library, $portalEvent, 'website')), 'readiness' => 'ready');
+    ob_start();
+    $cardMethod->invoke(null, $portalRow, $library);
+    $portalCard = (string) ob_get_clean();
+    $fail('a portal-only card shows one switch and no absent methods', substr_count($portalCard, 'dzn-nc-channel ') === 1 && str_contains($portalCard, '>Portal<') && !str_contains($portalCard, '>Email<') && !str_contains($portalCard, '>WhatsApp<') && !str_contains($portalCard, '>SMS<') && !str_contains($portalCard, 'Not offered'));
 
     $editorMethod = new \ReflectionMethod($controllerClass, 'renderEditor');
     $editorMethod->setAccessible(true);
@@ -892,7 +904,19 @@ namespace {
     $editorMethod->invoke(null, $library, $cardEvent, 'email', 'fa-IR');
     $editorHtml = (string) ob_get_clean();
     $fail('the editor consolidates the overview into one card', str_contains($editorHtml, 'dzn-nc-overview') && str_contains($editorHtml, 'Variable contract') && str_contains($editorHtml, 'dzn-nc-facts'));
-    $fail('the editor offers one tab per delivery method', str_contains($editorHtml, 'role="tablist"') && substr_count($editorHtml, 'dzn-nc-tab') >= 4 && str_contains($editorHtml, '>Portal<') && str_contains($editorHtml, '>Email<') && str_contains($editorHtml, '>WhatsApp<') && str_contains($editorHtml, '>SMS<'));
+    preg_match('/<nav class="dzn-nc-tabs".*?<\/nav>/s', $editorHtml, $tabMatch);
+    $tabHtml = (string) ($tabMatch[0] ?? '');
+    $fail('the editor offers one tab per offered delivery method', substr_count($tabHtml, 'role="tab"') === count($cardDefinition['channels']) && str_contains($tabHtml, '>Portal<') && str_contains($tabHtml, '>Email<') && str_contains($tabHtml, '>WhatsApp<') && !str_contains($tabHtml, '>SMS<'));
+    ob_start();
+    $editorMethod->invoke(null, $library, $portalEvent, 'website', 'fa-IR');
+    $portalEditor = (string) ob_get_clean();
+    preg_match('/<nav class="dzn-nc-tabs".*?<\/nav>/s', $portalEditor, $portalTabMatch);
+    $portalTabs = (string) ($portalTabMatch[0] ?? '');
+    $fail('a portal-only editor has a single portal tab', substr_count($portalTabs, 'role="tab"') === 1 && str_contains($portalTabs, '>Portal<') && !str_contains($portalTabs, '>Email<') && !str_contains($portalTabs, '>WhatsApp<') && !str_contains($portalTabs, '>SMS<'));
+    ob_start();
+    $editorMethod->invoke(null, $library, $portalEvent, 'email', 'fa-IR');
+    $unsupportedEditor = (string) ob_get_clean();
+    $fail('an unsupported direct link explains the method without opening an editor', str_contains($unsupportedEditor, 'Not offered') && !str_contains($unsupportedEditor, 'id="dzn-notif-body"'));
     $fail('the editor keeps the preview, editor and history in the selected tab', str_contains($editorHtml, '<h3>Preview</h3>') && str_contains($editorHtml, 'id="dzn-notif-body"') && str_contains($editorHtml, 'Version History'));
     $fail('the editor no longer duplicates the old Delivery and Status cards', !str_contains($editorHtml, '<h3>Delivery</h3>') && !str_contains($editorHtml, '<h3>Status</h3>'));
 

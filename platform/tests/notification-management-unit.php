@@ -456,6 +456,8 @@ namespace {
     $library->saveProviderMapping($event, 'whatsapp', 'fa-IR', 'booking_confirmed_fa', 'fa');
     $mapped = $library->status($event, 'whatsapp', 'fa-IR');
     $fail('provider mapping is recorded', $library->providerMapping('booking.confirmed.student.whatsapp.fa-IR')['name'] === 'booking_confirmed_fa');
+    $fail('the workspace exposes the linked provider name', ($mapped['provider_name'] ?? '') === 'booking_confirmed_fa');
+    $fail('the workspace exposes the registered provider name before discovery', ($mapped['provider_expected_name'] ?? '') === 'delnavazan_intro_confirmed_fa');
     $invalidMap = false;
     try { $library->saveProviderMapping($event, 'whatsapp', 'fa-IR', 'Bad Name!', 'fa'); } catch (InvalidArgumentException $error) { $invalidMap = true; }
     $fail('invalid provider name is refused', $invalidMap);
@@ -464,12 +466,16 @@ namespace {
     $provider->upsertTemplate(array(
         'uid'=>'01TESTPROVIDERTEMPLATE0001','provider'=>'telnyx','template_name'=>'delnavazan_teacher_new_booking_fa','language'=>'fa',
         'provider_template_id'=>'meta-1','category'=>'UTILITY','status'=>'APPROVED','event_key'=>'booking.new.teacher','audience'=>'teacher',
-        'variable_order'=>'teacher,course,student,when,response_window,teacher_portal_url','last_verified_at'=>'2026-11-01 00:00:00','created_at'=>'2026-11-01 00:00:00','updated_at'=>'2026-11-01 00:00:00',
+        'variable_order'=>'teacher,course,student,when,response_window,teacher_portal_url','template_text'=>'درود {{1}}، «{{2}}» با {{3}} در {{4}} — {{5}} {{6}}',
+        'last_verified_at'=>'2026-11-01 00:00:00','created_at'=>'2026-11-01 00:00:00','updated_at'=>'2026-11-01 00:00:00',
     ));
     $discoveredLibrary = new NotificationTemplateLibrary(null,null,new TelnyxTemplateAuthority($provider));
     $discoveredStatus = $discoveredLibrary->status('booking.new.teacher','whatsapp','fa-IR');
     $discoveredMapping = $discoveredLibrary->providerMapping('booking.new.teacher.whatsapp.fa-IR');
+    $discoveredEvidence = $discoveredLibrary->providerEvidence('booking.new.teacher','fa-IR');
     $fail('approved discovery is the administration mapping authority', $discoveredStatus['provider_state']==='mapped'&&$discoveredMapping['source']==='discovery'&&$discoveredMapping['name']==='delnavazan_teacher_new_booking_fa');
+    $fail('the workspace exposes the discovered provider name', ($discoveredStatus['provider_name'] ?? '') === 'delnavazan_teacher_new_booking_fa');
+    $fail('the workspace exposes the approved provider body', is_array($discoveredEvidence['primary'] ?? null) && str_contains((string) $discoveredEvidence['primary']['template_text'], '{{1}}') && str_contains((string) $discoveredEvidence['primary']['template_text'], '{{6}}'));
     $fail('approved discovery does not require a duplicate manual option', !isset(($GLOBALS['dzn_test_options'][NotificationTemplateLibrary::OPTION_WHATSAPP]??array())['booking.new.teacher.whatsapp.fa-IR']));
     $conflictingMap=false;
     try{$discoveredLibrary->saveProviderMapping('booking.new.teacher','whatsapp','fa-IR','legacy_teacher_booking_fa','fa');}catch(InvalidArgumentException){$conflictingMap=true;}
@@ -555,7 +561,7 @@ namespace {
     $stateMethod->setAccessible(true);
     $library->saveEventChannel($event, 'whatsapp', false);
     $offWhatsApp = $stateMethod->invoke(null, $library, $event, 'whatsapp');
-    $fail('off WhatsApp still shows approval blocker', $offWhatsApp['state']==='disabled' && !empty($offWhatsApp['enable_blocked']) && str_contains($offWhatsApp['reason'], 'Provider approval'));
+    $fail('off WhatsApp still shows approval blocker', $offWhatsApp['state']==='disabled' && !empty($offWhatsApp['enable_blocked']) && stripos($offWhatsApp['reason'], 'approv') !== false);
     $smsEvent = 'booking.new.teacher';
     $library->saveEventChannel($smsEvent, 'sms', false);
     $offSms = $stateMethod->invoke(null, $library, $smsEvent, 'sms');
@@ -581,7 +587,7 @@ namespace {
     $fail('a configured provider without a mapping stays not_mapped', $unmappedStatus['provider_state'] === 'not_mapped');
     $fail('an off channel keeps both the off notice and its provider issue', str_contains($unmappedIssues, 'disabled') && str_contains($unmappedIssues, 'Meta'));
     $unmappedState = $stateMethod->invoke(null, $library, $unmappedEvent, 'whatsapp');
-    $fail('configured provider without a mapping keeps the blocker visible while off', $unmappedState['state'] === 'disabled' && $unmappedState['enable_blocked'] === true && str_contains($unmappedState['reason'], 'Provider approval'));
+    $fail('configured provider without a mapping keeps the blocker visible while off', $unmappedState['state'] === 'disabled' && $unmappedState['enable_blocked'] === true && str_contains($unmappedState['reason'], 'Meta-approved'));
     $unmappedBlocker = $blockerMethod->invoke(null, $library, $unmappedEvent, 'whatsapp');
     $fail('the toggle handler receives the same unavailable blocker', is_array($unmappedBlocker) && $unmappedBlocker['state'] === 'missing_provider');
     $canonicalBlocker = $blockerMethod->invoke(null, $library, 'account.claim_issued.student', 'whatsapp');
@@ -659,6 +665,23 @@ namespace {
     $driftedPolicy = $library->draftReviewPolicy('booking.confirmed.student', 'whatsapp', 'fa-IR');
     $fail('editing the body after the provider mapping is refused', $driftedPolicy['allowed'] === false && str_contains((string) $driftedPolicy['reason'], 'provider mapping'));
     $library->discardDraft('booking.confirmed.student', 'whatsapp', 'fa-IR');
+
+    /* 11d. A discovered but contract-invalid template is evidence, not a usable mapping: the
+     *      workspace must still name it and show the approved body while sending stays blocked. */
+    $provider->upsertTemplate(array(
+        'uid'=>'01TESTINTROCONFIRMEDTEXT0001','provider'=>'telnyx','template_name'=>'delnavazan_intro_confirmed_fa','language'=>'fa',
+        'provider_template_id'=>'meta-intro-confirmed','category'=>'UTILITY','status'=>'APPROVED','event_key'=>null,'audience'=>'student',
+        'variable_order'=>'name,course,teacher,when','template_text'=>'درود {{1}}، کلاس «{{2}}» با {{3}} در {{4}} تأیید شد.',
+        'last_verified_at'=>'2026-11-01 00:00:00','created_at'=>'2026-11-01 00:00:00','updated_at'=>'2026-11-01 00:00:00',
+    ));
+    $mismatchLibrary = new NotificationTemplateLibrary(null,null,new TelnyxTemplateAuthority($provider));
+    $mismatchStatus = $mismatchLibrary->status('booking.confirmed.student','whatsapp','fa-IR');
+    $mismatchMapping = $mismatchLibrary->providerMapping('booking.confirmed.student.whatsapp.fa-IR');
+    $mismatchEvidence = $mismatchLibrary->providerEvidence('booking.confirmed.student','fa-IR');
+    $fail('a contract mismatch is not presented as a usable mapping', $mismatchStatus['provider_state']==='contract_mismatch'&&$mismatchMapping['name']==='');
+    $fail('a contract mismatch still exposes the discovered provider name', is_array($mismatchEvidence['primary']??null)&&$mismatchEvidence['primary']['name']==='delnavazan_intro_confirmed_fa'&&$mismatchEvidence['primary']['status']==='APPROVED');
+    $fail('a contract mismatch still exposes the approved provider body', str_contains((string)($mismatchEvidence['primary']['template_text']??''),'{{4}}'));
+    $fail('the English route does not claim the Persian registered template name', $mismatchLibrary->providerEvidence('booking.confirmed.student','en')['expected_name']===null);
 
     $fail('operational drafts still require approval', $library->draftReviewPolicy('booking.declined.student', 'email', 'fa-IR')['allowed'] === false);
     $library->approveDraft('booking.declined.student', 'email', 'fa-IR');
@@ -900,6 +923,13 @@ namespace {
     $fail('the editor offers one tab per delivery method', str_contains($editorHtml, 'role="tablist"') && substr_count($editorHtml, 'dzn-nc-tab') >= 4 && str_contains($editorHtml, '>Portal<') && str_contains($editorHtml, '>Email<') && str_contains($editorHtml, '>WhatsApp<') && str_contains($editorHtml, '>SMS<'));
     $fail('the editor keeps the preview, editor and history in the selected tab', str_contains($editorHtml, '<h3>Preview</h3>') && str_contains($editorHtml, 'id="dzn-notif-body"') && str_contains($editorHtml, 'Version History'));
     $fail('the editor no longer duplicates the old Delivery and Status cards', !str_contains($editorHtml, '<h3>Delivery</h3>') && !str_contains($editorHtml, '<h3>Status</h3>'));
+
+    ob_start();
+    $editorMethod->invoke(null, $library, $cardEvent, 'whatsapp', 'fa-IR');
+    $whatsappEditorHtml = (string) ob_get_clean();
+    $fail('the WhatsApp editor names the discovered provider template', str_contains($whatsappEditorHtml, 'delnavazan_intro_confirmed_fa'));
+    $fail('the WhatsApp editor shows the approved provider body read-only', str_contains($whatsappEditorHtml, 'Approved provider body') && str_contains($whatsappEditorHtml, 'درود {{1}}'));
+    $fail('the WhatsApp editor offers the in-place provider refresh', str_contains($whatsappEditorHtml, 'dzn_notification_provider_refresh'));
 
     echo "Notification management unit passed\n";
 }

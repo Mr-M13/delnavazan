@@ -23,6 +23,26 @@ synthetic Persian `samples` object. The `TelnyxTemplateRegistry` mirrors the sam
 
 Do not add credentials to the repository; the workflow reads them only from the environment secrets.
 
+## What the notification editor shows
+
+Open **Notifications → Templates → WhatsApp** for one event. The provider panel is read-only and
+shows the evidence behind the channel state:
+
+- **Linked template** — the discovered `delnavazan_*_fa` name and language. When nothing is usable
+  it says **Not linked** and, for a Persian route, names the registered template the event expects.
+- **Provider status** — the discovered `APPROVED` / `PENDING` / `REJECTED` state, category, parameter
+  count/order and last verification time.
+- **Provider body** — the exact static provider text (with positional placeholders), captured by
+  the latest discovery refresh. It is labeled **Approved provider body** only when the provider
+  status is `APPROVED`; a pending or rejected body is shown with that status instead. This is what
+  Telnyx delivers. The editable copy above is the local Delnavazan representation; the two do not
+  have to be word-for-word identical, but the parameter count and order must match.
+- **Refresh provider templates** — re-runs the read-only Telnyx discovery from the editor and returns
+  to the same event. It never sends a message and never changes a published local version.
+
+A contract mismatch or an unapproved template is not a mapping problem an administrator can
+override: correct the provider template in Telnyx, wait for approval, then refresh.
+
 ## Template table (name → event → audience → positional variables)
 
 | Template name | Event key | Audience | Positional variables |

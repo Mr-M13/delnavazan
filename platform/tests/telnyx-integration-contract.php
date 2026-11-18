@@ -16,6 +16,7 @@ $discovery=$read($root.'/src/Integrations/Notifications/TelnyxTemplateDiscoveryS
 $registry=$read($root.'/src/Integrations/Notifications/TelnyxTemplateRegistry.php');
 $authority=$read($root.'/src/Integrations/Notifications/TelnyxTemplateAuthority.php');
 $admin=$read($root.'/src/Admin/Controller/IntegrationControlPlaneController.php');
+$notificationAdmin=$read($root.'/src/Admin/Controller/NotificationManagementController.php');
 $readService=$read($root.'/src/Core/Application/IntegrationControlPlaneReadService.php');
 $settings=$read($root.'/src/Core/Application/IntegrationSettingsService.php');
 $composite=$read($root.'/src/Integrations/Notifications/CompositeNotificationTransport.php');
@@ -26,6 +27,9 @@ $fail('webhook route is registered',str_contains($plugin,'TelnyxWebhookControlle
 $fail('production bindings filter is registered',str_contains($plugin,"dzn_notification_transport_bindings")&&str_contains($plugin,'NotificationProviderBindings'));
 $fail('schema 057 is installed',str_contains($migration,'057_telnyx_provider_events')&&str_contains($migration,'telnyx_events')&&str_contains($migration,'telnyx_messages')&&str_contains($migration,'telnyx_templates'));
 $fail('provider tables are digest-only',str_contains($migration,'message_reference_digest')&&str_contains($migration,'event_reference_digest')&&str_contains($migration,'must stay contact-free and payload-free'));
+$fail('the provider template text migration is installed',str_contains($migration,'079_telnyx_template_text')&&str_contains($migration,'template_text text NULL')&&str_contains($migration,'verify_telnyx_template_text_schema'));
+$fail('the provider template text migration is in the upgrade ledger',str_contains($migration,"if(!in_array('079_telnyx_template_text'")&&str_contains($migration,"\$required[] = '079_telnyx_template_text'"));
+$fail('provider template text is static provider copy, never a rendered body',str_contains($discovery,"'template_text'")&&str_contains($discovery,'mb_substr')&&str_contains($migration,'never a rendered message'));
 $fail('webhook verifies raw-body Ed25519 signature',str_contains($signature,'sodium_crypto_sign_verify_detached')&&str_contains($signature,"'|'.\$rawBody")&&str_contains($signature,'webhook_timestamp_stale'));
 $fail('webhook controller uses the configured verifier',str_contains($controller,'TelnyxWebhookService::fromSettings')&&str_contains($controller,'get_body')&&str_contains($controller,'no-store'));
 $fail('webhook is idempotent by event digest',str_contains($service,'event_reference_digest')&&str_contains($service,'incrementReplay')&&str_contains($service,'terminal'));
@@ -56,6 +60,9 @@ $fail('template registry maps approved names',str_contains($registry,'delnavazan
 $fail('template discovery is explicit and read-only',str_contains($discovery,'/v2/whatsapp/message_templates')&&str_contains($discovery,'Refresh')===false&&str_contains($discovery,'sync()'));
 $fail('settings expose Telnyx webhook key and WABA',str_contains($settings,"'webhook_public_key'=>'text'")&&str_contains($settings,"'waba_id'=>'text'")&&str_contains($settings,"'sender_id'=>'text'"));
 $fail('admin shows verified webhook and discovery',str_contains($admin,'Verified webhook')&&str_contains($admin,'Refresh approved templates')&&str_contains($admin,'dzn_telnyx_template_sync')&&str_contains($admin,'Webhook URL'));
+$fail('admin lists discovered templates with their linked event and variable evidence',str_contains($admin,'Discovered templates (')&&str_contains($admin,'TelnyxTemplateRegistry::definitionForName')&&str_contains($admin,'Not linked'));
+$fail('notification admin shows the linked provider name and approved body',str_contains($notificationAdmin,'providerEvidence')&&str_contains($notificationAdmin,'Approved provider body')&&str_contains($notificationAdmin,'dzn_notification_provider_refresh'));
+$fail('notification admin names linked and expected provider templates',str_contains($notificationAdmin,'Telnyx:')&&str_contains($notificationAdmin,'provider_expected_name'));
 $fail('admin readiness is secret-free',str_contains($readService,"'telnyx'=>array")&&str_contains($readService,'webhook_signature')&&str_contains($readService,'dispatch_actor'));
 $fail('mobile channels are independently policy-gated',str_contains($composite,'channelPolicy')&&str_contains($composite,'allowed(')&&str_contains($composite,'foreach'));
 $fail('no webhook code sends a live message',strpos($service,'wp_remote_post')===false&&strpos($controller,'wp_remote_post')===false);

@@ -2,11 +2,13 @@
 namespace Delnavazan\Platform\Core\Infrastructure\Repository;
 
 /**
- * Persistence boundary for the Telnyx provider integration (Schema 057).
+ * Persistence boundary for the Telnyx provider integration (Schema 057; template text in migration 079).
  *
- * Provider message ids are stored only as keyed digests. No contact value, rendered body or raw
- * provider payload is ever written here. Webhook receipts are keyed by the provider event digest so
- * a replayed delivery converges on the same row instead of producing a second side effect.
+ * Provider message ids are stored only as keyed digests. No contact value, rendered message body or
+ * raw provider payload is ever written here; the only template copy is the provider's static
+ * template text with positional placeholders. Webhook receipts are keyed by the provider
+ * event digest so a replayed delivery converges on the same row instead of producing a second side
+ * effect.
  */
 class NotificationProviderRepository {
     private string $p;

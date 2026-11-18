@@ -10,6 +10,7 @@ use Delnavazan\Platform\Integrations\IntegrationTestRunner;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxConfiguration;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxConfigurationService;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateDiscoveryService;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxWebhookController;
 
 /** Workflow-first integration settings. Secret inputs are write-only and safe checks make no provider calls. */
@@ -516,6 +517,24 @@ final class IntegrationControlPlaneController {
             echo '<table class="widefat striped"><tbody>';
             foreach(array('approved'=>'Approved','pending'=>'Pending','rejected'=>'Rejected','other'=>'Other','mapped'=>'Mapped to an event','unmapped'=>'Unmapped','variable_mismatch'=>'Variable contract mismatch') as $key=>$label)echo '<tr><th>'.esc_html($label).'</th><td>'.esc_html((string)(int)($discovery['counts'][$key]??0)).'</td></tr>';
             echo '</tbody></table>';
+            $templates=(array)($discovery['templates']??array());
+            if($templates!==array()){
+                echo '<details><summary>Discovered templates ('.esc_html((string)count($templates)).')</summary>';
+                echo '<table class="widefat striped"><thead><tr><th>Template</th><th>Language</th><th>Status</th><th>Linked event</th><th>Variables</th><th>Last verified</th></tr></thead><tbody>';
+                foreach($templates as $template){
+                    $name=(string)($template->template_name??'');
+                    $known=TelnyxTemplateRegistry::definitionForName($name);
+                    $hasText=trim((string)($template->template_text??''))!=='';
+                    $providerCount=$hasText?(int)preg_match_all('/\{\{[0-9]+\}\}/',(string)$template->template_text):0;
+                    $expected=$known!==null?count($known['variable_order']):0;
+                    $mismatch=$known!==null&&$hasText&&$providerCount!==$expected;
+                    $eventKey=(string)($template->event_key??'');
+                    $variables=$hasText?$providerCount.' body'.($known!==null?' / '.$expected.' expected':' · unregistered'):'body not captured'.($known!==null?' · '.$expected.' expected':' · unregistered');
+                    echo '<tr><td><code dir="ltr">'.esc_html($name).'</code></td><td>'.esc_html((string)($template->language??'')).'</td><td>'.esc_html(strtoupper((string)($template->status??''))).'</td><td>'.($eventKey!==''?'<code dir="ltr">'.esc_html($eventKey).'</code>':'Not linked').'</td><td>'.esc_html($variables).($mismatch?' <span class="dzn-badge is-warn">Mismatch</span>':'').'</td><td>'.esc_html((string)($template->last_verified_at??'')).'</td></tr>';
+                }
+                echo '</tbody></table>';
+                echo '<p class="description">The provider template name is the link to a local event through the reviewed registry. An unregistered or variable-mismatched template is never used for delivery.</p></details>';
+            }
             if($sync)echo '<p>Last refresh: '.esc_html(($sync['ok']??false)?'succeeded':'failed').' · code '.esc_html((string)($sync['code']??'')).' · '.esc_html((string)(int)($sync['discovered']??0)).' discovered, '.esc_html((string)(int)($sync['mapped']??0)).' mapped · '.esc_html((string)($sync['at']??'')).'</p>';
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_telnyx_template_sync">';wp_nonce_field('dzn_telnyx_template_sync');echo '<p><button class="button" name="refresh_templates" value="1">Refresh approved templates</button> <span class="description">Read-only provider call; no message is sent.</span></p></form>';
         }

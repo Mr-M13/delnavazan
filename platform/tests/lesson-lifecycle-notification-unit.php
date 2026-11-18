@@ -36,7 +36,7 @@ namespace {
         $fail($key . ' is declared', is_array($event));
         $fail($key . ' targets the teacher', $event['audience'] === 'teacher');
         $fail($key . ' is a lesson event', $event['category'] === 'lesson');
-        $fail($key . ' offers email, website and sms', $event['channels'] === array('email', 'website', 'sms'));
+        $fail($key . ' offers every delivery method', $event['channels'] === NotificationCatalogue::CHANNELS);
         $fail($key . ' is operational and mandatory', $event['consent'] === 'operational' && $event['mandatory'] === true);
         $fail($key . ' has a registered producer', $event['implementation'] === 'implemented' && $event['producer_registered'] === true);
         $fail($key . ' declares the producer-supplyable variables', $event['variables'] === array('teacher', 'course', 'student', 'when', 'teacher_portal_url'));
@@ -66,7 +66,7 @@ namespace {
         $fail($key . ' is declared', is_array($event));
         $fail($key . ' targets the student', $event['audience'] === 'student');
         $fail($key . ' is a lesson event', $event['category'] === 'lesson');
-        $fail($key . ' offers email, website, whatsapp and sms', $event['channels'] === array('email', 'website', 'whatsapp', 'sms'));
+        $fail($key . ' offers every delivery method', $event['channels'] === NotificationCatalogue::CHANNELS);
         $fail($key . ' is operational and mandatory', $event['consent'] === 'operational' && $event['mandatory'] === true);
         $fail($key . ' has a registered producer', $event['implementation'] === 'implemented' && $event['producer_registered'] === true);
         $fail($key . ' is produced by the shared lifecycle service', $event['producer'] === 'LessonLifecycleNotificationService');

@@ -229,7 +229,7 @@ final class NotificationManagementController {
             ?($on?'Active. Click to turn this method off.':'On, but not sending yet. '.$reason.' Click to turn this method off.')
             :('Off. Click to turn this method on.'.($reason!==''&&!$on?' '.$reason.' Sending starts when this is resolved.':''));
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-nc-channel-form">';
-        echo '<input type="hidden" name="action" value="dzn_notification_event_channel_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="enabled" value="'.($stored?'0':'1').'">';
+        echo '<input type="hidden" name="action" value="dzn_notification_event_channel_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="enabled" value="'.($stored?'0':'1').'"><input type="hidden" name="source" value="card">';
         self::renderTableContextInputs();
         wp_nonce_field('dzn_notification_event_channel_toggle');
         echo '<button type="submit" class="dzn-nc-channel '.($on?'is-on':'is-off').'" aria-pressed="'.($stored?'true':'false').'" title="'.esc_attr($title).'">'.esc_html($label).'</button></form>';
@@ -299,7 +299,7 @@ final class NotificationManagementController {
             $state=self::effectiveChannelState($library,$eventKey,$channel);
             echo '<li><strong>'.esc_html(self::channelLabel($channel)).':</strong> <span class="dzn-badge '.($state['state']==='enabled'?'is-ok':'is-warn').'">'.esc_html((string)$state['label']).'</span> ';
             if(self::canEdit()){
-                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_channel_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="enabled" value="'.($active?'0':'1').'">';
+                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_channel_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="enabled" value="'.($active?'0':'1').'"><input type="hidden" name="source" value="editor">';
                 foreach(self::tableContext() as $contextKey=>$contextValue)echo '<input type="hidden" name="filter_'.esc_attr($contextKey).'" value="'.esc_attr((string)$contextValue).'">';
                 wp_nonce_field('dzn_notification_event_channel_toggle');
                 echo '<button class="button button-small" type="submit">'.($active?'Turn off':'Turn on').'</button>';
@@ -657,7 +657,7 @@ final class NotificationManagementController {
         echo '<div class="dzn-nc-panel-head"><div><span class="dzn-nc-eyebrow">'.esc_html(self::channelLabel($channel)).'</span><span class="dzn-nc-state '.($stateOn?'is-on':'is-off').'">'.esc_html((string)($state['label']??'')).(($state['reason']??'')!==''?' — '.esc_html((string)$state['reason']):'').'</span></div>';
         if(self::canEdit()){
             $stored=$library->eventChannelEnabled($eventKey,$channel);
-            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_channel_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="enabled" value="'.($stored?'0':'1').'">';
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_channel_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="enabled" value="'.($stored?'0':'1').'"><input type="hidden" name="source" value="editor">';
             self::renderTableContextInputs();
             wp_nonce_field('dzn_notification_event_channel_toggle');
             echo '<button class="button button-small" type="submit">'.($stored?'Turn off':'Turn on').'</button>';
@@ -1058,6 +1058,9 @@ final class NotificationManagementController {
         $eventKey=isset($_POST['event_key'])?self::eventKey(wp_unslash((string)$_POST['event_key'])):'';
         $channel=isset($_POST['channel'])?sanitize_key(wp_unslash((string)$_POST['channel'])):'';
         $enabled=isset($_POST['enabled'])&&(string)$_POST['enabled']==='1';
+        // A card switch is a toggle, not an invitation to edit: return to the catalogue card and
+        // leave the drawer closed. Only the editor's own switch reopens the drawer.
+        $source=isset($_POST['source'])&&(string)$_POST['source']==='editor'?'editor':'card';
         try{
             $library=new NotificationTemplateLibrary();
             // The administrator owns the on/off decision even when a route is not ready yet.
@@ -1069,7 +1072,9 @@ final class NotificationManagementController {
             if($enabled&&$blocker!==null)$message.=' '.$blocker['label'].': '.$blocker['reason'].' Sending will start when this is resolved.';
             self::flash('success',$message);
         }catch(\Throwable $error){self::flash('error','This delivery channel is not available for this event.');}
-        self::redirectBack('events',array('template'=>$eventKey,'template_channel'=>$channel)+self::postTableContext(),$eventKey);
+        $extra=self::postTableContext();
+        if($source==='editor')$extra=array('template'=>$eventKey,'template_channel'=>$channel)+$extra;
+        self::redirectBack('events',$extra,$eventKey);
     }
 
     public static function pruneInbox():never{self::handle(function(NotificationTemplateLibrary $library,array $input):array{

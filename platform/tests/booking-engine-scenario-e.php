@@ -167,24 +167,24 @@ $limitedRequest = dzn_stress_request($student, $limitedCourse['instrument_id'], 
 $limitedOffer = dzn_stress_allocate($limitedRequest['request_id'], $limitedCourse['course_id'], dzn_stress_times_for_allocation($limitedRequest['request_id']));
 dzn_stress_assert($limitedOffer !== null && $limitedOffer['match_strength'] === 'possible', 'E16 a limited-accepting Teacher was not offered with a possible match');
 
-// 17. Initial offers require strictly more than the 24-hour response window plus the projection buffer.
+// 17. Initial offers require the 4-hour minimum window before the T−12h terminal stop.
 $leadCourse = dzn_stress_course($suffix, 'e17-lead', 'E17 Lead');
 $leadTeacher = dzn_stress_teacher($suffix, 'E17 lead time', array($leadCourse['course_id']), array('timezone' => 'UTC'));
 $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 $leadTimes = array();
-foreach (array('24 hours 30 minutes', '25 hours', '26 hours') as $offset) {
+foreach (array('15 hours 30 minutes', '16 hours', '17 hours') as $offset) {
     $start = $now->modify('+' . $offset);
     $time = dzn_stress_time($start->format('Y-m-d H:i:s'), 30, 15);
     $request = dzn_stress_request($student, $leadCourse['instrument_id'], $leadCourse['course_id'], array($time), $suffix, 'E17-' . md5($offset));
     $offer = dzn_stress_allocate($request['request_id'], $leadCourse['course_id'], dzn_stress_times_for_allocation($request['request_id']));
     $leadTimes[$offset] = array('start_utc' => $time['starts_at_utc'], 'offered' => $offer !== null, 'referral_reason' => dzn_stress_referral_reason($request['request_id']));
 }
-dzn_stress_assert($leadTimes['24 hours 30 minutes']['offered'] === false, 'E17 a request inside the 25-hour lead time was offered');
-dzn_stress_assert($leadTimes['25 hours']['offered'] === false, 'E17 a request exactly at the 25-hour boundary was offered');
-dzn_stress_assert($leadTimes['26 hours']['offered'] === true, 'E17 a request beyond the lead time was not offered');
+dzn_stress_assert($leadTimes['15 hours 30 minutes']['offered'] === false, 'E17 a request inside the 16-hour offer lead was offered');
+dzn_stress_assert($leadTimes['16 hours']['offered'] === false, 'E17 a request exactly at the 16-hour boundary was offered');
+dzn_stress_assert($leadTimes['17 hours']['offered'] === true, 'E17 a request beyond the offer lead was not offered');
 // A refusal that is purely about notice must say so, not claim every Teacher was tried.
-dzn_stress_assert($leadTimes['24 hours 30 minutes']['referral_reason'] === 'requested_time_inside_lead_time', 'E17 24.5h must be referred for the notice window, got ' . var_export($leadTimes['24 hours 30 minutes']['referral_reason'], true));
-dzn_stress_assert($leadTimes['25 hours']['referral_reason'] === 'requested_time_inside_lead_time', 'E17 exactly 25h must be referred for the notice window, got ' . var_export($leadTimes['25 hours']['referral_reason'], true));
+dzn_stress_assert($leadTimes['15 hours 30 minutes']['referral_reason'] === 'requested_time_inside_lead_time', 'E17 15.5h must be referred for the notice window, got ' . var_export($leadTimes['15 hours 30 minutes']['referral_reason'], true));
+dzn_stress_assert($leadTimes['16 hours']['referral_reason'] === 'requested_time_inside_lead_time', 'E17 exactly 16h must be referred for the notice window, got ' . var_export($leadTimes['16 hours']['referral_reason'], true));
 
 // 18. A request that passes intake can cross the boundary before the allocator
 // runs (a decline/expiry rotation or an operator re-run). The outcome must be
@@ -197,7 +197,7 @@ $crossStart = $intakeNow->modify('+26 hours');
 $crossTime = dzn_stress_time($crossStart->format('Y-m-d H:i:s'), 30, 15);
 dzn_stress_assert(BookingLeadTimePolicy::isStartAllowed($crossTime['starts_at_utc'], $intakeNow->format('Y-m-d H:i:s')), 'E18 the fixture start must pass intake at submission time');
 $crossRequest = dzn_stress_request($student, $crossCourse['instrument_id'], $crossCourse['course_id'], array($crossTime), $suffix, 'E18-crossed');
-$lateNow = $intakeNow->modify('+2 hours')->format('Y-m-d H:i:s');
+$lateNow = $intakeNow->modify('+10 hours 30 minutes')->format('Y-m-d H:i:s');
 $crossOffer = dzn_stress_allocate($crossRequest['request_id'], $crossCourse['course_id'], dzn_stress_times_for_allocation($crossRequest['request_id']), $lateNow);
 $crossReason = dzn_stress_referral_reason($crossRequest['request_id']);
 dzn_stress_assert($crossOffer === null, 'E18 a start inside the notice window was offered');
@@ -215,7 +215,7 @@ echo 'AUDIT_RESULT ' . wp_json_encode(array('scenario' => 'E18_crossed_lead_time
 // only in the alert.
 $reclassCourse = dzn_stress_course($suffix, 'e18b-reclass', 'E18b Reclassify');
 $reclassTeacher = dzn_stress_teacher($suffix, 'E18b reclassify', array($reclassCourse['course_id']), array('timezone' => 'UTC', 'leave' => true));
-$reclassStart = $intakeNow->modify('+24 hours 30 minutes');
+$reclassStart = $intakeNow->modify('+15 hours 30 minutes');
 $reclassTime = dzn_stress_time($reclassStart->format('Y-m-d H:i:s'), 30, 15);
 $reclassRequest = dzn_stress_request($student, $reclassCourse['instrument_id'], $reclassCourse['course_id'], array($reclassTime), $suffix, 'E18b-reclass');
 $earlyNow = $intakeNow->modify('-2 hours')->format('Y-m-d H:i:s');

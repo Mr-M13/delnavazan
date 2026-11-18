@@ -158,6 +158,8 @@ jobs:
           php platform/tests/booking-allocation-unit.php
           php platform/tests/booking-payment-expiry-unit.php
           php platform/tests/booking-payment-slot-security-contract.php
+          php platform/tests/booking-offer-window-unit.php
+          php platform/tests/booking-sole-teacher-hold-unit.php
           php platform/tests/booking-allocation-workload-unit.php
           php platform/tests/booking-engine-capacity-unit.php
           php platform/tests/booking-engine-scenario-date-unit.php

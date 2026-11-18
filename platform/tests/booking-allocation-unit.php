@@ -34,6 +34,11 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
             if($outcome==='expired')self::$pendingExpirations[$offerId]=(object)array('id'=>$offerId,'teacher_id'=>$this->active->teacher_id);
             $this->active=null;
         }
+        public array $extends = array();
+        public function extendOffer(int $offerId, string $deadline, string $now): void { $this->extends[]=array($offerId,$deadline); if($this->active)$this->active->deadline_at=$deadline; }
+        public function hasAlert(int $requestId, string $kind): bool { return in_array($kind,$this->alerts,true); }
+        public array $bookingNotices = array();
+        public function queueBookingNotice(int $deliveryId, int $offerId, string $kind, string $now): void { $this->bookingNotices[]=$kind; }
         public function rotateDelivery(object $delivery, array $candidate, string $now): int {
             $delivery->teacher_id=$candidate['teacher_id'];
             $delivery->requested_time_id=$candidate['requested_time_id'];
@@ -124,10 +129,13 @@ namespace {
     $assert($second['teacher_id']===22 && count($repo->offers)===2,'Decline must offer the next Teacher without closing the request.');
     $assert($repo->cursorId===11,'Only a new request advances the course cursor.');
     $assert($repo->lockedTeacherRoots===array(11,22,11,22),'Allocation must lock every eligible Teacher in a stable order before each offer decision.');
+    \Delnavazan\Platform\Core\Application\BookingTeacherOccupancyReadService::$blockedTeachers=array(11,22);
     $next=$service->advanceLocked($repo->deliveryRow,'expired','2026-11-03 01:00:00');
-    $assert($next===null && $repo->deliveryRow->state==='expired' && $repo->referrals===array('candidates_exhausted'),'Exhaustion must refer the request to an administrator.');
-    $service->process(9,'2026-11-05 00:00:00');
-    $assert(in_array('escalation',$repo->alerts,true) && in_array('unaccepted_after_72h',$repo->referrals,true),'72-hour escalation must use original submission time.');
+    \Delnavazan\Platform\Core\Application\BookingTeacherOccupancyReadService::$blockedTeachers=array();
+    $assert($next===null && $repo->deliveryRow->state==='expired' && $repo->referrals===array('teacher_became_unavailable'),'An expired offer to a Teacher who is no longer viable must refer with the unavailable reason instead of holding.');
+    $service->process(9,'2026-11-09 22:00:00');
+    $assert(in_array('escalation',$repo->alerts,true),'T−12h must raise the terminal escalation alert.');
+    $assert(!in_array('unaccepted_after_72h',$repo->referrals,true),'The retired 72-hour referral branch must never run.');
     \Delnavazan\Platform\Integrations\BookingAllocationWorker::run();
     \Delnavazan\Platform\Integrations\BookingAllocationWorker::run();
     $notices=\Delnavazan\Platform\Core\Application\PortalNotificationRecorder::$calls;
@@ -155,14 +163,14 @@ namespace {
     };
     \Delnavazan\Platform\Core\Application\BookingTeacherOccupancyReadService::$blockedTeachers=array();
     $crossedRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository();
-    $crossedRepo->timeRows=array((object) array('id'=>201,'sequence_number'=>1,'starts_at_utc'=>'2026-11-03 01:00:00','occupied_ends_at_utc'=>'2026-11-03 02:00:00'));
+    $crossedRepo->timeRows=array((object) array('id'=>201,'sequence_number'=>1,'starts_at_utc'=>'2026-11-02 16:00:00','occupied_ends_at_utc'=>'2026-11-02 17:00:00'));
     $crossed=$boundaryService($crossedRepo)->startWithinTransaction(31,4,$crossedRepo->times(31),$now);
-    $assert($crossed===null&&$crossedRepo->referrals===array(\Delnavazan\Platform\Core\Application\BookingAllocationService::LEAD_TIME_REFERRAL_REASON),'A request that crossed the boundary before allocation must be referred with the retryable lead-time reason.');
+    $assert($crossed===null&&$crossedRepo->referrals===array(\Delnavazan\Platform\Core\Application\BookingAllocationService::LEAD_TIME_REFERRAL_REASON),'A request whose start is exactly 4h before T−12h must be referred with the retryable lead-time reason.');
     $assert(in_array('referral',$crossedRepo->alerts,true)&&$crossedRepo->offers===array(),'The crossed-boundary referral must alert coordination without creating an offer.');
     $openRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository();
-    $openRepo->timeRows=array((object) array('id'=>202,'sequence_number'=>1,'starts_at_utc'=>'2026-11-03 01:00:01','occupied_ends_at_utc'=>'2026-11-03 02:00:01'));
+    $openRepo->timeRows=array((object) array('id'=>202,'sequence_number'=>1,'starts_at_utc'=>'2026-11-02 16:00:01','occupied_ends_at_utc'=>'2026-11-02 17:00:01'));
     $open=$boundaryService($openRepo)->startWithinTransaction(32,4,$openRepo->times(32),$now);
-    $assert($open!==null&&$open['teacher_id']===11,'One second past the boundary must still be offered at the same instant.');
+    $assert($open!==null&&$open['teacher_id']===11,'One second past the offer-window boundary must still be offered at the same instant.');
     \Delnavazan\Platform\Core\Application\BookingTeacherOccupancyReadService::$blockedTeachers=array(11,22);
     $unavailableRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository();
     $unavailable=$boundaryService($unavailableRepo)->startWithinTransaction(33,4,$unavailableRepo->times(33),$now);
@@ -171,8 +179,8 @@ namespace {
     $rotationRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository();
     $rotationService=$boundaryService($rotationRepo);
     $rotationFirst=$rotationService->startWithinTransaction(34,4,$rotationRepo->times(34),$now);
-    $rotation=$rotationService->advanceLocked($rotationRepo->deliveryRow,'expired','2026-11-09 09:00:00');
-    $assert($rotationFirst!==null&&$rotation===null&&$rotationRepo->referrals===array(\Delnavazan\Platform\Core\Application\BookingAllocationService::LEAD_TIME_REFERRAL_REASON),'A rotation whose requested time crossed the boundary must explain the lead time instead of reporting an exhausted candidate set.');
+    $rotation=$rotationService->advanceLocked($rotationRepo->deliveryRow,'declined','2026-11-09 20:00:00');
+    $assert($rotationFirst!==null&&$rotation===null&&$rotationRepo->referrals===array(\Delnavazan\Platform\Core\Application\BookingAllocationService::LEAD_TIME_REFERRAL_REASON),'A decline whose requested time crossed the offer window must explain the lead time instead of reporting an exhausted candidate set.');
 
     // Transient InnoDB contention is retryable, never an authorization refusal.
     $assert(\Delnavazan\Platform\Core\Application\BookingContention::isLockFailure('Lock wait timeout exceeded; try restarting transaction'),'A lock-wait timeout must be classified as contention.');

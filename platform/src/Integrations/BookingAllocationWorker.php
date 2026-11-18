@@ -5,7 +5,7 @@ use Delnavazan\Platform\Core\Application\BookingAllocationService;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository;
 
-/** Bounded, repeatable timeout and 72-hour escalation pass. */
+/** Bounded, repeatable timeout, sole-Teacher hold and terminal-escalation pass. */
 final class BookingAllocationWorker {
     public const HOOK='dzn_booking_allocation_dispatch';
     public static function register():void{
@@ -22,7 +22,7 @@ final class BookingAllocationWorker {
             catch(\Throwable $error){do_action('dzn_booking_allocation_failed',(int)$requestId,get_class($error));}
         }
         foreach($repo->unnotifiedAlerts(25) as $alert){
-            $event=(string)$alert->kind==='escalation'?'booking.escalation.admin':'booking.referral.admin';
+            $event=(string)$alert->kind==='escalation'?'booking.escalation.admin':((string)$alert->kind==='hold'?'booking.hold.admin':'booking.referral.admin');
             $link=admin_url('admin.php?page=dzn-booking-requests&request_id='.(int)$alert->booking_request_id);
             if(PortalNotificationRecorder::admin($event,'booking_allocation_alert',(int)$alert->id,array(),$link)!==null){
                 try{$repo->markAlertNotified((int)$alert->id,$now);}catch(\Throwable $error){do_action('dzn_booking_allocation_notification_failed',(int)$alert->id,get_class($error));}

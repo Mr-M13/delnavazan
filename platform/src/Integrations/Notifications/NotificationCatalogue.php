@@ -23,7 +23,7 @@ namespace Delnavazan\Platform\Integrations\Notifications;
  *   never rendered into a message.
  */
 final class NotificationCatalogue {
-    public const VERSION='2026-11-19.1';
+    public const VERSION='2026-11-19.3';
     public const PRIMARY_LOCALE='fa-IR';
     public const SUPPORTED_LOCALES=array('fa-IR','en');
 
@@ -309,7 +309,7 @@ final class NotificationCatalogue {
             'term'=>'ترم پاییز ۱۴۰۵','reason'=>'پرداخت ناموفق بود',
             'remaining_sessions'=>'۴','term_end_date'=>'۱۵ آذر ۱۴۰۵',
             'instalment_note'=>'ترم جاری شما دو قسطی است و ۲ از ۲ قسط پرداخت شده است. ترم بعد را می‌توانید یکجا یا در دو قسط پرداخت کنید.',
-            'response_window'=>'۲۴ ساعت','response_deadline'=>'پنجشنبه ۶ آبان ۱۴۰۵، ساعت ۱۷:۰۰',
+            'response_window'=>'۶ ساعت','response_deadline'=>'پنجشنبه ۶ آبان ۱۴۰۵، ساعت ۱۷:۰۰',
         );
         $out=array();
         foreach(self::variables($eventKey) as $variable)$out[$variable]=$examples[$variable]??'['.$variable.']';
@@ -457,6 +457,20 @@ final class NotificationCatalogue {
                 'email'=>array('subject'=>'Your Delnavazan enrolment is active','body'=>"Hello {{name}},\n\nYour payment was verified and your {{course}} enrolment with {{teacher}} is now active. Your weekly schedule and future lessons are available in your account.\n\nOpen your account:\n{{portal_url}}\n\nDelnavazan"),
                 'website'=>array('subject'=>'Your enrolment is active','body'=>'Your {{course}} enrolment with {{teacher}} is active and your class schedule is shown in your account.'),
                 'whatsapp'=>array('body'=>'Hello {{name}}, your {{course}} enrolment with {{teacher}} is active. Your class schedule is available in your account: {{portal_url}} — Delnavazan'),
+            ),
+        ));
+        $out[]=self::event('booking.terminal.student','Intro Request Terminal Expiry','booking','student','BookingAllocationService','queue',array('email','website'),'operational',true,array('name','teacher','course','when','portal_url'),'booking.terminal.student',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · زمان درخواست کلاس آشنایی به پایان رسید','body'=>"درود {{name}}،\n\nمهلت پاسخ برای کلاس آشنایی «{{course}}» با {{teacher}} در {{when}} به پایان رسید و این درخواست بسته شد. می‌توانید از حساب کاربری زمان تازه‌ای انتخاب کنید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'زمان درخواست کلاس آشنایی به پایان رسید','body'=>'مهلت پاسخ برای کلاس آشنایی «{{course}}» با {{teacher}} در {{when}} به پایان رسید. برای انتخاب زمان تازه به حساب کاربری بروید.'),
+                'sms'=>array('body'=>'دلنوازان: مهلت درخواست {{course}} با {{teacher}} برای {{when}} تمام شد. زمان تازه: {{portal_url}}'),
+                'whatsapp'=>array('body'=>'درود {{name}}، مهلت پاسخ برای کلاس آشنایی «{{course}}» با {{teacher}} در {{when}} به پایان رسید. می‌توانید از حساب کاربری زمان تازه‌ای انتخاب کنید: {{portal_url}} — دلنوازان'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · introductory request deadline passed','body'=>"Hello {{name}},\n\nThe response deadline for your introductory {{course}} lesson with {{teacher}} at {{when}} has passed and the request is closed. You can choose a new time in your account:\n{{portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Introductory request deadline passed','body'=>'The response deadline for your {{course}} lesson with {{teacher}} at {{when}} passed. Choose a new time in your account.'),
+                'sms'=>array('body'=>'Delnavazan: the request for {{course}} with {{teacher}} at {{when}} expired. New time: {{portal_url}}'),
+                'whatsapp'=>array('body'=>'Hello {{name}}, the response deadline for your introductory {{course}} lesson with {{teacher}} at {{when}} passed. You can choose a new time in your account: {{portal_url}} — Delnavazan'),
             ),
         ));
         $out[]=self::event('booking.requested.student','Intro Lesson Request Received','booking','student','BookingRequestSubmissionService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','when','portal_url'),'booking.requested',array(
@@ -613,6 +627,20 @@ final class NotificationCatalogue {
                 'whatsapp'=>array('body'=>'Hello {{teacher}}, the payment deadline for the introductory {{course}} lesson with {{student}} at {{when}} has passed and the place was released. No action is needed; the academy will contact you if a new arrangement is agreed: {{teacher_portal_url}} — Delnavazan'),
             ),
         ));
+        $out[]=self::event('booking.hold.teacher','Intro Request Held for You','booking','teacher','BookingAllocationService','queue',array('email','website'),'operational',true,array('teacher','student','course','when','response_deadline','teacher_portal_url'),'booking.hold.teacher',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · درخواست کلاس آشنایی برای شما نگه داشته شد','body'=>"درود {{teacher}}،\n\nدرخواست کلاس آشنایی «{{course}}» با هنرجو {{student}} در {{when}} همچنان برای شما باز است و تا {{response_deadline}} فرصت پاسخ دارید. اگر پاسخی ثبت نشود، این درخواست تا یک ساعت پیش از شروع کلاس برای شما نگه داشته می‌شود.\n\nپرتال مدرس:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'درخواست کلاس آشنایی برای شما نگه داشته شد','body'=>'درخواست کلاس آشنایی «{{course}}» با هنرجو {{student}} در {{when}} همچنان برای شما باز است؛ تا {{response_deadline}} پاسخ دهید و در غیر این صورت تا یک ساعت پیش از کلاس نگه داشته می‌شود.'),
+                'sms'=>array('body'=>'دلنوازان: درخواست {{course}} با {{student}} در {{when}} برای شما نگه داشته شد؛ پاسخ تا {{response_deadline}}. {{teacher_portal_url}}'),
+                'whatsapp'=>array('body'=>'درود {{teacher}}، درخواست کلاس آشنایی «{{course}}» با هنرجو {{student}} در {{when}} همچنان برای شما باز است. تا {{response_deadline}} فرصت پاسخ دارید و در غیر این صورت تا یک ساعت پیش از کلاس نگه داشته می‌شود: {{teacher_portal_url}} — دلنوازان'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · this request is held for you','body'=>"Hello {{teacher}},\n\nThe introductory {{course}} request from {{student}} at {{when}} is still open for you. Please respond by {{response_deadline}}. If no response is recorded, the request stays with you until one hour before the class.\n\nTeacher Portal:\n{{teacher_portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'This request is held for you','body'=>'The introductory {{course}} request from {{student}} at {{when}} is still open; reply by {{response_deadline}} and otherwise it stays with you until one hour before the class.'),
+                'sms'=>array('body'=>'Delnavazan: {{course}} with {{student}} at {{when}} is held for you; reply by {{response_deadline}}. {{teacher_portal_url}}'),
+                'whatsapp'=>array('body'=>'Hello {{teacher}}, the introductory {{course}} request from {{student}} at {{when}} is still open for you. Please reply by {{response_deadline}}; otherwise it stays with you until one hour before the class: {{teacher_portal_url}} — Delnavazan'),
+            ),
+        ));
         $out[]=self::event('booking.cancelled.teacher','Intro Lesson Cancelled','booking','teacher','IntroLessonLifecycleService','queue',array('email','website'),'operational',true,array('teacher','student','course','when','teacher_portal_url'),'booking.cancelled.teacher',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · کلاس آشنایی لغو شد','body'=>"درود {{teacher}}،\n\nکلاس آشنایی «{{course}}» با {{student}} در {{when}} لغو شد. این لغو به معنی ثبت حضور یا پرداخت نیست.\n\nپرتال مدرس:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
@@ -697,6 +725,20 @@ final class NotificationCatalogue {
                 'website'=>array('subject'=>'Introductory payment slot conflict','body'=>'A payment settled after the class time was taken; the amount is held as credit and a coordination case is open.'),
                 'sms'=>array('body'=>'Delnavazan: an introductory payment settled after the time was taken; the amount is credit and a coordination case is open.'),
                 'whatsapp'=>array('body'=>'Hello, an introductory payment settled after the class time had already been taken. The amount is held as student credit and a coordination case is open for a new time. Please review the coordination workspace — Delnavazan'),
+            ),
+        ));
+        $out[]=self::event('booking.hold.admin','Intro Request Held for Sole Teacher','booking','admin','BookingAllocationService','queue',array('website','email'),'operational',true,array(),'booking.hold.admin',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · درخواست آشنایی برای تنها مدرس نگه داشته شد','body'=>"درود،\n\nهیچ مدرس دیگری برای این درخواست کلاس آشنایی باقی نمانده و مدرس فعلی هنوز در دسترس است. درخواست به‌جای ارجاع، برای همان مدرس نگه داشته شد تا یک ساعت پیش از شروع کلاس. لطفاً در میز هماهنگی بررسی کنید."),
+                'website'=>array('subject'=>'درخواست آشنایی برای تنها مدرس نگه داشته شد','body'=>'هیچ مدرس دیگری باقی نمانده و درخواست برای مدرس فعلی تا یک ساعت پیش از کلاس نگه داشته شد.'),
+                'sms'=>array('body'=>'دلنوازان: درخواست آشنایی برای تنها مدرس در دسترس نگه داشته شد تا یک ساعت پیش از کلاس. میز هماهنگی را بررسی کنید.'),
+                'whatsapp'=>array('body'=>'درود، هیچ مدرس دیگری برای این درخواست کلاس آشنایی باقی نمانده و مدرس فعلی هنوز در دسترس است. درخواست به‌جای ارجاع، برای همان مدرس تا یک ساعت پیش از کلاس نگه داشته شد. لطفاً میز هماهنگی را بررسی کنید — دلنوازان'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · request held for the sole Teacher','body'=>"Hello,\n\nNo other Teacher remains for this introductory request and the current Teacher is still available. The request was held for that Teacher until one hour before the class instead of being referred. Please review it in the coordination workspace."),
+                'website'=>array('subject'=>'Request held for the sole Teacher','body'=>'No other Teacher remains; the request was held for the current Teacher until one hour before the class.'),
+                'sms'=>array('body'=>'Delnavazan: the intro request is held for the only available Teacher until one hour before the class. Review coordination.'),
+                'whatsapp'=>array('body'=>'Hello, no other Teacher remains for this introductory request and the current Teacher is still available. It was held for that Teacher until one hour before the class instead of being referred. Please review the coordination workspace — Delnavazan'),
             ),
         ));
         $out[]=self::event('booking.submitted.admin','New Intro Booking Received','booking','admin','BookingRequestSubmissionService','queue',array('website'),'operational',true,array('booking_reference','learner_name','instrument','course','requested_time','queue_url'),'booking.submitted.admin',array(
@@ -1243,6 +1285,8 @@ final class NotificationCatalogue {
         if(str_starts_with($key,'reschedule.replacement.'))return 'Coordinates a replacement session, including the proposed time, response deadline and resulting decision.';
         if(str_starts_with($key,'booking.payment_lapsed.'))return 'Explains that the payment deadline passed, the place was released and the student may choose a new time.';
         if(str_starts_with($key,'booking.payment_conflict.'))return 'Explains that the payment settled after the class time was taken, that the money is safe as credit, and who will arrange a new time.';
+        if(str_starts_with($key,'booking.hold.'))return 'Explains that the same request is held for the sole available Teacher and states the real response deadline.';
+        if(str_starts_with($key,'booking.terminal.'))return 'Explains that the terminal response deadline passed, the request closed and the student may choose a new time.';
         if(str_starts_with($key,'booking.confirmed.'))return $audience==='teacher'?'Confirms the accepted introductory booking and gives the Teacher the student, time and portal details.':'Confirms the student’s introductory lesson and provides the time and account link.';
         if(str_starts_with($key,'booking.requested.')||str_starts_with($key,'booking.new.'))return $audience==='teacher'?'Alerts the Teacher to a new student request and the deadline for responding.':'Confirms that the student’s booking request was received and is awaiting a decision.';
         if(str_starts_with($key,'booking.cancelled.'))return 'Explains that the introductory booking was cancelled, who initiated the change and what the recipient should do next.';

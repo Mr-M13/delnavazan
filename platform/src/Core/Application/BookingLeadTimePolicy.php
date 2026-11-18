@@ -4,13 +4,19 @@ namespace Delnavazan\Platform\Core\Application;
 /**
  * One authoritative minimum-notice rule for introductory booking.
  *
- * A pending offer consumes a 24-hour Teacher response window and leaves one
- * hour for confirmation and provider projection. The first start must therefore
- * be strictly later than that window. The same rule is consumed by the public
- * day grid, the final preference preview and the intake transaction so a time
- * cannot be presented as requestable and then refused by submission. A Teacher
- * accepting an existing offer is revalidated against the projection buffer
- * only; the response window has already elapsed by then.
+ * A new offer is time-budgeted: no offer may start inside the terminal stop
+ * (T−12h), and every offer must leave the Teacher at least the four-hour
+ * minimum window before that stop. The 24-hour response window is now the
+ * maximum, not a fixed allocation: a request that is several days away still
+ * gets a 24-hour window, while a request that is 26 hours away gets a four-hour
+ * window so the rotation can reach more than one Teacher.
+ *
+ * The first start must still be later than the maximum window plus the
+ * projection buffer. The same rule is consumed by the public day grid, the final
+ * preference preview and the intake transaction so a time cannot be presented as
+ * requestable and then refused by submission. A Teacher accepting an existing
+ * offer is revalidated against the projection buffer only; the response window
+ * has already elapsed by then.
  *
  * The boundary moves while a request is alive, so a request can pass intake and
  * still be inside the window when the allocator runs again. That case is
@@ -18,10 +24,17 @@ namespace Delnavazan\Platform\Core\Application;
  * retryable referral reason, never as a request that found no Teacher.
  */
 final class BookingLeadTimePolicy {
-    public const POLICY_VERSION = 1;
+    public const POLICY_VERSION = 2;
+    /** The 24-hour response window is the maximum, never the fixed allocation. */
     public const RESPONSE_WINDOW_SECONDS = 86400;
+    /** No new offer starts closer than this to the lesson. */
+    public const MIN_WINDOW_SECONDS = 14400;
+    /** T−12h: no new offers; the request is escalated to coordination. */
+    public const TERMINAL_ESCALATION_SECONDS = 43200;
     public const PROJECTION_BUFFER_SECONDS = 3600;
     public const MINIMUM_LEAD_SECONDS = self::RESPONSE_WINDOW_SECONDS + self::PROJECTION_BUFFER_SECONDS;
+    /** A new allocation offer needs the minimum window before the terminal stop. */
+    public const MINIMUM_OFFER_LEAD_SECONDS = self::MIN_WINDOW_SECONDS + self::TERMINAL_ESCALATION_SECONDS;
 
     /** The exclusive lower boundary for a candidate start in UTC. */
     public static function minimumStartUtc( string $nowUtc, bool $includeResponseWindow = true ): string {
@@ -34,6 +47,22 @@ final class BookingLeadTimePolicy {
     /** Strictly later than the boundary; exactly 24h+1h remains unavailable. */
     public static function isStartAllowed( string $startUtc, string $nowUtc, bool $includeResponseWindow = true ): bool {
         return $startUtc > self::minimumStartUtc( $nowUtc, $includeResponseWindow );
+    }
+
+    /**
+     * The allocation boundary: a new offer needs the four-hour minimum window
+     * before the terminal stop, so the request start must be strictly later than
+     * now + 4h + 12h. The public day grid keeps the maximum-window lead; this
+     * predicate governs re-offers to Teachers for a request already submitted.
+     */
+    public static function isStartOfferable( string $startUtc, string $nowUtc ): bool {
+        return $startUtc > self::minimumOfferStartUtc( $nowUtc );
+    }
+
+    public static function minimumOfferStartUtc( string $nowUtc ): string {
+        return ( new \DateTimeImmutable( $nowUtc, new \DateTimeZone( 'UTC' ) ) )
+            ->modify( '+' . self::MINIMUM_OFFER_LEAD_SECONDS . ' seconds' )
+            ->format( 'Y-m-d H:i:s' );
     }
 
     /**
@@ -56,6 +85,17 @@ final class BookingLeadTimePolicy {
     public static function allStartsInsideMinimumNotice( array $startUtcs, string $nowUtc, bool $includeResponseWindow = true ): bool {
         if ( ! $startUtcs ) return false;
         foreach ( $startUtcs as $startUtc ) if ( self::isStartAllowed( (string) $startUtc, $nowUtc, $includeResponseWindow ) ) return false;
+        return true;
+    }
+
+    /**
+     * True when no requested start can still receive a new offer.
+     *
+     * @param list<string> $startUtcs
+     */
+    public static function allStartsInsideOfferWindow( array $startUtcs, string $nowUtc ): bool {
+        if ( ! $startUtcs ) return false;
+        foreach ( $startUtcs as $startUtc ) if ( self::isStartOfferable( (string) $startUtc, $nowUtc ) ) return false;
         return true;
     }
 

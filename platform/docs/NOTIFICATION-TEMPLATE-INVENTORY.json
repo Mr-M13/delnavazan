@@ -1,42 +1,42 @@
 {
-    "generated_at": "2026-11-18T22:43:02+00:00",
-    "catalogue_version": "2026-11-19.1",
+    "generated_at": "2026-11-19T01:14:16+00:00",
+    "catalogue_version": "2026-11-19.3",
     "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
     "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
     "totals": {
-        "events": 82,
-        "supported_event_channel_combinations": 328,
-        "required_templates": 656,
-        "existing_valid_templates": 656,
+        "events": 85,
+        "supported_event_channel_combinations": 340,
+        "required_templates": 680,
+        "existing_valid_templates": 680,
         "missing_templates": 0,
         "invalid_templates": 0,
         "missing_translations": 0,
         "unpublished_canonical_templates": "live_check_required",
-        "missing_provider_mappings": 42,
+        "missing_provider_mappings": 45,
         "unsupported_routes": 0,
         "events_without_registered_producer": 0
     },
     "by_category": {
         "security": 2,
         "lesson": 38,
-        "booking": 18,
+        "booking": 21,
         "account": 13,
         "payment": 11
     },
     "by_recipient": {
-        "student": 39,
-        "teacher": 26,
-        "admin": 16,
+        "student": 40,
+        "teacher": 27,
+        "admin": 17,
         "guardian": 1
     },
     "events_per_channel": {
-        "website": 82,
-        "email": 82,
-        "whatsapp": 82,
-        "sms": 82
+        "website": 85,
+        "email": 85,
+        "whatsapp": 85,
+        "sms": 85
     },
     "implementation": {
-        "implemented": 72,
+        "implemented": 75,
         "partial": 10,
         "declared": 0
     },
@@ -67,6 +67,8 @@
         "booking.cancelled.teacher",
         "booking.escalation.admin",
         "booking.expired.teacher",
+        "booking.hold.admin",
+        "booking.hold.teacher",
         "booking.payment_conflict.admin",
         "booking.payment_conflict.student",
         "booking.payment_lapsed.student",
@@ -74,6 +76,7 @@
         "booking.referral.admin",
         "booking.rescheduled.teacher",
         "booking.submitted.admin",
+        "booking.terminal.student",
         "consent.admin_attention.admin",
         "consent.guardian_required.guardian",
         "consent.policy_updated.student",
@@ -1171,6 +1174,140 @@
             }
         },
         {
+            "event_key": "booking.hold.admin",
+            "notification": "Intro Request Held for Sole Teacher",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "admin",
+            "producer": "BookingAllocationService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "website",
+                "email",
+                "whatsapp",
+                "sms"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "booking.hold.admin.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.hold.admin.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.fa-IR": {
+                    "template_key": "booking.hold.admin.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.hold.admin.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "booking.hold.admin.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "booking.hold.admin.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "booking.hold.admin.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "booking.hold.admin.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_registry_key": "account_referral",
+                "sms_state": "approved_template_mapped"
+            }
+        },
+        {
+            "event_key": "booking.hold.teacher",
+            "notification": "Intro Request Held for You",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "teacher",
+            "producer": "BookingAllocationService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "website",
+                "email",
+                "whatsapp",
+                "sms"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "booking.hold.teacher.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.hold.teacher.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.fa-IR": {
+                    "template_key": "booking.hold.teacher.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.hold.teacher.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "booking.hold.teacher.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "booking.hold.teacher.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "booking.hold.teacher.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "booking.hold.teacher.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_registry_key": "account_referral",
+                "sms_state": "approved_template_mapped"
+            }
+        },
+        {
             "event_key": "booking.new.teacher",
             "notification": "New Booking for Teacher",
             "category": "booking",
@@ -1829,6 +1966,73 @@
                 },
                 "sms.en": {
                     "template_key": "booking.submitted.admin.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_registry_key": "account_referral",
+                "sms_state": "approved_template_mapped"
+            }
+        },
+        {
+            "event_key": "booking.terminal.student",
+            "notification": "Intro Request Terminal Expiry",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "student",
+            "producer": "BookingAllocationService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "website",
+                "email",
+                "whatsapp",
+                "sms"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "booking.terminal.student.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.terminal.student.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.fa-IR": {
+                    "template_key": "booking.terminal.student.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.terminal.student.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "booking.terminal.student.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "booking.terminal.student.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "booking.terminal.student.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "booking.terminal.student.sms.en",
                     "status": "present",
                     "errors": []
                 }

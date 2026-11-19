@@ -3791,6 +3791,22 @@ body.dzn-admin-page .dzn-coverage a.dzn-coverage__cell:focus-visible { color: va
   font-weight: 800;
 }
 
+.dzn-journey-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--dzn-border);
+  border-radius: var(--dzn-radius-sm);
+  background: var(--dzn-surface-soft);
+}
+
+.dzn-journey-status p {
+  margin: 0;
+  color: var(--dzn-muted);
+}
+
 .dzn-offer-window.is-expired {
   background: var(--dzn-accent-soft);
   color: var(--dzn-accent);

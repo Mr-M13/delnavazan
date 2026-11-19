@@ -3,6 +3,7 @@ namespace Delnavazan\Platform\Admin\View;
 
 use Delnavazan\Platform\Admin\Controller\EnrolmentWorkspaceController;
 use Delnavazan\Platform\Admin\Controller\Menu;
+use Delnavazan\Platform\Core\Application\BookingJourneyReadService;
 use Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService;
 use Delnavazan\Platform\Core\Application\CoreReadService;
 use Delnavazan\Platform\Core\Application\HistoricalEnrolmentImportService;
@@ -455,7 +456,10 @@ final class EnrolmentWorkspaceView {
         echo '<div class="wrap dzn-enrolment dzn-enrolment--case">';
         self::notices();
         self::recordBack();
-        echo '<header class="dzn-enrolment__case-head"><div><p class="dzn-eyebrow">' . esc_html((string) $case['reference']) . ' · ' . esc_html($case['identity_state']['label']) . '</p><h1>' . esc_html((string) $case['learner_name']) . '</h1><p>' . esc_html((string) $case['instrument']) . ' · ' . esc_html((string) $case['course']) . ' · ' . esc_html((string) $case['timezone']) . '</p></div><div class="dzn-enrolment__case-state"><span class="dzn-badge dzn-badge--teal">' . esc_html((string) $case['stage_label']) . '</span><span class="dzn-chip">' . esc_html((string) $case['urgency_label']) . '</span></div></header>';
+        $journeyStatus = (new BookingJourneyReadService())->status((int) $case['id']);
+        $stageLabel = $journeyStatus !== null ? (string) $journeyStatus['status_label'] : (string) $case['stage_label'];
+        $stageTone = $journeyStatus !== null ? (string) $journeyStatus['status_tone'] : 'teal';
+        echo '<header class="dzn-enrolment__case-head"><div><p class="dzn-eyebrow">' . esc_html((string) $case['reference']) . ' · ' . esc_html($case['identity_state']['label']) . '</p><h1>' . esc_html((string) $case['learner_name']) . '</h1><p>' . esc_html((string) $case['instrument']) . ' · ' . esc_html((string) $case['course']) . ' · ' . esc_html((string) $case['timezone']) . '</p></div><div class="dzn-enrolment__case-state"><span class="dzn-badge dzn-badge--' . esc_attr($stageTone) . '">' . esc_html($stageLabel) . '</span><span class="dzn-chip">' . esc_html((string) $case['urgency_label']) . '</span></div></header>';
         echo '<div class="dzn-case-grid">';
         self::caseFacts($case);
         self::caseDecision($case, $classroom);
@@ -673,6 +677,12 @@ final class EnrolmentWorkspaceView {
     /** @param array<string,mixed> $case */
     private static function caseActions(array $case): void {
         echo '<section class="dzn-enrolment__section dzn-case-actions"><div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Contextual actions</p><h2>Resolve the case</h2></div></div>';
+        $journey = (new BookingJourneyReadService())->status((int) $case['id']);
+        if ($journey !== null) {
+            echo '<div class="dzn-journey-status"><span class="dzn-badge dzn-badge--' . esc_attr((string) $journey['status_tone']) . '">' . esc_html((string) $journey['status_label']) . '</span><p>' . esc_html((string) $journey['note']) . '</p></div>';
+            self::primaryJourneyAction($case, $journey);
+        }
+        echo '<details class="dzn-action-panel dzn-more-actions"' . ($journey === null ? ' open' : '') . '><summary><strong>More actions</strong><br><small>Constrained and advanced actions for this request.</small></summary><div class="dzn-action-panel__body">';
         if ($case['identity_state']['key'] !== 'verified' && current_user_can('dzn_resolve_booking_request_student_identity')) self::identityActions($case);
         // Once a confirmation exists, the Teacher's acceptance is durable. Do not offer coordination
         // or "record agreement" controls that imply the Teacher has not answered.
@@ -683,8 +693,53 @@ final class EnrolmentWorkspaceView {
         if ($case['confirmed'] && empty($case['outcome']) && current_user_can('dzn_manage_post_intro_automation')) self::outcomeForm($case);
         if ($case['confirmed'] && empty($case['outcome']) && !current_user_can('dzn_manage_post_intro_automation')) echo '<p>Outcome recording requires post-intro automation access.</p>';
         if ($case['confirmed'] && !empty($case['outcome'])) echo '<p class="dzn-inline-note">The introductory outcome is recorded as <strong>' . esc_html((string) $case['outcome']['label']) . '</strong>. The post-intro decision is shown above.</p>';
+        echo '</div></details>';
         if (!$case['confirmed'] && !in_array($case['stage_key'], array('identity', 'provisioning_pending', 'provisioning_failed', 'intro_payment_pending'), true)) echo '<p class="description">A normal confirmed match requires an active central Google organizer and provider projection. No control on this page invents either.</p>';
         echo '</section>';
+    }
+
+    /**
+     * The single primary action for the journey status. The form is expanded as
+     * the primary card; everything else stays inside "More actions".
+     *
+     * @param array<string,mixed> $case
+     * @param array<string,mixed> $journey
+     */
+    private static function primaryJourneyAction(array $case, array $journey): void {
+        $operation = (string) $journey['primary']['operation'];
+        switch ($operation) {
+            case 'identity_resolve':
+                if ($case['identity_state']['key'] !== 'verified' && current_user_can('dzn_resolve_booking_request_student_identity')) self::identityActions($case);
+                break;
+            case 'open_coordination':
+                if (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) self::coordinationActions($case);
+                break;
+            case 'total_override_intro':
+            case 'review':
+                if ($case['identity_state']['key'] === 'verified' && !$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent') && current_user_can('dzn_override_canonical_lesson_schedule_availability')) {
+                    self::totalOverrideForm($case);
+                } elseif (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) {
+                    self::coordinationActions($case);
+                }
+                break;
+            case 'classroom':
+                if ($case['confirmed'] && empty($case['outcome'])) self::introLifecycleForms($case);
+                break;
+            case 'record_outcome':
+                if ($case['confirmed'] && empty($case['outcome'])) {
+                    if (current_user_can('dzn_manage_post_intro_automation')) self::outcomeForm($case);
+                    else echo '<p>Outcome recording requires post-intro automation access.</p>';
+                }
+                break;
+            case 'continuation':
+                echo '<p class="dzn-inline-note">Decision and payment controls are in the Decision state section; conversion continues the accepted arrangement.</p>';
+                break;
+            case 'enrolment':
+                echo '<p class="dzn-inline-note">This student is enrolled. Manage classes, terms and renewals from Enrolment.</p>';
+                break;
+            default:
+                echo '<p class="description">' . esc_html((string) $journey['primary']['label']) . ' is available from the existing records.</p>';
+        }
     }
 
     /** @param array<string,mixed> $case */

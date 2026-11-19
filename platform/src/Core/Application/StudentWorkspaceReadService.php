@@ -467,7 +467,8 @@ final class StudentWorkspaceReadService {
             (string) ($row->status ?? ''),
             $row->archived_at !== null,
             (bool) ($row->intro_active ?? false),
-            (bool) ($row->active_enrolment ?? false)
+            (bool) ($row->active_enrolment ?? false),
+            (string) ($row->latest_request_resolution ?? '')
         );
         $row->contact_label = trim(implode(' · ', array_filter(array(
             (string) ($row->phone ?? ''),

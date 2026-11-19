@@ -89,11 +89,14 @@ final class StudentRepository extends BaseRepository {
         $latestTerm = "(SELECT t.id FROM {$p}terms t WHERE t.enrolment_id={$latestEnrolment} AND t.archived_at IS NULL AND COALESCE(t.lifecycle_state,t.status) NOT IN ('cancelled','archived') ORDER BY CASE WHEN t.record_model='canonical_enrolment_term_v1' AND t.lifecycle_state='current' THEN 0 WHEN t.record_model='canonical_enrolment_term_v1' AND t.lifecycle_state='authorised' THEN 1 WHEN t.record_model='legacy_phase1' AND t.status IN ('active','awaiting_payment') THEN 2 WHEN t.record_model='legacy_phase1' AND t.status='draft' THEN 3 WHEN t.record_model='canonical_enrolment_term_v1' AND t.lifecycle_state='closed' THEN 4 WHEN t.record_model='legacy_phase1' AND t.status='completed' THEN 4 ELSE 5 END,t.sequence_number DESC,t.id DESC LIMIT 1)";
         $actionableOffer = "(SELECT o.id FROM {$p}commercial_offers o WHERE o.beneficiary_student_id=s.id AND (o.state='accepted' OR (o.state='issued' AND (o.expires_at IS NULL OR o.expires_at>UTC_TIMESTAMP()))) ORDER BY o.id DESC LIMIT 1)";
         $introActive = "EXISTS(SELECT 1 FROM {$p}booking_requests br WHERE br.student_id=s.id AND br.privacy_erased_at IS NULL AND br.retention_due_at>UTC_TIMESTAMP() AND (br.lifecycle_status='submitted' OR (br.lifecycle_status='closed' AND br.resolution_state='teacher_confirmed')))";
+        // The latest non-erased request decides the closed-request label. A declined
+        // request is not an active intro, but it is not "awaiting enrolment" either.
+        $latestRequestResolution = "(SELECT br.resolution_state FROM {$p}booking_requests br WHERE br.student_id=s.id AND br.privacy_erased_at IS NULL ORDER BY br.updated_at DESC,br.id DESC LIMIT 1)";
         $outstandingExists = "EXISTS(SELECT 1 FROM {$p}commercial_offer_obligations ob LEFT JOIN {$p}commercial_obligation_settlements st ON st.obligation_id=ob.id WHERE ob.offer_id={$actionableOffer} AND st.id IS NULL AND ob.amount_minor>0)";
         // Renewal is part of the same current-enrolment story as Term and Lessons.
         $renewalExists = "EXISTS(SELECT 1 FROM {$p}renewal_cycles rc INNER JOIN {$p}recurring_enrolments re ON re.id=rc.recurring_enrolment_id WHERE re.student_id=s.id AND re.enrolment_id={$latestEnrolment} AND rc.state IN ('pending','guarantee_protected','payment_required','collected'))";
 
-        [$where, $args] = $this->workspaceDirectoryWhere($query, $status, $latestEnrolment, $introActive, $outstandingExists, $renewalExists);
+        [$where, $args] = $this->workspaceDirectoryWhere($query, $status, $latestEnrolment, $introActive, $latestRequestResolution, $outstandingExists, $renewalExists);
         $idFilter = array_values(array_unique(array_filter(array_map('intval', $idFilter))));
         if ($idFilter) {
             $where[] = 's.id IN (' . implode(',', array_fill(0, count($idFilter), '%d')) . ')';
@@ -146,6 +149,7 @@ final class StudentRepository extends BaseRepository {
                        (SELECT COUNT(*) FROM {$p}lessons sl WHERE sl.student_id=s.id AND sl.term_id={$latestTerm} AND sl.archived_at IS NULL AND sl.lesson_type='standard' AND COALESCE(sl.lifecycle_state,sl.status) IN ('authorised','scheduled')) current_term_scheduled,
                        (SELECT COUNT(*) FROM {$p}lessons rl WHERE rl.student_id=s.id AND rl.term_id={$latestTerm} AND rl.archived_at IS NULL AND rl.lesson_type='replacement' AND COALESCE(rl.lifecycle_state,rl.status)<>'cancelled') current_term_replacement_count,
                        ({$introActive}) intro_active,
+                       {$latestRequestResolution} latest_request_resolution,
                        (({$latestEnrolment}) IS NOT NULL) active_enrolment,
                        {$actionableOffer} payment_offer_id,
                        COALESCE((SELECT SUM(ob.amount_minor) FROM {$p}commercial_offer_obligations ob LEFT JOIN {$p}commercial_obligation_settlements st ON st.obligation_id=ob.id WHERE ob.offer_id={$actionableOffer} AND st.id IS NULL),0) payment_outstanding_minor,
@@ -163,6 +167,7 @@ final class StudentRepository extends BaseRepository {
                          WHEN s.status='inactive' THEN 'inactive'
                          WHEN ({$latestEnrolment}) IS NOT NULL AND s.status='active' THEN 'active'
                          WHEN ({$introActive}) THEN 'introductory'
+                         WHEN ({$latestRequestResolution})='declined' THEN 'declined'
                          WHEN s.status='active' THEN 'awaiting_enrolment'
                          ELSE s.status
                        END directory_status,
@@ -195,16 +200,19 @@ final class StudentRepository extends BaseRepository {
         $latestEnrolment = "(SELECT e.id FROM {$p}enrolments e WHERE e.student_id=s.id AND e.archived_at IS NULL AND COALESCE(e.lifecycle_state,e.status) IN ('authorised','current','paused','active') ORDER BY CASE COALESCE(e.lifecycle_state,e.status) WHEN 'current' THEN 0 WHEN 'active' THEN 1 WHEN 'authorised' THEN 2 WHEN 'paused' THEN 3 ELSE 4 END,COALESCE(e.started_at,e.created_at) DESC,e.id DESC LIMIT 1)";
         $actionableOffer = "(SELECT o.id FROM {$p}commercial_offers o WHERE o.beneficiary_student_id=s.id AND (o.state='accepted' OR (o.state='issued' AND (o.expires_at IS NULL OR o.expires_at>UTC_TIMESTAMP()))) ORDER BY o.id DESC LIMIT 1)";
         $introActive = "EXISTS(SELECT 1 FROM {$p}booking_requests br WHERE br.student_id=s.id AND br.privacy_erased_at IS NULL AND br.retention_due_at>UTC_TIMESTAMP() AND (br.lifecycle_status='submitted' OR (br.lifecycle_status='closed' AND br.resolution_state='teacher_confirmed')))";
+        // The latest non-erased request decides the closed-request label. A declined
+        // request is not an active intro, but it is not "awaiting enrolment" either.
+        $latestRequestResolution = "(SELECT br.resolution_state FROM {$p}booking_requests br WHERE br.student_id=s.id AND br.privacy_erased_at IS NULL ORDER BY br.updated_at DESC,br.id DESC LIMIT 1)";
         $outstandingExists = "EXISTS(SELECT 1 FROM {$p}commercial_offer_obligations ob LEFT JOIN {$p}commercial_obligation_settlements st ON st.obligation_id=ob.id WHERE ob.offer_id={$actionableOffer} AND st.id IS NULL AND ob.amount_minor>0)";
         $renewalExists = "EXISTS(SELECT 1 FROM {$p}renewal_cycles rc INNER JOIN {$p}recurring_enrolments re ON re.id=rc.recurring_enrolment_id WHERE re.student_id=s.id AND re.enrolment_id={$latestEnrolment} AND rc.state IN ('pending','guarantee_protected','payment_required','collected'))";
-        [$where, $args] = $this->workspaceDirectoryWhere($query, $status, $latestEnrolment, $introActive, $outstandingExists, $renewalExists);
+        [$where, $args] = $this->workspaceDirectoryWhere($query, $status, $latestEnrolment, $introActive, $latestRequestResolution, $outstandingExists, $renewalExists);
         $sql = "SELECT s.id,COALESCE(NULLIF(s.display_name,''),NULLIF(TRIM(CONCAT_WS(' ',s.first_name,s.last_name)),''),'Student') student_name
                 FROM {$this->table} s WHERE " . implode(' AND ', $where) . " ORDER BY s.id ASC";
         return ($args ? $wpdb->get_results($wpdb->prepare($sql, ...$args)) : $wpdb->get_results($sql)) ?: array();
     }
 
     /** @return array{0:array<int,string>,1:array<int,string>} */
-    private function workspaceDirectoryWhere(string $query, string $status, string $latestEnrolment, string $introActive, string $outstandingExists, string $renewalExists): array {
+    private function workspaceDirectoryWhere(string $query, string $status, string $latestEnrolment, string $introActive, string $latestRequestResolution, string $outstandingExists, string $renewalExists): array {
         global $wpdb;
         $p = $wpdb->prefix . 'dzn_';
         $where = array();
@@ -217,11 +225,18 @@ final class StudentRepository extends BaseRepository {
             $where[] = "(s.status='inactive' AND s.archived_at IS NULL)";
         } elseif ($status === 'introductory') {
             $where[] = "(s.archived_at IS NULL AND s.status<>'archived')";
+            $where[] = "({$latestEnrolment}) IS NULL";
             $where[] = $introActive;
         } elseif ($status === 'awaiting_enrolment') {
             $where[] = "(s.archived_at IS NULL AND s.status<>'archived')";
             $where[] = "({$latestEnrolment}) IS NULL";
-            $where[] = $introActive;
+            $where[] = "NOT ({$introActive})";
+            $where[] = "COALESCE({$latestRequestResolution},'')<>'declined'";
+        } elseif ($status === 'declined') {
+            $where[] = "(s.archived_at IS NULL AND s.status<>'archived')";
+            $where[] = "({$latestEnrolment}) IS NULL";
+            $where[] = "NOT ({$introActive})";
+            $where[] = "({$latestRequestResolution})='declined'";
         } elseif ($status === 'renewal_due') {
             $where[] = "(s.archived_at IS NULL AND s.status<>'archived')";
             $where[] = $renewalExists;

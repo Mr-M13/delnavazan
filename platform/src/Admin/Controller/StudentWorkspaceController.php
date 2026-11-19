@@ -116,7 +116,8 @@ final class StudentWorkspaceController {
             (string) ($student->status ?? ''),
             ($student->archived_at ?? null) !== null,
             self::hasActiveIntro($profile['intro_requests'] ?? array()),
-            (bool) (($summary['enrolment'] ?? null) !== null)
+            (bool) (($summary['enrolment'] ?? null) !== null),
+            self::latestRequestResolution($profile['intro_requests'] ?? array())
         );
         $id = (int) $student->id;
 
@@ -779,6 +780,7 @@ final class StudentWorkspaceController {
             'active' => 'ok',
             'introductory' => 'info',
             'awaiting enrolment' => 'warn',
+            'declined' => 'muted',
             'inactive', 'archived' => 'muted',
             default => 'info',
         };
@@ -809,6 +811,21 @@ final class StudentWorkspaceController {
             if ((string) ($request->lifecycle_status ?? '') === 'closed' && (string) ($request->resolution_state ?? '') === 'teacher_confirmed') return true;
         }
         return false;
+    }
+
+    /** The latest request's resolution, so a declined request is not shown as awaiting enrolment. */
+    private static function latestRequestResolution(array $requests): string {
+        $latest = null;
+        $latestAt = '';
+        foreach ($requests as $request) {
+            $at = (string) ($request->updated_at ?? $request->created_at ?? '');
+            $id = (int) ($request->id ?? 0);
+            if ($latest === null || $at > $latestAt || ($at === $latestAt && $id > (int) ($latest->id ?? 0))) {
+                $latest = $request;
+                $latestAt = $at;
+            }
+        }
+        return $latest !== null ? (string) ($latest->resolution_state ?? '') : '';
     }
 
     private static function directorySortHeader(string $key, string $label, array $filters): string {

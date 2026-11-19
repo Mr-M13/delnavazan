@@ -33,6 +33,20 @@ $has($repository, array(
     'absence_count',
     'LIMIT %d OFFSET %d',
 ), 'The directory must rank recent activity from canonical timestamps and expose the required operational columns.');
+$has($repository, array(
+    'latest_request_resolution',
+    "THEN 'declined'",
+    "COALESCE({\$latestRequestResolution},'')<>'declined'",
+), 'The directory must label a declined latest request separately and align the awaiting/introductory filters with the badge.');
+$has($filtersSource, array(
+    "'declined'",
+    "'declined' => 'Declined'",
+), 'The directory status vocabulary must expose Declined.');
+$has($controller, array(
+    'latestRequestResolution',
+    "'declined' => 'muted'",
+), 'The profile badge must use the latest request resolution and a neutral declined tone.');
+
 $has($readService, array(
     'current_identity_resolution_id IS NULL',
     'student_acceptance_authority_grants',

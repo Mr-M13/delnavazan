@@ -51,9 +51,11 @@ $assert(StudentWorkspaceFilters::directoryStatus('inactive', false, true, true) 
 $assert(StudentWorkspaceFilters::directoryStatus('active', false, true, false) === 'Introductory', 'A non-expired intro request without an enrolment is introductory.');
 $assert(StudentWorkspaceFilters::directoryStatus('active', false, false, true) === 'Active', 'An active enrolment is active.');
 $assert(StudentWorkspaceFilters::directoryStatus('active', false, false, false) === 'Awaiting enrolment', 'An active student without an enrolment or intro is awaiting enrolment.');
+$assert(StudentWorkspaceFilters::directoryStatus('active', false, false, false, 'declined') === 'Declined', 'A declined latest request is declined, not awaiting enrolment.');
+$assert(StudentWorkspaceFilters::directoryStatus('active', false, true, false, 'declined') === 'Introductory', 'An active intro still wins over a declined request.');
 
 $statusLabels = StudentWorkspaceFilters::statusLabels();
-foreach (array('All students','Active','Introductory','Awaiting enrolment','Renewal due','Payment due','Inactive','Archived') as $label) {
+foreach (array('All students','Active','Introductory','Awaiting enrolment','Declined','Renewal due','Payment due','Inactive','Archived') as $label) {
     $assert(in_array($label, $statusLabels, true), 'Missing filter label: ' . $label);
 }
 

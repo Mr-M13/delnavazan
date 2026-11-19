@@ -14,6 +14,7 @@ final class StudentWorkspaceFilters {
         'active',
         'introductory',
         'awaiting_enrolment',
+        'declined',
         'renewal_due',
         'payment_due',
         'inactive',
@@ -102,6 +103,7 @@ final class StudentWorkspaceFilters {
             'active' => 'Active',
             'introductory' => 'Introductory',
             'awaiting_enrolment' => 'Awaiting enrolment',
+            'declined' => 'Declined',
             'renewal_due' => 'Renewal due',
             'payment_due' => 'Payment due',
             'inactive' => 'Inactive',
@@ -131,11 +133,13 @@ final class StudentWorkspaceFilters {
     }
 
     /** Plain-English operational state, derived only from canonical fields. */
-    public static function directoryStatus(string $status, bool $archived, bool $introActive, bool $activeEnrolment): string {
+    public static function directoryStatus(string $status, bool $archived, bool $introActive, bool $activeEnrolment, string $latestRequestResolution = ''): string {
         if ($archived || $status === 'archived') return 'Archived';
         if ($status === 'inactive') return 'Inactive';
-        if ($introActive && !$activeEnrolment) return 'Introductory';
-        if ($status === 'active') return $activeEnrolment ? 'Active' : 'Awaiting enrolment';
+        if ($activeEnrolment) return 'Active';
+        if ($introActive) return 'Introductory';
+        if ($latestRequestResolution === 'declined') return 'Declined';
+        if ($status === 'active') return 'Awaiting enrolment';
         return $status === '' ? 'Not recorded' : ucfirst(str_replace('_', ' ', $status));
     }
 }

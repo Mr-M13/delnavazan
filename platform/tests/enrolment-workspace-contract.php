@@ -22,6 +22,7 @@ $import = $read('src/Core/Application/HistoricalEnrolmentImportService.php');
 $postIntro = $read('src/Core/Application/PostIntroNotificationAdministrationService.php');
 $response = $read('src/Core/Application/BookingTeacherResponseService.php');
 $responseRepo = $read('src/Core/Infrastructure/Repository/BookingTeacherResponseRepository.php');
+$journey = $read('src/Core/Application/BookingJourneyReadService.php');
 $css = $read('src/Admin/Assets/admin.css');
 $bootstrap = $read('delnavazan-platform.php');
 $worker = $read('src/Integrations/BookingStudentNotificationWorker.php');
@@ -147,6 +148,8 @@ $contains($controller, array("case 'total_override_intro':", "dzn_override_canon
 $contains($readService, array('public function overrideTeacherOptions('), 'The override picker must read active Teachers without requiring unrelated directory capabilities.');
 $contains($view, array('totalOverrideForm(', 'overrideTeacherOptions(', 'Total scheduling override', 'total_override_intro', 'override_ack', 'override_local_date', 'override_local_start_time', 'override_schedule_timezone'), 'The case view must expose the simple Teacher + date/time total override form.');
 $contains($view, array("input('override_schedule_timezone', 'Local timezone', 'text', \$timezone, true", 'default is the Student request timezone'), 'The override timezone must accept the Student request timezone (for example Asia/Tehran), not only the standard service-area options.');
+$contains($journey, array('public function status(', 'public const STATUSES', "'needs_review' => array('Needs review', 'danger')", "'awaiting_teacher' => array('Waiting for teacher', 'gold')"), 'One journey-status read model must define the shared vocabulary and one primary action per status.');
+$contains($view, array('BookingJourneyReadService', 'primaryJourneyAction(', 'dzn-journey-status', 'More actions', "esc_attr((string) \$journey['status_tone'])"), 'The case page must render the single journey status and move constrained actions into More actions.');
 $contains($intro, array(
     'BookingRequestSubmissionService',
     'StudentIdentityResolutionService',

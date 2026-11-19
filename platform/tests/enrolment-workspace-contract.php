@@ -212,6 +212,10 @@ $contains($readService, array(
     "'response_deadline_iso'",
     'remainingLabel(',
 ), 'Intro rows must carry the remaining acceptance time and the number of Teachers already offered.');
+$contains($readService, array(
+    "'teacher_response' => (string) (\$case['teacher_response'] ?? '')",
+    "'teacher_offer' => (array) (\$case['teacher_offer'] ?? array())",
+), 'The intro queue row projection must copy the composed Teacher response and offer evidence.');
 $contains($view, array(
     '<th>Teacher response</th>',
     'teacherOfferCell(',

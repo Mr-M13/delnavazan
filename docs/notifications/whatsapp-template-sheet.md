@@ -9,8 +9,12 @@ manifest it references.
 The machine-readable manifest is `deployment/notifications/whatsapp-templates.json`
 (40 templates). Every entry is `language: fa`, `category: UTILITY` (transactional only),
 with a positional `{{1}}…{{n}}` body derived from the catalogue's reviewed Persian WhatsApp copy and a
-synthetic Persian `samples` object. The `TelnyxTemplateRegistry` mirrors the same `variables` order as
-`variable_order`, so a template the workflow creates maps through discovery unchanged.
+synthetic Persian `samples` object. The body ends with the static sign-off `— دلنوازان` after the
+last parameter: Meta refuses a template that begins or ends with a parameter (error 2388299). The
+local Persian copy carries the same sign-off, and the integration contract checks the manifest and
+the local copy are identical after placeholder normalization. The `TelnyxTemplateRegistry` mirrors
+the same `variables` order as `variable_order`, so a template the workflow creates maps through
+discovery unchanged.
 
 ## Creation path (audited workflow)
 
@@ -36,7 +40,9 @@ shows the evidence behind the channel state:
   the latest discovery refresh. It is labeled **Approved provider body** only when the provider
   status is `APPROVED`; a pending or rejected body is shown with that status instead. This is what
   Telnyx delivers. The editable copy above is the local Delnavazan representation; the two do not
-  have to be word-for-word identical, but the parameter count and order must match.
+  have to be word-for-word identical, but the parameter count and order must match. When the provider
+  body differs from the local copy, the panel shows a review warning so the operator can reconcile
+  the wording or update the Telnyx template.
 - **Refresh provider templates** — re-runs the read-only Telnyx discovery from the editor and returns
   to the same event. It never sends a message and never changes a published local version.
 
@@ -90,9 +96,11 @@ override: correct the provider template in Telnyx, wait for approval, then refre
 
 ## Positional convention
 
-`{{1}}` is the first code in `variables`, `{{2}}` the second, and so on. The registry stores the same
-sequence as `variable_order`, and the discovery service compares the provider template's placeholder
-count to that order, so the operator must not reorder or omit placeholders when authoring the body.
+`{{1}}` is the first code in `variables`, `{{2}}` the second, and so on. The placeholders must be
+sequential and unique, and the body must have static text before and after them. The registry stores
+the same sequence as `variable_order`, and the discovery service compares the provider template's
+placeholder count to that order, so the operator must not reorder or omit placeholders when authoring
+the body.
 
 Example — `delnavazan_class_reminder_fa` (`lesson.reminder.student`): `{{1}}`=name, `{{2}}`=course,
 `{{3}}`=teacher, `{{4}}`=when, and the body reads «درود {{1}} عزیز، کلاس {{2}} شما با {{3}} در {{4}}

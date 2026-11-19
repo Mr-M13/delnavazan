@@ -123,7 +123,22 @@ def validate_manifest(manifest):
                 % (label, len(positional), len(variables))
             )
             continue
-
+        if len(set(variables)) != len(variables):
+            errors.append("%s variables must be unique" % label)
+            continue
+        expected_positions = [str(index) for index in range(1, len(positional) + 1)]
+        if positional != expected_positions:
+            errors.append(
+                "%s placeholders must be sequential %s"
+                % (label, " ".join("{{%d}}" % index for index in range(1, len(positional) + 1)))
+            )
+            continue
+        # Meta refuses a body that begins or ends with a parameter (error 2388299).
+        # Reject it during offline validation so validate-only and dry_run report the
+        # same refusal as an apply run instead of promising a create that will fail.
+        if re.match(r"^\s*\{\{\d+\}\}", body) or re.search(r"\{\{\d+\}\}\s*$", body):
+            errors.append("%s body must not begin or end with a parameter" % label)
+            continue
 
         samples = template.get("samples")
         if not isinstance(samples, dict):

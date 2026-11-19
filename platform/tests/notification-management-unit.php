@@ -929,6 +929,7 @@ namespace {
     $whatsappEditorHtml = (string) ob_get_clean();
     $fail('the WhatsApp editor names the discovered provider template', str_contains($whatsappEditorHtml, 'delnavazan_intro_confirmed_fa'));
     $fail('the WhatsApp editor shows the approved provider body read-only', str_contains($whatsappEditorHtml, 'Approved provider body') && str_contains($whatsappEditorHtml, 'درود {{1}}'));
+    $fail('the WhatsApp editor flags a provider body that differs from the local copy', str_contains($whatsappEditorHtml, 'Provider body differs from the reviewed local copy'));
     $fail('the WhatsApp editor offers the in-place provider refresh', str_contains($whatsappEditorHtml, 'dzn_notification_provider_refresh'));
 
     echo "Notification management unit passed\n";

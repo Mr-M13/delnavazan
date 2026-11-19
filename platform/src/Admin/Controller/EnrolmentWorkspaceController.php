@@ -267,7 +267,9 @@ final class EnrolmentWorkspaceController {
                     $overrideReason,
                     'total-override-' . $idempotency
                 );
-                return 'Introductory lesson confirmed with a total scheduling override. The standard provider projection and notification path is now running.';
+                return (string) ($result['state'] ?? '') === 'awaiting_payment'
+                    ? 'Introductory lesson confirmed with a total scheduling override. The introductory payment is now pending; the standard provider projection follows verified payment.'
+                    : 'Introductory lesson confirmed with a total scheduling override. The standard provider projection and notification path is now running.';
             case 'manual_match':
                 self::requireCap('dzn_manage_booking_request_coordination');
                 self::requireCap('dzn_manage_teacher_availability_assent');

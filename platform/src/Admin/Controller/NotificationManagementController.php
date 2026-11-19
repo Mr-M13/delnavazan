@@ -16,7 +16,9 @@ use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary;
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateSanitizer;
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateValidationException;
 use Delnavazan\Platform\Integrations\Notifications\SmsIrTemplateRegistry;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateAuthority;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateDiscoveryService;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry;
 use Delnavazan\Platform\Portals\PortalNotificationInbox;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 
@@ -797,8 +799,22 @@ final class NotificationManagementController {
         $state=(string)($status['provider_state']??'not_mapped');
         $reason=(string)($evidence['reason']??'');
         $ready=self::providerReady('whatsapp');
+        $localCopy=$library->activeCopy($eventKey,'whatsapp',$locale);
+        $localBody=is_array($localCopy)?trim((string)($localCopy['body']??'')):'';
+        $providerBody=is_array($primary)?trim((string)($primary['template_text']??'')):'';
+        $providerName=is_array($primary)?(string)($primary['name']??''):'';
+        $order=$providerName!==''?TelnyxTemplateRegistry::variableOrderForName($providerName):array();
+        $normalisedLocal='';
+        if($localBody!==''&&$order!==array()){
+            $normalisedLocal=preg_replace_callback('/\{\{([a-z][a-z0-9_]*)\}\}/',static function(array $match)use($order):string{
+                $position=array_search($match[1],$order,true);
+                return $position===false?$match[0]:'{{'.($position+1).'}}';
+            },$localBody);
+        }
+        $providerLanguage=is_array($primary)?(string)($primary['language']??''):'';
+        $bodyMismatch=$providerBody!==''&&$normalisedLocal!==''&&$providerLanguage===TelnyxTemplateAuthority::providerLanguage($locale)&&$normalisedLocal!==$providerBody;
         echo '<section class="dzn-nc-provider"><h3>WhatsApp provider template (Telnyx)</h3>';
-        echo '<p>Meta approves the provider template separately. The provider body below is what Telnyx delivers; the local copy above is the editable Delnavazan representation. They do not have to be identical, but the parameter count and order must match.</p>';
+        echo '<p>Meta approves the provider template separately. The provider body below is what Telnyx delivers; the local copy above is the editable Delnavazan representation. They do not have to be identical, but a difference is flagged so you can reconcile them.</p>';
         echo '<dl class="dzn-notif-lifecycle">';
         echo '<dt>Mapping status</dt><dd><span class="dzn-badge '.(in_array($state,array('mapped'),true)?'is-ok':'is-warn').'">'.esc_html(self::providerStateLabel($state)).'</span>'.($reason!==''?' <span class="dzn-notif-meta">'.esc_html($reason).'</span>':'').'</dd>';
         echo '<dt>Linked template</dt><dd>'.($linked!==''?'<code dir="ltr">'.esc_html($linked).'</code> · '.esc_html((string)($mapping['language']??'')).' · '.esc_html(self::providerMappingSource((string)($mapping['source']??''))):'<em>Not linked</em>').'</dd>';
@@ -818,6 +834,7 @@ final class NotificationManagementController {
             if($text!=='')echo '<pre class="dzn-nc-provider-body" dir="'.esc_attr($lang==='fa'?'rtl':'ltr').'" lang="'.esc_attr($lang).'">'.esc_html($text).'</pre>';
             else echo '<span class="dzn-notif-meta">The provider body has not been captured yet. Run Refresh provider templates.</span>';
             if($providerStatus!=='APPROVED')echo '<p class="dzn-notif-meta">This text is on file at Telnyx but is not approved for delivery yet.</p>';
+            if($bodyMismatch)echo '<p class="dzn-notif-note"><strong>Provider body differs from the reviewed local copy.</strong> The provider body is authoritative for delivery; update Telnyx or the local copy so the text and placeholders agree.</p>';
             echo '</dd>';
         }else{
             echo '<dt>Discovered template</dt><dd><span class="dzn-notif-meta">No Telnyx template has been discovered for this event and language yet.</span></dd>';

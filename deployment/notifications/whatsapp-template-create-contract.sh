@@ -11,7 +11,8 @@
 #   - default mode is dry_run (never apply by default);
 #   - only the two documented provider secrets, never printed and fail closed;
 #   - the manifest is validated offline (provider/category/language/placeholder
-#     shape, unique names, missing samples) before any network call;
+#     shape, unique names, sequential placeholders, no leading/trailing
+#     parameter, missing samples) before any network call;
 #   - the worker can list (GET) and create (POST) only; no update or delete verb
 #     exists anywhere, and no credential is hardcoded.
 set -Eeuo pipefail
@@ -104,6 +105,9 @@ need "$script" 'ALLOWED_LANGUAGES = ("fa", "en")'
 need "$script" 'duplicate name'
 need "$script" 'named placeholders'
 need "$script" 'len(positional) != len(variables)'
+need "$script" 'variables must be unique'
+need "$script" 'placeholders must be sequential'
+need "$script" 'body must not begin or end with a parameter'
 need "$script" 'missing_samples'
 need "$script" 'filter[waba_id]'
 need "$script" 'page[size]'
@@ -119,6 +123,30 @@ need "$script" '"category"'
 need "$script" 'message_templates'
 need "$script" '"POST"'
 pass 'the manifest is validated offline and the create shape is the official Telnyx one'
+
+# ------------------------------------------------- offline manifest truth ----
+python3 "$script" --manifest "$manifest" --mode validate-only >/dev/null \
+  || fail 'the reviewed manifest does not pass the offline Meta/Telnyx validation'
+pass 'the reviewed manifest passes the offline Meta/Telnyx validation'
+
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
+python3 - "$manifest" "$tmpdir/bad.json" <<'PY'
+import json
+import sys
+
+source, target = sys.argv[1], sys.argv[2]
+manifest = json.load(open(source, encoding="utf-8"))
+bad = dict(manifest["templates"][0])
+bad["body"] = "درود " + " ".join("{{%d}}" % index for index in range(1, len(bad["variables"]) + 1))
+manifest["templates"] = [bad]
+with open(target, "w", encoding="utf-8") as handle:
+    json.dump(manifest, handle, ensure_ascii=False)
+PY
+if python3 "$script" --manifest "$tmpdir/bad.json" --mode validate-only >/dev/null 2>&1; then
+  fail 'a body ending with a parameter must fail offline validation'
+fi
+pass 'a body ending with a parameter fails offline validation'
 
 # ----------------------------------------- no update/delete verb, create only --
 for target in "$workflow" "$script"; do

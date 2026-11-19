@@ -7,6 +7,7 @@ use Delnavazan\Platform\Core\Application\PaymentExecution\{StripeLiveConfigurati
 use Delnavazan\Platform\Core\Infrastructure\Repository\{CommercialPaymentRepository,PaymentProviderRepository};
 use Delnavazan\Platform\Integrations\Payment\Stripe\StripeEventTranslator;
 use Delnavazan\Platform\Integrations\IntegrationTestRunner;
+use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxConfiguration;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxConfigurationService;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateDiscoveryService;
@@ -520,7 +521,7 @@ final class IntegrationControlPlaneController {
             $templates=(array)($discovery['templates']??array());
             if($templates!==array()){
                 echo '<details><summary>Discovered templates ('.esc_html((string)count($templates)).')</summary>';
-                echo '<table class="widefat striped"><thead><tr><th>Template</th><th>Language</th><th>Status</th><th>Linked event</th><th>Variables</th><th>Last verified</th></tr></thead><tbody>';
+                echo '<table class="widefat striped"><thead><tr><th>Template</th><th>Language</th><th>Status</th><th>Linked event</th><th>Variables</th><th>Local copy</th><th>Last verified</th></tr></thead><tbody>';
                 foreach($templates as $template){
                     $name=(string)($template->template_name??'');
                     $known=TelnyxTemplateRegistry::definitionForName($name);
@@ -530,10 +531,27 @@ final class IntegrationControlPlaneController {
                     $mismatch=$known!==null&&$hasText&&$providerCount!==$expected;
                     $eventKey=(string)($template->event_key??'');
                     $variables=$hasText?$providerCount.' body'.($known!==null?' / '.$expected.' expected':' · unregistered'):'body not captured'.($known!==null?' · '.$expected.' expected':' · unregistered');
-                    echo '<tr><td><code dir="ltr">'.esc_html($name).'</code></td><td>'.esc_html((string)($template->language??'')).'</td><td>'.esc_html(strtoupper((string)($template->status??''))).'</td><td>'.($eventKey!==''?'<code dir="ltr">'.esc_html($eventKey).'</code>':'Not linked').'</td><td>'.esc_html($variables).($mismatch?' <span class="dzn-badge is-warn">Mismatch</span>':'').'</td><td>'.esc_html((string)($template->last_verified_at??'')).'</td></tr>';
+                    $localMatch='—';
+                    $providerLanguage=(string)($template->language??'');
+                    $localLocale=$providerLanguage==='fa'?'fa-IR':($providerLanguage==='en'?'en':null);
+                    if($known===null)$localMatch='No registry';
+                    elseif(!$hasText)$localMatch='Not captured';
+                    elseif($localLocale!==null){
+                        $local=NotificationCatalogue::defaultCopy((string)$known['event_key'],'whatsapp',$localLocale);
+                        $localBody=is_array($local)?trim((string)($local['body']??'')):'';
+                        if($localBody!==''){
+                            $order=array_values((array)$known['variable_order']);
+                            $normalised=preg_replace_callback('/\{\{([a-z][a-z0-9_]*)\}\}/',static function(array $match)use($order):string{
+                                $position=array_search($match[1],$order,true);
+                                return $position===false?$match[0]:'{{'.($position+1).'}}';
+                            },$localBody);
+                            $localMatch=$normalised===trim((string)$template->template_text)?'Matches':'Differs';
+                        }
+                    }
+                    echo '<tr><td><code dir="ltr">'.esc_html($name).'</code></td><td>'.esc_html((string)($template->language??'')).'</td><td>'.esc_html(strtoupper((string)($template->status??''))).'</td><td>'.($eventKey!==''?'<code dir="ltr">'.esc_html($eventKey).'</code>':'Not linked').'</td><td>'.esc_html($variables).($mismatch?' <span class="dzn-badge is-warn">Mismatch</span>':'').'</td><td>'.($localMatch==='Differs'?'<strong>Differs</strong>':esc_html($localMatch)).'</td><td>'.esc_html((string)($template->last_verified_at??'')).'</td></tr>';
                 }
                 echo '</tbody></table>';
-                echo '<p class="description">The provider template name is the link to a local event through the reviewed registry. An unregistered or variable-mismatched template is never used for delivery.</p></details>';
+                echo '<p class="description">The provider template name is the link to a local event through the reviewed registry. An unregistered or variable-mismatched template is never used for delivery. Local copy compares the reviewed default WhatsApp copy with the provider body; the notification editor compares the active published/draft copy.</p></details>';
             }
             if($sync)echo '<p>Last refresh: '.esc_html(($sync['ok']??false)?'succeeded':'failed').' · code '.esc_html((string)($sync['code']??'')).' · '.esc_html((string)(int)($sync['discovered']??0)).' discovered, '.esc_html((string)(int)($sync['mapped']??0)).' mapped · '.esc_html((string)($sync['at']??'')).'</p>';
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_telnyx_template_sync">';wp_nonce_field('dzn_telnyx_template_sync');echo '<p><button class="button" name="refresh_templates" value="1">Refresh approved templates</button> <span class="description">Read-only provider call; no message is sent.</span></p></form>';

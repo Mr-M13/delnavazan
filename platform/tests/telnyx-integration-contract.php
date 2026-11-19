@@ -61,6 +61,7 @@ $fail('template discovery is explicit and read-only',str_contains($discovery,'/v
 $fail('settings expose Telnyx webhook key and WABA',str_contains($settings,"'webhook_public_key'=>'text'")&&str_contains($settings,"'waba_id'=>'text'")&&str_contains($settings,"'sender_id'=>'text'"));
 $fail('admin shows verified webhook and discovery',str_contains($admin,'Verified webhook')&&str_contains($admin,'Refresh approved templates')&&str_contains($admin,'dzn_telnyx_template_sync')&&str_contains($admin,'Webhook URL'));
 $fail('admin lists discovered templates with their linked event and variable evidence',str_contains($admin,'Discovered templates (')&&str_contains($admin,'TelnyxTemplateRegistry::definitionForName')&&str_contains($admin,'Not linked'));
+$fail('admin compares the provider body with the reviewed local copy',str_contains($admin,'Local copy')&&str_contains($admin,'NotificationCatalogue::defaultCopy')&&str_contains($admin,'No registry'));
 $fail('notification admin shows the linked provider name and approved body',str_contains($notificationAdmin,'providerEvidence')&&str_contains($notificationAdmin,'Approved provider body')&&str_contains($notificationAdmin,'dzn_notification_provider_refresh'));
 $fail('notification admin names linked and expected provider templates',str_contains($notificationAdmin,'Telnyx:')&&str_contains($notificationAdmin,'provider_expected_name'));
 $fail('admin readiness is secret-free',str_contains($readService,"'telnyx'=>array")&&str_contains($readService,'webhook_signature')&&str_contains($readService,'dispatch_actor'));
@@ -140,6 +141,21 @@ foreach((array)($manifest['templates']??array()) as $template){
     preg_match_all('/\{\{([0-9]+)\}\}/',$body,$matches);
     $positions=array_map('intval',$matches[1]);
     if($positions!==range(1,count($variables)))throw new RuntimeException('Telnyx integration contract failed: manifest positional order does not match variables for '.$name);
+    if(preg_match('/^\s*\{\{[0-9]+\}\}/',$body)===1||preg_match('/\{\{[0-9]+\}\}\s*$/',$body)===1)throw new RuntimeException('Telnyx integration contract failed: manifest body must not begin or end with a parameter for '.$name);
+    $fa=\Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::defaultCopy($eventKey,'whatsapp','fa-IR');
+    $faBody=is_array($fa)?(string)($fa['body']??''):'';
+    $normalized=preg_replace_callback('/\{\{([a-z][a-z0-9_]{0,63})\}\}/',static function(array $match)use($variables):string{
+        $position=array_search($match[1],$variables,true);
+        return $position===false?$match[0]:'{{'.($position+1).'}}';
+    },$faBody);
+    if($normalized!==$body)throw new RuntimeException('Telnyx integration contract failed: local WhatsApp copy does not match the manifest for '.$name);
+    if(preg_match('/\{\{[a-z][a-z0-9_]{0,63}\}\}\s*$/',$faBody)===1)throw new RuntimeException('Telnyx integration contract failed: local WhatsApp copy must end with static text for '.$name);
+    $en=\Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue::defaultCopy($eventKey,'whatsapp','en');
+    $enBody=is_array($en)?(string)($en['body']??''):'';
+    if(preg_match('/\{\{[a-z][a-z0-9_]{0,63}\}\}\s*$/',$enBody)===1)throw new RuntimeException('Telnyx integration contract failed: local English WhatsApp copy must end with static text for '.$name);
+    preg_match_all('/\{\{([a-z][a-z0-9_]{0,63})\}\}/',$faBody,$faPlaceholders);
+    preg_match_all('/\{\{([a-z][a-z0-9_]{0,63})\}\}/',$enBody,$enPlaceholders);
+    if($faPlaceholders[1]!==$enPlaceholders[1])throw new RuntimeException('Telnyx integration contract failed: local fa/en WhatsApp placeholders differ for '.$name);
     $samples=is_array($template['samples']??null)?(array)$template['samples']:array();
     $sampleKeys=array_values(array_keys($samples));
     sort($sampleKeys);$sortedVariables=$variables;sort($sortedVariables);

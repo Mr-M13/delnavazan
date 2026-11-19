@@ -677,6 +677,7 @@ final class EnrolmentWorkspaceView {
         // Once a confirmation exists, the Teacher's acceptance is durable. Do not offer coordination
         // or "record agreement" controls that imply the Teacher has not answered.
         if (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) self::coordinationActions($case);
+        if ($case['identity_state']['key'] === 'verified' && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent') && current_user_can('dzn_override_canonical_lesson_schedule_availability') && !$case['confirmed']) self::totalOverrideForm($case);
         if ($case['identity_state']['key'] === 'verified' && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent') && !$case['confirmed']) self::manualMatchForm($case);
         if ($case['confirmed'] && empty($case['outcome'])) self::introLifecycleForms($case);
         if ($case['confirmed'] && empty($case['outcome']) && current_user_can('dzn_manage_post_intro_automation')) self::outcomeForm($case);
@@ -721,11 +722,44 @@ final class EnrolmentWorkspaceView {
         echo '</div></details>';
     }
 
+    /**
+     * The simple owner-operated path: pick a Teacher and the exact local date/time,
+     * confirm the prior agreement, and let the server execute the override.
+     *
+     * @param array<string,mixed> $case
+     */
+    private static function totalOverrideForm(array $case): void {
+        $read = new EnrolmentWorkspaceReadService();
+        $teachers = $read->overrideTeacherOptions(200);
+        $first = (array) ($case['requested_times'][0] ?? array());
+        $date = (string) ($first['local_date'] ?? gmdate('Y-m-d'));
+        $time = substr((string) ($first['local_time'] ?? '12:00'), 0, 5);
+        $timezone = (string) ($first['timezone'] ?? $case['timezone']);
+        echo '<details class="dzn-action-panel dzn-action-panel--danger" open><summary><strong>Total scheduling override</strong><br><small>Pick a Teacher and the exact class time. Use only after direct agreement with the Teacher and the Student.</small></summary><div class="dzn-action-panel__body">';
+        echo '<p class="dzn-inline-note"><strong>This is a total override.</strong> It bypasses Teacher eligibility, Teacher availability, real Teacher/Student schedule conflicts, the notice window and Teacher readiness. Identity, an active introductory Course, provider projection and any applicable introductory payment still apply. The action is audited against your account.</p>';
+        if (!$teachers) {
+            echo '<p class="dzn-empty-state dzn-empty-state--compact">No active Teacher is available to select.</p></div></details>';
+            return;
+        }
+        self::formStart('total_override_intro', array('request_id' => (int) $case['id']));
+        echo '<p><label>Teacher<select name="teacher_id" required><option value="">Choose the Teacher</option>';
+        foreach ($teachers as $teacher) echo '<option value="' . esc_attr((string) $teacher->id) . '">' . esc_html((string) $teacher->display_name . ' · ' . $teacher->email) . '</option>';
+        echo '</select></label></p>';
+        self::input('override_local_date', 'Local date', 'date', $date, true);
+        self::timeSelect('override_local_start_time', 'Local start time', $time);
+        self::timezoneSelect('override_schedule_timezone', 'Local timezone', $timezone);
+        echo '<p><label>Override reason<textarea name="override_reason" rows="3" maxlength="1000" required placeholder="What was agreed, with whom, and why the normal scheduling constraints are being overridden"></textarea></label></p>';
+        echo '<p><label><input type="checkbox" name="override_ack" value="1" required> I confirm the Teacher and the Student have already agreed, and I accept responsibility for this total scheduling override.</label></p>';
+        echo '<p><button class="button button-primary" onclick="return confirm(\'Confirm this introductory lesson with a total scheduling override? Availability, occupancy and notice checks will be bypassed and the action will be audited.\')">Confirm intro with total override</button></p></form>';
+        echo '<p class="description">The current request timezone is ' . esc_html((string) $case['timezone']) . '. The class is created through the same confirmation, provider projection and notification path as a normal match. Any coordination case remains as evidence; the confirmed booking is authoritative.</p>';
+        echo '</div></details>';
+    }
+
     /** @param array<string,mixed> $case */
     private static function manualMatchForm(array $case): void {
         $read = new EnrolmentWorkspaceReadService();
         $teachers = $read->courseOptions() ? $read->teacherOptions('', 150) : array();
-        echo '<details class="dzn-action-panel dzn-action-panel--accent" open><summary><strong>Manual Teacher match</strong><br><small>Use when staff spoke to a Teacher who agrees despite ordinary availability settings. Real collisions, invalid times and identity blockers are still refused.</small></summary><div class="dzn-action-panel__body">';
+        echo '<details class="dzn-action-panel dzn-action-panel--accent"><summary><strong>Manual Teacher match</strong><br><small>Standard constrained path. Availability, real collisions, notice and identity are still validated.</small></summary><div class="dzn-action-panel__body">';
         self::formStart('manual_match', array('request_id' => (int) $case['id']));
         echo '<p><label>Chosen requested time<select name="requested_time_id" required>';
         foreach ($case['requested_times'] as $time) echo '<option value="' . esc_attr((string) ($time['id'] ?? 0)) . '">' . esc_html((string) $time['label'] . ' · ' . $time['timezone']) . '</option>';

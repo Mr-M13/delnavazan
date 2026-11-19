@@ -20,6 +20,39 @@ final class BookingTeacherResponseRepository {
     public function offerForTeacher(int $requestId,int $teacherId,bool $lock=false):?object{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_allocation_offers WHERE booking_request_id=%d AND teacher_id=%d{$suffix}",$requestId,$teacherId))?:null;}
     public function confirmationForRequest(int $requestId,bool $lock=false):?object{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_confirmations WHERE booking_request_id=%d ORDER BY id DESC LIMIT 1{$suffix}",$requestId))?:null;}
     public function delivery(int $id,bool $lock=false):?object{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_row($wpdb->prepare("SELECT d.*,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,r.selected_intro_course_id,r.student_id,s.country request_country,rt.starts_at_utc,rt.instructional_ends_at_utc,rt.occupied_ends_at_utc,rt.local_date,rt.local_start_time,rt.timezone request_timezone FROM {$this->p}booking_request_teacher_deliveries d INNER JOIN {$this->p}booking_requests r ON r.id=d.booking_request_id INNER JOIN {$this->p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1 INNER JOIN {$this->p}booking_request_requested_times rt ON rt.id=d.requested_time_id AND rt.booking_request_id=r.id WHERE d.id=%d{$suffix}",$id))?:null;}
+    public function requestById(int $id,bool $lock=false):?object{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_requests WHERE id=%d{$suffix}",$id))?:null;}
+    public function teacherForOverride(int $teacherId,bool $lock=false):?object{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_row($wpdb->prepare("SELECT t.id,t.status,t.archived_at,t.timezone,t.email,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) display_name,COALESCE(o.state,'') onboarding_state,COALESCE(o.readiness_state,'') readiness_state FROM {$this->p}teachers t LEFT JOIN {$this->p}teacher_onboarding_states o ON o.teacher_id=t.id WHERE t.id=%d LIMIT 1{$suffix}",$teacherId))?:null;}
+    public function course(int $id):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT id,instrument_id,course_type,status,archived_at,default_duration_minutes,default_buffer_minutes FROM {$this->p}courses WHERE id=%d",$id))?:null;}
+    public function requestedTimeByFacts(int $requestId,string $date,string $time,string $timezone,int $duration,int $buffer):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_requested_times WHERE booking_request_id=%d AND local_date=%s AND local_start_time=%s AND timezone=%s AND instructional_duration_minutes=%d AND buffer_minutes=%d LIMIT 1",$requestId,$date,$time,$timezone,$duration,$buffer))?:null;}
+    public function touchRequest(int $requestId,int $actor,string $now):void{global $wpdb;if($wpdb->query($wpdb->prepare("UPDATE {$this->p}booking_requests SET version=version+1,updated_at=%s,updated_by=%d WHERE id=%d AND lifecycle_status='submitted' AND resolution_state='unresolved'",$now,$actor,$requestId))===false)throw new \RuntimeException('Booking request override version could not be recorded');}
+    public function appendRequestedTime(int $requestId,array $data):int{
+        global $wpdb;
+        $sequence=(int)$wpdb->get_var($wpdb->prepare("SELECT COALESCE(MAX(sequence_number),0)+1 FROM {$this->p}booking_request_requested_times WHERE booking_request_id=%d",$requestId));
+        $data['booking_request_id']=$requestId;$data['sequence_number']=$sequence;
+        if($wpdb->insert($this->p.'booking_request_requested_times',$data)===false){
+            $existing=$this->requestedTimeByFacts($requestId,(string)$data['local_date'],(string)$data['local_start_time'],(string)$data['timezone'],(int)$data['instructional_duration_minutes'],(int)$data['buffer_minutes']);
+            if($existing)return (int)$existing->id;
+            throw new \RuntimeException('Administrator override requested time could not be recorded');
+        }
+        return (int)$wpdb->insert_id;
+    }
+    public function reassignDeliveryForOverride(int $deliveryId,int $requestId,int $teacherId,int $requestedTimeId,string $now):void{
+        global $wpdb;
+        $changed=$wpdb->query($wpdb->prepare(
+            "UPDATE {$this->p}booking_request_teacher_deliveries
+                SET uid=%s,teacher_id=%d,requested_time_id=%d,match_strength='total_override',state='pending_request',
+                    created_at=%s,updated_at=%s,responded_at=NULL
+              WHERE id=%d AND state IN ('pending_request','expired','declined','capacity_lost')",
+            \Delnavazan\Platform\Core\Support\Identifier::uid(),$teacherId,$requestedTimeId,$now,$now,$deliveryId
+        ));
+        if($changed!==1)throw new \RuntimeException('Booking request delivery changed concurrently');
+        $wpdb->query($wpdb->prepare("UPDATE {$this->p}booking_request_teacher_declines SET state='superseded',updated_at=%s WHERE booking_request_id=%d AND teacher_id=%d AND state='active'",$now,$requestId,$teacherId));
+    }
+    public function retireActiveOfferForRequest(int $requestId,string $now,string $reason):void{
+        global $wpdb;
+        if($wpdb->query($wpdb->prepare("UPDATE {$this->p}booking_allocation_offers SET state='superseded',active_slot=NULL,responded_at=%s,reason_code=%s WHERE booking_request_id=%d AND active_slot=1",$now,$reason,$requestId))===false)throw new \RuntimeException('Active booking offer could not be retired');
+        if($wpdb->query($wpdb->prepare("UPDATE {$this->p}booking_allocation_notifications n INNER JOIN {$this->p}booking_allocation_offers o ON o.id=n.offer_id SET n.state='cancelled',n.next_attempt_at=NULL,n.lease_expires_at=NULL,n.last_error_code='administrator_total_override',n.updated_at=%s WHERE o.booking_request_id=%d AND n.state IN ('queued','retryable','sending')",$now,$requestId))===false)throw new \RuntimeException('Active booking notifications could not be retired');
+    }
     /** @param list<array{starts_at_utc:string,occupied_ends_at_utc:string}> $times */
     public function studentOccupancyConflicts(int $studentId,array $times,array $options=array()):array{return StudentOccupancyQuery::conflicts($studentId,$times,$options);}
     public function ensureAndLockStudentRoot(int $studentId,string $now,int $actor):void{(new CanonicalLessonScheduleRepository())->ensureAndLockStudentRoot($studentId,$now,$actor);}

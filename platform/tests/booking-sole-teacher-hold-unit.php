@@ -35,10 +35,14 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
             $delivery->requested_time_id = $candidate['requested_time_id'];
             return (int) $delivery->id;
         }
-        public function addOffer(int $requestId, int $deliveryId, array $candidate, int $sequence, string $now, string $deadline): void {
-            $this->active = (object) array('id'=>$sequence,'delivery_id'=>$deliveryId,'teacher_id'=>$candidate['teacher_id'],'requested_time_id'=>$candidate['requested_time_id'],'offer_sequence'=>$sequence,'deadline_at'=>$deadline,'state'=>'pending');
+        public function addOffer(int $requestId, int $deliveryId, array $candidate, int $sequence, string $now, string $deadline, int $timeSetVersion = 1): void {
+            $this->active = (object) array('id'=>$sequence,'delivery_id'=>$deliveryId,'teacher_id'=>$candidate['teacher_id'],'requested_time_id'=>$candidate['requested_time_id'],'offer_sequence'=>$sequence,'deadline_at'=>$deadline,'state'=>'pending','time_set_version'=>$timeSetVersion);
             $this->offers[] = $this->active;
         }
+        public int $timeSetVersion = 1;
+        public function currentTimeSetVersion(int $requestId): int { return $this->timeSetVersion; }
+        public function historyForVersion(int $requestId, int $version): array { return array_values(array_filter($this->offers, static fn(object $row): bool => (int)($row->time_set_version ?? 1) === $version)); }
+        public function stickyDeclinedTeacherIds(int $requestId, int $version): array { return array(); }
         public function extendOffer(int $offerId, string $deadline, string $now): void {
             if (!$this->active || $this->active->id !== $offerId) throw new \RuntimeException('Wrong active offer');
             $this->extends[] = array($offerId, $deadline);

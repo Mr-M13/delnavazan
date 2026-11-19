@@ -26,12 +26,17 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function times(int $requestId): array { return $this->timeRows; }
         public function cursor(int $courseId, string $now): int { $this->cursorCalls[]=$courseId; return $this->cursorId; }
         public function advanceCursor(int $courseId, int $teacherId, string $now): void { $this->cursorCalls[]='advance:'.$teacherId; $this->cursorId=$teacherId; }
-        public function addOffer(int $requestId, int $deliveryId, array $candidate, int $sequence, string $now, string $deadline): void {
-            $this->active=(object) array('id'=>$sequence,'delivery_id'=>$deliveryId,'teacher_id'=>$candidate['teacher_id'],'requested_time_id'=>$candidate['requested_time_id'],'offer_sequence'=>$sequence,'deadline_at'=>$deadline,'state'=>'pending');
+        public function addOffer(int $requestId, int $deliveryId, array $candidate, int $sequence, string $now, string $deadline, int $timeSetVersion = 1): void {
+            $this->active=(object) array('id'=>$sequence,'delivery_id'=>$deliveryId,'teacher_id'=>$candidate['teacher_id'],'requested_time_id'=>$candidate['requested_time_id'],'offer_sequence'=>$sequence,'deadline_at'=>$deadline,'state'=>'pending','time_set_version'=>$timeSetVersion);
             $this->offers[]=$this->active;
         }
+        public int $timeSetVersion = 1;
+        public array $stickyDeclined = array();
+        public function currentTimeSetVersion(int $requestId): int { return $this->timeSetVersion; }
+        public function stickyDeclinedTeacherIds(int $requestId, int $version): array { return $this->stickyDeclined; }
         public function offer(int $requestId, bool $lock = false): ?object { return $this->active; }
         public function history(int $requestId): array { return $this->offers; }
+        public function historyForVersion(int $requestId, int $version): array { return array_values(array_filter($this->offers, static fn(object $row): bool => (int)($row->time_set_version ?? 1) === $version)); }
         public function transitionOffer(int $offerId, string $outcome, string $now, string $reason): void { if($this->active)$this->active->state=$outcome; $this->active=null; }
         public function rotateDelivery(object $delivery, array $candidate, string $now): int { $delivery->teacher_id=$candidate['teacher_id']; $delivery->requested_time_id=$candidate['requested_time_id']; return (int)$delivery->id; }
         public function referral(int $requestId, string $reason, string $now): void { $this->referrals[]=$reason; }
@@ -218,6 +223,18 @@ namespace {
     $assert($first !== null && (int)$first['teacher_id'] === 22, 'The priority Teacher must be offered first.');
     $assert($advanced !== null && (int)$advanced['teacher_id'] !== 22, 'A declined priority offer must advance to a different Teacher.');
     $assert($advanced['deadline_at'] === '2026-11-03 00:00:00', 'The normal rotation must use the dynamic window, not the 8h priority window.');
+
+    // 9. A sticky decline excludes the prioritized Teacher; a lifted times_unsuitable does not.
+    $priorities = new TeacherBookingPriorityRepository();
+    $priorities->rows[] = $priorityRow(22, 'teacher', 0);
+    [$repo, $service] = $boot($priorities, $times, $now);
+    $repo->stickyDeclined = array(22);
+    $sticky = $service->startWithinTransaction(7, 4, $times, $now);
+    $assert($sticky !== null && (int)$sticky['teacher_id'] === 11, 'A priority Teacher with a sticky decline must fall through to the normal channel.');
+    [$repo, $service] = $boot($priorities, $times, $now);
+    $repo->timeSetVersion = 2;
+    $lifted = $service->startWithinTransaction(8, 4, $times, $now);
+    $assert($lifted !== null && (int)$lifted['teacher_id'] === 22 && (int)$repo->offers[0]->time_set_version === 2, 'A times_unsuitable decline from an older set must not block a priority offer at the new version.');
 
     echo "Booking priority allocation unit passed\n";
 }

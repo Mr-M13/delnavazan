@@ -22,10 +22,15 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function times(int $requestId): array { return $this->timeRows ?? array((object) array('id'=>101,'sequence_number'=>1,'starts_at_utc'=>'2026-11-10 09:00:00','occupied_ends_at_utc'=>'2026-11-10 10:00:00')); }
         public function cursor(int $courseId, string $now): int { return $this->cursorId; }
         public function advanceCursor(int $courseId, int $teacherId, string $now): void { $this->cursorId=$teacherId; }
-        public function addOffer(int $requestId, int $deliveryId, array $candidate, int $sequence, string $now, string $deadline): void {
-            $this->active=(object) array('id'=>$sequence,'delivery_id'=>$deliveryId,'teacher_id'=>$candidate['teacher_id'],'requested_time_id'=>$candidate['requested_time_id'],'offer_sequence'=>$sequence,'deadline_at'=>$deadline,'state'=>'pending');
+        public function addOffer(int $requestId, int $deliveryId, array $candidate, int $sequence, string $now, string $deadline, int $timeSetVersion = 1): void {
+            $this->active=(object) array('id'=>$sequence,'delivery_id'=>$deliveryId,'teacher_id'=>$candidate['teacher_id'],'requested_time_id'=>$candidate['requested_time_id'],'offer_sequence'=>$sequence,'deadline_at'=>$deadline,'state'=>'pending','time_set_version'=>$timeSetVersion);
             $this->offers[]=$this->active;
         }
+        public int $timeSetVersion = 1;
+        public function currentTimeSetVersion(int $requestId): int { return $this->timeSetVersion; }
+        public function historyForVersion(int $requestId, int $version): array { return array_values(array_filter($this->offers, static fn(object $row): bool => (int)($row->time_set_version ?? 1) === $version)); }
+        public function stickyDeclinedTeacherIds(int $requestId, int $version): array { return $this->stickyDeclined; }
+        public array $stickyDeclined = array();
         public function offer(int $requestId, bool $lock = false): ?object { return $this->active; }
         public function history(int $requestId): array { return $this->offers; }
         public function transitionOffer(int $offerId, string $outcome, string $now, string $reason): void {
@@ -63,8 +68,9 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         }
     }
     final class BookingRequestMatchAssessmentRepository {
+        public static array $teacherIds = array(11,22);
         public function eligibleTeachers(int $courseId, string $now): array {
-            return array((object) array('teacher_id'=>11,'accepting_state'=>'accepting'),(object) array('teacher_id'=>22,'accepting_state'=>'accepting'));
+            $out=array();foreach(self::$teacherIds as $id)$out[]=(object)array('teacher_id'=>$id,'accepting_state'=>'accepting');return $out;
         }
     }
     final class BookingTeacherDeliveryRepository {
@@ -199,6 +205,25 @@ namespace {
     $captured=\Delnavazan\Platform\Core\Application\BookingContention::capture(new \RuntimeException('Allocation offer changed concurrently'),'teacher_busy');
     $assert($captured instanceof \Delnavazan\Platform\Core\Application\BookingContentionException&&$captured->errorCode()==='teacher_busy','A captured lock timeout must become a typed retryable error.');
     unset($GLOBALS['wpdb']);
+
+    // A new requested-time set lifts the old offer ban; the same set still bans it.
+    \Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestMatchAssessmentRepository::$teacherIds=array(11);
+    $reofferRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository();
+    $reofferService=$boundaryService($reofferRepo);
+    $reofferFirst=$reofferService->startWithinTransaction(50,4,$reofferRepo->times(50),$now);
+    $assert($reofferFirst!==null&&(int)$reofferFirst['teacher_id']===11&&(int)$reofferRepo->offers[0]->time_set_version===1,'The first offer must record the current requested-time version.');
+    $reofferRepo->timeSetVersion=2;
+    $reofferNext=$reofferService->advanceLocked($reofferRepo->deliveryRow,'declined',$now);
+    $assert($reofferNext!==null&&(int)$reofferNext['teacher_id']===11&&count($reofferRepo->offers)===2&&(int)$reofferRepo->offers[1]->time_set_version===2,'A changed requested-time set must allow the same Teacher to be re-offered.');
+    $reofferService->advanceLocked($reofferRepo->deliveryRow,'declined',$now);
+    $assert(count($reofferRepo->offers)===2&&$reofferRepo->referrals===array('candidates_exhausted'),'The same requested-time version must still ban a second offer to the same Teacher.');
+    // A sticky decline (cannot_teach_student/no_capacity) survives a time-set change.
+    $reofferRepo->timeSetVersion=3;
+    $reofferRepo->stickyDeclined=array(11);
+    $reofferRepo->deliveryRow=null;
+    $stickyFirst=$reofferService->startWithinTransaction(51,4,$reofferRepo->times(51),$now);
+    $assert($stickyFirst===null&&count($reofferRepo->offers)===2,'A sticky decline must not be lifted by a time-set change.');
+    \Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestMatchAssessmentRepository::$teacherIds=array(11,22);
 
     // A winning acceptance retires every overlapping pending offer to the same Teacher.
     $retireRepo=new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository();

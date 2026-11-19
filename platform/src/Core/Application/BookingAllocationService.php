@@ -58,19 +58,22 @@ final class BookingAllocationService {
         $this->lockEligibleTeacherRoots($courseId,$now);
         $candidates=$this->candidates($courseId,$times,$now);
         if(!$candidates){$this->repo->referral($requestId,$this->emptyCandidatesReason($times,$now,true,'no_viable_teacher'),$now);return null;}
+        $timeSetVersion=$this->repo->currentTimeSetVersion($requestId);
+        $offered=$this->repo->stickyDeclinedTeacherIds($requestId,$timeSetVersion);
         // A priority offer is not a round-robin turn: it does not move the cursor.
-        $priority=$this->prioritizedOffer($candidates,$courseId,$times,$now);
-        if($priority!==null)return $this->startOffer($requestId,$priority['candidate'],$priority['deadline'],$now);
+        $priority=$this->prioritizedOffer($candidates,$courseId,$times,$now,$offered);
+        if($priority!==null)return $this->startOffer($requestId,$priority['candidate'],$priority['deadline'],$now,$timeSetVersion);
         $last=$this->repo->cursor($courseId,$now);
-        $chosen=$this->next($candidates,$last,array(),$now);
-        $deadline=$this->deadlineFor($this->startForTimeId((int)$chosen['requested_time_id'],$times),$now,count($candidates));
+        $chosen=$this->next($candidates,$last,$offered,$now);
+        if(!$chosen){$this->repo->referral($requestId,'candidates_exhausted',$now);return null;}
+        $deadline=$this->deadlineFor($this->startForTimeId((int)$chosen['requested_time_id'],$times),$now,count($this->availablePool($candidates,$offered)));
         if($deadline===null){$this->repo->referral($requestId,self::TERMINAL_REFERRAL_REASON,$now);return null;}
         $this->repo->advanceCursor($courseId,$chosen['teacher_id'],$now);
-        return $this->startOffer($requestId,$chosen,$deadline,$now);
+        return $this->startOffer($requestId,$chosen,$deadline,$now,$timeSetVersion);
     }
-    private function startOffer(int $requestId,array $candidate,string $deadline,string $now):array{
+    private function startOffer(int $requestId,array $candidate,string $deadline,string $now,int $timeSetVersion):array{
         $deliveryId=$this->deliveries->create(array('uid'=>Identifier::uid(),'booking_request_id'=>$requestId,'requested_time_id'=>$candidate['requested_time_id'],'teacher_id'=>$candidate['teacher_id'],'state'=>'pending_request','match_strength'=>$candidate['match_strength'],'created_at'=>$now,'updated_at'=>$now));
-        $this->repo->addOffer($requestId,$deliveryId,$candidate,1,$now,$deadline);
+        $this->repo->addOffer($requestId,$deliveryId,$candidate,1,$now,$deadline,$timeSetVersion);
         return array('delivery_id'=>$deliveryId,'teacher_id'=>$candidate['teacher_id'],'requested_time_id'=>$candidate['requested_time_id'],'state'=>'pending_request','match_strength'=>$candidate['match_strength'],'deadline_at'=>$deadline);
     }
     /**
@@ -82,12 +85,12 @@ final class BookingAllocationService {
      *
      * @return array{candidate:array,deadline:string}|null
      */
-    private function prioritizedOffer(array $candidates,int $courseId,array $times,string $now):?array{
+    private function prioritizedOffer(array $candidates,int $courseId,array $times,string $now,array $offered):?array{
         if(!$candidates)return null;
         $ids=$this->priorities->prioritizedTeachers(array_keys($candidates),$courseId,$now);
         if(!$ids)return null;
         $pool=array();
-        foreach($ids as $id)if(isset($candidates[(int)$id]))$pool[(int)$id]=$candidates[(int)$id];
+        foreach($ids as $id)if(isset($candidates[(int)$id])&&!in_array((int)$id,$offered,true))$pool[(int)$id]=$candidates[(int)$id];
         if(!$pool)return null;
         $candidate=$this->best($pool,$now);
         if(!$candidate)return null;
@@ -131,8 +134,10 @@ final class BookingAllocationService {
             $this->repo->transitionOffer((int)$offer->id,$outcome,$now,$outcome);
             return null;
         }
-        $history=$this->repo->history($requestId);
+        $timeSetVersion=$this->repo->currentTimeSetVersion($requestId);
+        $history=$this->repo->historyForVersion($requestId,$timeSetVersion);
         $offered=array_map(static fn(object $row):int=>(int)$row->teacher_id,$history);
+        $offered=array_values(array_unique(array_merge($offered,$this->repo->stickyDeclinedTeacherIds($requestId,$timeSetVersion))));
         $times=$this->repo->times($requestId);
         $this->lockEligibleTeacherRoots((int)$request->selected_intro_course_id,$now);
         $candidates=$this->candidates((int)$request->selected_intro_course_id,$times,$now,true,(int)$requestId);
@@ -149,7 +154,7 @@ final class BookingAllocationService {
         if($next&&$nextDeadline!==null){
             $this->repo->transitionOffer((int)$offer->id,$outcome,$now,$outcome);
             $deliveryId=$this->repo->rotateDelivery($delivery,$next,$now);
-            $this->repo->addOffer($requestId,$deliveryId,$next,(int)$offer->offer_sequence+1,$now,$nextDeadline);
+            $this->repo->addOffer($requestId,$deliveryId,$next,(int)$offer->offer_sequence+1,$now,$nextDeadline,$timeSetVersion);
             return array('delivery_id'=>$deliveryId,'teacher_id'=>$next['teacher_id'],'requested_time_id'=>$next['requested_time_id'],'state'=>'pending_request','match_strength'=>$next['match_strength'],'deadline_at'=>$nextDeadline);
         }
 
@@ -317,7 +322,7 @@ final class BookingAllocationService {
                 $deadline=$start!==null?$this->deadlineFor($start,(string)$delivery->created_at,max(0,(int)$preview['viable_teacher_count'])):null;
                 if($deadline===null){$this->repo->referral($requestId,self::TERMINAL_REFERRAL_REASON,$now);}
                 else{
-                    $this->repo->historicalOffer($requestId,$delivery,$deadline);
+                    $this->repo->historicalOffer($requestId,$delivery,$deadline,$this->repo->currentTimeSetVersion($requestId));
                     if($deadline<=$now)$this->advanceLocked($delivery,'expired',$now);
                 }
             }else{

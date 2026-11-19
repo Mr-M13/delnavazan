@@ -8,7 +8,9 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function delivery(int $requestId):?object{return null;}
         public function cursor(int $courseId,string $now):int{return self::$cursorId;}
         public function advanceCursor(int $courseId,int $teacherId,string $now):void{self::$cursorId=$teacherId;}
-        public function addOffer(int $requestId,int $deliveryId,array $candidate,int $sequence,string $now,string $deadline):void{$this->offers[]=compact('requestId','deliveryId','candidate','sequence','deadline');}
+        public function addOffer(int $requestId,int $deliveryId,array $candidate,int $sequence,string $now,string $deadline,int $timeSetVersion=1):void{$this->offers[]=compact('requestId','deliveryId','candidate','sequence','deadline','timeSetVersion');}
+        public function currentTimeSetVersion(int $requestId):int{return 1;}
+        public function stickyDeclinedTeacherIds(int $requestId,int $version):array{return array();}
         public function referral(int $requestId,string $reason,string $now):void{$this->referrals[]=$requestId;}
     }
     final class BookingRequestMatchAssessmentRepository {

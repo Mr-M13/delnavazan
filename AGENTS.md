@@ -182,7 +182,10 @@ is optional strict parity. Docker is required only for the runtime suites.
   booking-priority surface is covered by
   `php platform/tests/booking-priority-allocation-unit.php` (first offer,
   normal fall-through, ordering, cursor neutrality, the 8h/T−12h cap and the
-  teacher-wide vs instrument-course scope). The retired-URL surface is covered by
+  teacher-wide vs instrument-course scope). The re-offer lift is covered by
+  `php platform/tests/booking-offer-reoffer-unit.php` (versioned offer/decline
+  ledgers, same-set ban, new-set re-offer and sticky declines). The retired-URL
+  surface is covered by
   `php platform/tests/seo-legacy-redirects-contract.php` and
   `php platform/tests/seo-legacy-redirects-unit.php`: every URL in
   `deployment/seo/production-seo-baseline.csv` must stay mapped to a live target, and a retired path

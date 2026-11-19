@@ -16,6 +16,7 @@ use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateLibrary;
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateSanitizer;
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateValidationException;
 use Delnavazan\Platform\Integrations\Notifications\SmsIrTemplateRegistry;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateDiscoveryService;
 use Delnavazan\Platform\Portals\PortalNotificationInbox;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 
@@ -52,6 +53,7 @@ final class NotificationManagementController {
         add_action('admin_post_dzn_notification_copy_restore',array(__CLASS__,'restoreVersion'));
         add_action('admin_post_dzn_notification_copy_restore_default',array(__CLASS__,'restoreDefault'));
         add_action('admin_post_dzn_notification_provider_mapping',array(__CLASS__,'saveProviderMapping'));
+        add_action('admin_post_dzn_notification_provider_refresh',array(__CLASS__,'refreshProviderTemplates'));
         add_action('admin_post_dzn_notification_event_toggle',array(__CLASS__,'toggleEvent'));
         add_action('admin_post_dzn_notification_event_channel_toggle',array(__CLASS__,'toggleEventChannel'));
         add_action('admin_post_dzn_notification_enable_ready_mobile',array(__CLASS__,'enableReadyMobile'));
@@ -561,13 +563,23 @@ final class NotificationManagementController {
                 $provider=self::providerReady($channel);
                 $state=(string)$row['provider_state'];
                 $label=self::channelLabel($channel).($default?' · default':'');
-                if($provider!==null)$label.=' · '.($provider?'Configured (unverified)':'Provider not configured');
-                elseif($state==='not_mapped')$label.=' · Not mapped';
-                elseif($state==='approval_required')$label.=' · Re-approval required';
-                elseif($state==='mapped')$label.=' · Mapped';
-                elseif($state==='restricted_fallback')$label.=' · Provider not configured';
-                $class=$state==='not_mapped'||$state==='approval_required'||$provider===false?'is-warn':'is-ok';
-                echo '<div><span class="dzn-badge '.esc_attr($class).'">'.esc_html($label).'</span></div>';
+                $stateLabel=match($state){
+                    'mapped'=>'Mapped','not_mapped'=>'Not mapped','approval_required'=>'Re-approval required',
+                    'not_approved'=>'Not approved','ambiguous'=>'Ambiguous mapping','contract_mismatch'=>'Contract mismatch',
+                    'restricted_fallback'=>'Provider not configured',default=>'',
+                };
+                if($channel==='whatsapp'&&$stateLabel!=='')$label.=' · '.$stateLabel;
+                if($provider!==null)$label.=' · '.($provider?'Provider configured':'Provider not configured');
+                $warn=($channel==='whatsapp'&&in_array($state,array('not_mapped','approval_required','not_approved','ambiguous','contract_mismatch','restricted_fallback'),true))||$provider===false;
+                echo '<div><span class="dzn-badge '.esc_attr($warn?'is-warn':'is-ok').'">'.esc_html($label).'</span>';
+                if($channel==='whatsapp'){
+                    $linked=(string)($row['provider_name']??'');
+                    $expected=(string)($row['provider_expected_name']??'');
+                    if($linked!=='')echo '<div class="dzn-notif-meta">Telnyx: <code dir="ltr">'.esc_html($linked).'</code></div>';
+                    elseif($expected!=='')echo '<div class="dzn-notif-meta">Telnyx: not linked · expected <code dir="ltr">'.esc_html($expected).'</code></div>';
+                    else echo '<div class="dzn-notif-meta">Telnyx: not linked</div>';
+                }
+                echo '</div>';
                 if($channel==='whatsapp'&&$provider===false)$issues[]='The WhatsApp provider is not configured; business-initiated sending will not start.';
                 if($channel==='sms'&&$provider===false)$issues[]='The SMS provider is not configured; SMS remains unavailable.';
             }
@@ -777,24 +789,66 @@ final class NotificationManagementController {
     /** Provider mapping belongs with the WhatsApp copy it describes, not in a separate channels tab. */
     private static function renderProviderMapping(NotificationTemplateLibrary $library,string $eventKey,string $channel,string $locale,array $status):void{
         if($channel!=='whatsapp')return;
-        $mapping=$library->providerMapping((string)$status['template_key']);
+        $evidence=$library->providerEvidence($eventKey,$locale);
+        $mapping=$evidence['mapping'];
+        $primary=is_array($evidence['primary']??null)?$evidence['primary']:null;
+        $expected=(string)($evidence['expected_name']??'');
+        $linked=(string)($mapping['name']??'');
+        $state=(string)($status['provider_state']??'not_mapped');
+        $reason=(string)($evidence['reason']??'');
         $ready=self::providerReady('whatsapp');
-        echo '<h3>WhatsApp provider template</h3><p>Meta must approve the provider template separately. Recording a mapping never sends a message and never changes a published version.</p>';
-        echo '<p>Mapping status: <strong>'.esc_html(self::providerStateLabel((string)$status['provider_state'])).'</strong>';
-        if($mapping['name']!=='')echo ' · <code dir="ltr">'.esc_html($mapping['name'].' · '.$mapping['language']).'</code>';
-        echo '</p>';
+        echo '<section class="dzn-nc-provider"><h3>WhatsApp provider template (Telnyx)</h3>';
+        echo '<p>Meta approves the provider template separately. The provider body below is what Telnyx delivers; the local copy above is the editable Delnavazan representation. They do not have to be identical, but the parameter count and order must match.</p>';
+        echo '<dl class="dzn-notif-lifecycle">';
+        echo '<dt>Mapping status</dt><dd><span class="dzn-badge '.(in_array($state,array('mapped'),true)?'is-ok':'is-warn').'">'.esc_html(self::providerStateLabel($state)).'</span>'.($reason!==''?' <span class="dzn-notif-meta">'.esc_html($reason).'</span>':'').'</dd>';
+        echo '<dt>Linked template</dt><dd>'.($linked!==''?'<code dir="ltr">'.esc_html($linked).'</code> · '.esc_html((string)($mapping['language']??'')).' · '.esc_html(self::providerMappingSource((string)($mapping['source']??''))):'<em>Not linked</em>').'</dd>';
+        if($expected!==''&&$expected!==$linked&&($primary===null||(string)$primary['name']!==$expected))echo '<dt>Registered name</dt><dd><code dir="ltr">'.esc_html($expected).'</code> <span class="dzn-notif-meta">expected for this event</span></dd>';
+        if($primary!==null){
+            $order=array_values((array)($primary['variable_order']??array()));
+            $providerCount=(int)preg_match_all('/\{\{[0-9]+\}\}/',(string)($primary['template_text']??''));
+            $providerStatus=((string)$primary['status']!=='')?(string)$primary['status']:'UNKNOWN';
+            echo '<dt>Discovered template</dt><dd><code dir="ltr">'.esc_html((string)$primary['name']).'</code> · '.esc_html((string)$primary['language']).'</dd>';
+            echo '<dt>Provider status</dt><dd>'.esc_html($providerStatus).((string)$primary['category']!==''?' · '.esc_html((string)$primary['category']):'').'</dd>';
+            echo '<dt>Variable contract</dt><dd>Expected '.esc_html((string)count($order)).' parameter(s)'.($order!==array()?' · <code dir="ltr">'.esc_html(implode(', ',$order)).'</code>':'').' · Provider body: '.esc_html($providerCount>0?(string)$providerCount:'not captured').'</dd>';
+            if((string)($primary['last_verified_at']??'')!=='')echo '<dt>Last verified</dt><dd><code dir="ltr">'.esc_html((string)$primary['last_verified_at']).'</code></dd>';
+            $bodyLabel=match($providerStatus){'APPROVED'=>'Approved provider body','PENDING'=>'Provider body (pending approval)','REJECTED'=>'Provider body (rejected)',default=>'Provider body'};
+            echo '<dt>'.esc_html($bodyLabel).'</dt><dd>';
+            $text=(string)($primary['template_text']??'');
+            $lang=(string)($primary['language']??'');
+            if($text!=='')echo '<pre class="dzn-nc-provider-body" dir="'.esc_attr($lang==='fa'?'rtl':'ltr').'" lang="'.esc_attr($lang).'">'.esc_html($text).'</pre>';
+            else echo '<span class="dzn-notif-meta">The provider body has not been captured yet. Run Refresh provider templates.</span>';
+            if($providerStatus!=='APPROVED')echo '<p class="dzn-notif-meta">This text is on file at Telnyx but is not approved for delivery yet.</p>';
+            echo '</dd>';
+        }else{
+            echo '<dt>Discovered template</dt><dd><span class="dzn-notif-meta">No Telnyx template has been discovered for this event and language yet.</span></dd>';
+        }
+        echo '</dl>';
+        if(self::canEdit()){
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_provider_refresh"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="whatsapp"><input type="hidden" name="locale" value="'.esc_attr($locale).'">';
+            self::renderTableContextInputs();
+            wp_nonce_field('dzn_notification_provider_refresh');
+            echo '<button class="button button-small" name="refresh_templates" value="1">Refresh provider templates</button> <span class="dzn-notif-meta">Read-only Telnyx call; no message is sent.</span></form>';
+            echo '<p class="dzn-notif-meta"><a href="'.esc_url(admin_url('admin.php?page=dzn-integration-whatsapp')).'">Open WhatsApp integration settings</a></p>';
+        }
         if(($mapping['source']??'')==='discovery'){
-            echo '<p class="dzn-notif-meta">This mapping comes from the verified Telnyx template discovery record. Refresh or correct provider discovery instead of maintaining a duplicate manual mapping here.</p>';
+            echo '<p class="dzn-notif-meta">This link comes from the verified Telnyx template discovery record. If the provider template is pending, rejected or has a different variable contract, correct it in Telnyx and refresh here; a manual mapping cannot override provider evidence.</p>';
+            echo '</section>';
             return;
         }
-        if(!self::canEdit())return;
+        if(!self::canEdit()){echo '</section>';return;}
         if(!$ready){
             echo '<div class="notice notice-warning inline"><p>The WhatsApp provider is not configured. <a href="'.esc_url(admin_url('admin.php?page=dzn-integration-whatsapp')).'">Configure Telnyx WhatsApp and Meta WABA settings</a> before recording a provider mapping. No send is enabled by this page.</p></div>';
+            echo '</section>';
             return;
         }
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_provider_mapping"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="whatsapp"><input type="hidden" name="locale" value="'.esc_attr($locale).'">';
         wp_nonce_field('dzn_notification_provider_mapping');
-        echo '<input name="provider_name" placeholder="template_name" value="'.esc_attr($mapping['name']).'" maxlength="191" dir="ltr"><input name="provider_language" placeholder="fa" value="'.esc_attr($mapping['language']).'" maxlength="10" dir="ltr" size="6"><button class="button button-small">Record Mapping</button></form>';
+        echo '<input name="provider_name" placeholder="template_name" value="'.esc_attr($linked).'" maxlength="191" dir="ltr"><input name="provider_language" placeholder="fa" value="'.esc_attr((string)($mapping['language']??'')).'" maxlength="10" dir="ltr" size="6"><button class="button button-small">Record Mapping</button></form>';
+        echo '</section>';
+    }
+
+    private static function providerMappingSource(string $source):string{
+        return match($source){'discovery'=>'verified Telnyx discovery','manual'=>'manual mapping',default=>'mapping'};
     }
 
     /**
@@ -1014,6 +1068,35 @@ final class NotificationManagementController {
         $library->saveProviderMapping($input['event_key'],$input['channel'],$input['locale'],(string)($input['provider_name']??''),(string)($input['provider_language']??''));
         return array('type'=>'success','message'=>'Mapping saved. Meta template approval is still required separately.');
     },array('nonce'=>'dzn_notification_provider_mapping','tab'=>'events'));}
+
+    /**
+     * Re-run read-only Telnyx discovery from the notification editor.
+     *
+     * The Integrations page already owns this call, but a notification editor may not hold the
+     * integration-settings capability. This action requires the notification-edit capability, makes
+     * the same read-only provider request and returns to the same event so a missing/renamed
+     * template can be resolved without leaving the workspace.
+     */
+    public static function refreshProviderTemplates():never{
+        self::authorizeEdit();
+        check_admin_referer('dzn_notification_provider_refresh');
+        $eventKey=isset($_POST['event_key'])?self::eventKey(wp_unslash((string)$_POST['event_key'])):'';
+        $channel=isset($_POST['channel'])?sanitize_key(wp_unslash((string)$_POST['channel'])):'whatsapp';
+        $locale=isset($_POST['locale'])?NotificationCatalogue::normaliseLocale(sanitize_text_field(wp_unslash((string)$_POST['locale']))):NotificationCatalogue::PRIMARY_LOCALE;
+        $filterArgs=array();foreach(self::postTableContext() as $key=>$value)$filterArgs['filter_'.$key]=$value;
+        try{
+            $result=(new TelnyxTemplateDiscoveryService(new IntegrationSettingsService()))->sync();
+            if(!($result['ok']??false)){
+                self::flash('error','Provider template refresh failed: '.($result['error']??'unknown_error').'. Check the Telnyx WhatsApp settings.');
+            }else{
+                self::flash('success','Provider templates refreshed: '.$result['discovered'].' discovered, '.$result['mapped'].' mapped, '.$result['approved'].' approved.');
+            }
+        }catch(\Throwable $error){
+            self::flash('error','Provider template refresh failed. Check the Telnyx WhatsApp settings.');
+        }
+        $args=$eventKey!==''?array('template'=>$eventKey,'template_channel'=>$channel!==''?$channel:'whatsapp','locale'=>$locale):array();
+        self::redirectBack('events',array_merge($args,$filterArgs));
+    }
 
     public static function toggleEvent():never{
         self::authorizeEdit();
@@ -1275,14 +1358,25 @@ CSS;
         foreach((array)($status['issues']??array()) as $issue){
             $text=(string)$issue;
             if(str_contains($text,'No default copy')||str_contains($text,'No active version')||str_contains($text,'body is unavailable')||str_contains($text,'cannot be dispatched without a published version'))return array('state'=>'missing_template','label'=>'Missing template','reason'=>'Missing or invalid copy.');
-            if(str_contains($text,'approved')||str_contains($text,'provider')||str_contains($text,'Meta'))return array('state'=>'missing_provider','label'=>'Missing or unapproved template','reason'=>'Provider approval or setup is missing.');
+            if(str_contains($text,'approved')||str_contains($text,'provider')||str_contains($text,'Meta'))return array('state'=>'missing_provider','label'=>'Missing or unapproved template','reason'=>self::providerBlockerReason($text,$status));
         }
-        if(in_array((string)($status['provider_state']??''),array('not_mapped','approval_required','not_approved','contract_mismatch','restricted_fallback'),true))return array('state'=>'missing_provider','label'=>'Missing or unapproved template','reason'=>'Provider approval or setup is missing.');
+        if(in_array((string)($status['provider_state']??''),array('not_mapped','approval_required','not_approved','contract_mismatch','restricted_fallback'),true))return array('state'=>'missing_provider','label'=>'Missing or unapproved template','reason'=>self::providerBlockerReason('',$status));
         if($channel==='sms'){
             $routes=self::smsRouteStatus();$ready=0;foreach($routes as $route)if(($route['ready']??false)===true)$ready++;
             if($ready===0)return array('state'=>'missing_provider','label'=>'Missing provider','reason'=>self::smsRouteReason($routes)?:'No selected SMS route is available.');
         }elseif(in_array($channel,array('email','whatsapp'),true)&&self::providerReady($channel)===false)return array('state'=>'missing_provider','label'=>'Missing provider','reason'=>'Configure and test the provider in Integrations.');
         return null;
+    }
+
+    /** Keep the concrete provider reason and name visible instead of a generic setup message. */
+    private static function providerBlockerReason(string $detail,array $status):string{
+        $detail=trim($detail);
+        $reason=$detail!==''?$detail:'Provider approval or setup is missing.';
+        $linked=(string)($status['provider_name']??'');
+        $expected=(string)($status['provider_expected_name']??'');
+        if($linked!=='')$reason.=' Linked template: '.$linked.'.';
+        elseif($expected!=='')$reason.=' Expected template: '.$expected.'.';
+        return $reason;
     }
     private static function effectiveChannelState(NotificationTemplateLibrary $library,string $eventKey,string $channel):array{
         if(!$library->channelOffered($eventKey,$channel))return array('state'=>'unsupported','label'=>'Not offered','reason'=>'This notification does not use this delivery method.');

@@ -211,6 +211,11 @@ final class NotificationTemplateLibrary {
             'draft'=>$this->draft($eventKey,$channel,$locale),
             'permitted'=>$permitted,
             'provider_state'=>$providerState,'issues'=>array_values(array_unique($issues)),
+            // The linked provider name is empty until a discovery/manual mapping exists; the
+            // registered name is available for the provider's Persian route so the workspace can
+            // say what it expects even before discovery has seen the template.
+            'provider_name'=>$channel==='whatsapp'?(string)($mapping['name']??''):'',
+            'provider_expected_name'=>$channel==='whatsapp'&&TelnyxTemplateAuthority::providerLanguage($locale)===TelnyxTemplateRegistry::LANGUAGE?TelnyxTemplateRegistry::nameForEvent($eventKey):null,
             'updated_at'=>$activeBody['saved_at']??null,
         );
     }
@@ -806,6 +811,41 @@ final class NotificationTemplateLibrary {
             'name'=>(string)($row['name']??''),'language'=>(string)($row['language']??''),
             'body_digest'=>(string)($row['body_digest']??''),'mapped_at'=>$row['mapped_at']??null,
             'mapped_by'=>$row['mapped_by']??null,'source'=>'manual','authority_state'=>'not_mapped','reason'=>'',
+        );
+    }
+
+    /**
+     * Full read-only provider evidence for the WhatsApp editor panel.
+     *
+     * The mapping array keeps its existing `name` contract (empty unless usable), while `primary`
+     * names the discovered template even when it is pending or contract-invalid. That lets the
+     * workspace explain a dead end without treating it as a usable mapping. `state` is the provider
+     * authority's verdict; `status()['provider_state']` remains the effective state including a
+     * legacy manual mapping and its digest check.
+     *
+     * @return array{expected_name:?string,language:string,state:string,reason:string,mapping:array,primary:?array,rows:array<int,array>}
+     */
+    public function providerEvidence(string $eventKey,string $locale):array{
+        $templateKey=NotificationCatalogue::templateKey($eventKey,'whatsapp',$locale);
+        $mapping=$this->providerMapping($templateKey);
+        $language=TelnyxTemplateAuthority::providerLanguage($locale);
+        $expected=$language===TelnyxTemplateRegistry::LANGUAGE?TelnyxTemplateRegistry::nameForEvent($eventKey):null;
+        $state=(string)($mapping['authority_state']??'not_mapped');
+        $reason=(string)($mapping['reason']??'');
+        $rows=array();
+        if($this->providerAuthority!==null){
+            $resolved=$this->providerAuthority->resolve($eventKey,$locale);
+            $state=(string)$resolved['state'];
+            $reason=(string)$resolved['reason'];
+            $rows=$this->providerAuthority->evidence($eventKey,$locale);
+        }
+        $primary=null;
+        foreach($rows as $row)if((string)($mapping['name']??'')!==''&&(string)$row['name']===(string)$mapping['name']){$primary=$row;break;}
+        if($primary===null&&$expected!==null)foreach($rows as $row)if((string)$row['name']===$expected){$primary=$row;break;}
+        if($primary===null&&$rows!==array())$primary=$rows[0];
+        return array(
+            'expected_name'=>$expected,'language'=>$language,'state'=>$state,'reason'=>$reason,
+            'mapping'=>$mapping,'primary'=>$primary,'rows'=>$rows,
         );
     }
 

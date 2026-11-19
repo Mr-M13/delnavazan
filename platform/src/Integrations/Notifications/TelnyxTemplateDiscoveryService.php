@@ -8,8 +8,9 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationProviderRepos
  * Explicit, read-only provider discovery followed by a local mapping write.
  *
  * Discovery never sends a message. It reads the WABA's templates, records their approved/pending
- * status and maps the Delnavazan naming convention to a local event. Unknown templates are retained
- * as unmapped so an operator can see them instead of silently ignoring them.
+ * status, captures the static provider template text (placeholders only, never a rendered message)
+ * and maps the Delnavazan naming convention to a local event. Unknown templates are retained as
+ * unmapped so an operator can see them instead of silently ignoring them.
  */
 final class TelnyxTemplateDiscoveryService {
     public function __construct(private $settings,private $http=null,private ?NotificationProviderRepository $repository=null){$this->repository??=new NotificationProviderRepository();}
@@ -45,6 +46,8 @@ final class TelnyxTemplateDiscoveryService {
                     'event_key'=>$matches?$definition['event_key']:null,'audience'=>$definition['audience']??null,
                     'variable_order'=>$definition['variable_order']??array(),'provider_variable_count'=>$variableCount,
                     'variable_contract_matches'=>$matches,'variable_contract_missing'=>$missing,
+                    // The static provider template with positional placeholders; never a rendered message.
+                    'template_text'=>mb_substr(trim($bodyText),0,4096),
                     'rejection_reason'=>(string)($template['rejection_reason']??''),
                 );
             }
@@ -66,6 +69,7 @@ final class TelnyxTemplateDiscoveryService {
                 'language'=>$template['language'],'provider_template_id'=>$template['template_id'],
                 'category'=>$template['category'],'status'=>$template['status'],'event_key'=>$template['event_key'],
                 'audience'=>$template['audience'],'variable_order'=>implode(',',$template['variable_order']),
+                'template_text'=>(string)($template['template_text']??''),
                 'last_verified_at'=>$now,'created_at'=>$now,'updated_at'=>$now,
             ));
         }

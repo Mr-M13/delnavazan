@@ -67,6 +67,38 @@ final class TelnyxTemplateAuthority {
         return self::result(self::MAPPED,$name,$language,$order,$row,'');
     }
 
+    /**
+     * Read-only provider evidence for one event/locale, including candidates that are not usable.
+     *
+     * `resolve()` deliberately reports only whether a template is mapped; the administration needs
+     * the discovered name, status, parameter order and static text even when the answer is no. A
+     * contract-invalid row is discovered by its registered name because discovery clears `event_key`
+     * when the variable count does not match.
+     *
+     * @return array<int,array{name:string,language:string,status:string,category:string,event_key:string,audience:string,variable_order:string[],template_text:string,last_verified_at:string}>
+     */
+    public function evidence(string $eventKey,string $locale):array{
+        $language=self::providerLanguage($locale);
+        $rows=$this->repository->templatesForEvent('telnyx',$eventKey,$language);
+        $expectedName=$language===TelnyxTemplateRegistry::LANGUAGE?TelnyxTemplateRegistry::nameForEvent($eventKey):null;
+        if($expectedName!==null){
+            $named=$this->repository->templateByName('telnyx',$expectedName,$language);
+            if($named!==null&&!in_array((int)$named->id,array_map(static fn(object $row):int=>(int)$row->id,$rows),true))$rows[]=$named;
+        }
+        $out=array();
+        foreach($rows as $row){
+            $out[]=array(
+                'name'=>(string)($row->template_name??''),'language'=>(string)($row->language??''),
+                'status'=>strtoupper((string)($row->status??'')),'category'=>(string)($row->category??''),
+                'event_key'=>(string)($row->event_key??''),'audience'=>(string)($row->audience??''),
+                'variable_order'=>self::order((string)($row->variable_order??'')),
+                'template_text'=>(string)($row->template_text??''),
+                'last_verified_at'=>(string)($row->last_verified_at??''),
+            );
+        }
+        return $out;
+    }
+
     public static function providerLanguage(string $locale):string{
         $locale=NotificationCatalogue::normaliseLocale($locale);
         return str_starts_with(strtolower($locale),'fa')?TelnyxTemplateRegistry::LANGUAGE:$locale;

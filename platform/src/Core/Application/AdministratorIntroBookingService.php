@@ -1,6 +1,8 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
 
+use Delnavazan\Platform\Core\Infrastructure\Repository\BookingRequestRepository;
+
 /**
  * Guided introductory booking for an already verified Student.
  *
@@ -46,7 +48,7 @@ final class AdministratorIntroBookingService {
         $date = (string) ($slot['local_date'] ?? '');
         $time = (string) ($slot['local_start_time'] ?? '');
         $timezone = (string) ($slot['timezone'] ?? $student->timezone);
-        $this->assertAvailableForPreview($teacherId, $course, $date, $time, $timezone);
+        $this->assertAvailableForPreview($studentId, $teacherId, $course, $date, $time, $timezone);
         $submissions = new BookingRequestSubmissionService();
         $submission = $submissions->submitPublic(array(
             'requested_instrument_id' => (int) $course->instrument_id,
@@ -187,7 +189,7 @@ final class AdministratorIntroBookingService {
         );
     }
 
-    private function assertAvailableForPreview(int $teacherId, object $course, string $date, string $time, string $timezone): void {
+    private function assertAvailableForPreview(int $studentId, int $teacherId, object $course, string $date, string $time, string $timezone): void {
         $interval = $this->interval($course, $date, $time, $timezone);
         if ($interval['starts_at_utc'] <= gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('Choose a future introductory time');
         if ($this->occupancy->overlapping($teacherId, $interval['starts_at_utc'], $interval['occupied_ends_at_utc'])) throw new \InvalidArgumentException('The Teacher already has a class at that time. Choose another slot.');
@@ -198,6 +200,15 @@ final class AdministratorIntroBookingService {
             if ($exception->getMessage() === 'teacher_slot_conflict') throw new \InvalidArgumentException('The Teacher has a reserved continuation slot at that time. Choose another slot.');
             throw $exception;
         }
+        // Intake treats an unresolved request, lesson and confirmation as Student
+        // occupancy. Preflight the same rules so the operator gets a clear conflict
+        // instead of a generic persistence failure after the request is created.
+        $requests = new BookingRequestRepository();
+        if ($requests->studentHasActiveInstrumentEnrollment($studentId, (int) $course->instrument_id)) throw new \InvalidArgumentException('student_instrument_already_enrolled');
+        if ($requests->studentOccupancyConflicts($studentId, array(array(
+            'starts_at_utc' => $interval['starts_at_utc'],
+            'occupied_ends_at_utc' => $interval['occupied_ends_at_utc'],
+        )), array('include_open_requests' => true))) throw new \InvalidArgumentException('student_slot_conflict');
     }
 
     /** @return array{local_date:string,local_start_time:string,timezone:string,starts_at_utc:string,ends_at_utc:string,occupied_ends_at_utc:string} */

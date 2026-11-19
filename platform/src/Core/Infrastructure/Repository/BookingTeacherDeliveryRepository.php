@@ -134,6 +134,35 @@ final class BookingTeacherDeliveryRepository implements ConfirmedIntroBookingRea
         if ($exists) throw new \InvalidArgumentException('Booking Teacher delivery is no longer pending');
     }
 
+    /**
+     * Re-point one terminal delivery after an authorised manual match.
+     *
+     * Only expired, declined or capacity-lost deliveries reach this path, and the
+     * caller has already established that no confirmation exists. The atomic
+     * multi-table update also retires any still-active offer so a stale Teacher
+     * identity cannot respond afterwards.
+     */
+    public function reassignTerminal(int $bookingRequestId, int $requestedTimeId, int $teacherId, string $now): void {
+        global $wpdb;
+        $changed=$wpdb->query($wpdb->prepare(
+            "UPDATE {$this->prefix}booking_request_teacher_deliveries d
+             LEFT JOIN {$this->prefix}booking_allocation_offers o ON o.booking_request_id=d.booking_request_id AND o.active_slot=1
+             SET d.uid=%s,d.requested_time_id=%d,d.teacher_id=%d,d.match_strength='manual',d.state='pending_request',
+                 d.created_at=%s,d.updated_at=%s,d.responded_at=NULL,
+                 o.state='superseded',o.active_slot=NULL,o.responded_at=%s,o.reason_code='administrator_agreement'
+             WHERE d.booking_request_id=%d AND d.state IN ('expired','declined','capacity_lost')",
+            \Delnavazan\Platform\Core\Support\Identifier::uid(),$requestedTimeId,$teacherId,$now,$now,$now,$bookingRequestId
+        ));
+        if ($changed === false) throw new \RuntimeException('Booking Teacher delivery reassignment failed');
+        $wpdb->query($wpdb->prepare(
+            "UPDATE {$this->prefix}booking_request_teacher_declines SET state='superseded',updated_at=%s
+             WHERE booking_request_id=%d AND teacher_id=%d AND state='active'",
+            $now,$bookingRequestId,$teacherId
+        ));
+        if ($changed > 0) return;
+        throw new \InvalidArgumentException('Booking Teacher delivery cannot be manually reassigned');
+    }
+
     /** All ranked student preferences remain visible to the selected Teacher. */
     public function requestedTimes(int $requestId): array {
         global $wpdb;

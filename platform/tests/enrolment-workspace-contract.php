@@ -16,6 +16,7 @@ $controller = $read('src/Admin/Controller/EnrolmentWorkspaceController.php');
 $view = $read('src/Admin/View/EnrolmentWorkspaceView.php');
 $readService = $read('src/Core/Application/EnrolmentWorkspaceReadService.php');
 $manual = $read('src/Core/Application/AdministratorBookingMatchService.php');
+$deliveryRepo = $read('src/Core/Infrastructure/Repository/BookingTeacherDeliveryRepository.php');
 $intro = $read('src/Core/Application/AdministratorIntroBookingService.php');
 $import = $read('src/Core/Application/HistoricalEnrolmentImportService.php');
 $postIntro = $read('src/Core/Application/PostIntroNotificationAdministrationService.php');
@@ -129,6 +130,8 @@ $contains($manual, array(
     'booking_request.manual_teacher_match',
     'administratorConfirmDelivery',
 ), 'Manual match must bypass only the availability preference and record an audited explicit override.');
+$contains($deliveryRepo, array('public function reassignTerminal(', "d.state IN ('expired','declined','capacity_lost')", "o.state='superseded'", "reason_code='administrator_agreement'"), 'A terminal delivery without a confirmation must be repointable by the authorised manual-match path.');
+$contains($manual, array('if ($confirmation) throw', "array('expired', 'declined', 'capacity_lost')", 'reassignTerminal('), 'Manual match must refuse only a live confirmation, not a stale expired delivery with no confirmation.');
 $contains($response, array('public function administratorConfirmDelivery', 'pending_projection', 'insertConfirmation', 'insertNotification'), 'Administrator match must reuse the same confirmation and notification state as the Teacher path.');
 $contains($intro, array(
     'BookingRequestSubmissionService',

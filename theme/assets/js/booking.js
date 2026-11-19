@@ -850,7 +850,7 @@
     } finally {
       submissionPending = false;
       button.disabled = false;
-      button.textContent = 'ثبت درخواست کلاس معارفه';
+      button.textContent = 'ثبت درخواست کلاس آشنایی';
     }
   });
 

@@ -87,8 +87,12 @@ namespace Delnavazan\Platform\Core\Application {
     }
     final class BookingTeacherOccupancyReadService {
         public static array $blockedTeachers = array();
+        /** The active offer's Teacher; a missing request exclusion must look like a conflict. */
+        public static ?int $selfOfferTeacher = null;
         public function overlapping(int $teacherId, string $start, string $end, int $excludeLessonId = 0, int $excludeBookingRequestId = 0, bool $includePendingOffers = true): array {
-            return in_array($teacherId, self::$blockedTeachers, true) ? array(array('lesson_id'=>1)) : array();
+            if (in_array($teacherId, self::$blockedTeachers, true)) return array(array('lesson_id'=>1));
+            if (self::$selfOfferTeacher !== null && $teacherId === self::$selfOfferTeacher && $excludeBookingRequestId === 0) return array(array('lesson_id'=>2));
+            return array();
         }
     }
     final class CanonicalContinuationCapacityAuthority {
@@ -117,6 +121,7 @@ namespace {
     $boot = static function (string $start, string $now, string $deadline, array $teachers = array(11)): array {
         BookingRequestMatchAssessmentRepository::$teachers = $teachers;
         BookingTeacherOccupancyReadService::$blockedTeachers = array();
+        BookingTeacherOccupancyReadService::$selfOfferTeacher = 11;
         $repo = new BookingAllocationRepository();
         $repo->deliveryRow = (object) array('id'=>77,'booking_request_id'=>9,'teacher_id'=>11,'requested_time_id'=>101,'state'=>'pending_request');
         $repo->timeRows = array((object) array('id'=>101,'sequence_number'=>1,'starts_at_utc'=>$start,'occupied_ends_at_utc'=>(new DateTimeImmutable($start,new DateTimeZone('UTC')))->modify('+1 hour')->format('Y-m-d H:i:s')));

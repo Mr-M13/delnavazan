@@ -78,11 +78,11 @@ final class BookingAllocationService {
         $offered=array_map(static fn(object $row):int=>(int)$row->teacher_id,$history);
         $times=$this->repo->times($requestId);
         $this->lockEligibleTeacherRoots((int)$request->selected_intro_course_id,$now);
-        $candidates=$this->candidates((int)$request->selected_intro_course_id,$times,$now);
+        $candidates=$this->candidates((int)$request->selected_intro_course_id,$times,$now,true,(int)$requestId);
         // The hold question is "can this Teacher still accept?", not "could a new
         // offer be made?". Inside the maximum-window lead no new offer is possible,
         // but the current Teacher may still be perfectly viable until T−1h.
-        $viable=$this->candidates((int)$request->selected_intro_course_id,$times,$now,false);
+        $viable=$this->candidates((int)$request->selected_intro_course_id,$times,$now,false,(int)$requestId);
         $pool=$this->availablePool($candidates,$offered);
         $next=$this->next($candidates,(int)$offer->teacher_id,$offered,$now);
         $requestStart=$this->earliestStart($times);

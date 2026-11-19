@@ -19,6 +19,7 @@ use Delnavazan\Platform\Core\Application\CanonicalTermAuthorityService;
 use Delnavazan\Platform\Core\Application\CatalogueService;
 use Delnavazan\Platform\Core\Application\CoordinationCaseService;
 use Delnavazan\Platform\Core\Application\CoordinationWorkspaceReadService;
+use Delnavazan\Platform\Core\Application\DeclineBookingRequestService;
 use Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService;
 use Delnavazan\Platform\Core\Application\HistoricalEnrolmentImportService;
 use Delnavazan\Platform\Core\Application\IntroLessonLifecycleService;
@@ -248,6 +249,12 @@ final class EnrolmentWorkspaceController {
                 self::requireCap('dzn_issue_booking_request_proposals');
                 (new ProposalService())->issueInitial(absint($post['candidate_id'] ?? 0), sanitize_text_field((string) ($post['arrangement_fingerprint'] ?? '')), $idempotency);
                 return 'Proposal issued from the recorded Teacher agreement.';
+            case 'decline_request':
+                self::requireCap('dzn_manage_booking_request_coordination');
+                $declineReason = trim(sanitize_text_field((string) ($post['reason'] ?? '')));
+                if ($declineReason === '') throw new \InvalidArgumentException('Record a decline reason.');
+                (new DeclineBookingRequestService())->decline($requestId, $declineReason, 'decline-' . $idempotency);
+                return 'The booking request was declined and removed from the active queues. Student archiving remains a separate action.';
             case 'total_override_intro':
                 self::requireCap('dzn_manage_booking_request_coordination');
                 self::requireCap('dzn_manage_teacher_availability_assent');

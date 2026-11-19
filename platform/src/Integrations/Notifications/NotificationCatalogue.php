@@ -727,6 +727,20 @@ final class NotificationCatalogue {
                 'whatsapp'=>array('body'=>'Hello, an introductory payment settled after the class time had already been taken. The amount is held as student credit and a coordination case is open for a new time. Please review the coordination workspace — Delnavazan'),
             ),
         ));
+        $out[]=self::event('booking.payment_unreconciled.admin','Intro Payment Captured After Closure','booking','admin','IntroPaymentService','queue',array('website','email'),'operational',true,array('reference'),'booking.payment_unreconciled.admin',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · پرداخت پس از بسته‌شدن تعهد','body'=>"درود،\n\nیک پرداخت تأییدشده برای تعهد کلاس آشنایی {{reference}} در حالی ثبت شد که آن تعهد پیش‌تر بسته شده بود. مبلغ دریافت شده و نیاز به بازبینی مالی دارد. هیچ کلاس یا رویداد تقویمی با این پرداخت ساخته نشد.\n\nلطفاً پرونده را در میز مالی بررسی کنید.\n\nدلنوازان"),
+                'website'=>array('subject'=>'پرداخت پس از بسته‌شدن تعهد آشنایی','body'=>'یک پرداخت تأییدشده برای تعهد کلاس آشنایی {{reference}} پس از بسته‌شدن آن ثبت شد. مبلغ دریافت شده و نیاز به بازبینی مالی دارد؛ هیچ کلاسی با این رویداد تثبیت نشد.'),
+                'sms'=>array('body'=>'دلنوازان: پرداخت تعهد {{reference}} پس از بسته‌شدن ثبت شد؛ نیاز به بازبینی مالی.'),
+                'whatsapp'=>array('body'=>'درود، پرداخت تأییدشده برای تعهد کلاس آشنایی {{reference}} پس از بسته‌شدن آن ثبت شد. مبلغ دریافت شده و نیاز به بازبینی مالی دارد؛ هیچ کلاسی با این پرداخت تثبیت نشد. لطفاً میز مالی را بررسی کنید — دلنوازان'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · payment recorded after obligation closed','body'=>"Hello,\n\nA verified payment for introductory obligation {{reference}} was recorded after the obligation had already closed. The amount was captured and needs finance reconciliation. No class or calendar event was created by this payment.\n\nPlease review the case in the finance workspace.\n\nDelnavazan"),
+                'website'=>array('subject'=>'Payment recorded after introductory obligation closed','body'=>'A verified payment for introductory obligation {{reference}} was recorded after the obligation had already closed. The amount was captured and needs finance reconciliation; no class was secured by this event.'),
+                'sms'=>array('body'=>'Delnavazan: payment for obligation {{reference}} recorded after closure; finance reconciliation required.'),
+                'whatsapp'=>array('body'=>'Hello, a verified payment for introductory obligation {{reference}} was recorded after the obligation had already closed. The amount was captured and needs finance reconciliation; no class was secured by this payment. Please review the finance workspace — Delnavazan'),
+            ),
+        ));
         $out[]=self::event('booking.hold.admin','Intro Request Held for Sole Teacher','booking','admin','BookingAllocationService','queue',array('website','email'),'operational',true,array(),'booking.hold.admin',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · درخواست آشنایی برای تنها مدرس نگه داشته شد','body'=>"درود،\n\nهیچ مدرس دیگری برای این درخواست کلاس آشنایی باقی نمانده و مدرس فعلی هنوز در دسترس است. درخواست به‌جای ارجاع، برای همان مدرس نگه داشته شد تا یک ساعت پیش از شروع کلاس. لطفاً در میز هماهنگی بررسی کنید."),

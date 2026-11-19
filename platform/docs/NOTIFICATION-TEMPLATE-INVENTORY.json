@@ -1,42 +1,42 @@
 {
-    "generated_at": "2026-11-19T01:14:25+00:00",
+    "generated_at": "2026-11-19T04:50:28+00:00",
     "catalogue_version": "2026-11-19.3",
     "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
     "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
     "totals": {
-        "events": 85,
-        "supported_event_channel_combinations": 340,
-        "required_templates": 680,
-        "existing_valid_templates": 680,
+        "events": 86,
+        "supported_event_channel_combinations": 344,
+        "required_templates": 688,
+        "existing_valid_templates": 688,
         "missing_templates": 0,
         "invalid_templates": 0,
         "missing_translations": 0,
         "unpublished_canonical_templates": "live_check_required",
-        "missing_provider_mappings": 45,
+        "missing_provider_mappings": 46,
         "unsupported_routes": 0,
         "events_without_registered_producer": 0
     },
     "by_category": {
         "security": 2,
         "lesson": 38,
-        "booking": 21,
+        "booking": 22,
         "account": 13,
         "payment": 11
     },
     "by_recipient": {
         "student": 40,
         "teacher": 27,
-        "admin": 17,
+        "admin": 18,
         "guardian": 1
     },
     "events_per_channel": {
-        "website": 85,
-        "email": 85,
-        "whatsapp": 85,
-        "sms": 85
+        "website": 86,
+        "email": 86,
+        "whatsapp": 86,
+        "sms": 86
     },
     "implementation": {
-        "implemented": 75,
+        "implemented": 76,
         "partial": 10,
         "declared": 0
     },
@@ -73,6 +73,7 @@
         "booking.payment_conflict.student",
         "booking.payment_lapsed.student",
         "booking.payment_lapsed.teacher",
+        "booking.payment_unreconciled.admin",
         "booking.referral.admin",
         "booking.rescheduled.teacher",
         "booking.submitted.admin",
@@ -1631,6 +1632,73 @@
                 },
                 "sms.en": {
                     "template_key": "booking.payment_lapsed.teacher.sms.en",
+                    "status": "present",
+                    "errors": []
+                }
+            },
+            "provider": {
+                "whatsapp_registry_name": null,
+                "whatsapp_state": "not_mapped",
+                "sms_registry_key": "account_referral",
+                "sms_state": "approved_template_mapped"
+            }
+        },
+        {
+            "event_key": "booking.payment_unreconciled.admin",
+            "notification": "Intro Payment Captured After Closure",
+            "category": "booking",
+            "task": "enrolment_booking",
+            "recipient": "admin",
+            "producer": "IntroPaymentService",
+            "producer_registered": true,
+            "producer_class_found": true,
+            "implementation": "implemented",
+            "delivery_authority": "queue",
+            "channels": [
+                "website",
+                "email",
+                "whatsapp",
+                "sms"
+            ],
+            "review_outstanding": [],
+            "templates": {
+                "website.fa-IR": {
+                    "template_key": "booking.payment_unreconciled.admin.website.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "website.en": {
+                    "template_key": "booking.payment_unreconciled.admin.website.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.fa-IR": {
+                    "template_key": "booking.payment_unreconciled.admin.email.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "email.en": {
+                    "template_key": "booking.payment_unreconciled.admin.email.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.fa-IR": {
+                    "template_key": "booking.payment_unreconciled.admin.whatsapp.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "whatsapp.en": {
+                    "template_key": "booking.payment_unreconciled.admin.whatsapp.en",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.fa-IR": {
+                    "template_key": "booking.payment_unreconciled.admin.sms.fa-IR",
+                    "status": "present",
+                    "errors": []
+                },
+                "sms.en": {
+                    "template_key": "booking.payment_unreconciled.admin.sms.en",
                     "status": "present",
                     "errors": []
                 }

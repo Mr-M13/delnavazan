@@ -167,6 +167,7 @@ final class IntroPaymentService {
         $now = gmdate('Y-m-d H:i:s');
         $actor = max(0, (int) get_current_user_id());
         $dispatch = null;
+        $unreconciled = null;
         $this->repository->begin();
         try {
             $obligation = $this->repository->obligationByReference($digest, true);
@@ -176,6 +177,12 @@ final class IntroPaymentService {
                 $retryDispatch = ($kind === 'payment_succeeded' && (string) $existing->result_state === 'accepted' && (string) $obligation->state === self::STATE_PAID) ? (int) $obligation->confirmation_id : null;
                 $this->repository->commit();
                 if ($retryDispatch !== null) $this->confirmPaidBooking($retryDispatch);
+                // A webhook retry is the only recovery path for a rejected settlement.
+                // Re-emit the finance alert idempotently so a transient portal write
+                // failure does not hide the captured payment.
+                if ($kind === 'payment_succeeded' && (string) $existing->result_state === 'rejected' && (string) $existing->reason_code === 'intro_payment_state_conflict') {
+                    $this->notifyUnreconciledPayment($obligation);
+                }
                 return array('accepted' => (string) $existing->result_state === 'accepted', 'reason' => $existing->reason_code === null ? null : (string) $existing->reason_code, 'obligation_id' => (int) $obligation->id, 'idempotent' => true);
             }
             $reason = null;
@@ -190,6 +197,9 @@ final class IntroPaymentService {
                     $reason = 'intro_payment_currency_mismatch';
                 } elseif ($kind === 'payment_succeeded' && in_array((string) $obligation->state, array(self::STATE_REFUNDED, self::STATE_CANCELLED, self::STATE_EXPIRED), true)) {
                     $reason = 'intro_payment_state_conflict';
+                    // The money is captured but the obligation is closed: the event is
+                    // rejected, so no booking moves. Finance must reconcile it.
+                    $unreconciled = $obligation;
                 } elseif ($kind === 'refund_recorded' && !in_array((string) $obligation->state, array(self::STATE_PAID, self::STATE_REFUNDED), true)) {
                     $reason = 'intro_payment_state_conflict';
                 } elseif ($kind === 'payment_failed' && in_array((string) $obligation->state, array(self::STATE_PAID, self::STATE_REFUNDED, self::STATE_CANCELLED, self::STATE_EXPIRED), true)) {
@@ -237,6 +247,7 @@ final class IntroPaymentService {
             throw $error;
         }
         if ($dispatch !== null) $this->confirmPaidBooking($dispatch);
+        if ($unreconciled !== null) $this->notifyUnreconciledPayment($unreconciled);
         return array('accepted' => $resultState === 'accepted', 'reason' => $reason, 'obligation_id' => (int) $obligation->id, 'idempotent' => false);
     }
 
@@ -479,6 +490,21 @@ final class IntroPaymentService {
             PortalNotificationRecorder::admin('booking.payment_conflict.admin', 'intro_payment_conflict', (int) $confirmation->id, array(), $link);
         } catch (\Throwable $error) {
             if (function_exists('do_action')) do_action('dzn_intro_payment_notification_failed', (int) $confirmation->id, get_class($error));
+        }
+    }
+
+    /**
+     * A verified payment landed after the obligation closed; the event is rejected
+     * and no booking moves. Record a durable admin inbox alert so finance can
+     * reconcile the captured amount instead of relying on the rejected event row.
+     */
+    private function notifyUnreconciledPayment(object $obligation): void {
+        if (!class_exists(PortalNotificationRecorder::class)) return;
+        $link = function_exists('admin_url') ? admin_url('admin.php?page=dzn-booking-requests&request_id=' . (int) $obligation->booking_request_id) : null;
+        try {
+            PortalNotificationRecorder::admin('booking.payment_unreconciled.admin', 'intro_payment_unreconciled', (int) $obligation->id, array('reference' => (string) $obligation->reference_code), $link);
+        } catch (\Throwable $error) {
+            if (function_exists('do_action')) do_action('dzn_intro_payment_unreconciled_notification_failed', (int) $obligation->id, get_class($error));
         }
     }
 

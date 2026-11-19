@@ -48,7 +48,13 @@ $contains($payment, array(
     "'slot_taken_after_payment'",
     "'payment_slot_conflict'",
     "'payment_conflict'",
+    'notifyUnreconciledPayment(',
+    "'booking.payment_unreconciled.admin'",
+    "'intro_payment_unreconciled'",
+    "'intro_payment_state_conflict'",
 ), 'Payment settlement must recheck the slot, fail the confirmation on conflict and open coordination.');
+$expect(str_contains($payment, '$unreconciled = $obligation;'), 'A verified payment captured after the obligation closed must set the finance-alert path.');
+$expect(str_contains($payment, '$unreconciled !== null') && str_contains($payment, '(string) $existing->reason_code === \'intro_payment_state_conflict\''), 'The captured-payment alert must fire on first settlement and on an idempotent webhook retry.');
 $expect(!preg_match('/slot_taken_after_payment.*STATE_REFUNDED/s', $payment), 'A lost payment race must keep the obligation paid as a credit, never refund it.');
 $contains($payment, array('public static function paymentDueAt', 'PAYMENT_DEADLINE_SECONDS', "'payment_due_at' => \$paymentDueAt"), 'Every obligation must be created with min(created_at + 7 days, class start).');
 $contains($repo, array('payment_due_at<=%s', 'state=\'pending\''), 'The expiry pass must select only past-due pending obligations.');
@@ -61,7 +67,7 @@ $contains($migration, array('080_intro_payment_expiry', 'payment_due_at datetime
 $contains($migration, array("WHERE state='pending' AND payment_due_at IS NULL"), 'Pre-migration pending obligations must be backfilled, never left without a deadline.');
 
 // 5. Catalogue + producer wiring for the four new events.
-foreach (array('booking.payment_lapsed.student', 'booking.payment_lapsed.teacher', 'booking.payment_conflict.student', 'booking.payment_conflict.admin') as $event) {
+foreach (array('booking.payment_lapsed.student', 'booking.payment_lapsed.teacher', 'booking.payment_conflict.student', 'booking.payment_conflict.admin', 'booking.payment_unreconciled.admin') as $event) {
     $expect(str_contains($catalogue, "self::event('" . $event . "'"), 'The catalogue must define ' . $event . '.');
 }
 $contains($catalogue, array('مهلت پرداخت', 'payment deadline'), 'New events must carry Persian and English copy.');

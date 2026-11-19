@@ -15,6 +15,9 @@ if ( ! dzn_theme_teacher_portal_attention_valid( $item ) ) { return; }
 $preferences = is_array( $item['requested_preferences'] ?? null ) ? $item['requested_preferences'] : array();
 $preferences = array_values( array_filter( $preferences, static fn( $preference ) => is_array( $preference ) && (int) ( $preference['id'] ?? 0 ) > 0 ) );
 if ( ! $preferences ) { return; }
+// The board keeps a request visible until T−12h so a Teacher can still decline it,
+// but a claim needs the 16h offer lead. Only offer claimable preferences.
+$claimable_count = $opportunity ? count( array_filter( $preferences, static fn( $preference ) => ! empty( $preference['claimable'] ) ) ) : count( $preferences );
 
 $expired        = ! $opportunity && ! empty( $item['response_expired'] );
 $student        = trim( (string) ( $item['student_name'] ?? $item['student'] ?? '' ) );
@@ -76,16 +79,24 @@ $reject_fields  = $opportunity
 					$preference_id = (int) ( $preference['id'] ?? 0 );
 					if ( $preference_id < 1 ) { continue; }
 					$available = ! empty( $preference['available'] );
+					$claimable = ! $opportunity || ! empty( $preference['claimable'] );
 					$label     = (string) ( $preference['label'] ?? '' );
 					if ( '' === $label ) { $label = trim( (string) ( $preference['date_label'] ?? '' ) . ( '' !== (string) ( $preference['time_label'] ?? '' ) ? '، ' . (string) $preference['time_label'] : '' ) ); }
 					?>
-					<label class="dzn-tp-preference dzn-tp-preference--<?php echo esc_attr( $available ? 'available' : 'outside' ); ?>">
-						<input type="radio" name="requested_time_id" value="<?php echo esc_attr( (string) $preference_id ); ?>" data-dzn-tp-preference-input required>
+					<label class="dzn-tp-preference dzn-tp-preference--<?php echo esc_attr( $claimable ? ( $available ? 'available' : 'outside' ) : 'unclaimable' ); ?>">
+						<input type="radio" name="requested_time_id" value="<?php echo esc_attr( (string) $preference_id ); ?>" data-dzn-tp-preference-input data-dzn-tp-claimable="<?php echo $claimable ? '1' : '0'; ?>" required<?php echo $claimable ? '' : ' disabled'; ?>>
 						<span class="dzn-tp-preference__label"><?php echo esc_html( $label ); ?></span>
-						<span class="dzn-tp-preference__coverage is-<?php echo esc_attr( $available ? 'preferred' : 'outside' ); ?>"><span aria-hidden="true"><?php echo $available ? '✓' : '!'; ?></span> <?php echo esc_html( (string) ( $preference['coverage_label'] ?? ( $available ? 'هماهنگ با برنامهٔ شما' : 'خارج از برنامهٔ زمانی شما' ) ) ); ?></span>
+						<?php if ( $claimable ) : ?>
+							<span class="dzn-tp-preference__coverage is-<?php echo esc_attr( $available ? 'preferred' : 'outside' ); ?>"><span aria-hidden="true"><?php echo $available ? '✓' : '!'; ?></span> <?php echo esc_html( (string) ( $preference['coverage_label'] ?? ( $available ? 'هماهنگ با برنامهٔ شما' : 'خارج از برنامهٔ زمانی شما' ) ) ); ?></span>
+						<?php else : ?>
+							<span class="dzn-tp-preference__coverage is-late"><span aria-hidden="true">×</span> مهلت پذیرش این زمان گذشته است</span>
+						<?php endif; ?>
 					</label>
 				<?php endforeach; ?>
-				<p class="dzn-tp-preference-caption">زمان‌های سبز با برنامهٔ زمانی شما هماهنگ هستند. زمان‌های زرد خارج از ساعات اعلام‌شدهٔ شما هستند، اما اگر امکان برگزاری کلاس را دارید، می‌توانید آن‌ها را نیز انتخاب و تأیید کنید.</p>
+				<p class="dzn-tp-preference-caption">زمان‌های سبز با برنامهٔ زمانی شما هماهنگ هستند. زمان‌های زرد خارج از ساعات اعلام‌شدهٔ شما هستند، اما اگر امکان برگزاری کلاس را دارید، می‌توانید آن‌ها را نیز انتخاب و تأیید کنید. زمان‌های خط‌خورده برای پذیرش دیر شده‌اند.</p>
+				<?php if ( $opportunity && 0 === $claimable_count ) : ?>
+					<p class="dzn-tp-help dzn-tp-response-expired">مهلت پذیرش همهٔ زمان‌های این درخواست گذشته است؛ می‌توانید درخواست را رد کنید تا از فهرست شما خارج شود.</p>
+				<?php endif; ?>
 			</fieldset>
 			<div class="dzn-tp-actions dzn-tp-intro-card__actions">
 				<button class="dzn-button dzn-tp-intro-card__accept" type="submit" data-dzn-tp-accept data-dzn-tp-busy-label="<?php echo esc_attr( $opportunity ? 'در حال ثبت پذیرش و ساخت کلاس…' : 'در حال ساخت رویداد و پیوند Meet… لطفاً صفحه را نبندید' ); ?>" disabled>تأیید درخواست</button>

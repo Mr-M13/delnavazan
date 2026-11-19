@@ -45,6 +45,12 @@ $assert(!str_contains($files['intro_card'], '<dialog') && !str_contains($files['
 $assert(str_contains($files['intro_card'], 'response_remaining_label') && !str_contains($files['intro_card'], 'مهلت پاسخ: ۲۴ ساعت'), 'The card must show the dynamic countdown without a duplicated 24-hour deadline label.');
 $assert(str_contains($files['intro_card'], 'data-dzn-tp-accept') && str_contains($files['intro_card'], 'disabled>تأیید درخواست') && str_contains($files['intro_card'], 'برای تأیید، یکی از زمان‌های پیشنهادی را انتخاب کنید.'), 'Acceptance must start disabled until a preference is selected.');
 $assert(str_contains($files['intro_card'], 'تاریخ درخواست:') && str_contains($files['intro_card'], 'اولویت‌های هنرجو') && preg_match('/if \( \$opportunity \).*?else :/s', $files['intro_card']) === 1, 'Opportunity cards must use the shared card while keeping the response countdown inside the assigned-request branch.');
+// The board may keep a request visible until T−12h for a decline, but a claim
+// needs the 16h offer lead. The card must disable a preference the claim
+// authority would reject instead of offering an unclaimable time.
+$assert(str_contains($files['bridge'], 'bool $claim_window') && str_contains($files['bridge'], 'isStartOfferable') && str_contains($files['bridge'], "'claimable'"), 'The Teacher model must expose a claim-window flag for opportunity preferences.');
+$assert(str_contains($files['intro_card'], 'data-dzn-tp-claimable') && str_contains($files['intro_card'], "'unclaimable'") && str_contains($files['intro_card'], 'مهلت پذیرش این زمان گذشته است'), 'Opportunity cards must disable and label a preference inside the claim window.');
+$assert(str_contains($files['css'], 'dzn-tp-preference--unclaimable'), 'Unclaimable opportunity preferences need a distinct disabled style.');
 
 // Model: student identity, country name, deadline sentence, green/yellow advisory matching.
 foreach (array("'student_name'", "'instrument'", "'country_label'", "'deadline_sentence'", "'response_remaining_label'", "'tone'", "'هماهنگ با برنامهٔ شما'", "'خارج از برنامهٔ زمانی شما'", 'dzn_theme_platform_country_label', 'dzn_theme_platform_teacher_deadline_sentence') as $needle) {

@@ -2016,9 +2016,10 @@ function dzn_theme_platform_teacher_open_booking_requests() {
 }
 
 /** Explicit availability state of one Student preference for the Teacher's informed choice. */
-function dzn_theme_platform_teacher_preference_models( $request, $teacher_timezone, $teacher_calendar, $teacher_locale ) {
+function dzn_theme_platform_teacher_preference_models( $request, $teacher_timezone, $teacher_calendar, $teacher_locale, bool $claim_window = false ) {
 	$models = array();
 	$offered = (int) ( $request->requested_time_id ?? 0 );
+	$now = gmdate( 'Y-m-d H:i:s' );
 	foreach ( (array) ( $request->requested_times ?? array() ) as $preference ) {
 		if ( ! is_array( $preference ) ) { continue; }
 		$coverage = (string) ( $preference['coverage'] ?? 'outside' );
@@ -2026,6 +2027,12 @@ function dzn_theme_platform_teacher_preference_models( $request, $teacher_timezo
 		$starts_at = (string) ( $preference['starts_at_utc'] ?? '' );
 		$label = dzn_theme_platform_calendar_time( $starts_at, $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' );
 		$available = 'outside' !== $coverage;
+		// The open board keeps a request visible until T−12h so a Teacher can still
+		// decline it, but a claim is a new offer and needs the 16h offer lead. Mark
+		// the preference so the card never offers a time the claim authority will
+		// reject; assigned requests keep the 1h projection-only acceptance rule.
+		$claimable = ! $claim_window || ! class_exists( '\\Delnavazan\\Platform\\Core\\Application\\BookingLeadTimePolicy' )
+			|| \Delnavazan\Platform\Core\Application\BookingLeadTimePolicy::isStartOfferable( $starts_at, $now );
 		$models[] = array(
 			'id' => (int) ( $preference['id'] ?? 0 ),
 			'label' => $label,
@@ -2036,6 +2043,7 @@ function dzn_theme_platform_teacher_preference_models( $request, $teacher_timezo
 			'tone' => $available ? 'available' : 'outside',
 			'coverage_label' => $available ? 'هماهنگ با برنامهٔ شما' : 'خارج از برنامهٔ زمانی شما',
 			'available' => $available,
+			'claimable' => $claimable,
 			'offered' => $offered > 0 && (int) ( $preference['id'] ?? 0 ) === $offered,
 		);
 	}
@@ -3038,7 +3046,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$request = (object) $request;
 		$request_uid = trim( (string) ( $request->request_uid ?? '' ) );
 		if ( '' === $request_uid ) { return null; }
-		$preferences = dzn_theme_platform_teacher_preference_models( $request, $teacher_timezone, $teacher_calendar, $teacher_locale );
+		$preferences = dzn_theme_platform_teacher_preference_models( $request, $teacher_timezone, $teacher_calendar, $teacher_locale, true );
 		if ( ! $preferences ) { return null; }
 		$instrument = trim( (string) ( $request->instrument_name ?? $request->course_name ?? '' ) );
 		$student = trim( (string) ( $request->full_name ?? '' ) );

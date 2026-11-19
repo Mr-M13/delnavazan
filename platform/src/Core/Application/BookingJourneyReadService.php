@@ -89,6 +89,10 @@ final class BookingJourneyReadService {
                 "SELECT state,enrolment_id FROM {$p}post_intro_preparations WHERE booking_request_id=%d ORDER BY id DESC LIMIT 1",
                 $requestId
             )) ?: null,
+            'skip_intro' => $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$p}platform_audit_events WHERE aggregate_type='booking_request' AND aggregate_id=%d AND event_type='booking_request.skip_intro' LIMIT 1",
+                $requestId
+            )) !== null,
         );
         foreach ((new BookingAllocationRepository())->offerSummaries(array($requestId)) as $summary) {
             $facts['offered_teacher_count'] = (int) ($summary['offered_teacher_count'] ?? 0);
@@ -147,7 +151,12 @@ final class BookingJourneyReadService {
             return $this->make('needs_review', 'The coordination case is closed but the booking request is still open. Confirm the intro or decline the request to resolve the mismatch.', array('label' => 'Review the mixed records', 'operation' => 'review'), array('Confirm intro now', 'Decline this request', 'Coordinate Teacher and acceptance'));
         }
         if ($facts['arrangement'] !== null) {
-            return $this->make('needs_review', 'An accepted arrangement exists but the intro was never confirmed. Confirm the intro, record a skip, or decline the request.', array('label' => 'Review arrangement vs intro', 'operation' => 'review'), array('Confirm intro now', 'Convert to enrolment', 'Decline this request'));
+            $introComplete = !empty($facts['skip_intro']) || ($outcome !== null && (string) $outcome->outcome === 'delivered');
+            if ($introComplete) {
+                if ((int) $facts['enrolment_id'] > 0) return $this->make('enrolled', 'The student is enrolled; manage classes and terms from Enrolment.', array('label' => 'Open Enrolment', 'operation' => 'enrolment'), array('Class history'));
+                return $this->make('continuation', 'Skip intro (or delivered outcome) recorded; convert the accepted arrangement to an Enrolment.', array('label' => 'Convert to enrolment', 'operation' => 'convert_enrolment'), array('Decline this request'));
+            }
+            return $this->make('needs_review', 'An accepted arrangement exists but the intro was never confirmed. Confirm the intro, record a skip, or decline the request.', array('label' => 'Review arrangement vs intro', 'operation' => 'review'), array('Confirm intro now', 'Skip the intro', 'Convert to enrolment', 'Decline this request'));
         }
         if ($facts['active_offer'] !== null) return $this->make('awaiting_teacher', 'A Teacher has been offered this intro and has time left to answer.', array('label' => 'Confirm intro now', 'operation' => 'total_override_intro'), array('Manual Teacher match', 'Coordinate Teacher and acceptance'));
         if ($facts['assent'] !== null) return $this->make('awaiting_teacher', 'A Teacher agreement is recorded; confirm the intro now.', array('label' => 'Confirm intro now', 'operation' => 'total_override_intro'), array('Manual Teacher match', 'Coordinate Teacher and acceptance'));

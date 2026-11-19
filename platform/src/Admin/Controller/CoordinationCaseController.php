@@ -482,6 +482,7 @@ final class CoordinationCaseController {
             'student_slot_conflict' => 'The Student already has an overlapping booking or class. Choose another preferred time; nothing was duplicated.',
             'source_integrity_conflict' => 'The accepted arrangement lineage no longer passes its integrity checks. Review the audit details; no Enrolment was created.',
             'source_not_final' => 'The arrangement is not final enough for conversion. Resolve the named prerequisite first.',
+            'intro_not_completed' => 'Record the introductory outcome (or an audited skip-intro decision) before converting this arrangement to an Enrolment.',
             'already_converted' => 'This arrangement already has an Enrolment.',
             'canonical_conflict' => 'An existing canonical Enrolment conflicts with this conversion. Review the enrolment record before retrying.',
             'active_future_schedule_exists' => 'Future scheduled classes exist. Reschedule or cancel them through the canonical schedule authority before changing the Teacher assignment.',

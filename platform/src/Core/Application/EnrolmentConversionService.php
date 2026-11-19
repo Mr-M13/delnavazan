@@ -20,6 +20,7 @@ final class EnrolmentConversionService {
             $graph=$this->repository->sourceGraphForUpdate($hint);if(!$graph)throw new \InvalidArgumentException('source_integrity_conflict');
             if($command=$this->repository->commandForDigest($key)){ $result=$this->replay($command,$payload,$acceptedServiceArrangementId);$this->repository->commit();return$result; }
             $a=$graph['arrangement'];
+            if(!$this->repository->introCompletedForBooking((int)$a->booking_request_id))throw new \InvalidArgumentException('intro_not_completed');
             $sourceOnly=EnrolmentConversionAssessment::evaluate($this->repository,$graph,array(),array(),$this->repository->student((int)$a->student_id,false),$a->course_id===null?null:$this->repository->course((int)$a->course_id,false),$this->repository->teacher((int)$a->teacher_id,false));
             if(in_array($sourceOnly->classification,array('source_integrity_conflict','source_not_final'),true))throw new \InvalidArgumentException($sourceOnly->classification);
             do_action('dzn_phase_2a2i_source_lineage_locked',(int)$a->id,(int)$a->proposal_family_id,(int)$a->student_id,(int)$a->course_id);

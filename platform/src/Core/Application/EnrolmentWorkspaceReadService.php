@@ -262,6 +262,8 @@ final class EnrolmentWorkspaceReadService {
                     'student_name' => (string) $case['learner_name'],
                     'teacher_id' => (int) ($case['teacher_id'] ?? 0),
                     'teacher_name' => (string) $case['teacher_name'],
+                    'teacher_response' => (string) ($case['teacher_response'] ?? ''),
+                    'teacher_offer' => (array) ($case['teacher_offer'] ?? array()),
                     'course_id' => (int) ($case['course_id'] ?? 0),
                     'instrument' => (string) $case['instrument'],
                     'course_name' => (string) $case['course'],

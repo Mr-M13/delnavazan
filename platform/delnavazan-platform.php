@@ -27,6 +27,7 @@ spl_autoload_register( static function ( $class ) {
 	if ( str_starts_with( $class, 'Delnavazan\\Platform\\Portals\\Portal' ) && is_readable( DZN_PLATFORM_DIR . 'src/Portals/PortalReadModels.php' ) ) { require_once DZN_PLATFORM_DIR . 'src/Portals/PortalReadModels.php'; }
 } );
 
+Delnavazan\Platform\Core\Support\CustomizerPreviewGuard::register();
 Delnavazan\Platform\Admin\Diagnostic\NonceLifecycleDiagnostic::register();
 register_activation_hook( __FILE__, array( 'Delnavazan\\Platform\\Core\\Infrastructure\\Migration\\Migrator', 'on_activation' ) );
 register_deactivation_hook( __FILE__, array( 'Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceWorker', 'deactivate' ) );

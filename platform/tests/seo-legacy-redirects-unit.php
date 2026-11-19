@@ -23,11 +23,53 @@ $GLOBALS['dzn_legacy_post']      = null;
 $GLOBALS['dzn_legacy_permalink'] = '';
 $GLOBALS['dzn_legacy_actions']   = array();
 
+$GLOBALS['dzn_legacy_changesets'] = array();
+
 function add_action( $hook, $callback, $priority = 10, $accepted_args = 1 ) {
 	$GLOBALS['dzn_legacy_actions'][] = array( $hook, $callback, $priority );
 }
 
 function add_filter( ...$args ) {}
+
+function absint( $value ) {
+	return abs( (int) $value );
+}
+
+function sanitize_key( $key ) {
+	return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $key ) );
+}
+
+function wp_is_uuid( $uuid, $version = 4 ) {
+	return is_string( $uuid ) && 1 === preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $uuid );
+}
+
+function wp_doing_ajax() {
+	return false;
+}
+
+function wp_doing_cron() {
+	return false;
+}
+
+function get_posts( $args = array() ) {
+	return (array) $GLOBALS['dzn_legacy_changesets'];
+}
+
+function remove_query_arg( $key, $query = false ) {
+	$keys  = is_array( $key ) ? $key : array( $key );
+	$url   = false === $query ? ( isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '' ) : (string) $query;
+	$parts = explode( '?', $url, 2 );
+	if ( ! isset( $parts[1] ) ) {
+		return $parts[0];
+	}
+	parse_str( $parts[1], $args );
+	foreach ( $keys as $name ) {
+		unset( $args[ $name ] );
+	}
+	$qs = http_build_query( $args );
+
+	return $parts[0] . ( '' !== $qs ? '?' . $qs : '' );
+}
 
 function apply_filters( $hook, $value ) {
 	return $value;
@@ -72,6 +114,7 @@ $fail = static function ( $condition, $message ) {
 };
 
 require dirname( __DIR__, 2 ) . '/theme/inc/legacy-redirects.php';
+require dirname( __DIR__ ) . '/src/Core/Support/CustomizerPreviewGuard.php';
 
 /* ---------------------------------------------------------------- the map */
 
@@ -82,7 +125,9 @@ $live_targets = array(
 	'/articles/',
 	'/enrol/',
 	'/cancellation-and-refunds/',
-	'/category/learning-guide/',
+	'/learning-guide/category/learning-guide/',
+	'/privacy-policy/',
+	'/terms-and-conditions/',
 );
 
 foreach ( $map as $retired => $target ) {
@@ -161,6 +206,98 @@ $fail( array() === dzn_theme_legacy_redirect_response( '/pay/', true, 'POST' ), 
 $fail( array() === dzn_theme_legacy_redirect_response( '/no-such-page/', true, 'GET' ), 'An unmapped 404 must keep its 404 response' );
 $fail( array() === dzn_theme_legacy_redirect_response( '/', true, 'GET' ), 'The site root must never redirect' );
 $fail( array() === dzn_theme_legacy_redirect_response( '/terms/', true, 'GET' ), 'The legal policy redirect must keep its own owner' );
+
+/* ------------------------------------------------ retired prefixes and ids */
+
+$response = dzn_theme_legacy_redirect_response( '/category/موسیقی-ایرانی/', true, 'GET' );
+$fail( array( 'target' => '/learning-guide/category/learning-guide/', 'status' => 301 ) === $response, 'The retired category archive must 301 to the live category archive' );
+
+$response = dzn_theme_legacy_redirect_response( '/category/learning-guide/', true, 'GET' );
+$fail( array( 'target' => '/learning-guide/category/learning-guide/', 'status' => 301 ) === $response, 'The short category URL must not dead-end at a 404' );
+
+$response = dzn_theme_legacy_redirect_response( '/home/', true, 'GET' );
+$fail( array( 'target' => '/', 'status' => 301 ) === $response, 'The retired /home/ homepage must 301 to the current homepage' );
+
+$response = dzn_theme_legacy_redirect_response( '/fa/home/', true, 'GET' );
+$fail( array( 'target' => '/', 'status' => 301 ) === $response, 'The retired /fa/home/ homepage must 301 to the current homepage' );
+
+$response = dzn_theme_legacy_redirect_response( '/home/articles/', true, 'GET' );
+$fail( array( 'target' => '/articles/', 'status' => 301 ) === $response, 'The retired /home/articles/ hub must 301 to /articles/' );
+
+$response = dzn_theme_legacy_redirect_response( '/home/terms/', true, 'GET' );
+$fail( array( 'target' => '/terms-and-conditions/', 'status' => 301 ) === $response, 'A prefixed legal path must reach the published policy' );
+
+$response = dzn_theme_legacy_redirect_response( '/home/online-vs-in-person-music-lessons/', true, 'GET' );
+$fail( array( 'target' => '/articles/', 'status' => 301 ) === $response, 'A prefixed retired article must reach the article hub' );
+
+$response = dzn_theme_legacy_redirect_response( '/fa/home/دستگاه-و-آواز-در-موسیقی-ایرانی-ساختار/', true, 'GET' );
+$fail( array( 'target' => '/articles/', 'status' => 301 ) === $response, 'A prefixed Persian article must resolve through the retired map' );
+
+$fail( array() === dzn_theme_legacy_redirect_response( '/home/*', true, 'GET' ), 'A wildcard URL must not be invented into a redirect' );
+$fail( array() === dzn_theme_legacy_redirect_response( '/no-such-page/', true, 'GET' ), 'An unmapped 404 must still keep its 404 response' );
+
+$response = dzn_theme_legacy_redirect_response( '/persian-santur-history-piano/', true, 'GET' );
+$fail( array( 'target' => '/articles/', 'status' => 301 ) === $response, 'An older article address must reach the article hub' );
+
+$response = dzn_theme_legacy_redirect_response( '/آموش-آنلاین-تار-برای-ایرانیان-خارج-از/', true, 'GET' );
+$fail( array( 'target' => '/articles/', 'status' => 301 ) === $response, 'The observed Persian article variant must reach the article hub' );
+
+$response = dzn_theme_legacy_redirect_response( '/نیما-زارعی-مدرس-تار-و-سهتار/', true, 'GET' );
+$fail( array( 'target' => '/', 'status' => 301 ) === $response, 'The no-ZWNJ teacher slug must reach the homepage' );
+
+$response = dzn_theme_legacy_redirect_response( '/', true, 'GET', array( 'page_id' => '152' ) );
+$fail( array( 'target' => '/privacy-policy/', 'status' => 301 ) === $response, 'The retired privacy page id must 301 to the published policy' );
+
+$response = dzn_theme_legacy_redirect_response( '/', true, 'GET', array( 'page_id' => '154' ) );
+$fail( array( 'target' => '/terms-and-conditions/', 'status' => 301 ) === $response, 'The retired terms page id must 301 to the published policy' );
+
+$response = dzn_theme_legacy_redirect_response( '/', true, 'GET', array( 'page_id' => '426' ) );
+$fail( array( 'target' => '/cancellation-and-refunds/', 'status' => 301 ) === $response, 'The retired refund page id must 301 to the published policy' );
+
+$fail( array() === dzn_theme_legacy_redirect_response( '/', true, 'GET', array( 'page_id' => '999999' ) ), 'An unknown page id must keep its 404 response' );
+$fail( array() === dzn_theme_legacy_redirect_response( '/', false, 'GET', array( 'page_id' => '152' ) ), 'A resolved page id must never be redirected' );
+
+/* ------------------------------------- stale Customizer preview continuity */
+
+\Delnavazan\Platform\Core\Support\CustomizerPreviewGuard::register();
+
+$guard_registered = false;
+foreach ( $GLOBALS['dzn_legacy_actions'] as $action ) {
+	if ( 'plugins_loaded' === $action[0] && array( \Delnavazan\Platform\Core\Support\CustomizerPreviewGuard::class, 'maybe_redirect' ) === $action[1] && 1 === $action[2] ) {
+		$guard_registered = true;
+	}
+}
+$fail( $guard_registered, 'The stale preview guard must run on plugins_loaded before WP_Customize_Manager is included' );
+
+$changeset_uuid = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+
+$fail( '' === \Delnavazan\Platform\Core\Support\CustomizerPreviewGuard::redirect_target( '/articles/', '', false ), 'A request without a preview UUID must not redirect' );
+$fail( '' === \Delnavazan\Platform\Core\Support\CustomizerPreviewGuard::redirect_target( '/articles/?customize_changeset_uuid=' . $changeset_uuid, $changeset_uuid, true ), 'A live changeset must be left to the Customizer' );
+
+$GLOBALS['dzn_legacy_changesets'] = array();
+$fail( false === \Delnavazan\Platform\Core\Support\CustomizerPreviewGuard::changeset_exists( 'not-a-uuid' ), 'A malformed UUID must not resolve to a changeset' );
+$fail( false === \Delnavazan\Platform\Core\Support\CustomizerPreviewGuard::changeset_exists( $changeset_uuid ), 'A missing changeset must not resolve' );
+$GLOBALS['dzn_legacy_changesets'] = array( 123 );
+$fail( true === \Delnavazan\Platform\Core\Support\CustomizerPreviewGuard::changeset_exists( $changeset_uuid ), 'A stored changeset must resolve' );
+$GLOBALS['dzn_legacy_changesets'] = array();
+
+$fail(
+	'/fa/home/' === \Delnavazan\Platform\Core\Support\CustomizerPreviewGuard::redirect_target(
+		'/fa/home/?customize_changeset_uuid=' . $changeset_uuid . '&customize_theme=neve&customize_messenger_channel=preview-23&customize_autosaved=on',
+		$changeset_uuid,
+		false
+	),
+	'A stale preview must keep the page and drop only the Customizer arguments'
+);
+
+$fail(
+	'/articles/?foo=bar' === \Delnavazan\Platform\Core\Support\CustomizerPreviewGuard::redirect_target(
+		'/articles/?foo=bar&customize_changeset_uuid=' . $changeset_uuid,
+		$changeset_uuid,
+		false
+	),
+	'Unrelated query arguments must survive the clean redirect'
+);
 
 /* -------------------------------------------------- numeric URL continuity */
 

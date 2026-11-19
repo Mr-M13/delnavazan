@@ -61,8 +61,25 @@ function dzn_theme_legacy_redirect_map() {
 		'چگونه-کوک-پیانوی-دیجیتال-به-کوک-ریزپرد' => '/articles/',
 		'کنسرت-بیداد؛-صدای-اعتراض-و-اوج-خلاقی' => '/articles/',
 		'کنسرت-عشق-داند-نقطه-عطف-موسیقی-ایرانی' => '/articles/',
-		// The previous production category archive.
-		'category/موسیقی-ایرانی' => '/category/learning-guide/',
+		// Older article addresses that Search Console still reports after the
+		// 2026-10-01 baseline. These are the exact observed slugs (several omit
+		// the ZWNJ), and the hub is the closest surviving target.
+		'اولین-جلسه-آموزش-آنلاین-تار-و-سه-تار' => '/articles/',
+		'تمرین-تار-و-سهتار-در-خانه؛-برنامهای' => '/articles/',
+		'persian-santur-history-piano' => '/articles/',
+		'خرید-تار-و-سهتار-در-خارج-از-کشور؛-راهن' => '/articles/',
+		'شروع-تار-و-سهتار-در-بزرگسالی؛-چگونه-و' => '/articles/',
+		'آموش-آنلاین-سهتار-برای-ایرانیان-خارج-از' => '/articles/',
+		'آموش-آنلاین-تار-برای-ایرانیان-خارج-از' => '/articles/',
+		'transforming-setar-playing' => '/articles/',
+		'تمرین-تار-و-سهتار-در-خانه؛-برنامهای-واقعیبینانه-برای-هنرجوی-پرمشغله' => '/articles/',
+		'history-of-setar' => '/articles/',
+		'online-vs-in-person-music-lessons' => '/articles/',
+		'persian-music-for-children-abroad' => '/articles/',
+		// The previous production category archive now resolves at the category
+		// base the relaunch publishes; the short /category/ form is retired too.
+		'category/موسیقی-ایرانی' => '/learning-guide/category/learning-guide/',
+		'category/learning-guide' => '/learning-guide/category/learning-guide/',
 		// Retired pages. The teachers and students pages have no replacement on
 		// the relaunched site, so the homepage is the closest honest target.
 		'ostad' => '/',
@@ -72,6 +89,8 @@ function dzn_theme_legacy_redirect_map() {
 		'pay' => '/enrol/',
 		'در-مورد-ما' => '/',
 		'نیما-زارعی-مدرس-تار-و-سه‌تار' => '/',
+		// The same retired teacher slug without the ZWNJ, still in Search Console.
+		'نیما-زارعی-مدرس-تار-و-سهتار' => '/',
 		// Transactional pages: the booking experience is the surviving entry point,
 		// except cancellation help, which is the published policy.
 		'payment-success' => '/enrol/',
@@ -126,6 +145,84 @@ function dzn_theme_legacy_redirect_target( $path ) {
 }
 
 /**
+ * Resolve a retired WordPress page id to its live address.
+ *
+ * The previous site exposed the legal documents through ?page_id=N. Those ids
+ * still answer 404 after the rebuild, so an indexed query URL dead-ends while
+ * the document itself is live under its new slug.
+ *
+ * @param array<string,mixed> $query Request query.
+ * @return string
+ */
+function dzn_theme_legacy_page_id_target( $query ) {
+	if ( ! is_array( $query ) || ! isset( $query['page_id'] ) || ! is_scalar( $query['page_id'] ) ) {
+		return '';
+	}
+
+	$map = array(
+		152 => '/privacy-policy/',
+		154 => '/terms-and-conditions/',
+		426 => '/cancellation-and-refunds/',
+	);
+
+	$page_id = absint( $query['page_id'] );
+
+	return isset( $map[ $page_id ] ) ? $map[ $page_id ] : '';
+}
+
+/**
+ * Resolve a retired language or permalink prefix.
+ *
+ * The previous site served the Persian tree at /fa/home/ and articles at
+ * /home/<slug>/; the relaunch dropped both prefixes. Strip the prefix and
+ * resolve the remainder through the same retired-URL map, so an old article
+ * keeps its closest target instead of a 404.
+ *
+ * @param string $path Path.
+ * @return string Empty when the path carries no retired prefix.
+ */
+function dzn_theme_legacy_prefixed_target( $path ) {
+	$path = dzn_theme_legacy_normalise_path( $path );
+
+	foreach ( array( 'fa/home', 'home' ) as $prefix ) {
+		if ( $path !== $prefix && ! str_starts_with( $path, $prefix . '/' ) ) {
+			continue;
+		}
+
+		$rest = trim( substr( $path, strlen( $prefix ) ), '/' );
+		if ( str_contains( $rest, '*' ) ) {
+			return '';
+		}
+
+		if ( '' === $rest || 'home' === $rest ) {
+			return '/';
+		}
+
+		if ( 'articles' === $rest ) {
+			return '/articles/';
+		}
+
+		if ( in_array( $rest, array( 'terms', 'terms-and-conditions' ), true ) ) {
+			return '/terms-and-conditions/';
+		}
+
+		if ( in_array( $rest, array( 'privacy-policy', 'privacy' ), true ) ) {
+			return '/privacy-policy/';
+		}
+
+		if ( in_array( $rest, array( 'refund_returns', 'refund-returns', 'cancellation-and-refunds' ), true ) ) {
+			return '/cancellation-and-refunds/';
+		}
+
+		$mapped = dzn_theme_legacy_redirect_target( $rest );
+
+		return '' !== $mapped ? $mapped : '/articles/';
+	}
+
+	return '';
+}
+
+/**
  * Resolve a previously published id URL to its current canonical address.
  *
  * Inert while the permalink structure still produces the same address.
@@ -162,14 +259,15 @@ function dzn_theme_legacy_numeric_target( $path ) {
  * A resolved request is never redirected: the map only replaces a response
  * WordPress would otherwise answer with 404.
  *
- * @param string $path   Request path.
- * @param bool   $is_404 Whether WordPress resolved the request as not found.
- * @param string $method Request method.
+ * @param string              $path   Request path.
+ * @param bool                $is_404 Whether WordPress resolved the request as not found.
+ * @param string              $method Request method.
+ * @param array<string,mixed> $query  Request query.
  * @return array<string,string|int>
  */
-function dzn_theme_legacy_redirect_response( $path, $is_404, $method ) {
+function dzn_theme_legacy_redirect_response( $path, $is_404, $method, $query = array() ) {
 	$path = dzn_theme_legacy_normalise_path( $path );
-	if ( '' === $path || ! $is_404 ) {
+	if ( ! $is_404 ) {
 		return array();
 	}
 
@@ -177,7 +275,13 @@ function dzn_theme_legacy_redirect_response( $path, $is_404, $method ) {
 		return array();
 	}
 
-	$target = dzn_theme_legacy_redirect_target( $path );
+	$target = dzn_theme_legacy_page_id_target( $query );
+	if ( '' === $target ) {
+		$target = dzn_theme_legacy_redirect_target( $path );
+	}
+	if ( '' === $target ) {
+		$target = dzn_theme_legacy_prefixed_target( $path );
+	}
 	if ( '' === $target ) {
 		$target = dzn_theme_legacy_numeric_target( $path );
 	}
@@ -203,7 +307,8 @@ function dzn_theme_legacy_redirect() {
 	$response = dzn_theme_legacy_redirect_response(
 		dzn_theme_legacy_request_path(),
 		(bool) is_404(),
-		isset( $_SERVER['REQUEST_METHOD'] ) ? (string) wp_unslash( $_SERVER['REQUEST_METHOD'] ) : 'GET'
+		isset( $_SERVER['REQUEST_METHOD'] ) ? (string) wp_unslash( $_SERVER['REQUEST_METHOD'] ) : 'GET',
+		isset( $_GET ) && is_array( $_GET ) ? wp_unslash( $_GET ) : array()
 	);
 
 	if ( ! $response ) {

@@ -68,7 +68,7 @@ final class EnrolmentWorkspaceView {
         if ((int) $queue['counts']['attendance'] > 0) echo '<span class="dzn-task-chip"><strong>' . esc_html((string) $queue['counts']['attendance']) . '</strong> attendance decisions</span>';
         echo '</div>';
         self::queueFiltersForm($filters);
-        if ($canIntros) echo '<p><a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=insights')) . '">Conversion, survey and follow-up evidence</a></p>';
+        if ($canIntros) echo '<p><a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=insights')) . '">Conversion, survey and follow-up evidence</a> · <a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&view=reconciliation')) . '">Reconciliation report</a></p>';
         if (!$queue['total']) echo '<div class="dzn-empty-state"><h3>No intros or classes match</h3><p>Reset the filters or create a new intro or standard class.</p></div>';
         else {
             if ($showIntros) {
@@ -95,9 +95,29 @@ final class EnrolmentWorkspaceView {
         echo '</div>';
     }
 
+    /**
+     * Read-only reconciliation: every request whose authorities disagree, with a
+     * link back to the case so the owner can decide the repair. No action is
+     * taken from this panel.
+     */
+    public static function reconciliationPanel(EnrolmentWorkspaceReadService $read): void {
+        $report = $read->reconciliationReport();
+        echo '<section class="dzn-enrolment__section" aria-labelledby="dzn-reconciliation-title"><div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Dry-run · read-only</p><h2 id="dzn-reconciliation-title">Reconciliation report</h2><p>Requests where two authorities disagree. Open a request and use its primary action to resolve it; nothing here is changed by this page.</p></div><span class="dzn-count-chip">' . esc_html(number_format_i18n((int) $report['total'])) . ' flagged</span></div>';
+        echo '<div class="dzn-mini-stats dzn-queue-stats"><span><strong>' . esc_html(number_format_i18n((int) $report['counts']['arrangement_without_intro'])) . '</strong> arrangement without intro</span><span><strong>' . esc_html(number_format_i18n((int) $report['counts']['closed_case_open_request'])) . '</strong> closed case, open request</span><span><strong>' . esc_html(number_format_i18n((int) $report['counts']['enrolment_without_intro'])) . '</strong> enrolment without intro</span><span><strong>' . esc_html(number_format_i18n((int) $report['counts']['expired_delivery_without_confirmation'])) . '</strong> stale Teacher delivery</span></div>';
+        if (!$report['rows']) {
+            echo '<p class="dzn-empty-state">No request currently disagrees across its authorities.</p></section>';
+            return;
+        }
+        echo '<div class="dzn-table-scroll"><table class="widefat striped dzn-unified-table"><thead><tr><th>Request</th><th>Learner</th><th>Issue</th><th>Detail</th><th><span class="screen-reader-text">Open</span></th></tr></thead><tbody>';
+        foreach ($report['rows'] as $row) {
+            $url = admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE . '&request_id=' . (int) $row['request_id']);
+            echo '<tr><td><a data-dzn-class-admin href="' . esc_url($url) . '"><strong>' . esc_html((string) $row['reference']) . '</strong></a></td><td>' . esc_html((string) $row['learner']) . '</td><td><span class="dzn-badge dzn-badge--gold">' . esc_html((string) $row['label']) . '</span></td><td><small>' . esc_html((string) $row['detail']) . '</small></td><td><a class="button button-small" data-dzn-class-admin href="' . esc_url($url) . '">Open request</a></td></tr>';
+        }
+        echo '</tbody></table></div></section>';
+    }
+
     /** Retain the evidence on a dedicated protected view without a dashboard section. */
-    public static function introInsights(EnrolmentWorkspaceReadService $read, array $query): void {
-        echo '<div class="wrap dzn-enrolment"><h1>Intro evidence and follow-up</h1><p><a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE)) . '">← Back to Enrolment</a></p>';
+    public static function introInsights(EnrolmentWorkspaceReadService $read, array $query): void {        echo '<div class="wrap dzn-enrolment"><h1>Intro evidence and follow-up</h1><p><a href="' . esc_url(admin_url('admin.php?page=' . EnrolmentWorkspaceController::PAGE)) . '">← Back to Enrolment</a></p>';
         self::conversionPanel($read, $query);
         echo '</div>';
     }

@@ -284,6 +284,7 @@ return array(
         'teacher_assignment_commands',
         'teacher_assignment_lifecycle_events',
         'teacher_assignments',
+        'teacher_booking_priorities',
         'teacher_availability_assent_snapshots',
         'teacher_availability_assents',
         'teacher_availability_exceptions',

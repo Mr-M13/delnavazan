@@ -178,7 +178,11 @@ is optional strict parity. Docker is required only for the runtime suites.
   `php platform/tests/booking-offer-window-unit.php`
   (the 4h–24h formula, the T−12h terminal gate and the hold exception) and
   `php platform/tests/booking-sole-teacher-hold-unit.php` (extend-not-expire,
-  one hold alert, terminal expiry and decline-is-not-a-hold). The retired-URL surface is covered by
+  one hold alert, terminal expiry and decline-is-not-a-hold). The Teacher
+  booking-priority surface is covered by
+  `php platform/tests/booking-priority-allocation-unit.php` (first offer,
+  normal fall-through, ordering, cursor neutrality, the 8h/T−12h cap and the
+  teacher-wide vs instrument-course scope). The retired-URL surface is covered by
   `php platform/tests/seo-legacy-redirects-contract.php` and
   `php platform/tests/seo-legacy-redirects-unit.php`: every URL in
   `deployment/seo/production-seo-baseline.csv` must stay mapped to a live target, and a retired path

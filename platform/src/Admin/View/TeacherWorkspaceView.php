@@ -99,16 +99,18 @@ final class TeacherWorkspaceView {
         $onboarding = $profile['onboarding'];
         $availability = $profile['availability'];
         $finance = $profile['finance'];
+        $priority = (array) ($profile['booking_priority'] ?? array());
         $archived = (string) ($record->status ?? '') === 'archived' || (string) ($record->archived_at ?? '') !== '';
         echo '<p class="dzn-tw-back"><a href="' . esc_url(self::url($page)) . '">← Back to teacher directory</a></p>';
         echo '<header class="dzn-tw-profile-head"><div><p class="dzn-tw-eyebrow">Teacher management record</p><h1>' . esc_html((string) $record->display_name_effective) . '</h1><p><a href="mailto:' . esc_attr((string) $record->email) . '">' . esc_html((string) ($record->email ?: 'No email recorded')) . '</a>' . ((string) ($record->phone ?? '') !== '' ? ' · ' . esc_html((string) $record->phone) : '') . '</p></div><div class="dzn-tw-profile-head__side"><span class="dzn-tw-status dzn-tw-status--' . esc_attr(self::statusClass((string) $record->directory_status)) . '">' . esc_html((string) $record->onboarding_label) . '</span><span class="dzn-tw-payment dzn-tw-payment--' . esc_attr(self::paymentClass((string) ($payment['state'] ?? ''))) . '">' . esc_html((string) ($payment['label'] ?? 'Payment not recorded')) . '</span></div></header>';
         self::profileSummary($record, $stats, $payment);
-        echo '<nav class="dzn-tw-section-nav" aria-label="Teacher profile sections"><a href="#teacher-details">Teacher details</a><a href="#teacher-status">Status &amp; intake</a><a href="#teacher-account">Onboarding &amp; account</a><a href="#teacher-instruments">Instruments</a><a href="#teacher-availability">Availability</a><a href="#teacher-students">Students</a><a href="#teacher-classes">Classes</a><a href="#teacher-tasks">Tasks</a><a href="#teacher-finance">Finance</a><a href="#teacher-actions">Administrative actions</a></nav>';
+        echo '<nav class="dzn-tw-section-nav" aria-label="Teacher profile sections"><a href="#teacher-details">Teacher details</a><a href="#teacher-status">Status &amp; intake</a><a href="#teacher-account">Onboarding &amp; account</a><a href="#teacher-instruments">Instruments</a><a href="#teacher-priority">Booking priority</a><a href="#teacher-availability">Availability</a><a href="#teacher-students">Students</a><a href="#teacher-classes">Classes</a><a href="#teacher-tasks">Tasks</a><a href="#teacher-finance">Finance</a><a href="#teacher-actions">Administrative actions</a></nav>';
         self::detailsSection($record, $onboarding, $page, $archived);
         if (!$archived) {
             self::statusSection($read, $record, $profile, $page);
             self::accountSection($read, $record, $onboarding, $profile['account'], $profile['protected_history'], $page);
             self::instrumentsSection($read, $record, $profile['eligibility'], $page);
+            self::prioritySection($record, $priority, $profile['eligibility'], $page);
             self::availabilitySection($read, $record, $availability, $profile['eligibility'], $page);
             self::studentsSection($record, $stats, $profile['students'], $page);
             self::classesSection($profile['classes'], $page, (int) $record->id);
@@ -308,6 +310,40 @@ final class TeacherWorkspaceView {
         }
         echo '<p class="dzn-tw-note">Intake is currently a Teacher-level canonical state, not a per-instrument state. Student counts beside each course record show the current assignments affected by an eligibility change; historical classes are never invalidated.</p>';
         echo '</section>';
+    }
+
+    private static function prioritySection(object $record, array $priorities, array $eligibility, string $page): void {
+        if (!current_user_can('dzn_manage_teacher_rates')) return;
+        $teacherId = (int) $record->id;
+        $courses = array();
+        foreach ($eligibility as $row) {
+            if ((string) ($row->status ?? '') !== 'active') continue;
+            $courses[(int) $row->course_id] = trim((string) ($row->instrument_name ?? '') . ' · ' . (string) ($row->course_name ?? ('Course #' . (int) $row->course_id)));
+        }
+        echo '<section class="dzn-tw-section" id="teacher-priority"><div class="dzn-tw-section__head"><div><h2>Booking priority</h2><p>An active priority makes this Teacher the first offer for the selected scope when an introductory request starts or an administrator recovers it. It never bypasses eligibility, availability, occupancy or continuation holds, and it never changes the round-robin cursor for the normal channel. The priority offer carries an eight-hour response window, capped at T−12h.</p></div></div>';
+        if ($priorities) {
+            echo '<table class="widefat striped dzn-tw-table"><thead><tr><th scope="col">Scope</th><th scope="col">Effective from</th><th scope="col">Reason</th></tr></thead><tbody>';
+            foreach ($priorities as $row) {
+                $scope = (string) ($row->scope_kind ?? '') === 'teacher' ? 'All instruments' : (string) ($row->course_name ?? ('Instrument course #' . (int) ($row->course_scope_id ?? 0)));
+                echo '<tr><td>' . esc_html($scope) . '</td><td>' . esc_html(self::dateValue((string) ($row->effective_from ?? ''))) . '</td><td>' . esc_html((string) ($row->reason_code ?? 'operator_priority')) . '</td></tr>';
+            }
+            echo '</tbody></table>';
+        } else {
+            echo '<p>No active booking priority. Normal round-robin allocation applies.</p>';
+        }
+        echo '<details class="dzn-tw-disclosure"><summary>Set or remove booking priority</summary>';
+        echo '<form method="post" class="dzn-tw-form" onsubmit="return confirm(\'Save this booking priority? It changes only the first offer; it never changes eligibility, availability or existing classes.\')">';
+        echo '<input type="hidden" name="dzn_action" value="set_teacher_booking_priority">';
+        echo '<input type="hidden" name="teacher_id" value="' . esc_attr((string) $teacherId) . '">';
+        echo '<input type="hidden" name="priority_form_id" value="' . esc_attr(wp_generate_uuid4()) . '">';
+        echo wp_nonce_field('dzn_platform_set_teacher_booking_priority', '_wpnonce', true, false);
+        echo '<label>Scope <select name="priority_scope"><option value="teacher:0">All instruments</option>';
+        foreach ($courses as $courseId => $courseName) echo '<option value="teacher_course:' . esc_attr((string) $courseId) . '">' . esc_html($courseName) . '</option>';
+        echo '</select></label>';
+        echo '<label><input type="checkbox" name="priority_state" value="active"> Enable booking priority for this scope</label>';
+        echo '<label>Reason <select name="reason_code"><option value="operator_priority">Operator priority</option><option value="bulk_priority">Bulk priority</option><option value="operator_removed">Remove priority</option></select></label>';
+        echo '<button class="button button-primary">Save booking priority</button></form>';
+        echo '<p class="dzn-tw-muted">Untick the checkbox to remove the selected scope. A course-scoped priority requires an active eligibility for that course; the change is reversible and audited.</p></details></section>';
     }
 
     private static function availabilitySection(TeacherWorkspaceReadService $read, object $record, array $availability, array $eligibility, string $page): void {

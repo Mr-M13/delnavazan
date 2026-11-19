@@ -142,10 +142,19 @@ final class AdministratorBookingMatchService {
                         'idempotent' => true,
                     );
                 }
-                throw new \InvalidArgumentException('This request already has a Teacher confirmation and cannot be manually reassigned');
+                if ($confirmation) throw new \InvalidArgumentException('This request already has a Teacher confirmation and cannot be manually reassigned');
+                // A previous automatic offer can expire or be declined without ever
+                // producing a confirmation. An authorised manual match may re-point
+                // that terminal delivery; a live confirmation still refuses above.
+                if (!in_array((string) $state, array('expired', 'declined', 'capacity_lost'), true)) {
+                    throw new \InvalidArgumentException('This request cannot be manually reassigned from its current delivery state');
+                }
+                $this->deliveries->reassignTerminal($requestId, $requestedTimeId, $teacherId, $now);
+                $deliveryId = (int) $existing;
+            } else {
+                $this->deliveries->reassignPending($requestId, $requestedTimeId, $teacherId, $now);
+                $deliveryId = (int) $existing;
             }
-            $this->deliveries->reassignPending($requestId, $requestedTimeId, $teacherId, $now);
-            $deliveryId = (int) $existing;
         } else {
             $deliveryId = $this->deliveries->create(array(
                 'uid' => Identifier::uid(),

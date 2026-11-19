@@ -747,7 +747,7 @@ final class EnrolmentWorkspaceView {
         echo '</select></label></p>';
         self::input('override_local_date', 'Local date', 'date', $date, true);
         self::input('override_local_start_time', 'Local start time', 'time', $time, true);
-        self::timezoneSelect('override_schedule_timezone', 'Local timezone', $timezone);
+        self::input('override_schedule_timezone', 'Local timezone', 'text', $timezone, true, 'IANA timezone for the local date/time, for example Asia/Tehran. The default is the Student request timezone.');
         echo '<p><label>Override reason<textarea name="override_reason" rows="3" maxlength="1000" required placeholder="What was agreed, with whom, and why the normal scheduling constraints are being overridden"></textarea></label></p>';
         echo '<p><label><input type="checkbox" name="override_ack" value="1" required> I confirm the Teacher and the Student have already agreed, and I accept responsibility for this total scheduling override.</label></p>';
         echo '<p><button class="button button-primary" onclick="return confirm(\'Confirm this introductory lesson with a total scheduling override? Availability, occupancy and notice checks will be bypassed and the action will be audited.\')">Confirm intro with total override</button></p></form>';

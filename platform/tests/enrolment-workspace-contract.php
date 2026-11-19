@@ -146,6 +146,7 @@ $contains($responseRepo, array('teacherForOverride(', 'appendRequestedTime(', 'r
 $contains($controller, array("case 'total_override_intro':", "dzn_override_canonical_lesson_schedule_availability", "override_ack", "override_local_date"), 'The override command must require the high-trust schedule capability and the explicit acknowledgement.');
 $contains($readService, array('public function overrideTeacherOptions('), 'The override picker must read active Teachers without requiring unrelated directory capabilities.');
 $contains($view, array('totalOverrideForm(', 'overrideTeacherOptions(', 'Total scheduling override', 'total_override_intro', 'override_ack', 'override_local_date', 'override_local_start_time', 'override_schedule_timezone'), 'The case view must expose the simple Teacher + date/time total override form.');
+$contains($view, array("input('override_schedule_timezone', 'Local timezone', 'text', \$timezone, true", 'default is the Student request timezone'), 'The override timezone must accept the Student request timezone (for example Asia/Tehran), not only the standard service-area options.');
 $contains($intro, array(
     'BookingRequestSubmissionService',
     'StudentIdentityResolutionService',

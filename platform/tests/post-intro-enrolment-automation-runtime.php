@@ -817,7 +817,7 @@ dzn_pia_assert($recoveredPrep !== null && (int) $recoveredPrep->id !== $replayed
 dzn_pia_assert((string) $recoveredPrep->state === 'prepared', 'a resumed preparation must reach the prepared state');
 
 // H. A Term already created by an authorised operator action is identified and funded, not duplicated.
-$existingTermBooking = $booking('existing-term', 2, '19:37:00'); // clear of the earlier cutoff booking's buffered committed intro
+$existingTermBooking = $booking('existing-term', 24, '09:37:00'); // previous day: clear of the cutoff booking's buffered committed intro
 wp_set_current_user($teacherUser);
 $preparations->recordTeacherOutcome($existingTermBooking['confirmation'], $teacherId, 'delivered', 'Synthetic existing-term delivery');
 $existingTermPrep = $repository->preparationByBooking((int) $existingTermBooking['request']);

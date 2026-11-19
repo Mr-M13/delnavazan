@@ -1,0 +1,108 @@
+name: Restore production availability
+
+# Narrow incident recovery: deactivate WordPress maintenance mode after a
+# release smoke failure has left the public site closed. It does not deploy,
+# migrate, restore, purge or write any site data. Dispatch only from main, in
+# the protected production environment, with the exact current main SHA and a
+# literal confirm token.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact full 40-character SHA of the current origin/main commit
+        type: string
+        required: true
+      confirm:
+        description: Type DEACTIVATE_MAINTENANCE to authorise the recovery
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: delnavazan-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    name: Deactivate production maintenance
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 10
+    steps:
+      - name: Require dispatch from main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this recovery from main only.' >&2; exit 1; }
+
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact current main and the confirm token
+        shell: bash
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character commit SHA.' >&2; exit 1; }
+          [[ "$CONFIRM" == 'DEACTIVATE_MAINTENANCE' ]] || { echo 'Type DEACTIVATE_MAINTENANCE to confirm.' >&2; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$COMMIT_SHA" ]] || { echo 'Requested SHA must still be current main.' >&2; exit 1; }
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          [[ "$(git rev-parse origin/main)" == "$COMMIT_SHA" ]] || { echo 'Requested SHA must still be current origin/main.' >&2; exit 1; }
+
+      - name: Configure pinned production SSH access
+        shell: bash
+        env:
+          PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          PRODUCTION_KNOWN_HOSTS: ${{ secrets.PRODUCTION_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_PRIVATE_KEY" && -n "$PRODUCTION_KNOWN_HOSTS" ]] || { echo 'Production SSH secrets are not configured.' >&2; exit 1; }
+          grep -Eq '^cp119\.hosting-cloud\.net[[:space:]]+ssh-(ed25519|rsa|ecdsa)' <<<"$PRODUCTION_KNOWN_HOSTS" || { echo 'Known-hosts secret must pin cp119.hosting-cloud.net.' >&2; exit 1; }
+          install -m 700 -d "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_production" >/dev/null
+          cat >> "$HOME/.ssh/config" <<'EOF'
+          Host cp119.hosting-cloud.net
+            UserKnownHostsFile ~/.ssh/known_hosts
+            StrictHostKeyChecking yes
+            IdentityFile ~/.ssh/id_production
+            IdentitiesOnly yes
+            BatchMode yes
+          EOF
+          chmod 600 "$HOME/.ssh/config"
+
+      - name: Deactivate maintenance only
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
+          [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Production SSH username contains unsupported characters.' >&2; exit 1; }
+          ssh -T "${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net" bash -s <<'REMOTE'
+          set -Eeuo pipefail
+          root="$HOME/domains/delnavazan.com/public_html"
+          [[ -f "$root/wp-load.php" ]] || { echo 'FAIL WordPress root missing' >&2; exit 1; }
+          if wp --path="$root" --skip-plugins --skip-themes maintenance-mode is-active >/dev/null 2>&1; then
+            echo 'MAINTENANCE_BEFORE=active'
+          else
+            echo 'MAINTENANCE_BEFORE=inactive'
+          fi
+          wp --path="$root" --skip-plugins --skip-themes maintenance-mode deactivate
+          if wp --path="$root" --skip-plugins --skip-themes maintenance-mode is-active >/dev/null 2>&1; then
+            echo 'FAIL  maintenance mode remains active' >&2
+            exit 1
+          fi
+          echo 'MAINTENANCE_AFTER=inactive'
+          REMOTE

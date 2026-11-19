@@ -11,10 +11,8 @@
 .dzn-booking__heading { position: relative; max-width: 46rem; margin: 0 auto 2rem; padding-block: 1rem 1.5rem; text-align: center; }
 .dzn-booking__heading h1 { margin-bottom: .6rem; font-size: clamp(1.8rem, 4vw, 2.8rem); }
 .dzn-booking__heading p { font-size: 1.05rem; }
-.dzn-booking__heading-caption { max-width: 42rem; margin: 0 auto .55rem; }
-.dzn-booking__heading-caption strong { color: var(--dzn-color-text-primary); }
-.dzn-booking__heading p.dzn-booking__heading-key { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .3rem .85rem; margin: 0 auto; color: var(--dzn-color-text-muted); font-size: .84rem; line-height: 1.7; }
-.dzn-booking__heading-key > span { display: inline-flex; align-items: center; gap: .35rem; }
+.dzn-booking__heading-note { max-width: 42rem; margin: .9rem auto 0; color: var(--dzn-color-text-secondary); line-height: 1.9; }
+.dzn-booking__heading-note strong { color: var(--dzn-color-text-primary); }
 .dzn-booking__card { max-width: 62rem; margin-inline: auto; padding: clamp(1rem, 4vw, 2.5rem); border: 1px solid var(--dzn-color-border); border-radius: var(--dzn-radius-lg); background: var(--dzn-color-surface-elevated); box-shadow: var(--dzn-shadow-soft); }
 
 /* Progress */
@@ -34,6 +32,13 @@
 .dzn-booking__progress li.is-current button span,
 .dzn-booking__progress li.is-done button span { border-color: var(--dzn-color-action-primary); background: var(--dzn-color-action-primary); color: var(--dzn-color-on-action); }
 .dzn-booking__progress li.is-current button { color: var(--dzn-color-text-primary); font-weight: 800; }
+
+/* Step timeline caption */
+.dzn-booking__intro { max-width: 42rem; margin: 1.5rem auto 2rem; text-align: center; }
+.dzn-booking__intro-caption { margin: 0 auto .55rem; font-size: 1.05rem; line-height: 1.9; }
+.dzn-booking__intro-caption strong { color: var(--dzn-color-text-primary); }
+.dzn-booking__intro p.dzn-booking__intro-key { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .3rem .85rem; margin: 0 auto; color: var(--dzn-color-text-muted); font-size: .84rem; line-height: 1.7; }
+.dzn-booking__intro-key > span { display: inline-flex; align-items: center; gap: .35rem; }
 
 /* Shared form controls */
 .dzn-booking__kicker,
@@ -91,13 +96,13 @@
 .dzn-booking__availability-key-title { margin: 0; color: var(--dzn-color-text-secondary); font-size: .82rem; font-weight: 700; }
 .dzn-booking__availability-key-items { display: flex; flex-wrap: wrap; gap: .35rem .9rem; }
 .dzn-booking__availability-key-items > span { display: inline-flex; align-items: center; gap: .35rem; }
-.dzn-booking__heading-key i,
+.dzn-booking__intro-key i,
 .dzn-booking__availability-key i { flex: none; width: .7rem; height: .7rem; border-radius: 50%; background: var(--dzn-color-information); }
-.dzn-booking__heading-key i.is-strong,
+.dzn-booking__intro-key i.is-strong,
 .dzn-booking__availability-key i.is-strong { background: var(--dzn-color-success); }
-.dzn-booking__heading-key i.is-possible,
+.dzn-booking__intro-key i.is-possible,
 .dzn-booking__availability-key i.is-possible { background: var(--dzn-color-warning); }
-.dzn-booking__heading-key i.is-none,
+.dzn-booking__intro-key i.is-none,
 .dzn-booking__availability-key i.is-none { border: 1px solid var(--dzn-color-border); background: var(--dzn-color-surface-elevated); }
 .dzn-booking__availability-key i.is-blocked { background: var(--dzn-color-text-muted); }
 .dzn-booking__availability-key-title { line-height: 1.75; }

@@ -156,6 +156,8 @@ jobs:
           php platform/tests/booking-teacher-delivery-unit.php
           php platform/tests/intro-recurring-slot-override-policy-unit.php
           php platform/tests/booking-allocation-unit.php
+          php platform/tests/booking-payment-expiry-unit.php
+          php platform/tests/booking-payment-slot-security-contract.php
           php platform/tests/booking-allocation-workload-unit.php
           php platform/tests/booking-engine-capacity-unit.php
           php platform/tests/booking-engine-scenario-date-unit.php

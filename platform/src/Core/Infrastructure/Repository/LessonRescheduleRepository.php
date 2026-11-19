@@ -192,7 +192,7 @@ final class LessonRescheduleRepository implements LessonRescheduleStore {
     /** One canonical Lesson and its current applicable schedule version, or null if not eligible. */
     public function lessonContext(int $lessonId):?object{
         return $this->one(
-            "SELECT l.id lesson_id,l.uid lesson_uid,l.reference_code lesson_reference,l.teacher_id,l.student_id,l.enrolment_id,l.term_id,l.teacher_assignment_id,l.lifecycle_state,l.record_model,
+            "SELECT l.id lesson_id,l.uid lesson_uid,l.reference_code lesson_reference,l.booking_request_id,l.teacher_id,l.student_id,l.enrolment_id,l.term_id,l.teacher_assignment_id,l.lifecycle_state,l.record_model,
                     v.id schedule_version_id,v.uid schedule_version_uid,v.starts_at_utc,v.ends_at_utc,v.occupied_ends_at_utc,v.duration_minutes,v.buffer_minutes,v.schedule_timezone
              FROM {$this->p}lessons l
              INNER JOIN {$this->p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1

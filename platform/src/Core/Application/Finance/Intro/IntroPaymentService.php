@@ -1,7 +1,10 @@
 <?php
 namespace Delnavazan\Platform\Core\Application\Finance\Intro;
 
+use Delnavazan\Platform\Core\Application\BookingAllocationService;
 use Delnavazan\Platform\Core\Application\PaymentExecution\PaymentExecutionIdempotency;
+use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
+use Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\IntroPaymentRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
 use Delnavazan\Platform\Integrations\BookingCalendarProjectionService;
@@ -23,13 +26,37 @@ final class IntroPaymentService {
     public const STATE_EXPIRED = 'expired';
     public const STATE_REFUNDED = 'refunded';
     public const STATE_CANCELLED = 'cancelled';
+    /** An unpaid acceptance never holds the slot past this horizon. */
+    public const PAYMENT_DEADLINE_SECONDS = 604800;
 
     public function __construct(
         private ?IntroPaymentRepository $repository = null,
-        private ?BookingCalendarProjectionService $projector = null
+        private ?BookingCalendarProjectionService $projector = null,
+        private ?\Closure $coordination = null
     ) {
         $this->repository ??= new IntroPaymentRepository();
         $this->projector ??= new BookingCalendarProjectionService();
+    }
+
+    /**
+     * `min(created_at + 7 days, class start)`, in UTC.
+     *
+     * The class start wins when it is sooner, so the payment gate can never
+     * outlive the lesson it is paying for. A missing start keeps the seven-day
+     * horizon; every production acceptance supplies the start.
+     */
+    public static function paymentDueAt(string $createdAt, ?string $startsAtUtc): string {
+        $created = new \DateTimeImmutable($createdAt, new \DateTimeZone('UTC'));
+        $deadline = $created->modify('+' . self::PAYMENT_DEADLINE_SECONDS . ' seconds');
+        $start = trim((string) $startsAtUtc);
+        if ($start !== '') {
+            try {
+                $startAt = new \DateTimeImmutable($start, new \DateTimeZone('UTC'));
+                if ($startAt < $deadline) $deadline = $startAt;
+            } catch (\Throwable) {
+            }
+        }
+        return $deadline->format('Y-m-d H:i:s');
     }
 
     /** @return array{obligation_id:int,uid:string,reference:string,state:string,amount_minor:int,currency:string,created:bool} */
@@ -47,6 +74,8 @@ final class IntroPaymentService {
         $keyDigest = hash('sha256', 'dzn-intro-payment-obligation:' . trim($rawKey));
         $payloadDigest = hash('sha256', json_encode(array($bookingRequestId, $confirmationId, $studentId, $teacherId, $courseId, $region, $currency, $amount)));
         $now = gmdate('Y-m-d H:i:s');
+        $startsAtUtc = trim((string) ($context['starts_at_utc'] ?? ''));
+        $paymentDueAt = self::paymentDueAt($now, $startsAtUtc);
         $actor = max(0, (int) get_current_user_id());
         if (!$withinTransaction) $this->repository->begin();
         try {
@@ -61,6 +90,16 @@ final class IntroPaymentService {
                 if ((int) $existing->amount_minor !== $amount || (string) $existing->currency !== $currency || (int) $existing->confirmation_id !== $confirmationId) {
                     throw new \InvalidArgumentException('intro_payment_conflict');
                 }
+                // A row created before the deadline migration still converges to the
+                // same policy instead of staying pending forever.
+                if ((string) $existing->state === self::STATE_PENDING && ($existing->payment_due_at === null || trim((string) $existing->payment_due_at) === '')) {
+                    $this->repository->updateObligation((int) $existing->id, (int) $existing->version, array(
+                        'payment_due_at' => self::paymentDueAt((string) $existing->created_at, $startsAtUtc),
+                        'updated_at' => $now, 'updated_by' => $actor,
+                    ));
+                    $existing = $this->repository->obligation((int) $existing->id, true);
+                    if (!$existing) throw new \RuntimeException('intro_payment_obligation_required');
+                }
                 if (!$withinTransaction) $this->repository->commit();
                 return $this->shape($existing, false);
             }
@@ -74,6 +113,7 @@ final class IntroPaymentService {
                 'region_code' => $region, 'currency' => $currency, 'amount_minor' => $amount,
                 'state' => self::STATE_PENDING, 'provider_key' => self::PROVIDER_KEY,
                 'paid_at' => null, 'failed_at' => null, 'refunded_at' => null, 'failure_reason_code' => null,
+                'payment_due_at' => $paymentDueAt,
                 'version' => 1, 'created_at' => $now, 'created_by' => $actor, 'updated_at' => $now, 'updated_by' => $actor,
             ));
             $this->repository->insertCommand(array(
@@ -287,23 +327,159 @@ final class IntroPaymentService {
         return array('accepted' => true, 'reason' => null, 'obligation_id' => (int) $obligation->id, 'idempotent' => false, 'manual' => true, 'projection_pending' => $projectionPending);
     }
 
+    /**
+     * Expire one pending intro obligation whose payment deadline has passed.
+     *
+     * Locks the Student/Teacher scheduling roots in the documented order first,
+     * then the obligation and its confirmation. Failing the confirmation is what
+     * releases the slot (the occupancy authority ignores a failed confirmation),
+     * and closing the accepted delivery prevents a phantom active acceptance.
+     * Idempotent: a second pass sees `expired` and does nothing.
+     *
+     * @return array{obligation_id:int,state:string,expired:bool}
+     */
+    public function expireLapsedObligation(int $obligationId, string $now): array {
+        $now = trim($now) !== '' ? $now : gmdate('Y-m-d H:i:s');
+        $actor = function_exists('get_current_user_id') ? max(0, (int) get_current_user_id()) : 0;
+        $this->repository->begin();
+        try {
+            // Read the aggregate identity without a lock: the roots must be acquired
+            // before the obligation row, because the acceptance path holds the roots
+            // and then creates the obligation. Locking the row first would deadlock.
+            $observed = $this->repository->obligation($obligationId);
+            if (!$observed || (string) $observed->state !== self::STATE_PENDING || $observed->payment_due_at === null || (string) $observed->payment_due_at > $now) {
+                $this->repository->commit();
+                return array('obligation_id' => $obligationId, 'state' => $observed ? (string) $observed->state : 'missing', 'expired' => false);
+            }
+            $this->repository->lockSchedulingRoots((int) $observed->student_id, (int) $observed->teacher_id, $now, $actor);
+            $obligation = $this->repository->obligation($obligationId, true);
+            if (!$obligation || (string) $obligation->state !== self::STATE_PENDING || $obligation->payment_due_at === null || (string) $obligation->payment_due_at > $now) {
+                $this->repository->commit();
+                return array('obligation_id' => $obligationId, 'state' => $obligation ? (string) $obligation->state : 'missing', 'expired' => false);
+            }
+            $confirmation = $this->repository->confirmation((int) $obligation->confirmation_id, true);
+            if (!$confirmation || (string) $confirmation->state !== 'awaiting_payment') {
+                $this->repository->commit();
+                return array('obligation_id' => $obligationId, 'state' => (string) $obligation->state, 'expired' => false);
+            }
+            $this->repository->updateObligation((int) $obligation->id, (int) $obligation->version, array(
+                'state' => self::STATE_EXPIRED, 'failed_at' => $now,
+                'failure_reason_code' => 'payment_deadline_lapsed',
+                'updated_at' => $now, 'updated_by' => $actor,
+            ));
+            $this->repository->transitionConfirmation((int) $confirmation->id, (int) $confirmation->version, 'awaiting_payment', 'failed', 'payment_deadline_lapsed', $now, $actor);
+            $this->repository->closeActiveSession((int) $obligation->id, 'expired', 'payment_deadline_lapsed', $now);
+            $this->repository->closeDelivery((int) $confirmation->delivery_id, $now);
+            $this->repository->queueBookingNotification((int) $confirmation->delivery_id, (int) $confirmation->id, 'payment_lapsed', $now);
+            $this->repository->queueBookingNotification((int) $confirmation->delivery_id, (int) $confirmation->id, 'payment_lapsed_teacher', $now);
+            $this->refer((int) $obligation->booking_request_id, 'payment_deadline_lapsed', $now);
+            $this->audit('intro_payment_expired', 'payment_deadline_lapsed', (int) $obligation->booking_request_id, (int) $confirmation->id, (string) $obligation->uid, $now);
+            $this->repository->commit();
+        } catch (\Throwable $error) {
+            $this->repository->rollback();
+            throw $error;
+        }
+        return array('obligation_id' => $obligationId, 'state' => self::STATE_EXPIRED, 'expired' => true);
+    }
+
     private function confirmPaidBooking(int $confirmationId): void {
-        global $wpdb;
-        $p = $wpdb->prefix . 'dzn_';
-        $confirmation = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}booking_request_confirmations WHERE id=%d", $confirmationId));
-        if (!$confirmation || (string) $confirmation->state === 'confirmed') return;
-        if ((string) $confirmation->state === 'awaiting_payment') {
-            $now = gmdate('Y-m-d H:i:s');
-            $actor = max(0, (int) get_current_user_id());
-            $changed = $wpdb->update($p . 'booking_request_confirmations', array(
-                'state' => 'pending_projection', 'failure_reason_code' => null, 'next_attempt_at' => $now,
-                'version' => (int) $confirmation->version + 1, 'updated_at' => $now, 'updated_by' => $actor,
-            ), array('id' => $confirmationId, 'version' => (int) $confirmation->version, 'state' => 'awaiting_payment'));
-            if ($changed !== 1) throw new \RuntimeException('intro_payment_confirmation_changed');
-        } elseif (!in_array((string) $confirmation->state, array('pending_projection', 'awaiting_conference', 'retryable'), true)) {
+        $now = gmdate('Y-m-d H:i:s');
+        $actor = function_exists('get_current_user_id') ? max(0, (int) get_current_user_id()) : 0;
+        $conflict = false;
+        $confirmation = null;
+        $this->repository->begin();
+        try {
+            $confirmation = $this->repository->confirmation($confirmationId);
+            if (!$confirmation || (string) $confirmation->state === 'confirmed') {
+                $this->repository->commit();
+                return;
+            }
+            if (!in_array((string) $confirmation->state, array('awaiting_payment', 'pending_projection', 'awaiting_conference', 'retryable'), true)) {
+                $this->repository->commit();
+                return;
+            }
+            if ((string) $confirmation->state === 'awaiting_payment') {
+                $studentId = $this->repository->studentForRequest((int) $confirmation->booking_request_id);
+                if ($studentId < 1) throw new \RuntimeException('intro_payment_student_required');
+                $allocation = new BookingAllocationService();
+                // Root locks before the confirmation row lock: the acceptance path
+                // takes the same order, so a paid settlement cannot deadlock it.
+                $slot = $allocation->assertPaidSlotAvailable(
+                    (int) $confirmation->booking_request_id,
+                    (int) $confirmation->teacher_id,
+                    (int) $confirmation->requested_time_id,
+                    $studentId,
+                    (string) $confirmation->starts_at_utc,
+                    (string) $confirmation->ends_at_utc,
+                    $now
+                );
+                $locked = $this->repository->confirmation($confirmationId, true);
+                if (!$locked || (string) $locked->state !== 'awaiting_payment') {
+                    $this->repository->commit();
+                    return;
+                }
+                if ($slot === null) {
+                    // The money is safe. The obligation stays `paid` as a credit and
+                    // coordination arranges a new time; no refund is inferred here.
+                    $this->repository->transitionConfirmation((int) $locked->id, (int) $locked->version, 'awaiting_payment', 'failed', 'slot_taken_after_payment', $now, $actor);
+                    $this->repository->queueBookingNotification((int) $locked->delivery_id, (int) $locked->id, 'payment_conflict', $now);
+                    $this->refer((int) $locked->booking_request_id, 'payment_slot_conflict', $now);
+                    $this->audit('intro_payment_slot_conflict', 'payment_slot_conflict', (int) $locked->booking_request_id, (int) $locked->id, (string) $locked->uid, $now);
+                    $this->repository->commit();
+                    $conflict = true;
+                } else {
+                    $this->repository->transitionConfirmation((int) $locked->id, (int) $locked->version, 'awaiting_payment', 'pending_projection', null, $now, $actor);
+                    $allocation->retireOverlappingOffers((int) $locked->booking_request_id, (int) $locked->teacher_id, $slot['starts_at_utc'], $slot['occupied_ends_at_utc'], $now);
+                    $this->repository->commit();
+                }
+            } else {
+                $this->repository->commit();
+            }
+        } catch (\Throwable $error) {
+            $this->repository->rollback();
+            throw $error;
+        }
+        if ($conflict) {
+            $this->notifyPaymentConflict($confirmation);
             return;
         }
         $this->projector->dispatch($confirmationId);
+    }
+
+    private function refer(int $requestId, string $reason, string $now): void {
+        if ($this->coordination !== null) {
+            ($this->coordination)($requestId, $reason, $now);
+            return;
+        }
+        (new BookingAllocationRepository())->referral($requestId, $reason, $now);
+    }
+
+    private function audit(string $eventType, string $reason, int $requestId, int $confirmationId, string $uid, string $now): void {
+        $digest = hash('sha256', 'dzn-intro-payment-audit:' . $eventType . ':' . $uid);
+        if ($this->repository->auditByDigest($digest)) return;
+        try {
+            $this->repository->insertAudit(array(
+                'aggregate_type' => 'booking_confirmation', 'aggregate_id' => $confirmationId,
+                'event_type' => $eventType, 'actor_type' => 'system', 'actor_id' => 0,
+                'reason_code' => $reason,
+                'safe_detail' => (string) json_encode(array('booking_request_id' => $requestId, 'confirmation_id' => $confirmationId)),
+                'idempotency_key' => $digest, 'occurred_at' => $now,
+            ));
+        } catch (\Throwable $error) {
+            // A concurrent worker may have written the same idempotent audit row.
+            if (!$this->repository->auditByDigest($digest)) throw $error;
+        }
+    }
+
+    /** The admin notice is a portal inbox record; student/teacher mail is queued durably. */
+    private function notifyPaymentConflict(?object $confirmation): void {
+        if (!$confirmation || !class_exists(PortalNotificationRecorder::class)) return;
+        $link = function_exists('admin_url') ? admin_url('admin.php?page=dzn-booking-requests&request_id=' . (int) $confirmation->booking_request_id) : null;
+        try {
+            PortalNotificationRecorder::admin('booking.payment_conflict.admin', 'intro_payment_conflict', (int) $confirmation->id, array(), $link);
+        } catch (\Throwable $error) {
+            if (function_exists('do_action')) do_action('dzn_intro_payment_notification_failed', (int) $confirmation->id, get_class($error));
+        }
     }
 
     private function shape(object $obligation, bool $created): array {

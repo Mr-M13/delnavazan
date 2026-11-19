@@ -104,13 +104,15 @@ $assert(!str_contains($finance, 'sk_live_') && !str_contains($finance, 'sk_test_
 // Manual ledger independence.
 // Paid introductory payment lifecycle.
 $intro = $read('src/Core/Application/Finance/Intro/IntroPaymentService.php');
+$introRepo = $read('src/Core/Infrastructure/Repository/IntroPaymentRepository.php');
 $introCheckout = $read('src/Core/Application/Finance/Intro/IntroCheckoutInitiationService.php');
 $teacherResponse = $read('src/Core/Application/BookingTeacherResponseService.php');
 $projection = $read('src/Integrations/BookingCalendarProjectionService.php');
 $intake = $read('src/Core/Application/PaymentExecution/PaymentEventIntakeService.php');
 $studentController = $read('src/Portals/StudentCheckoutController.php');
 $portalRead = $read('src/Portals/PortalAuthenticatedReadService.php');
-$contains($intro, array('STATE_PENDING', 'STATE_PAID', 'STATE_REFUNDED', 'ensureObligation', 'recordProviderEvent', 'payment_succeeded', 'payment_failed', 'refund_recorded', 'intro_payment_amount_mismatch', 'confirmPaidBooking', 'booking_request_confirmations'), 'Paid intro must create an idempotent obligation and settle only verified provider evidence');
+$contains($intro, array('STATE_PENDING', 'STATE_PAID', 'STATE_REFUNDED', 'ensureObligation', 'recordProviderEvent', 'payment_succeeded', 'payment_failed', 'refund_recorded', 'intro_payment_amount_mismatch', 'confirmPaidBooking', 'assertPaidSlotAvailable', 'transitionConfirmation'), 'Paid intro must create an idempotent obligation and settle only verified provider evidence');
+$contains($introRepo, array('booking_request_confirmations', 'payment_due_at', 'transitionConfirmation'), 'The intro payment repository must own the confirmation settlement and payment deadline');
 $contains($introCheckout, array('IntroCheckoutInitiationService', 'checkout.stripe.com', 'activeSession', 'providerIdempotencyKey', 'storeReferences', 'intro_obligation_uid'), 'Paid intro Checkout must reuse the Stripe adapter and prevent duplicate sessions');
 $contains($teacherResponse, array('IntroPricingService', 'IntroPaymentService', 'awaiting_payment', 'intro_payment_student_required'), 'Teacher acceptance must stop at a payment gate for paid introductions');
 $assert(str_contains($teacherResponse, 'awaiting_payment') && !str_contains($teacherResponse, "state'=>'pending_projection'"), 'Paid acceptance must not project Calendar/Meet before payment');

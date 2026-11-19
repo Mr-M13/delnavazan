@@ -169,7 +169,11 @@ is optional strict parity. Docker is required only for the runtime suites.
   host-only `php platform/tests/booking-allocation-workload-unit.php`,
   `php platform/tests/booking-engine-capacity-unit.php`,
   `php platform/tests/booking-engine-scenario-date-unit.php` and
-  `bash platform/tests/booking-stress-runner-contract.sh`. The retired-URL surface is covered by
+  `bash platform/tests/booking-stress-runner-contract.sh`. The paid-intro Option B
+  surface is covered by `php platform/tests/booking-payment-expiry-unit.php`
+  (deadline math, expiry transition and slot release) and
+  `php platform/tests/booking-payment-slot-security-contract.php` (paid-intro
+  canonical visibility, unpaid non-blocking and conflict-at-payment). The retired-URL surface is covered by
   `php platform/tests/seo-legacy-redirects-contract.php` and
   `php platform/tests/seo-legacy-redirects-unit.php`: every URL in
   `deployment/seo/production-seo-baseline.csv` must stay mapped to a live target, and a retired path

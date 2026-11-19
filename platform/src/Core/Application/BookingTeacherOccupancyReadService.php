@@ -29,8 +29,15 @@ final class BookingTeacherOccupancyReadService {
      * @return list<array{lesson_id:int,starts_at_utc:string,occupied_ends_at_utc:string}>
      */
     public function range(int $teacherId,string $fromUtc,string $untilUtc,int $excludeLessonId=0,int $excludeBookingRequestId=0,bool $includePendingOffers=true):array{
-        $result=$this->canonical->inRange($teacherId,$fromUtc,$untilUtc,$excludeLessonId);
+        // Canonical committed confirmations are already part of the canonical range;
+        // the booking layer adds pending offers and the remaining live confirmations.
+        $result=$this->canonical->inRange($teacherId,$fromUtc,$untilUtc,$excludeLessonId,$excludeBookingRequestId);
         foreach(TeacherBookingOccupancyQuery::conflictsRange($teacherId,$fromUtc,$untilUtc,$excludeBookingRequestId,$includePendingOffers) as $conflict)$result[]=array('lesson_id'=>(int)$conflict['conflict_id'],'starts_at_utc'=>$conflict['starts_at_utc'],'occupied_ends_at_utc'=>$conflict['occupied_ends_at_utc']);
+        // A committed confirmation is visible through both seams. Deduplicate the
+        // identical conflict rows so the coverage clock never renders one class twice.
+        $unique=array();
+        foreach($result as $row)$unique[$row['lesson_id'].'|'.$row['starts_at_utc'].'|'.$row['occupied_ends_at_utc']]=$row;
+        $result=array_values($unique);
         usort($result,static fn(array $a,array $b):int=>($a['starts_at_utc']<=>$b['starts_at_utc'])?:($a['lesson_id']<=>$b['lesson_id']));
         return $result;
     }

@@ -47,6 +47,10 @@ final class IntroCheckoutInitiationService {
         try {
             $obligation = $this->repository->obligationByUid($uid, true);
             if (!$obligation || (int) $obligation->student_id !== $studentId || (string) $obligation->state !== IntroPaymentService::STATE_PENDING) throw new \InvalidArgumentException('checkout_unavailable');
+            // A lapsed payment gate never opens a new provider session; the expiry
+            // worker will close the obligation and release the slot.
+            $dueAt = trim((string) ($obligation->payment_due_at ?? ''));
+            if ($dueAt !== '' && $dueAt <= gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('checkout_unavailable');
             $confirmation = $this->confirmation((int) $obligation->confirmation_id);
             if (!$confirmation || (string) $confirmation->state !== 'awaiting_payment' || (int) $confirmation->booking_request_id !== (int) $obligation->booking_request_id || !$this->bookingOwnedBy((int) $confirmation->booking_request_id, $studentId)) throw new \InvalidArgumentException('checkout_unavailable');
             $now = gmdate('Y-m-d H:i:s');

@@ -50,8 +50,8 @@ final class LessonRescheduleService {
         ?callable $availabilityConfirmation=null
     ){
         $this->store??=new LessonRescheduleRepository();
-        $this->teacherConflict=$teacherConflict??static function(int $teacherId,string $startsAtUtc,string $occupiedEndUtc,int $excludeLessonId):array{
-            return (new CanonicalTeacherOccupancyReadService())->overlapping($teacherId,$startsAtUtc,$occupiedEndUtc,$excludeLessonId);
+        $this->teacherConflict=$teacherConflict??static function(int $teacherId,string $startsAtUtc,string $occupiedEndUtc,int $excludeLessonId,int $excludeBookingRequestId=0):array{
+            return (new CanonicalTeacherOccupancyReadService())->overlapping($teacherId,$startsAtUtc,$occupiedEndUtc,$excludeLessonId,$excludeBookingRequestId);
         };
         $this->commit=$commit??static function(array $payload):array{
             return LessonRescheduleSystemActor::run(static function()use($payload):array{
@@ -174,7 +174,7 @@ final class LessonRescheduleService {
                 $outsideAvailabilityConfirmed=true;
             }
             if(strtotime($starts.' UTC')>(($this->clock)()+self::MAX_HORIZON_DAYS*86400))throw new \InvalidArgumentException('reschedule_horizon_exceeded');
-            if(($this->teacherConflict)((int)$context->teacher_id,$starts,$occupied,(int)$context->lesson_id))throw new \InvalidArgumentException('teacher_slot_conflict');
+            if(($this->teacherConflict)((int)$context->teacher_id,$starts,$occupied,(int)$context->lesson_id,(int)($context->booking_request_id??0)))throw new \InvalidArgumentException('teacher_slot_conflict');
             if($this->store->studentConflict((int)$context->student_id,$starts,$occupied,(int)$context->lesson_id))throw new \InvalidArgumentException('student_slot_conflict');
 
             $uid=Identifier::uid();
@@ -347,7 +347,7 @@ final class LessonRescheduleService {
             if($this->store->studentConflict($studentId,(string)$proposal->proposed_starts_at_utc,(string)$proposal->proposed_occupied_ends_at_utc,(int)$proposal->lesson_id))throw new \InvalidArgumentException('student_slot_conflict');
             // The canonical service rechecks Teacher occupancy, protected capacity, availability,
             // assignment applicability and the expected version under the Teacher root.
-            if(($this->teacherConflict)((int)$proposal->teacher_id,(string)$proposal->proposed_starts_at_utc,(string)$proposal->proposed_occupied_ends_at_utc,(int)$proposal->lesson_id))throw new \InvalidArgumentException('teacher_slot_conflict');
+            if(($this->teacherConflict)((int)$proposal->teacher_id,(string)$proposal->proposed_starts_at_utc,(string)$proposal->proposed_occupied_ends_at_utc,(int)$proposal->lesson_id,(int)($context->booking_request_id??0)))throw new \InvalidArgumentException('teacher_slot_conflict');
 
             $kind=$this->store->proposalKind((int)$proposal->id);
             $proposalVersion=(int)$proposal->version;

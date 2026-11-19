@@ -23,7 +23,7 @@ namespace Delnavazan\Platform\Integrations\Notifications;
  *   never rendered into a message.
  */
 final class NotificationCatalogue {
-    public const VERSION='2026-11-18.2';
+    public const VERSION='2026-11-19.1';
     public const PRIMARY_LOCALE='fa-IR';
     public const SUPPORTED_LOCALES=array('fa-IR','en');
 
@@ -365,6 +365,34 @@ final class NotificationCatalogue {
                 'whatsapp'=>array('body'=>'Hello {{name}}, unfortunately {{teacher}} cannot accept your introductory {{course}} lesson at this time. Choose another time in your account: {{portal_url}} — Delnavazan'),
             ),
         ));
+        $out[]=self::event('booking.payment_lapsed.student','Intro Payment Deadline Lapsed','booking','student','IntroPaymentExpiryWorker','queue',array('email','website'),'operational',true,array('name','teacher','course','when','portal_url'),'booking.payment_lapsed.student',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · مهلت پرداخت کلاس آشنایی گذشت','body'=>"درود {{name}}،\n\nمهلت پرداخت هزینهٔ کلاس آشنایی «{{course}}» با {{teacher}} در {{when}} به پایان رسید. چون پرداخت در این بازه ثبت نشد، این جایگاه آزاد شد و کلاس ساخته نشد.\n\nاگر همچنان می‌خواهید کلاس آشنایی را داشته باشید، از حساب کاربری زمان تازه‌ای انتخاب کنید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'مهلت پرداخت کلاس آشنایی گذشت','body'=>'مهلت پرداخت کلاس آشنایی «{{course}}» با {{teacher}} در {{when}} گذشت و جایگاه آزاد شد. برای انتخاب زمان تازه به حساب کاربری بروید.'),
+                'sms'=>array('body'=>'دلنوازان: مهلت پرداخت کلاس {{course}} با {{teacher}} برای {{when}} گذشت و جایگاه آزاد شد. {{portal_url}}'),
+                'whatsapp'=>array('body'=>'درود {{name}}، مهلت پرداخت کلاس آشنایی «{{course}}» با {{teacher}} در {{when}} گذشت و جایگاه آزاد شد. اگر همچنان می‌خواهید، از حساب کاربری زمان تازه انتخاب کنید: {{portal_url}} — دلنوازان'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · introductory payment deadline passed','body'=>"Hello {{name}},\n\nThe payment deadline for your introductory {{course}} lesson with {{teacher}} at {{when}} has passed. No payment was recorded, so the place was released and no class was created.\n\nIf you still want the introductory lesson, choose a new time in your account:\n{{portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Introductory payment deadline passed','body'=>'The payment deadline for your {{course}} lesson with {{teacher}} at {{when}} passed and the place was released. Choose a new time in your account.'),
+                'sms'=>array('body'=>'Delnavazan: payment deadline for {{course}} with {{teacher}} at {{when}} passed; the place was released. {{portal_url}}'),
+                'whatsapp'=>array('body'=>'Hello {{name}}, the payment deadline for your introductory {{course}} lesson with {{teacher}} at {{when}} has passed and the place was released. Choose a new time in your account: {{portal_url}} — Delnavazan'),
+            ),
+        ));
+        $out[]=self::event('booking.payment_conflict.student','Intro Payment Slot Conflict','booking','student','IntroPaymentService','queue',array('email','website'),'operational',true,array('name','teacher','course','when','portal_url'),'booking.payment_conflict.student',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · پرداخت ثبت شد؛ زمان در حال هماهنگی است','body'=>"درود {{name}}،\n\nپرداخت شما برای کلاس آشنایی «{{course}}» با {{teacher}} با موفقیت ثبت شد؛ اما پیش از نهایی‌شدن پرداخت، زمان {{when}} توسط رزرو دیگری گرفته شد.\n\nپرداخت شما ایمن است و به‌عنوان اعتبار نزد دلنوازان نگه داشته می‌شود. آموزشگاه برای هماهنگی زمان تازه با شما تماس می‌گیرد و نیازی به پرداخت دوباره نیست.\n\nجزئیات در حساب کاربری:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'پرداخت ثبت شد؛ زمان کلاس در حال هماهنگی است','body'=>'پرداخت شما ثبت شد اما زمان کلاس {{when}} پیش از نهایی‌شدن پرداخت گرفته شد. پرداخت شما ایمن است؛ آموزشگاه برای تعیین زمان تازه با شما تماس می‌گیرد.'),
+                'sms'=>array('body'=>'دلنوازان: پرداخت {{course}} با {{teacher}} برای {{when}} ثبت شد اما زمان گرفته شد؛ مبلغ اعتبار است. {{portal_url}}'),
+                'whatsapp'=>array('body'=>'درود {{name}}، پرداخت کلاس آشنایی «{{course}}» با {{teacher}} ثبت شد اما زمان {{when}} پیش از نهایی‌شدن پرداخت گرفته شد. پرداخت شما ایمن است و آموزشگاه برای زمان تازه تماس می‌گیرد: {{portal_url}} — دلنوازان'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · payment received; time being rearranged','body'=>"Hello {{name}},\n\nYour payment for the introductory {{course}} lesson with {{teacher}} was received, but the time {{when}} was taken by another booking before the payment settled.\n\nYour payment is safe and held as credit with Delnavazan. The academy will contact you to arrange a new time; you do not need to pay again.\n\nDetails in your account:\n{{portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Payment received; class time being rearranged','body'=>'Your payment was received, but the class time {{when}} was taken before the payment settled. Your payment is safe; the academy will contact you to arrange a new time.'),
+                'sms'=>array('body'=>'Delnavazan: {{course}} with {{teacher}} at {{when}} paid, but the time was taken; amount held as credit. {{portal_url}}'),
+                'whatsapp'=>array('body'=>'Hello {{name}}, your payment for the introductory {{course}} lesson with {{teacher}} at {{when}} was received, but the time was taken before it settled. Your payment is safe as credit and the academy will contact you: {{portal_url}} — Delnavazan'),
+            ),
+        ));
         $out[]=self::event('booking.cancelled.student','Intro Lesson Cancelled','booking','student','IntroLessonLifecycleService','queue',array('email','website','whatsapp'),'operational',true,array('name','teacher','course','when','portal_url'),'booking.cancelled',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · کلاس آشنایی لغو شد','body'=>"درود {{name}}،\n\nکلاس آشنایی «{{course}}» با {{teacher}} در {{when}} لغو شد. این لغو به معنی ثبت حضور یا پرداخت نیست.\n\nجزئیات در حساب کاربری:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
@@ -571,6 +599,20 @@ final class NotificationCatalogue {
             self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'مهلت پاسخ درخواست آشنایی پایان یافت','body'=>'مهلت پاسخ این درخواست پایان یافته است. درخواست دیگر برای شما قابل پذیرش نیست و به مدرس بعدی یا هماهنگی آکادمی سپرده شده است.')),
             'en'=>array('website'=>array('subject'=>'Intro offer response deadline has passed','body'=>'The response deadline for this request has passed. It can no longer be accepted by you and has been passed to the next Teacher or to academy coordination.')),
         ));
+        $out[]=self::event('booking.payment_lapsed.teacher','Intro Payment Deadline Lapsed','booking','teacher','IntroPaymentExpiryWorker','queue',array('email','website'),'operational',true,array('teacher','student','course','when','teacher_portal_url'),'booking.payment_lapsed.teacher',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · مهلت پرداخت هنرجو گذشت','body'=>"درود {{teacher}}،\n\nمهلت پرداخت کلاس آشنایی «{{course}}» با هنرجو {{student}} در {{when}} گذشت. پرداخت ثبت نشد، بنابراین این جایگاه آزاد شد و رویداد تقویم یا کلاس آنلاین ساخته نمی‌شود.\n\nنیازی به اقدام نیست؛ در صورت هماهنگی تازه، آموزشگاه با شما تماس می‌گیرد.\n\nپرتال مدرس:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'مهلت پرداخت هنرجو گذشت','body'=>'مهلت پرداخت کلاس آشنایی «{{course}}» با هنرجو {{student}} در {{when}} گذشت و جایگاه آزاد شد.'),
+                'sms'=>array('body'=>'دلنوازان: مهلت پرداخت {{course}} با {{student}} برای {{when}} گذشت و جایگاه آزاد شد؛ نیازی به اقدام نیست. {{teacher_portal_url}}'),
+                'whatsapp'=>array('body'=>'درود {{teacher}}، مهلت پرداخت کلاس آشنایی «{{course}}» با {{student}} در {{when}} گذشت و جایگاه آزاد شد. نیازی به اقدام نیست؛ در صورت هماهنگی تازه آموزشگاه تماس می‌گیرد: {{teacher_portal_url}} — دلنوازان'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · introductory payment deadline passed','body'=>"Hello {{teacher}},\n\nThe payment deadline for the introductory {{course}} lesson with {{student}} at {{when}} has passed. No payment was recorded, so the place was released and no calendar event or online class will be created.\n\nNo action is needed; the academy will contact you if a new arrangement is agreed.\n\nTeacher Portal:\n{{teacher_portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Student payment deadline passed','body'=>'The payment deadline for the introductory {{course}} lesson with {{student}} at {{when}} passed and the place was released.'),
+                'sms'=>array('body'=>'Delnavazan: {{course}} with {{student}} at {{when}} payment deadline passed; place released. No action needed. {{teacher_portal_url}}'),
+                'whatsapp'=>array('body'=>'Hello {{teacher}}, the payment deadline for the introductory {{course}} lesson with {{student}} at {{when}} has passed and the place was released. No action is needed; the academy will contact you if a new arrangement is agreed: {{teacher_portal_url}} — Delnavazan'),
+            ),
+        ));
         $out[]=self::event('booking.cancelled.teacher','Intro Lesson Cancelled','booking','teacher','IntroLessonLifecycleService','queue',array('email','website'),'operational',true,array('teacher','student','course','when','teacher_portal_url'),'booking.cancelled.teacher',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · کلاس آشنایی لغو شد','body'=>"درود {{teacher}}،\n\nکلاس آشنایی «{{course}}» با {{student}} در {{when}} لغو شد. این لغو به معنی ثبت حضور یا پرداخت نیست.\n\nپرتال مدرس:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
@@ -642,6 +684,20 @@ final class NotificationCatalogue {
         $out[]=self::event('booking.referral.admin','Intro Booking Needs Coordination','booking','admin','BookingAllocationWorker','queue',array('website'),'operational',true,array(),'booking.referral.admin',array(
             self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'درخواست آشنایی نیازمند هماهنگی است','body'=>'مدرس مناسبی برای درخواست پیدا نشد یا نوبت همهٔ مدرس‌ها پایان یافت. درخواست را در صف هماهنگی بررسی کنید.')),
             'en'=>array('website'=>array('subject'=>'Intro booking needs coordination','body'=>'No suitable Teacher was found for the request, or every Teacher turn has ended. Review the request in the coordination queue.')),
+        ));
+        $out[]=self::event('booking.payment_conflict.admin','Intro Payment Slot Conflict','booking','admin','IntroPaymentService','queue',array('website','email'),'operational',true,array(),'booking.payment_conflict.admin',array(
+            self::PRIMARY_LOCALE=>array(
+                'email'=>array('subject'=>'دلنوازان · تعارض پرداخت کلاس آشنایی','body'=>"درود،\n\nیک پرداخت کلاس آشنایی پس از گرفته‌شدن جایگاه ثبت شد. مبلغ به‌عنوان اعتبار هنرجو نگه داشته شده و پروندهٔ هماهنگی برای تعیین زمان تازه باز شده است. لطفاً در میز هماهنگی بررسی کنید."),
+                'website'=>array('subject'=>'تعارض پرداخت کلاس آشنایی','body'=>'پرداخت پس از گرفته‌شدن جایگاه ثبت شد؛ مبلغ به‌عنوان اعتبار نگه داشته شده و پروندهٔ هماهنگی باز است.'),
+                'sms'=>array('body'=>'دلنوازان: پرداخت کلاس آشنایی پس از گرفته‌شدن جایگاه ثبت شد؛ مبلغ اعتبار است و پروندهٔ هماهنگی باز است.'),
+                'whatsapp'=>array('body'=>'درود، پرداخت کلاس آشنایی پس از گرفته‌شدن جایگاه ثبت شد. مبلغ به‌عنوان اعتبار نگه داشته شده و پروندهٔ هماهنگی برای زمان تازه باز است. لطفاً میز هماهنگی را بررسی کنید — دلنوازان'),
+            ),
+            'en'=>array(
+                'email'=>array('subject'=>'Delnavazan · introductory payment slot conflict','body'=>"Hello,\n\nAn introductory payment settled after the class time had already been taken. The amount is held as student credit and a coordination case is open to arrange a new time. Please review it in the coordination workspace."),
+                'website'=>array('subject'=>'Introductory payment slot conflict','body'=>'A payment settled after the class time was taken; the amount is held as credit and a coordination case is open.'),
+                'sms'=>array('body'=>'Delnavazan: an introductory payment settled after the time was taken; the amount is credit and a coordination case is open.'),
+                'whatsapp'=>array('body'=>'Hello, an introductory payment settled after the class time had already been taken. The amount is held as student credit and a coordination case is open for a new time. Please review the coordination workspace — Delnavazan'),
+            ),
         ));
         $out[]=self::event('booking.submitted.admin','New Intro Booking Received','booking','admin','BookingRequestSubmissionService','queue',array('website'),'operational',true,array('booking_reference','learner_name','instrument','course','requested_time','queue_url'),'booking.submitted.admin',array(
             self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'درخواست کلاس آشنایی جدید ثبت شد','body'=>'درخواست {{booking_reference}} از {{learner_name}} برای {{instrument}} ({{course}}) با زمان پیشنهادی {{requested_time}} ثبت شد و در انتظار هماهنگی است. صف هماهنگی: {{queue_url}}')),
@@ -1185,6 +1241,8 @@ final class NotificationCatalogue {
     private static function purpose(string $key,string $label,string $audience):string{
         if(str_starts_with($key,'reschedule.change.'))return 'Requests or records a lesson-time change and tells the recipient whether they must accept, decline or wait for the other party.';
         if(str_starts_with($key,'reschedule.replacement.'))return 'Coordinates a replacement session, including the proposed time, response deadline and resulting decision.';
+        if(str_starts_with($key,'booking.payment_lapsed.'))return 'Explains that the payment deadline passed, the place was released and the student may choose a new time.';
+        if(str_starts_with($key,'booking.payment_conflict.'))return 'Explains that the payment settled after the class time was taken, that the money is safe as credit, and who will arrange a new time.';
         if(str_starts_with($key,'booking.confirmed.'))return $audience==='teacher'?'Confirms the accepted introductory booking and gives the Teacher the student, time and portal details.':'Confirms the student’s introductory lesson and provides the time and account link.';
         if(str_starts_with($key,'booking.requested.')||str_starts_with($key,'booking.new.'))return $audience==='teacher'?'Alerts the Teacher to a new student request and the deadline for responding.':'Confirms that the student’s booking request was received and is awaiting a decision.';
         if(str_starts_with($key,'booking.cancelled.'))return 'Explains that the introductory booking was cancelled, who initiated the change and what the recipient should do next.';

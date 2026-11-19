@@ -305,7 +305,10 @@ final class CanonicalLessonScheduleService {
     }
 
     private function assertCapacity(int $teacherId,string $startsAt,string $occupiedEnd,int $lessonId,?object $lesson=null,?array $schedule=null,int $allowMoveIntervalId=0):void{
-        if($this->occupancy->overlapping($teacherId,$startsAt,$occupiedEnd,$lessonId))throw new \InvalidArgumentException('teacher_slot_conflict');
+        // The Lesson's own introductory confirmation is the same commitment, now
+        // canonical; it must not block the Lesson derived from that request.
+        $bookingRequestId=$lesson!==null?(int)($lesson->booking_request_id??0):0;
+        if($this->occupancy->overlapping($teacherId,$startsAt,$occupiedEnd,$lessonId,$bookingRequestId))throw new \InvalidArgumentException('teacher_slot_conflict');
         // Phase 2A.2-Q: an active pre-payment continuation hold is real Teacher capacity. The hold is
         // never a Lesson schedule, but the same capacity gate must consider both authorities.
         CanonicalContinuationCapacityAuthority::assertNoActiveHold($teacherId,$startsAt,$occupiedEnd);

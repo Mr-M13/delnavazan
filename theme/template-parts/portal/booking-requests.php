@@ -29,7 +29,7 @@ if ( ! $requests ) { return; }
 					: number_format( $amount ) . ' ' . $currency;
 				$payment_state = (string) ( $intro_payment['state'] ?? 'pending' );
 				$failure = (string) ( $intro_payment['failure_reason_code'] ?? '' );
-				$payment_label = $payment_state === 'paid' ? 'پرداخت شده' : ( $payment_state === 'refunded' ? 'بازپرداخت شده' : ( $failure === 'payment_failed' ? 'پرداخت ناموفق — امکان تلاش دوباره' : 'در انتظار پرداخت' ) );
+				$payment_label = $payment_state === 'paid' ? 'پرداخت شده' : ( $payment_state === 'refunded' ? 'بازپرداخت شده' : ( $payment_state === 'expired' || $failure === 'payment_deadline_lapsed' ? 'مهلت پرداخت گذشته — جایگاه آزاد شد' : ( $failure === 'payment_failed' ? 'پرداخت ناموفق — امکان تلاش دوباره' : 'در انتظار پرداخت' ) ) );
 				?>
 				<div class="dzn-booking-requests__payment" data-dzn-intro-payment>
 					<p><strong>هزینهٔ کلاس آشنایی:</strong> <?php echo esc_html( $formatted ); ?> — <span><?php echo esc_html( $payment_label ); ?></span></p>

@@ -189,7 +189,7 @@ final class PortalAuthenticatedReadService {
         $p = $wpdb->prefix . 'dzn_';
         $requests = (array) $wpdb->get_results( $wpdb->prepare(
             "SELECT r.id,r.uid,r.reference_code,r.lifecycle_status,r.resolution_state,r.created_at,i.name_fa instrument_name_fa,i.name_en instrument_name_en,c.name_fa course_name_fa,c.name_en course_name_en,
-                    conf.state confirmation_state,intro.uid intro_uid,intro.reference_code intro_reference,intro.state intro_state,intro.amount_minor intro_amount_minor,intro.currency intro_currency,intro.failure_reason_code intro_failure_reason_code
+                    conf.state confirmation_state,intro.uid intro_uid,intro.reference_code intro_reference,intro.state intro_state,intro.amount_minor intro_amount_minor,intro.currency intro_currency,intro.failure_reason_code intro_failure_reason_code,intro.payment_due_at intro_payment_due_at
              FROM {$p}booking_requests r
              INNER JOIN {$p}booking_request_identity_resolution_events e ON e.id=r.current_identity_resolution_id AND e.booking_request_id=r.id AND e.student_id=r.student_id AND e.outcome='resolved'
              INNER JOIN {$p}instruments i ON i.id=r.requested_instrument_id
@@ -218,6 +218,7 @@ final class PortalAuthenticatedReadService {
                     'amount_minor' => (int) $request->intro_amount_minor,
                     'currency' => (string) $request->intro_currency,
                     'failure_reason_code' => $request->intro_failure_reason_code === null ? null : (string) $request->intro_failure_reason_code,
+                    'payment_due_at' => $request->intro_payment_due_at === null ? null : (string) $request->intro_payment_due_at,
                     'payment_required' => (string) $request->confirmation_state === 'awaiting_payment' && (string) $request->intro_state === 'pending',
                 );
             }

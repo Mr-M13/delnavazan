@@ -599,6 +599,20 @@ final class EnrolmentWorkspaceReadService {
         )) ?: array();
     }
 
+    /** Active Teachers for the coordination override picker. */
+    public function overrideTeacherOptions(int $limit = 200): array {
+        $this->requireAny(array('dzn_manage_booking_request_coordination'));
+        global $wpdb;
+        $limit = max(1, min(200, $limit));
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT t.id,t.reference_code,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) display_name,t.email,t.timezone
+             FROM {$this->p}teachers t
+             WHERE t.archived_at IS NULL AND t.status='active'
+             ORDER BY display_name ASC LIMIT %d",
+            $limit
+        )) ?: array();
+    }
+
     /** @return array<int,object> */
     public function courseOptions(string $search = '', int $limit = 250): array {
         $this->requireAny(array('dzn_manage_courses', 'dzn_manage_enrolments', 'dzn_manage_lessons', 'dzn_manage_canonical_lessons'));
@@ -1490,6 +1504,7 @@ final class EnrolmentWorkspaceReadService {
 
     /** @return array<int,array<string,mixed>> */
     private function bookingTimeline(int $requestId): array {
+        global $wpdb;
         $events = array();
         $case = $this->coordinationCase($requestId);
         if ($case) {
@@ -1503,6 +1518,21 @@ final class EnrolmentWorkspaceReadService {
         }
         $confirmation = $this->confirmedBooking($requestId);
         if ($confirmation) $events[] = array('at' => (string) ($confirmation['confirmed_at'] ?? ''), 'label' => 'Introductory booking ' . $confirmation['state_label'], 'detail' => $confirmation['label']);
+        $overrideAudits = $wpdb->get_results($wpdb->prepare(
+            "SELECT occurred_at,safe_detail FROM {$this->p}platform_audit_events
+              WHERE aggregate_type='booking_request' AND aggregate_id=%d AND event_type='booking_request.total_scheduling_override'
+              ORDER BY id",
+            $requestId
+        )) ?: array();
+        foreach ($overrideAudits as $audit) {
+            $detail = json_decode((string) ($audit->safe_detail ?? ''), true);
+            $detail = is_array($detail) ? $detail : array();
+            $events[] = array(
+                'at' => (string) ($audit->occurred_at ?? ''),
+                'label' => 'Total scheduling override',
+                'detail' => 'Teacher #' . (int) ($detail['teacher_id'] ?? 0) . ' · ' . (string) ($detail['starts_at_utc'] ?? '') . ' UTC · ' . (string) ($detail['timezone'] ?? ''),
+            );
+        }
         $outcome = $this->introOutcome($requestId);
         if ($outcome) $events[] = array('at' => (string) $outcome['recorded_at'], 'label' => 'Intro outcome: ' . $outcome['label'], 'detail' => $outcome['note']);
         $prep = $this->postIntro($requestId);

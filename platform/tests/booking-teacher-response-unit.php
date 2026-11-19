@@ -7,7 +7,10 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public ?object $request = null;
         public array $requestedTimes = array();
         public ?object $offer = null;
+        public ?object $course = null;
         public ?object $confirmationRequest = null;
+        public int $studentConflictCalls = 0;
+        public int $teacherConflictCalls = 0;
         public array $commands = array();
         public array $confirmations = array();
         public array $notifications = array();
@@ -31,6 +34,15 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function teacherForUser(int $userId,bool $lock=false): ?object { return $userId === 27 ? $this->teacher : null; }
         public function deliveryByUid(string $uid,bool $lock=false): ?object { return $uid === $this->delivery->uid ? $this->delivery : null; }
         public function requestByUid(string $uid,bool $lock=false): ?object { return $this->request && $uid === (string) $this->request->uid ? $this->request : null; }
+        public function requestById(int $id,bool $lock=false): ?object { return $this->request && (int)$this->request->id === $id ? $this->request : null; }
+        public function teacherForOverride(int $teacherId,bool $lock=false): ?object { return (int)$this->teacher->id === $teacherId ? $this->teacher : null; }
+        public function course(int $id): ?object { return $this->course && (int)$this->course->id === $id ? $this->course : null; }
+        public function requestedTimeByFacts(int $requestId,string $date,string $time,string $timezone,int $duration,int $buffer): ?object { foreach($this->requestedTimes as $row)if((string)$row->local_date===$date&&(string)$row->local_start_time===$time&&(string)$row->timezone===$timezone&&(int)$row->instructional_duration_minutes===$duration&&(int)$row->buffer_minutes===$buffer)return $row; return null; }
+        public function appendRequestedTime(int $requestId,array $data): int { $id=500+count($this->requestedTimes); $data['id']=$id; $this->requestedTimes[$id]=(object)$data; return $id; }
+        public function touchRequest(int $requestId,int $actor,string $now): void {}
+        public function reassignDeliveryForOverride(int $deliveryId,int $requestId,int $teacherId,int $requestedTimeId,string $now): void { $this->delivery->teacher_id=$teacherId;$this->delivery->requested_time_id=$requestedTimeId;$this->delivery->state='pending_request';$this->delivery->match_strength='total_override';$this->selectTimeFields($requestedTimeId); }
+        public function retireActiveOfferForRequest(int $requestId,string $now,string $reason): void { $this->offer=null; }
+        public function delivery(int $id,bool $lock=false): ?object { return (int)$this->delivery->id === $id ? $this->delivery : null; }
         public function requestedTime(int $requestId,int $timeId,bool $lock=false): ?object { return $this->requestedTimes[$timeId] ?? null; }
         public function deliveryForRequest(int $requestId,bool $lock=false): ?object { return (int) $this->delivery->booking_request_id === $requestId ? $this->delivery : null; }
         public function offerForTeacher(int $requestId,int $teacherId,bool $lock=false): ?object { return $this->offer; }
@@ -54,8 +66,8 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository {
         public function confirmationForDelivery(int $deliveryId,bool $lock=false): ?object { foreach($this->confirmations as $row)if((int)$row->delivery_id===$deliveryId)return $row;return null; }
         public function ensureAndLockStudentRoot(int $studentId,string $now,int $actor): void {}
         public function ensureAndLockTeacherRoot(int $teacherId,string $now,int $actor): void {}
-        public function teacherOccupancyConflicts(int $teacherId,string $start,string $end,int $exclude=0): array { return $this->teacherConflicts; }
-        public function studentOccupancyConflicts(int $studentId,array $times,array $options=array()): array { return $this->slotConflicts; }
+        public function teacherOccupancyConflicts(int $teacherId,string $start,string $end,int $exclude=0): array { $this->teacherConflictCalls++;return $this->teacherConflicts; }
+        public function studentOccupancyConflicts(int $studentId,array $times,array $options=array()): array { $this->studentConflictCalls++;return $this->slotConflicts; }
         public function updateConfirmation(int $id,int $version,array $data): void { $row=$this->confirmations[$id]??null;if(!$row||(int)$row->version!==$version)throw new \RuntimeException('confirmation version mismatch');foreach($data as $key=>$value)$row->{$key}=$value;$row->version=$version+1; }
         public function notificationForDeliveryKind(int $deliveryId,string $kind): ?object { return $this->notifications[$deliveryId.'|'.$kind] ?? null; }
         public function insertNotification(array $data): int { $this->notifications[$data['delivery_id'].'|'.$data['notification_kind']] = (object) $data; return count($this->notifications); }
@@ -85,7 +97,9 @@ namespace Delnavazan\Platform\Core\Application {
 }
 namespace {
     function get_current_user_id(): int { return 27; }
+    function current_user_can(string $capability): bool { return true; }
     function wp_salt(string $scheme='auth'): string { return 'booking-response-unit-test-salt-material'; }
+    function wp_json_encode($value): string|false { return json_encode($value); }
     function do_action(string $hook, ...$args): void {}
 
     require_once dirname(__DIR__) . '/src/Core/Application/BookingContention.php';
@@ -242,5 +256,33 @@ namespace {
     try{(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($opportunityRepository,null,$freePricing))->claim($opportunityRepository->request->uid,14,'opportunity-decline-reclaim');}
     catch(\InvalidArgumentException $error){$blockedClaim=$error->getMessage()==='Booking request is no longer available';}
     $assert($blockedClaim,'A declined opportunity must not be silently re-offered to the same Teacher.');
+
+    // The administrator total override may re-point an expired delivery to any active
+    // Teacher and any future local time. Occupancy and readiness are deliberately bypassed,
+    // while the normal confirmation/payment/projection path still runs and the action is audited.
+    $overrideRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
+    $overrideRepository->request=(object)array('id'=>12,'uid'=>'01ARZ3NDEKTSV4RRFFQ69G5FAY','lifecycle_status'=>'submitted','resolution_state'=>'unresolved','privacy_erased_at'=>null,'student_id'=>55,'selected_intro_course_id'=>77);
+    $overrideRepository->course=(object)array('id'=>77,'instrument_id'=>15,'course_type'=>'introductory','status'=>'active','archived_at'=>null,'default_duration_minutes'=>30,'default_buffer_minutes'=>15);
+    $overrideRepository->delivery->state='expired';
+    $overrideRepository->delivery->lifecycle_status='submitted';
+    $overrideRepository->delivery->resolution_state='unresolved';
+    $overrideRepository->delivery->privacy_erased_at=null;
+    $overrideRepository->teacher->onboarding_state='in_progress';
+    $overrideRepository->teacher->readiness_state='not_ready';
+    $overrideRepository->slotConflicts=array(array('conflict_id'=>999));
+    $overrideRepository->teacherConflicts=array(array('conflict_id'=>998));
+    $override=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($overrideRepository,null,$freePricing))->administratorTotalOverrideConfirmDelivery(
+        12,9,array('local_date'=>'2026-11-20','local_start_time'=>'12:00','timezone'=>'Australia/Brisbane'),'Agreed by phone with the Teacher and Student','total-override-once'
+    );
+    $assert($override['state']==='accepting' && $overrideRepository->delivery->state==='accepting','The total override must enter provider projection with a confirmation.');
+    $assert($overrideRepository->studentConflictCalls===0 && $overrideRepository->teacherConflictCalls===0,'The total override must bypass Student and Teacher occupancy reads.');
+    $assert((int)$overrideRepository->delivery->teacher_id===9 && (int)$overrideRepository->delivery->requested_time_id===500,'The total override must re-point the expired delivery to the chosen Teacher and time.');
+    $overrideTime=$overrideRepository->requestedTimes[500]??null;
+    $assert($overrideTime!==null && (string)$overrideTime->starts_at_utc==='2026-11-20 02:00:00' && (string)$overrideTime->instructional_ends_at_utc==='2026-11-20 02:30:00','The override must append the exact local time as a requested-time fact in UTC.');
+    $overrideConfirmation=$overrideRepository->confirmations[(int)$override['confirmation_id']]??null;
+    $assert($overrideConfirmation!==null && (int)$overrideConfirmation->teacher_id===9 && (string)$overrideConfirmation->starts_at_utc==='2026-11-20 02:00:00','The override confirmation must use the chosen Teacher and exact instant.');
+    $overrideAudit=array_values(array_filter($overrideRepository->audits,static fn($row)=>(string)$row->event_type==='booking_request.total_scheduling_override' && (string)$row->reason_code==='total_override'));
+    $assert(count($overrideAudit)===1 && str_contains((string)$overrideAudit[0]->safe_detail,'teacher_occupancy') && str_contains((string)$overrideAudit[0]->safe_detail,'student_occupancy'),'The total override must record which scheduling constraints were bypassed.');
+
     echo "Booking teacher response unit passed\n";
 }

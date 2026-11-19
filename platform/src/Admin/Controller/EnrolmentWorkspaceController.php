@@ -6,6 +6,7 @@ use Delnavazan\Platform\Core\Application\AdministratorBookingMatchService;
 use Delnavazan\Platform\Core\Application\AdministratorIntroBookingService;
 use Delnavazan\Platform\Core\Application\BookingNotificationRecoveryService;
 use Delnavazan\Platform\Core\Application\BookingAllocationService;
+use Delnavazan\Platform\Core\Application\BookingTeacherResponseService;
 use Delnavazan\Platform\Core\Application\BookingRequestMatchAssessmentService;
 use Delnavazan\Platform\Core\Application\BookingRequestPrivacyService;
 use Delnavazan\Platform\Core\Application\CanonicalAttendanceIntakeService;
@@ -247,6 +248,28 @@ final class EnrolmentWorkspaceController {
                 self::requireCap('dzn_issue_booking_request_proposals');
                 (new ProposalService())->issueInitial(absint($post['candidate_id'] ?? 0), sanitize_text_field((string) ($post['arrangement_fingerprint'] ?? '')), $idempotency);
                 return 'Proposal issued from the recorded Teacher agreement.';
+            case 'total_override_intro':
+                self::requireCap('dzn_manage_booking_request_coordination');
+                self::requireCap('dzn_manage_teacher_availability_assent');
+                self::requireCap('dzn_override_canonical_lesson_schedule_availability');
+                if (empty($post['override_ack'])) throw new \InvalidArgumentException('Confirm the prior Teacher and Student agreement and the total override responsibility.');
+                $overrideReason = trim(sanitize_textarea_field((string) ($post['override_reason'] ?? '')));
+                if ($overrideReason === '') throw new \InvalidArgumentException('Record the prior agreement and the reason for this override.');
+                $projector = class_exists(BookingCalendarProjectionService::class) ? new BookingCalendarProjectionService() : null;
+                $result = (new BookingTeacherResponseService(null, $projector))->administratorTotalOverrideConfirmDelivery(
+                    $requestId,
+                    absint($post['teacher_id'] ?? 0),
+                    array(
+                        'local_date' => sanitize_text_field((string) ($post['override_local_date'] ?? '')),
+                        'local_start_time' => sanitize_text_field((string) ($post['override_local_start_time'] ?? '')),
+                        'timezone' => sanitize_text_field((string) ($post['override_schedule_timezone'] ?? '')),
+                    ),
+                    $overrideReason,
+                    'total-override-' . $idempotency
+                );
+                return (string) ($result['state'] ?? '') === 'awaiting_payment'
+                    ? 'Introductory lesson confirmed with a total scheduling override. The introductory payment is now pending; the standard provider projection follows verified payment.'
+                    : 'Introductory lesson confirmed with a total scheduling override. The standard provider projection and notification path is now running.';
             case 'manual_match':
                 self::requireCap('dzn_manage_booking_request_coordination');
                 self::requireCap('dzn_manage_teacher_availability_assent');
@@ -651,6 +674,7 @@ final class EnrolmentWorkspaceController {
             'Booking delivery is not recoverable' => 'The Teacher acceptance is recorded, but this delivery is no longer recoverable. Review the canonical case before taking further action.',
             'Booking delivery no longer owns this confirmation' => 'The booking was reassigned after the failure. Classroom retry was refused to avoid a duplicate class; review the current Teacher assignment.',
             'Booking allocation has been superseded' => 'A newer Teacher allocation exists for this request. Classroom retry was refused to avoid a duplicate class or offer.',
+            'Booking request is no longer pending' => 'This booking request is no longer pending. Reload the case and review its current state.',
             'Booking request is no longer active' => 'This request is cancelled, superseded or no longer active. A failed classroom cannot be resurrected.',
             'meet_booking_ended' => 'The introductory class time has already passed. A new booking is required instead of a classroom retry.',
             'A current booking confirmation is required for classroom retry' => 'Reload the case and use the current confirmation before retrying classroom creation.',

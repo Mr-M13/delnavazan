@@ -21,6 +21,7 @@ $intro = $read('src/Core/Application/AdministratorIntroBookingService.php');
 $import = $read('src/Core/Application/HistoricalEnrolmentImportService.php');
 $postIntro = $read('src/Core/Application/PostIntroNotificationAdministrationService.php');
 $response = $read('src/Core/Application/BookingTeacherResponseService.php');
+$responseRepo = $read('src/Core/Infrastructure/Repository/BookingTeacherResponseRepository.php');
 $css = $read('src/Admin/Assets/admin.css');
 $bootstrap = $read('delnavazan-platform.php');
 $worker = $read('src/Integrations/BookingStudentNotificationWorker.php');
@@ -133,6 +134,18 @@ $contains($manual, array(
 $contains($deliveryRepo, array('public function reassignTerminal(', "d.state IN ('expired','declined','capacity_lost')", "o.state='superseded'", "reason_code='administrator_agreement'"), 'A terminal delivery without a confirmation must be repointable by the authorised manual-match path.');
 $contains($manual, array('if ($confirmation) throw', "array('expired', 'declined', 'capacity_lost')", 'reassignTerminal('), 'Manual match must refuse only a live confirmation, not a stale expired delivery with no confirmation.');
 $contains($response, array('public function administratorConfirmDelivery', 'pending_projection', 'insertConfirmation', 'insertNotification'), 'Administrator match must reuse the same confirmation and notification state as the Teacher path.');
+$contains($response, array(
+    'public function administratorTotalOverrideConfirmDelivery',
+    'bool $totalOverride=false',
+    '!$totalOverride&&$this->repository->studentOccupancyConflicts',
+    '!$totalOverride&&$this->repository->teacherOccupancyConflicts',
+    'booking_request.total_scheduling_override',
+    'administrator_total_override',
+), 'The total override must bypass only the named scheduling checks, remain capability-gated and record an audit event.');
+$contains($responseRepo, array('teacherForOverride(', 'appendRequestedTime(', 'reassignDeliveryForOverride(', 'retireActiveOfferForRequest('), 'The override needs explicit storage for a new requested time, delivery reassignment and offer retirement.');
+$contains($controller, array("case 'total_override_intro':", "dzn_override_canonical_lesson_schedule_availability", "override_ack", "override_local_date"), 'The override command must require the high-trust schedule capability and the explicit acknowledgement.');
+$contains($readService, array('public function overrideTeacherOptions('), 'The override picker must read active Teachers without requiring unrelated directory capabilities.');
+$contains($view, array('totalOverrideForm(', 'overrideTeacherOptions(', 'Total scheduling override', 'total_override_intro', 'override_ack', 'override_local_date', 'override_local_start_time', 'override_schedule_timezone'), 'The case view must expose the simple Teacher + date/time total override form.');
 $contains($intro, array(
     'BookingRequestSubmissionService',
     'StudentIdentityResolutionService',

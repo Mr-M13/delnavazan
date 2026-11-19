@@ -227,6 +227,113 @@ final class BookingTeacherResponseService {
     }
 
     /**
+     * Administrative total override: confirm an introductory request for any active
+     * Teacher at any future local date/time.
+     *
+     * Availability, Teacher/Student occupancy, the notice window and Teacher readiness
+     * are deliberately bypassed. Identity, an active introductory Course, an active
+     * Teacher, provider projection and payment obligations remain mandatory. The
+     * bypass is capability-gated and records a durable audit event.
+     */
+    public function administratorTotalOverrideConfirmDelivery(int $requestId,int $teacherId,array $slot,string $reason,string $commandKey):array{
+        if(!current_user_can('dzn_manage_booking_request_coordination')||!current_user_can('dzn_manage_teacher_availability_assent')||!current_user_can('dzn_override_canonical_lesson_schedule_availability'))throw new \RuntimeException('Unauthorized');
+        $actor=(int)get_current_user_id();if($actor<1)throw new \RuntimeException('Unauthorized');
+        if($requestId<1||$teacherId<1)throw new \InvalidArgumentException('Booking request and Teacher are required');
+        $reason=trim($reason);if($reason===''||strlen($reason)>1000)throw new \InvalidArgumentException('Record the override reason and prior agreement');
+        $commandKey=trim($commandKey);if($commandKey===''||strlen($commandKey)>191)throw new \InvalidArgumentException('Booking response command required');
+        $date=trim((string)($slot['local_date']??''));$time=trim((string)($slot['local_start_time']??''));$timezone=trim((string)($slot['timezone']??''));
+        if(!preg_match('/^\d{4}-\d{2}-\d{2}$/D',$date))throw new \InvalidArgumentException('Valid override local date required');
+        $localTime=preg_match('/^\d{2}:\d{2}$/D',$time)?$time.':00':$time;
+        if(!preg_match('/^\d{2}:\d{2}:\d{2}$/D',$localTime))throw new \InvalidArgumentException('Valid override local time required');
+        try{new \DateTimeZone($timezone);}catch(\Throwable){throw new \InvalidArgumentException('Valid override timezone required');}
+        $keyDigest=hash_hmac('sha256','booking-total-override-key:'.$commandKey,wp_salt('dzn_booking_response'));
+        $payloadDigest=hash_hmac('sha256','booking-total-override-payload:'.$requestId.'|'.$teacherId.'|'.$date.'|'.$localTime.'|'.$timezone.'|'.hash('sha256',$reason),wp_salt('dzn_booking_response'));
+        $now=gmdate('Y-m-d H:i:s');$confirmationId=null;$paid=false;$introUid=null;$deliveryId=0;
+        try{
+            $this->repository->begin();
+            if($winner=$this->repository->command($keyDigest)){$result=$this->replay($winner,$payloadDigest);$this->repository->commit();return $result;}
+            $request=$this->repository->requestById($requestId);
+            if(!$request||(string)$request->lifecycle_status!=='submitted'||(string)$request->resolution_state!=='unresolved'||$request->privacy_erased_at!==null)throw new \InvalidArgumentException('Booking request is no longer pending');
+            $studentId=(int)($request->student_id??0);if($studentId<1)throw new \InvalidArgumentException('Resolve the student identity before overriding a booking');
+            $courseId=(int)($request->selected_intro_course_id??0);if($courseId<1)throw new \InvalidArgumentException('The booking request needs an introductory Course before it can be overridden');
+            $course=$this->repository->course($courseId);
+            if(!$course||(string)$course->course_type!=='introductory'||(string)$course->status!=='active'||$course->archived_at!==null)throw new \InvalidArgumentException('An active introductory Course is required');
+            $teacher=$this->repository->teacherForOverride($teacherId);
+            if(!$teacher||(string)$teacher->status!=='active'||$teacher->archived_at!==null)throw new \InvalidArgumentException('Choose an active Teacher');
+            $teacherTimezone=trim((string)$teacher->timezone);
+            try{new \DateTimeZone($teacherTimezone);}catch(\Throwable){throw new \InvalidArgumentException('The Teacher needs a valid timezone before an override can be confirmed');}
+            $duration=max(5,(int)$course->default_duration_minutes);$buffer=max(0,(int)$course->default_buffer_minutes);
+            $zone=new \DateTimeZone($timezone);
+            $local=\DateTimeImmutable::createFromFormat('!Y-m-d H:i:s',$date.' '.$localTime,$zone);
+            if(!$local||$local->format('Y-m-d H:i:s')!==$date.' '.$localTime)throw new \InvalidArgumentException('This local time does not exist in the chosen timezone');
+            $utcZone=new \DateTimeZone('UTC');
+            $start=$local->setTimezone($utcZone)->format('Y-m-d H:i:s');
+            $end=$local->modify('+'.$duration.' minutes')->setTimezone($utcZone)->format('Y-m-d H:i:s');
+            $occupiedEnd=$local->modify('+'.$duration.' minutes')->modify('+'.$buffer.' minutes')->setTimezone($utcZone)->format('Y-m-d H:i:s');
+            if($start<=$now)throw new \InvalidArgumentException('Choose a future introductory time');
+            $this->lockSchedulingRoots($studentId,$teacherId,$now,$actor);
+            $request=$this->repository->requestById($requestId);
+            if(!$request||(string)$request->lifecycle_status!=='submitted'||(string)$request->resolution_state!=='unresolved'||$request->privacy_erased_at!==null)throw new \InvalidArgumentException('Booking request is no longer pending');
+            if($this->repository->confirmationForRequest($requestId,true))throw new \InvalidArgumentException('A confirmation already exists; use the retry, reschedule or cancellation path');
+            $requestedTime=$this->repository->requestedTimeByFacts($requestId,$date,$localTime,$timezone,$duration,$buffer);
+            if($requestedTime){
+                $requestedTimeId=(int)$requestedTime->id;
+            }else{
+                $requestedTimeId=$this->repository->appendRequestedTime($requestId,array(
+                    'local_date'=>$date,'local_start_time'=>$localTime,'timezone'=>$timezone,
+                    'starts_at_utc'=>$start,'instructional_ends_at_utc'=>$end,'occupied_ends_at_utc'=>$occupiedEnd,
+                    'instructional_duration_minutes'=>$duration,'buffer_minutes'=>$buffer,'version'=>1,'created_at'=>$now,
+                ));
+                $this->repository->touchRequest($requestId,$actor,$now);
+            }
+            $delivery=$this->repository->deliveryForRequest($requestId,true);
+            $priorState=$delivery?(string)$delivery->state:'none';$priorTeacher=$delivery?(int)$delivery->teacher_id:0;$priorTime=$delivery?(int)$delivery->requested_time_id:0;
+            if($delivery){
+                if(in_array((string)$delivery->state,array('accepting','confirmed'),true))throw new \InvalidArgumentException('A confirmation already exists; use the retry, reschedule or cancellation path');
+                $this->repository->reassignDeliveryForOverride((int)$delivery->id,$requestId,$teacherId,$requestedTimeId,$now);
+                $deliveryId=(int)$delivery->id;
+            }else{
+                $deliveryId=$this->repository->createDelivery(array(
+                    'uid'=>Identifier::uid(),'booking_request_id'=>$requestId,'requested_time_id'=>$requestedTimeId,
+                    'teacher_id'=>$teacherId,'state'=>'pending_request','match_strength'=>'total_override',
+                    'created_at'=>$now,'updated_at'=>$now,
+                ));
+            }
+            $this->repository->retireActiveOfferForRequest($requestId,$now,'administrator_total_override');
+            $delivery=$this->repository->delivery($deliveryId,true);
+            if(!$delivery||(string)$delivery->state!=='pending_request'||(string)$delivery->lifecycle_status!=='submitted'||(string)$delivery->resolution_state!=='unresolved'||$delivery->privacy_erased_at!==null)throw new \InvalidArgumentException('Booking request is no longer pending');
+            $this->auditTotalOverride($delivery,$teacherId,$requestedTimeId,$timezone,$reason,$priorState,$priorTeacher,$priorTime,$actor,$keyDigest,$now);
+            [$confirmationId,$paid,$introUid]=$this->confirmDelivery($delivery,$teacher,$actor,$keyDigest,$payloadDigest,$now,true);
+            $this->allocation->administratorAcceptedLocked($delivery,$now);
+            $this->repository->commit();
+        }catch(\Throwable $error){
+            $contention=BookingContention::capture($error,BookingContentionException::TEACHER_BUSY);
+            $this->repository->rollback();
+            throw $contention??$error;
+        }
+        if($paid)return array('delivery_id'=>$deliveryId,'confirmation_id'=>(int)$confirmationId,'state'=>'awaiting_payment','payment_required'=>true,'intro_obligation_uid'=>$introUid,'idempotent'=>false);
+        return $this->dispatchProjection($deliveryId,(int)$confirmationId);
+    }
+
+    private function auditTotalOverride(object $delivery,int $teacherId,int $requestedTimeId,string $timezone,string $reason,string $priorState,int $priorTeacher,int $priorTime,int $actor,string $keyDigest,string $now):void{
+        $digest=hash('sha256','booking-total-override-audit:'.$keyDigest);
+        if($this->repository->auditByDigest($digest))return;
+        $this->repository->insertAudit(array(
+            'aggregate_type'=>'booking_request','aggregate_id'=>(int)$delivery->booking_request_id,
+            'event_type'=>'booking_request.total_scheduling_override','actor_type'=>'administrator','actor_id'=>$actor,
+            'reason_code'=>'total_override',
+            'safe_detail'=>(string)wp_json_encode(array(
+                'teacher_id'=>$teacherId,'requested_time_id'=>$requestedTimeId,
+                'timezone'=>$timezone,'starts_at_utc'=>(string)$delivery->starts_at_utc,
+                'override_reason_digest'=>hash('sha256',$reason),
+                'bypassed'=>array('teacher_eligibility','teacher_availability','teacher_occupancy','student_occupancy','notice_window','teacher_readiness'),
+                'prior_delivery_state'=>$priorState,'prior_teacher_id'=>$priorTeacher,'prior_requested_time_id'=>$priorTime,
+            )),
+            'idempotency_key'=>$digest,'occurred_at'=>$now,
+        ));
+    }
+
+    /**
      * Acceptance is already committed before the provider call. A dispatch exception must therefore
      * never be reported as a lost acceptance; leave the durable confirmation retryable for the worker.
      */
@@ -254,7 +361,7 @@ final class BookingTeacherResponseService {
     }
 
     /** @return array{0:int,1:bool,2:?string} */
-    private function confirmDelivery(object $delivery,object $teacher,int $actor,string $keyDigest,string $payloadDigest,string $now):array{
+    private function confirmDelivery(object $delivery,object $teacher,int $actor,string $keyDigest,string $payloadDigest,string $now,bool $totalOverride=false):array{
         $deliveryId=(int)$delivery->id;
         $studentId=(int)($delivery->student_id??0);
         if($studentId<1)throw new \InvalidArgumentException('Resolve the student identity before confirming a booking');
@@ -263,10 +370,10 @@ final class BookingTeacherResponseService {
         $this->repository->ensureAndLockStudentRoot($studentId,$now,$actor);
         $occupiedEnd=(string)($delivery->occupied_ends_at_utc??'');
         if($occupiedEnd==='')throw new \RuntimeException('Booking requested time is unavailable');
-        if($this->repository->studentOccupancyConflicts($studentId,array(array('starts_at_utc'=>(string)$delivery->starts_at_utc,'occupied_ends_at_utc'=>$occupiedEnd)),array('exclude_booking_request_id'=>(int)$delivery->booking_request_id)))throw new \InvalidArgumentException('student_slot_conflict');
+        if(!$totalOverride&&$this->repository->studentOccupancyConflicts($studentId,array(array('starts_at_utc'=>(string)$delivery->starts_at_utc,'occupied_ends_at_utc'=>$occupiedEnd)),array('exclude_booking_request_id'=>(int)$delivery->booking_request_id)))throw new \InvalidArgumentException('student_slot_conflict');
         $this->repository->ensureAndLockTeacherRoot((int)$teacher->id,$now,$actor);
-        if($this->repository->teacherOccupancyConflicts((int)$teacher->id,(string)$delivery->starts_at_utc,$occupiedEnd,(int)$delivery->booking_request_id))throw new \InvalidArgumentException('teacher_slot_conflict');
-        if((string)$teacher->onboarding_state!=='active'||(string)$teacher->readiness_state!=='ready')throw new \InvalidArgumentException('Teacher is not ready to accept bookings');
+        if(!$totalOverride&&$this->repository->teacherOccupancyConflicts((int)$teacher->id,(string)$delivery->starts_at_utc,$occupiedEnd,(int)$delivery->booking_request_id))throw new \InvalidArgumentException('teacher_slot_conflict');
+        if(!$totalOverride&&((string)$teacher->onboarding_state!=='active'||(string)$teacher->readiness_state!=='ready'))throw new \InvalidArgumentException('Teacher is not ready to accept bookings');
         // The central Delnavazan Workspace organizer creates the classroom. A Teacher personal
         // Google grant is required only while the caller has explicitly rolled back to legacy.
         $centralInstalled=class_exists('Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\GoogleWorkspaceClassroomService');

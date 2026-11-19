@@ -3,7 +3,7 @@
 if (getenv('DZN_PHASE_2A2J_RUNTIME_TEST') !== 'fixture' || !defined('WP_CLI') || !WP_CLI || !in_array(wp_get_environment_type(), array('local', 'development'), true)) {
     fwrite(STDERR, "Phase 2A.2-J fixture refused.\n"); exit(1);
 }
-use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CatalogueService,CoordinationCaseService,EnrolmentConversionService,FinalAcceptanceService,ProposalAcceptanceService,ProposalService,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeacherAcceptingStateService,TeacherAvailabilityAssentService,TeacherAvailabilityService,TeacherService,TeachingEligibilityService};
+use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CatalogueService,CoordinationCaseService,EnrolmentConversionService,FinalAcceptanceService,ProposalAcceptanceService,ProposalService,SkipIntroBookingService,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeacherAcceptingStateService,TeacherAvailabilityAssentService,TeacherAvailabilityService,TeacherService,TeachingEligibilityService};
 global $wpdb; $p = $wpdb->prefix . 'dzn_'; $actor = get_current_user_id(); $at = gmdate('Y-m-d H:i:s'); $suffix = substr(hash('sha256', wp_generate_uuid4()), 0, 10);
 function dzn_2a2j_f_assert(bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); }
 function dzn_2a2j_f_key(string $label): string { return 'dzn-2a2j-fixture-' . $label . '-' . substr(hash('sha256', $label . wp_generate_uuid4()), 0, 36); }
@@ -38,6 +38,7 @@ $make = function(string $label, int $course) use ($instrument, $teachers, $actor
     $authority = new StudentAcceptanceAuthorityService(); $authority->classify($student, 'adult', 'synthetic_fixture', 'synthetic_fixture', $at, $actor); $authority->establishPrincipal($student, (int) $principal, 'synthetic_fixture', 'synthetic_fixture', $at, $actor);
     $provisionalUid = (string) $wpdb->get_var($wpdb->prepare("SELECT uid FROM {$p}proposal_acceptance_events WHERE id=%d", $provisional['event_id']));
     $accepted = (new FinalAcceptanceService())->accept($request, (int) $case['case_id'], $issued['family_uid'], $issued['option_uid'], (int) $issued['version_number'], $provisionalUid, $student, (int) $principal, 'affirmed', 'message_reference', $at, dzn_2a2j_f_key('final-' . $label));
+    (new SkipIntroBookingService())->skip($request, 'Synthetic arrangement-only journey', dzn_2a2j_f_key('skip-' . $label));
     $converted = (new EnrolmentConversionService())->convert((int) $accepted['arrangement_id'], dzn_2a2j_f_key('convert-' . $label));
     return array('request_id' => $request, 'arrangement_id' => (int) $accepted['arrangement_id'], 'enrolment_id' => (int) $converted['enrolment_id'], 'student_id' => $student, 'course_id' => $course, 'teacher_id' => $teachers[0]);
 };

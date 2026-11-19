@@ -260,6 +260,9 @@ final class BookingTeacherResponseService {
             $courseId=(int)($request->selected_intro_course_id??0);if($courseId<1)throw new \InvalidArgumentException('The booking request needs an introductory Course before it can be overridden');
             $course=$this->repository->course($courseId);
             if(!$course||(string)$course->course_type!=='introductory'||(string)$course->status!=='active'||$course->archived_at!==null)throw new \InvalidArgumentException('An active introductory Course is required');
+            $existingArrangement=$this->repository->acceptedArrangementForRequest($requestId);
+            if($existingArrangement!==null&&empty($slot['arrangement_ack']))throw new \InvalidArgumentException('Confirm the arrangement override before creating the intro.');
+            $arrangementOverride=$existingArrangement!==null;
             $teacher=$this->repository->teacherForOverride($teacherId);
             if(!$teacher||(string)$teacher->status!=='active'||$teacher->archived_at!==null)throw new \InvalidArgumentException('Choose an active Teacher');
             $teacherTimezone=trim((string)$teacher->timezone);
@@ -304,7 +307,7 @@ final class BookingTeacherResponseService {
             $this->repository->retireActiveOfferForRequest($requestId,$now,'administrator_total_override');
             $delivery=$this->repository->delivery($deliveryId,true);
             if(!$delivery||(string)$delivery->state!=='pending_request'||(string)$delivery->lifecycle_status!=='submitted'||(string)$delivery->resolution_state!=='unresolved'||$delivery->privacy_erased_at!==null)throw new \InvalidArgumentException('Booking request is no longer pending');
-            $this->auditTotalOverride($delivery,$teacherId,$requestedTimeId,$timezone,$reason,$priorState,$priorTeacher,$priorTime,$actor,$keyDigest,$now);
+            $this->auditTotalOverride($delivery,$teacherId,$requestedTimeId,$timezone,$reason,$priorState,$priorTeacher,$priorTime,$actor,$keyDigest,$now,$arrangementOverride);
             [$confirmationId,$paid,$introUid]=$this->confirmDelivery($delivery,$teacher,$actor,$keyDigest,$payloadDigest,$now,true);
             $this->allocation->administratorAcceptedLocked($delivery,$now);
             $this->repository->commit();
@@ -317,9 +320,11 @@ final class BookingTeacherResponseService {
         return $this->dispatchProjection($deliveryId,(int)$confirmationId);
     }
 
-    private function auditTotalOverride(object $delivery,int $teacherId,int $requestedTimeId,string $timezone,string $reason,string $priorState,int $priorTeacher,int $priorTime,int $actor,string $keyDigest,string $now):void{
+    private function auditTotalOverride(object $delivery,int $teacherId,int $requestedTimeId,string $timezone,string $reason,string $priorState,int $priorTeacher,int $priorTime,int $actor,string $keyDigest,string $now,bool $arrangementOverride=false):void{
         $digest=hash('sha256','booking-total-override-audit:'.$keyDigest);
         if($this->repository->auditByDigest($digest))return;
+        $bypassed=array('teacher_eligibility','teacher_availability','teacher_occupancy','student_occupancy','notice_window','teacher_readiness');
+        if($arrangementOverride)$bypassed[]='arrangement_guard';
         $this->repository->insertAudit(array(
             'aggregate_type'=>'booking_request','aggregate_id'=>(int)$delivery->booking_request_id,
             'event_type'=>'booking_request.total_scheduling_override','actor_type'=>'administrator','actor_id'=>$actor,
@@ -328,7 +333,7 @@ final class BookingTeacherResponseService {
                 'teacher_id'=>$teacherId,'requested_time_id'=>$requestedTimeId,
                 'timezone'=>$timezone,'starts_at_utc'=>(string)$delivery->starts_at_utc,
                 'override_reason_digest'=>hash('sha256',$reason),
-                'bypassed'=>array('teacher_eligibility','teacher_availability','teacher_occupancy','student_occupancy','notice_window','teacher_readiness'),
+                'bypassed'=>$bypassed,
                 'prior_delivery_state'=>$priorState,'prior_teacher_id'=>$priorTeacher,'prior_requested_time_id'=>$priorTime,
             )),
             'idempotency_key'=>$digest,'occurred_at'=>$now,

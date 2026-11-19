@@ -688,6 +688,7 @@ final class EnrolmentWorkspaceView {
         // or "record agreement" controls that imply the Teacher has not answered.
         if (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) self::coordinationActions($case);
         if (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) self::declineRequestForm($case);
+        if (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination') && $journey !== null && $journey['facts']['arrangement'] !== null) self::skipIntroForm($case);
         if ($case['identity_state']['key'] === 'verified' && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent') && current_user_can('dzn_override_canonical_lesson_schedule_availability') && !$case['confirmed']) self::totalOverrideForm($case);
         if ($case['identity_state']['key'] === 'verified' && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent') && !$case['confirmed']) self::manualMatchForm($case);
         if ($case['confirmed'] && empty($case['outcome'])) self::introLifecycleForms($case);
@@ -723,6 +724,7 @@ final class EnrolmentWorkspaceView {
                     self::coordinationActions($case);
                 }
                 if (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) self::declineRequestForm($case);
+                if (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination') && !empty($journey['facts']['arrangement'])) self::skipIntroForm($case);
                 break;
             case 'classroom':
                 if ($case['confirmed'] && empty($case['outcome'])) self::introLifecycleForms($case);
@@ -732,6 +734,9 @@ final class EnrolmentWorkspaceView {
                     if (current_user_can('dzn_manage_post_intro_automation')) self::outcomeForm($case);
                     else echo '<p>Outcome recording requires post-intro automation access.</p>';
                 }
+                break;
+            case 'convert_enrolment':
+                echo '<p class="dzn-inline-note">The accepted arrangement is ready. Open the coordination section below and use <strong>Convert to Enrolment</strong> to create the Enrolment and Term.</p>';
                 break;
             case 'continuation':
                 echo '<p class="dzn-inline-note">Decision and payment controls are in the Decision state section; conversion continues the accepted arrangement.</p>';
@@ -781,6 +786,21 @@ final class EnrolmentWorkspaceView {
         echo '</div></details>';
     }
 
+    /**
+     * The audited skip-intro decision: the only permitted bypass of the
+     * intro-outcome ordering guard before Enrolment conversion.
+     *
+     * @param array<string,mixed> $case
+     */
+    private static function skipIntroForm(array $case): void {
+        echo '<details class="dzn-action-panel dzn-action-panel--accent"><summary><strong>Skip the intro</strong><br><small>Audited decision: allows converting the accepted arrangement without an intro.</small></summary><div class="dzn-action-panel__body">';
+        self::formStart('skip_intro', array('request_id' => (int) $case['id']));
+        echo '<p><label>Reason<textarea name="reason" rows="2" maxlength="500" required placeholder="Why is the intro being skipped?"></textarea></label></p>';
+        echo '<button class="button" onclick="return confirm(\'Record a skip-intro decision? It is audited and allows Enrolment conversion without an intro.\')">Skip the intro</button></form>';
+        echo '<p class="description">Use only after agreement with the Student. A delivered intro outcome and a skip-intro decision are the only ways the conversion guard is satisfied.</p>';
+        echo '</div></details>';
+    }
+
     /** @param array<string,mixed> $case */
     private static function coordinationActions(array $case): void {        $coordination = $case['coordination'];
         echo '<details class="dzn-action-panel"><summary><strong>Coordinate Teacher and acceptance</strong><br><small>Use a reviewed case when the normal booking path needs a human decision.</small></summary><div class="dzn-action-panel__body">';
@@ -820,6 +840,12 @@ final class EnrolmentWorkspaceView {
         self::input('override_local_start_time', 'Local start time', 'time', $time, true);
         self::input('override_schedule_timezone', 'Local timezone', 'text', $timezone, true, 'IANA timezone for the local date/time, for example Asia/Tehran. The default is the Student request timezone.');
         echo '<p><label>Override reason<textarea name="override_reason" rows="3" maxlength="1000" required placeholder="What was agreed, with whom, and why the normal scheduling constraints are being overridden"></textarea></label></p>';
+        $journeyStatus = (new BookingJourneyReadService())->status((int) $case['id']);
+        $hasArrangement = $journeyStatus !== null && $journeyStatus['facts']['arrangement'] !== null;
+        if ($hasArrangement) {
+            echo '<p class="dzn-inline-note dzn-inline-note--warn"><strong>An accepted arrangement already exists.</strong> Confirming the intro now overrides the ordering guard; reconcile the arrangement with the intro afterwards (convert it or decline it).</p>';
+            echo '<p><label><input type="checkbox" name="arrangement_ack" value="1" required> I understand an accepted arrangement exists and confirm the intro anyway.</label></p>';
+        }
         echo '<p><label><input type="checkbox" name="override_ack" value="1" required> I confirm the Teacher and the Student have already agreed, and I accept responsibility for this total scheduling override.</label></p>';
         echo '<p><button class="button button-primary" onclick="return confirm(\'Confirm this introductory lesson with a total scheduling override? Availability, occupancy and notice checks will be bypassed and the action will be audited.\')">Confirm intro with total override</button></p></form>';
         echo '<p class="description">The current request timezone is ' . esc_html((string) $case['timezone']) . '. The class is created through the same confirmation, provider projection and notification path as a normal match. Any coordination case remains as evidence; the confirmed booking is authoritative.</p>';

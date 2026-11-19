@@ -267,6 +267,8 @@ namespace {
     $overrideRepository->delivery->lifecycle_status='submitted';
     $overrideRepository->delivery->resolution_state='unresolved';
     $overrideRepository->delivery->privacy_erased_at=null;
+    $overrideRepository->teacher->onboarding_state='in_progress';
+    $overrideRepository->teacher->readiness_state='not_ready';
     $overrideRepository->slotConflicts=array(array('conflict_id'=>999));
     $overrideRepository->teacherConflicts=array(array('conflict_id'=>998));
     $override=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($overrideRepository,null,$freePricing))->administratorTotalOverrideConfirmDelivery(

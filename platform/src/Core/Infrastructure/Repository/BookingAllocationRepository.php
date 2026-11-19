@@ -22,7 +22,31 @@ final class BookingAllocationRepository {
     public function requestedTime(int $timeId,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_requested_times WHERE id=%d".($lock?' FOR UPDATE':''),$timeId))?:null;}
     public function delivery(int $requestId,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_teacher_deliveries WHERE booking_request_id=%d".($lock?' FOR UPDATE':''),$requestId))?:null;}
     public function offer(int $requestId,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_allocation_offers WHERE booking_request_id=%d AND active_slot=1".($lock?' FOR UPDATE':''),$requestId))?:null;}
-    public function offerForTeacher(int $requestId,int $teacherId,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_allocation_offers WHERE booking_request_id=%d AND teacher_id=%d".($lock?' FOR UPDATE':''),$requestId,$teacherId))?:null;}
+    public function offerForTeacher(int $requestId,int $teacherId,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_allocation_offers WHERE booking_request_id=%d AND teacher_id=%d AND time_set_version=(SELECT COALESCE(MAX(rt.version),1) FROM {$this->p}booking_request_requested_times rt WHERE rt.booking_request_id=%d)".($lock?' FOR UPDATE':''),$requestId,$teacherId,$requestId))?:null;}
+    public function currentTimeSetVersion(int $requestId):int{
+        global $wpdb;
+        $version=$wpdb->get_var($wpdb->prepare("SELECT COALESCE(MAX(version),1) FROM {$this->p}booking_request_requested_times WHERE booking_request_id=%d",$requestId));
+        if($wpdb->last_error!=='')throw new \RuntimeException('Allocation time-set version unavailable');
+        return max(1,(int)$version);
+    }
+    public function historyForVersion(int $requestId,int $timeSetVersion):array{
+        global $wpdb;
+        return (array)$wpdb->get_results($wpdb->prepare("SELECT o.offer_sequence,o.teacher_id,o.requested_time_id,o.state,o.offered_at,o.deadline_at,o.responded_at,o.reason_code,o.time_set_version,COALESCE(NULLIF(t.display_name,''),NULLIF(t.persian_name,''),t.reference_code) teacher_name FROM {$this->p}booking_allocation_offers o INNER JOIN {$this->p}teachers t ON t.id=o.teacher_id WHERE o.booking_request_id=%d AND o.time_set_version=%d ORDER BY o.offer_sequence",$requestId,max(1,$timeSetVersion)));
+    }
+    /**
+     * Teachers who must not be re-offered at this time-set version.
+     *
+     * `cannot_teach_student`/`no_capacity`/`other` stay sticky across a time-set
+     * change; `times_unsuitable` only blocks the version in which it was recorded.
+     *
+     * @return list<int>
+     */
+    public function stickyDeclinedTeacherIds(int $requestId,int $timeSetVersion):array{
+        global $wpdb;
+        $rows=(array)$wpdb->get_col($wpdb->prepare("SELECT DISTINCT teacher_id FROM {$this->p}booking_request_teacher_declines WHERE booking_request_id=%d AND state='active' AND (reason_code<>'times_unsuitable' OR time_set_version>=%d)",$requestId,max(1,$timeSetVersion)));
+        if($wpdb->last_error!=='')throw new \RuntimeException('Allocation decline exclusion unavailable');
+        return array_map('intval',$rows);
+    }
     public function history(int $requestId):array{global $wpdb;return (array)$wpdb->get_results($wpdb->prepare("SELECT o.offer_sequence,o.teacher_id,o.requested_time_id,o.state,o.offered_at,o.deadline_at,o.responded_at,o.reason_code,COALESCE(NULLIF(t.display_name,''),NULLIF(t.persian_name,''),t.reference_code) teacher_name FROM {$this->p}booking_allocation_offers o INNER JOIN {$this->p}teachers t ON t.id=o.teacher_id WHERE o.booking_request_id=%d ORDER BY o.offer_sequence",$requestId));}
 
     /**
@@ -68,9 +92,9 @@ final class BookingAllocationRepository {
         return (int)$row->last_teacher_id;
     }
     public function advanceCursor(int $courseId,int $teacherId,string $now):void{global $wpdb;if($wpdb->update($this->p.'booking_allocation_cursors',array('last_teacher_id'=>$teacherId,'updated_at'=>$now),array('course_id'=>$courseId))===false)throw new \RuntimeException('Allocation cursor changed');}
-    public function addOffer(int $requestId,int $deliveryId,array $candidate,int $sequence,string $now,string $deadline):void{
+    public function addOffer(int $requestId,int $deliveryId,array $candidate,int $sequence,string $now,string $deadline,int $timeSetVersion=1):void{
         global $wpdb;
-        if($wpdb->insert($this->p.'booking_allocation_offers',array('booking_request_id'=>$requestId,'delivery_id'=>$deliveryId,'teacher_id'=>$candidate['teacher_id'],'requested_time_id'=>$candidate['requested_time_id'],'offer_sequence'=>$sequence,'state'=>'pending','active_slot'=>1,'match_strength'=>$candidate['match_strength'],'offered_at'=>$now,'deadline_at'=>$deadline,'responded_at'=>null,'reason_code'=>null))===false)throw new \RuntimeException('Allocation offer persistence failed');
+        if($wpdb->insert($this->p.'booking_allocation_offers',array('booking_request_id'=>$requestId,'delivery_id'=>$deliveryId,'teacher_id'=>$candidate['teacher_id'],'requested_time_id'=>$candidate['requested_time_id'],'offer_sequence'=>$sequence,'state'=>'pending','active_slot'=>1,'match_strength'=>$candidate['match_strength'],'offered_at'=>$now,'deadline_at'=>$deadline,'responded_at'=>null,'reason_code'=>null,'time_set_version'=>max(1,$timeSetVersion)))===false)throw new \RuntimeException('Allocation offer persistence failed');
         $this->enqueueOfferNotification((int)$wpdb->insert_id,$now);
     }
     public function transitionOffer(int $offerId,string $outcome,string $now,string $reason):void{
@@ -201,9 +225,9 @@ final class BookingAllocationRepository {
         ));
     }
     public function confirmationExists(int $requestId):bool{global $wpdb;return (bool)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$this->p}booking_request_confirmations WHERE booking_request_id=%d LIMIT 1",$requestId));}
-    public function historicalOffer(int $requestId,object $delivery,string $deadline):void{
+    public function historicalOffer(int $requestId,object $delivery,string $deadline,int $timeSetVersion=1):void{
         global $wpdb;
-        if($wpdb->insert($this->p.'booking_allocation_offers',array('booking_request_id'=>$requestId,'delivery_id'=>(int)$delivery->id,'teacher_id'=>(int)$delivery->teacher_id,'requested_time_id'=>(int)$delivery->requested_time_id,'offer_sequence'=>1,'state'=>'pending','active_slot'=>1,'match_strength'=>(string)$delivery->match_strength,'offered_at'=>(string)$delivery->created_at,'deadline_at'=>$deadline,'responded_at'=>null,'reason_code'=>'legacy_recovery'))===false)throw new \RuntimeException('Historical offer recovery failed');
+        if($wpdb->insert($this->p.'booking_allocation_offers',array('booking_request_id'=>$requestId,'delivery_id'=>(int)$delivery->id,'teacher_id'=>(int)$delivery->teacher_id,'requested_time_id'=>(int)$delivery->requested_time_id,'offer_sequence'=>1,'state'=>'pending','active_slot'=>1,'match_strength'=>(string)$delivery->match_strength,'offered_at'=>(string)$delivery->created_at,'deadline_at'=>$deadline,'responded_at'=>null,'reason_code'=>'legacy_recovery','time_set_version'=>max(1,$timeSetVersion)))===false)throw new \RuntimeException('Historical offer recovery failed');
         $this->enqueueOfferNotification((int)$wpdb->insert_id,(string)$delivery->created_at);
     }
     public function alerts(int $requestId):array{global $wpdb;return (array)$wpdb->get_results($wpdb->prepare("SELECT kind,reason_code,priority,state,created_at,resolved_at FROM {$this->p}booking_allocation_alerts WHERE booking_request_id=%d ORDER BY id",$requestId));}

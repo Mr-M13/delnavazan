@@ -61,8 +61,8 @@ final class TeacherOpenBookingRequestRepository {
                   AND NOT EXISTS(SELECT 1 FROM {$this->prefix}booking_allocation_offers offer WHERE offer.booking_request_id=r.id AND offer.active_slot=1)
                   AND NOT EXISTS(SELECT 1 FROM {$this->prefix}booking_request_confirmations confirmation WHERE confirmation.booking_request_id=r.id AND confirmation.state<>'failed')
                   AND NOT EXISTS(SELECT 1 FROM {$this->prefix}booking_request_teacher_deliveries existing WHERE existing.booking_request_id=r.id AND existing.state IN ('accepting','confirmed'))
-                  AND NOT EXISTS(SELECT 1 FROM {$this->prefix}booking_allocation_offers prior WHERE prior.booking_request_id=r.id AND prior.teacher_id=%d)
-                  AND NOT EXISTS(SELECT 1 FROM {$this->prefix}booking_request_teacher_declines declined WHERE declined.booking_request_id=r.id AND declined.teacher_id=%d AND declined.state='active')
+                  AND NOT EXISTS(SELECT 1 FROM {$this->prefix}booking_allocation_offers prior WHERE prior.booking_request_id=r.id AND prior.teacher_id=%d AND prior.time_set_version=COALESCE((SELECT MAX(prior_time.version) FROM {$this->prefix}booking_request_requested_times prior_time WHERE prior_time.booking_request_id=r.id),1))
+                  AND NOT EXISTS(SELECT 1 FROM {$this->prefix}booking_request_teacher_declines declined WHERE declined.booking_request_id=r.id AND declined.teacher_id=%d AND declined.state='active' AND (declined.reason_code<>'times_unsuitable' OR declined.time_set_version>=COALESCE((SELECT MAX(decline_time.version) FROM {$this->prefix}booking_request_requested_times decline_time WHERE decline_time.booking_request_id=r.id),1)))
                 ORDER BY rt.starts_at_utc ASC,r.id ASC LIMIT %d";
         $rows = $wpdb->get_results($wpdb->prepare($sql, $teacherId, $teacherId, $teacherId, $limit));
         if ($wpdb->last_error !== '') { throw new \RuntimeException('Teacher open booking requests unavailable'); }

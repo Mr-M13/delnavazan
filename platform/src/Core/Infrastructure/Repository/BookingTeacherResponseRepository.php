@@ -17,7 +17,13 @@ final class BookingTeacherResponseRepository {
     public function requestByUid(string $uid,bool $lock=false):?object{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_requests WHERE uid=%s{$suffix}",$uid))?:null;}
     public function requestedTime(int $requestId,int $timeId,bool $lock=false):?object{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_requested_times WHERE id=%d AND booking_request_id=%d{$suffix}",$timeId,$requestId))?:null;}
     public function deliveryForRequest(int $requestId,bool $lock=false):?object{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_teacher_deliveries WHERE booking_request_id=%d{$suffix}",$requestId))?:null;}
-    public function offerForTeacher(int $requestId,int $teacherId,bool $lock=false):?object{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_allocation_offers WHERE booking_request_id=%d AND teacher_id=%d{$suffix}",$requestId,$teacherId))?:null;}
+    public function offerForTeacher(int $requestId,int $teacherId,bool $lock=false):?object{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_allocation_offers WHERE booking_request_id=%d AND teacher_id=%d AND time_set_version=(SELECT COALESCE(MAX(rt.version),1) FROM {$this->p}booking_request_requested_times rt WHERE rt.booking_request_id=%d){$suffix}",$requestId,$teacherId,$requestId))?:null;}
+    public function currentTimeSetVersion(int $requestId):int{
+        global $wpdb;
+        $version=$wpdb->get_var($wpdb->prepare("SELECT COALESCE(MAX(version),1) FROM {$this->p}booking_request_requested_times WHERE booking_request_id=%d",$requestId));
+        if($wpdb->last_error!=='')throw new \RuntimeException('Booking time-set version unavailable');
+        return max(1,(int)$version);
+    }
     public function confirmationForRequest(int $requestId,bool $lock=false):?object{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_confirmations WHERE booking_request_id=%d ORDER BY id DESC LIMIT 1{$suffix}",$requestId))?:null;}
     public function delivery(int $id,bool $lock=false):?object{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_row($wpdb->prepare("SELECT d.*,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,r.selected_intro_course_id,r.student_id,s.country request_country,rt.starts_at_utc,rt.instructional_ends_at_utc,rt.occupied_ends_at_utc,rt.local_date,rt.local_start_time,rt.timezone request_timezone FROM {$this->p}booking_request_teacher_deliveries d INNER JOIN {$this->p}booking_requests r ON r.id=d.booking_request_id INNER JOIN {$this->p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1 INNER JOIN {$this->p}booking_request_requested_times rt ON rt.id=d.requested_time_id AND rt.booking_request_id=r.id WHERE d.id=%d{$suffix}",$id))?:null;}
     public function requestById(int $id,bool $lock=false):?object{global $wpdb;$suffix=$lock?' FOR UPDATE':'';return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_requests WHERE id=%d{$suffix}",$id))?:null;}
@@ -113,10 +119,10 @@ final class BookingTeacherResponseRepository {
         $delivery=$wpdb->query($wpdb->prepare("UPDATE {$this->p}booking_request_teacher_deliveries SET requested_time_id=%d,updated_at=%s WHERE id=%d AND state='pending_request'",$requestedTimeId,$now,$deliveryId));
         if($delivery!==1)throw new \RuntimeException('Booking delivery changed concurrently');
     }
-    public function insertClaimOffer(int $requestId,int $deliveryId,int $teacherId,int $requestedTimeId,string $now,string $deadline):int{
+    public function insertClaimOffer(int $requestId,int $deliveryId,int $teacherId,int $requestedTimeId,string $now,string $deadline,int $timeSetVersion=1):int{
         global $wpdb;
         $last=(int)$wpdb->get_var($wpdb->prepare("SELECT COALESCE(MAX(offer_sequence),0) FROM {$this->p}booking_allocation_offers WHERE booking_request_id=%d",$requestId));
-        if($wpdb->insert($this->p.'booking_allocation_offers',array('booking_request_id'=>$requestId,'delivery_id'=>$deliveryId,'teacher_id'=>$teacherId,'requested_time_id'=>$requestedTimeId,'offer_sequence'=>$last+1,'state'=>'pending','active_slot'=>1,'match_strength'=>'claim','offered_at'=>$now,'deadline_at'=>$deadline,'responded_at'=>null,'reason_code'=>'teacher_claim'))===false)throw new \RuntimeException('Booking claim offer persistence failed');
+        if($wpdb->insert($this->p.'booking_allocation_offers',array('booking_request_id'=>$requestId,'delivery_id'=>$deliveryId,'teacher_id'=>$teacherId,'requested_time_id'=>$requestedTimeId,'offer_sequence'=>$last+1,'state'=>'pending','active_slot'=>1,'match_strength'=>'claim','offered_at'=>$now,'deadline_at'=>$deadline,'responded_at'=>null,'reason_code'=>'teacher_claim','time_set_version'=>max(1,$timeSetVersion)))===false)throw new \RuntimeException('Booking claim offer persistence failed');
         return (int)$wpdb->insert_id;
     }
     public function closeRequest(int $id,string $resolution,string $now,int $actor):void{global $wpdb;$sql=$wpdb->prepare("UPDATE {$this->p}booking_requests SET lifecycle_status='closed',resolution_state=%s,version=version+1,updated_at=%s,updated_by=%d WHERE id=%d AND lifecycle_status='submitted' AND resolution_state='unresolved' AND privacy_erased_at IS NULL",$resolution,$now,$actor,$id);if($wpdb->query($sql)!==1)throw new \RuntimeException('Booking request changed concurrently');}
@@ -142,22 +148,24 @@ final class BookingTeacherResponseRepository {
     }
     public function declineForTeacher(int $requestId,int $teacherId,bool $lock=false):?object{
         global $wpdb;$suffix=$lock?' FOR UPDATE':'';
-        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_teacher_declines WHERE booking_request_id=%d AND teacher_id=%d AND state='active' LIMIT 1{$suffix}",$requestId,$teacherId))?:null;
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->p}booking_request_teacher_declines WHERE booking_request_id=%d AND teacher_id=%d AND state='active' AND (reason_code<>'times_unsuitable' OR time_set_version>=(SELECT COALESCE(MAX(rt.version),1) FROM {$this->p}booking_request_requested_times rt WHERE rt.booking_request_id=%d)) LIMIT 1{$suffix}",$requestId,$teacherId,$requestId))?:null;
     }
     /** Idempotent Teacher-specific decline evidence; it never closes or cancels the request. */
     public function recordDecline(array $data):int{
         global $wpdb;
         $deliveryId=isset($data['delivery_id'])?max(0,(int)$data['delivery_id']):0;
         $deliverySql=$deliveryId>0?(string)$deliveryId:'NULL';
+        $requestId=(int)$data['booking_request_id'];
+        $timeSetVersion=max(1,(int)($data['time_set_version']??$this->currentTimeSetVersion($requestId)));
         $sql=$wpdb->prepare(
             "INSERT INTO {$this->p}booking_request_teacher_declines
-                (uid,booking_request_id,delivery_id,teacher_id,source,reason_code,reason_text,state,created_at,updated_at)
-             VALUES (%s,%d,{$deliverySql},%d,%s,%s,%s,'active',%s,%s)
+                (uid,booking_request_id,delivery_id,teacher_id,time_set_version,source,reason_code,reason_text,state,created_at,updated_at)
+             VALUES (%s,%d,{$deliverySql},%d,%d,%s,%s,%s,'active',%s,%s)
              ON DUPLICATE KEY UPDATE delivery_id=VALUES(delivery_id),source=VALUES(source),reason_code=VALUES(reason_code),reason_text=VALUES(reason_text),state='active',updated_at=VALUES(updated_at)",
-            (string)$data['uid'],(int)$data['booking_request_id'],(int)$data['teacher_id'],(string)$data['source'],(string)$data['reason_code'],isset($data['reason_text'])&&''!==(string)$data['reason_text']?(string)$data['reason_text']:null,(string)$data['created_at'],(string)$data['updated_at']
+            (string)$data['uid'],$requestId,(int)$data['teacher_id'],$timeSetVersion,(string)$data['source'],(string)$data['reason_code'],isset($data['reason_text'])&&''!==(string)$data['reason_text']?(string)$data['reason_text']:null,(string)$data['created_at'],(string)$data['updated_at']
         );
         if($wpdb->query($sql)===false)throw new \RuntimeException('Booking teacher decline persistence failed');
-        $id=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$this->p}booking_request_teacher_declines WHERE booking_request_id=%d AND teacher_id=%d",(int)$data['booking_request_id'],(int)$data['teacher_id']));
+        $id=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$this->p}booking_request_teacher_declines WHERE booking_request_id=%d AND teacher_id=%d AND time_set_version=%d",$requestId,(int)$data['teacher_id'],$timeSetVersion));
         if($id<1)throw new \RuntimeException('Booking teacher decline persistence failed');
         return $id;
     }

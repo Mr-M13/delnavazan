@@ -128,7 +128,8 @@ final class BookingTeacherResponseService {
             }
             $deadline=BookingAllocationService::deadlineFor((string)$time->starts_at_utc,$now,0);
             if($deadline===null)throw new \InvalidArgumentException('Booking time is no longer available');
-            $this->repository->insertClaimOffer($requestId,$deliveryId,(int)$teacher->id,$requestedTimeId,$now,$deadline);
+            $timeSetVersion=$this->repository->currentTimeSetVersion($requestId);
+            $this->repository->insertClaimOffer($requestId,$deliveryId,(int)$teacher->id,$requestedTimeId,$now,$deadline,$timeSetVersion);
             $locked=$this->repository->deliveryByUid($uid,true);
             if(!$locked||(int)$locked->teacher_id!==(int)$teacher->id)throw new \RuntimeException('Booking request not found');
             $this->assertHardOccupancy($locked,(int)$teacher->id);

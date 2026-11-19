@@ -9,6 +9,8 @@ final class EnrolmentConversionRepository {
     public function commit():void{global $wpdb;if($wpdb->query('COMMIT')===false)throw new \RuntimeException('Transaction commit failed');}
     public function rollback():void{global $wpdb;$wpdb->query('ROLLBACK');}
     public function arrangementById(int$id):?object{return$this->row('accepted_service_arrangements',$id,false);}
+    /** The ordering guard: a delivered intro outcome or an audited skip-intro decision. */
+    public function introCompletedForBooking(int$requestId):bool{global$wpdb;$delivered=$wpdb->get_var($wpdb->prepare("SELECT id FROM {$this->prefix}booking_request_intro_outcomes WHERE booking_request_id=%d AND outcome='delivered' LIMIT 1",$requestId));if($delivered)return true;$skip=$wpdb->get_var($wpdb->prepare("SELECT id FROM {$this->prefix}platform_audit_events WHERE aggregate_type='booking_request' AND aggregate_id=%d AND event_type='booking_request.skip_intro' LIMIT 1",$requestId));return$skip!==null;}
     public function commandForDigest(string$digest):?object{global$wpdb;return$wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->prefix}enrolment_conversion_commands WHERE command_key_digest=%s",$digest));}
     public function commandForSource(int$id):?object{global$wpdb;return$wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->prefix}enrolment_conversion_commands WHERE accepted_service_arrangement_id=%d",$id));}
     public function sourceGraphForRead(int$id):?array{$a=$this->arrangementById($id);return$a?$this->sourceGraph($a,false):null;}

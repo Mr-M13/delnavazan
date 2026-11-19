@@ -15,6 +15,7 @@ use Delnavazan\Platform\Core\Application\EnrolmentConversionService;
 use Delnavazan\Platform\Core\Application\FinalAcceptanceService;
 use Delnavazan\Platform\Core\Application\ProposalAcceptanceService;
 use Delnavazan\Platform\Core\Application\ProposalService;
+use Delnavazan\Platform\Core\Application\SkipIntroBookingService;
 use Delnavazan\Platform\Core\Application\StudentAcceptanceAuthorityService;
 use Delnavazan\Platform\Core\Application\StudentIdentityResolutionService;
 use Delnavazan\Platform\Core\Application\TeacherAssignmentService;
@@ -71,6 +72,7 @@ $provisional = (new ProposalAcceptanceService())->record($issued['family_uid'], 
 $provisionalUid = (string) $wpdb->get_var($wpdb->prepare("SELECT uid FROM {$p}proposal_acceptance_events WHERE id=%d", (int) $provisional['event_id']));
 (new StudentIdentityResolutionService())->resolveExisting($request, $student, 'synthetic_fixture', 'synthetic_fixture', $now, $actor);
 $accepted = (new FinalAcceptanceService())->accept($request, (int) $case['case_id'], $issued['family_uid'], $issued['option_uid'], (int) $issued['version_number'], $provisionalUid, $student, $userId, 'affirmed', 'message_reference', $now, $key('final'));
+(new SkipIntroBookingService())->skip($request, 'Synthetic arrangement-only journey', $key('skip'));
 $converted = (new EnrolmentConversionService())->convert((int) $accepted['arrangement_id'], $key('convert'));
 $enrolmentId = (int) $converted['enrolment_id'];
 $lifecycle = new CanonicalEnrolmentLifecycleService();

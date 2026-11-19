@@ -23,6 +23,7 @@ $postIntro = $read('src/Core/Application/PostIntroNotificationAdministrationServ
 $response = $read('src/Core/Application/BookingTeacherResponseService.php');
 $responseRepo = $read('src/Core/Infrastructure/Repository/BookingTeacherResponseRepository.php');
 $journey = $read('src/Core/Application/BookingJourneyReadService.php');
+$decline = $read('src/Core/Application/DeclineBookingRequestService.php');
 $css = $read('src/Admin/Assets/admin.css');
 $bootstrap = $read('delnavazan-platform.php');
 $worker = $read('src/Integrations/BookingStudentNotificationWorker.php');
@@ -150,6 +151,9 @@ $contains($view, array('totalOverrideForm(', 'overrideTeacherOptions(', 'Total s
 $contains($view, array("input('override_schedule_timezone', 'Local timezone', 'text', \$timezone, true", 'default is the Student request timezone'), 'The override timezone must accept the Student request timezone (for example Asia/Tehran), not only the standard service-area options.');
 $contains($journey, array('public function status(', 'public const STATUSES', "'needs_review' => array('Needs review', 'danger')", "'awaiting_teacher' => array('Waiting for teacher', 'gold')"), 'One journey-status read model must define the shared vocabulary and one primary action per status.');
 $contains($view, array('BookingJourneyReadService', 'primaryJourneyAction(', 'dzn-journey-status', 'More actions', "esc_attr((string) \$journey['status_tone'])"), 'The case page must render the single journey status and move constrained actions into More actions.');
+$contains($decline, array('public function decline(', "'resolution_state' => 'declined'", "'booking_request.declined'", "'booking_declined'", 'invalidateRecordedForCaseRetirement'), 'Declining a request must close the booking request, retire offers/notifications, close the case and invalidate assents in one audited command.');
+$contains($controller, array("case 'decline_request':", "dzn_manage_booking_request_coordination", 'Student archiving remains a separate action.'), 'The decline command must be capability-gated and keep student archiving separate.');
+$contains($view, array('declineRequestForm(', 'Decline this request', "'decline_request'"), 'The case page must expose the single audited decline action.');
 $contains($intro, array(
     'BookingRequestSubmissionService',
     'StudentIdentityResolutionService',

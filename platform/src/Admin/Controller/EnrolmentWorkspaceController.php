@@ -672,6 +672,7 @@ final class EnrolmentWorkspaceController {
             'Booking delivery is not recoverable' => 'The Teacher acceptance is recorded, but this delivery is no longer recoverable. Review the canonical case before taking further action.',
             'Booking delivery no longer owns this confirmation' => 'The booking was reassigned after the failure. Classroom retry was refused to avoid a duplicate class; review the current Teacher assignment.',
             'Booking allocation has been superseded' => 'A newer Teacher allocation exists for this request. Classroom retry was refused to avoid a duplicate class or offer.',
+            'Booking request is no longer pending' => 'This booking request is no longer pending. Reload the case and review its current state.',
             'Booking request is no longer active' => 'This request is cancelled, superseded or no longer active. A failed classroom cannot be resurrected.',
             'meet_booking_ended' => 'The introductory class time has already passed. A new booking is required instead of a classroom retry.',
             'A current booking confirmation is required for classroom retry' => 'Reload the case and use the current confirmation before retrying classroom creation.',

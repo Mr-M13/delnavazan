@@ -6,6 +6,17 @@ namespace Delnavazan\Platform\Integrations {
         public function dispatch(int $confirmationId): array { $this->dispatched[] = $confirmationId; return array('confirmation_id' => $confirmationId, 'state' => 'retryable'); }
     }
 }
+namespace Delnavazan\Platform\Core\Application {
+    final class PortalNotificationRecorder {
+        public static array $alerts = array();
+        public static function admin(string $eventKey, string $sourceKind, int $sourceId, array $variables = array(), ?string $linkUrl = null): ?int {
+            $key = $eventKey . '|' . $sourceKind . '|' . $sourceId;
+            if (isset(self::$alerts[$key])) return null;
+            self::$alerts[$key] = array('event_key' => $eventKey, 'source_kind' => $sourceKind, 'source_id' => $sourceId, 'variables' => $variables, 'link' => $linkUrl);
+            return count(self::$alerts);
+        }
+    }
+}
 namespace {
     function get_current_user_id(): int { return 1; }
     function wp_salt(string $scheme = 'auth'): string { return 'intro-payment-unit-test-key-material'; }
@@ -61,6 +72,18 @@ namespace {
     $assert((string) $repository->obligations[$created['obligation_id']]->state === 'pending', 'Failed payment must remain retryable.');
     $duplicate = $service->recordProviderEvent(array('reference' => $reference, 'provider_key' => 'stripe', 'event_reference' => 'evt_IntroFailed1', 'event_kind' => 'payment_failed', 'amount_minor' => 4000, 'currency' => 'AUD', 'provider_occurred_at' => gmdate('Y-m-d H:i:s')));
     $assert($duplicate['idempotent'] === true && count($repository->events) === 2, 'A duplicate webhook event must not append another event.');
+
+    // A verified payment after the obligation closed is rejected, but finance must see it.
+    $repository->obligations[$created['obligation_id']]->state = 'expired';
+    $afterExpiry = $service->recordProviderEvent(array('reference' => $reference, 'provider_key' => 'stripe', 'event_reference' => 'evt_IntroAfterExpiry1', 'event_kind' => 'payment_succeeded', 'amount_minor' => 4000, 'currency' => 'AUD', 'provider_occurred_at' => gmdate('Y-m-d H:i:s')));
+    $assert($afterExpiry['accepted'] === false && $afterExpiry['reason'] === 'intro_payment_state_conflict', 'A payment after expiry must be rejected without moving the obligation.');
+    $assert((string) $repository->obligations[$created['obligation_id']]->state === 'expired', 'The closed obligation must stay closed.');
+    $alerts = \Delnavazan\Platform\Core\Application\PortalNotificationRecorder::$alerts;
+    $assert(count($alerts) === 1, 'A captured payment after closure must alert finance once.');
+    $alert = reset($alerts);
+    $assert($alert['event_key'] === 'booking.payment_unreconciled.admin' && $alert['source_kind'] === 'intro_payment_unreconciled' && $alert['source_id'] === $created['obligation_id'] && $alert['variables']['reference'] === $reference, 'The alert must identify the obligation and its reference.');
+    $replay = $service->recordProviderEvent(array('reference' => $reference, 'provider_key' => 'stripe', 'event_reference' => 'evt_IntroAfterExpiry1', 'event_kind' => 'payment_succeeded', 'amount_minor' => 4000, 'currency' => 'AUD', 'provider_occurred_at' => gmdate('Y-m-d H:i:s')));
+    $assert($replay['idempotent'] === true && count(\Delnavazan\Platform\Core\Application\PortalNotificationRecorder::$alerts) === 1, 'A webhook retry must not duplicate the finance alert.');
 
     $badReference = 'DZN-INTRO-NOTVALID';
     $assert(!$service->isIntroReference($badReference), 'Malformed intro references must not enter the intro decision path.');

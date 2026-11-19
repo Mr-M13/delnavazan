@@ -316,6 +316,7 @@ final class EnrolmentWorkspaceView {
     private static function teacherOfferCell(array $row): string {
         if ((string) ($row['kind'] ?? '') !== 'intro') return '<span class="dzn-muted">—</span>';
         $offer = (array) ($row['teacher_offer'] ?? array());
+        if (!empty($offer['unavailable'])) return '<small>Offer data unavailable</small>';
         $count = (int) ($offer['offered_teacher_count'] ?? 0);
         $countLabel = $count > 0
             ? 'Offered to ' . number_format_i18n($count) . ' Teacher' . ($count === 1 ? '' : 's')
@@ -564,17 +565,21 @@ final class EnrolmentWorkspaceView {
         self::fact('Teacher', $case['teacher_name']);
         self::fact('Teacher response', $case['teacher_response']);
         $offer = (array) ($case['teacher_offer'] ?? array());
-        $offeredCount = (int) ($offer['offered_teacher_count'] ?? 0);
-        self::fact('Teachers offered', $offeredCount > 0 ? (string) $offeredCount : 'None yet', $offeredCount > 0 ? 'Distinct Teachers this request has already been offered to.' : 'No Teacher offer has been recorded.');
+        if (!empty($offer['unavailable'])) {
+            self::fact('Teachers offered', 'Unavailable', 'Offer evidence could not be read; no count is shown.');
+        } else {
+            $offeredCount = (int) ($offer['offered_teacher_count'] ?? 0);
+            self::fact('Teachers offered', $offeredCount > 0 ? (string) $offeredCount : 'None yet', $offeredCount > 0 ? 'Distinct Teachers this request has already been offered to.' : 'No Teacher offer has been recorded.');
+        }
         self::fact('Match attempts', (string) $case['match_attempts']);
         self::fact('Availability / conflicts', $case['availability_state']);
         self::fact('Identity', $case['identity_state']['label']);
         if ($case['prior_booking_count'] !== null) self::fact('Prior bookings', (string) $case['prior_booking_count']);
         echo '</dl>';
         $offerDeadline = (string) ($offer['response_deadline_iso'] ?? '');
-        if (!empty($offer['is_pending']) && $offerDeadline !== '') {
+        if (empty($offer['unavailable']) && !empty($offer['is_pending']) && $offerDeadline !== '') {
             echo '<p class="dzn-offer-window" data-dzn-offer-deadline="' . esc_attr($offerDeadline) . '"><strong data-dzn-offer-countdown>' . esc_html((string) ($offer['response_remaining_label'] ?? '')) . '</strong> for the offered Teacher to accept.</p>';
-        } elseif (!empty($offer['response_expired'])) {
+        } elseif (empty($offer['unavailable']) && !empty($offer['response_expired'])) {
             echo '<p class="dzn-offer-window is-expired"' . ($offerDeadline !== '' ? ' data-dzn-offer-deadline="' . esc_attr($offerDeadline) . '"' : '') . '><strong data-dzn-offer-countdown>Deadline passed</strong> · reassignment is due.</p>';
         }
         echo '<h3>Requested times</h3>';

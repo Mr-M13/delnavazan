@@ -200,6 +200,9 @@ $contains($view, array(
     'is-zero',
 ), 'Snapshot highlights must be conditional on pending work and the new-request stat must move green → yellow → red with priority.');
 $contains($allocationRepo, array('public function offerSummaries(', 'offered_teacher_count', 'COUNT(DISTINCT teacher_id)', 'response_deadline_at'), 'Offer summaries must expose the authoritative deadline and distinct Teachers already offered.');
+$contains($readService, array('offerSummaryUnavailable', "catch (\\Throwable \$error)", 'Delnavazan offer summary', 'Delnavazan intro teacher responses', 'Delnavazan enrolment snapshot'), 'Optional offer evidence must fail closed without taking the Enrolment or Overview screen down.');
+$expect(!str_contains($readService, "static fn(int \$id): bool => \$id > 0 && !array_key_exists(\$id, \$this->offerSummaryCache)"), 'The offer-summary cache filter must not be a static closure using $this.');
+$contains($view, array('Offer data unavailable', "empty(\$offer['unavailable'])"), 'The queue and case facts must state that offer evidence is unavailable instead of inventing a zero.');
 $contains($readService, array(
     'public function pendingTeacherResponses(',
     "'teacher_offer'",

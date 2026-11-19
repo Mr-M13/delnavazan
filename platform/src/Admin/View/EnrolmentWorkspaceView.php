@@ -746,7 +746,7 @@ final class EnrolmentWorkspaceView {
         foreach ($teachers as $teacher) echo '<option value="' . esc_attr((string) $teacher->id) . '">' . esc_html((string) $teacher->display_name . ' · ' . $teacher->email) . '</option>';
         echo '</select></label></p>';
         self::input('override_local_date', 'Local date', 'date', $date, true);
-        self::timeSelect('override_local_start_time', 'Local start time', $time);
+        self::input('override_local_start_time', 'Local start time', 'time', $time, true);
         self::timezoneSelect('override_schedule_timezone', 'Local timezone', $timezone);
         echo '<p><label>Override reason<textarea name="override_reason" rows="3" maxlength="1000" required placeholder="What was agreed, with whom, and why the normal scheduling constraints are being overridden"></textarea></label></p>';
         echo '<p><label><input type="checkbox" name="override_ack" value="1" required> I confirm the Teacher and the Student have already agreed, and I accept responsibility for this total scheduling override.</label></p>';

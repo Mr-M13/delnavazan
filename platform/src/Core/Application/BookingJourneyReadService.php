@@ -138,6 +138,9 @@ final class BookingJourneyReadService {
         }
 
         if ((string) $request->lifecycle_status !== 'submitted' || (string) $request->resolution_state !== 'unresolved') {
+            if ((string) $request->resolution_state === 'declined') {
+                return $this->make('declined', 'This booking request was declined.', array('label' => 'View history', 'operation' => 'history'));
+            }
             return $this->make('closed', 'The request is no longer active.', array('label' => 'View history', 'operation' => 'history'));
         }
         if ($facts['coordination'] !== null && in_array((string) $facts['coordination']->state, array('closed', 'declined'), true)) {

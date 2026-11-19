@@ -687,6 +687,7 @@ final class EnrolmentWorkspaceView {
         // Once a confirmation exists, the Teacher's acceptance is durable. Do not offer coordination
         // or "record agreement" controls that imply the Teacher has not answered.
         if (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) self::coordinationActions($case);
+        if (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) self::declineRequestForm($case);
         if ($case['identity_state']['key'] === 'verified' && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent') && current_user_can('dzn_override_canonical_lesson_schedule_availability') && !$case['confirmed']) self::totalOverrideForm($case);
         if ($case['identity_state']['key'] === 'verified' && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent') && !$case['confirmed']) self::manualMatchForm($case);
         if ($case['confirmed'] && empty($case['outcome'])) self::introLifecycleForms($case);
@@ -721,6 +722,7 @@ final class EnrolmentWorkspaceView {
                 } elseif (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) {
                     self::coordinationActions($case);
                 }
+                if (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) self::declineRequestForm($case);
                 break;
             case 'classroom':
                 if ($case['confirmed'] && empty($case['outcome'])) self::introLifecycleForms($case);
@@ -764,9 +766,23 @@ final class EnrolmentWorkspaceView {
         echo '</div></details>';
     }
 
+    /**
+     * Decline the booking request itself. Closes the request, its open offer and
+     * its coordination case; Student archiving stays a separate action.
+     *
+     * @param array<string,mixed> $case
+     */
+    private static function declineRequestForm(array $case): void {
+        echo '<details class="dzn-action-panel dzn-action-panel--danger"><summary><strong>Decline this request</strong><br><small>Declines the booking request and removes it from the active queues. Student archiving is separate.</small></summary><div class="dzn-action-panel__body">';
+        self::formStart('decline_request', array('request_id' => (int) $case['id']));
+        echo '<p><label>Reason<textarea name="reason" rows="2" maxlength="500" required placeholder="Why is this booking being declined?"></textarea></label></p>';
+        echo '<button class="button" onclick="return confirm(\'Decline this booking request? It leaves the active queues and its case and offer records are closed. Student archiving remains separate.\')">Decline this request</button></form>';
+        echo '<p class="description">One audited command: the request is closed, the open offer and its notifications are retired, and the coordination case is closed with this reason.</p>';
+        echo '</div></details>';
+    }
+
     /** @param array<string,mixed> $case */
-    private static function coordinationActions(array $case): void {
-        $coordination = $case['coordination'];
+    private static function coordinationActions(array $case): void {        $coordination = $case['coordination'];
         echo '<details class="dzn-action-panel"><summary><strong>Coordinate Teacher and acceptance</strong><br><small>Use a reviewed case when the normal booking path needs a human decision.</small></summary><div class="dzn-action-panel__body">';
         if (empty($coordination['case_id'])) {
             self::formStart('open_coordination', array('request_id' => (int) $case['id']));

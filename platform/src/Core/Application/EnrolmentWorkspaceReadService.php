@@ -1081,6 +1081,11 @@ final class EnrolmentWorkspaceReadService {
         if ($confirmation !== null && (string) ($confirmation['state'] ?? '') === 'awaiting_payment') {
             return array('key' => 'intro_payment_pending', 'label' => 'Teacher accepted; payment pending', 'next_action' => 'Monitor the introductory payment');
         }
+        if ((string) $row->lifecycle_status !== 'submitted') {
+            return (string) $row->resolution_state === 'declined'
+                ? array('key' => 'closed', 'label' => 'Declined', 'next_action' => 'Review the recorded closure or open a new booking request.')
+                : array('key' => 'closed', 'label' => 'Closed', 'next_action' => 'Review the recorded closure or open a new booking request.');
+        }
         if ($pendingDelivery !== null) {
             return array('key' => 'teacher_match', 'label' => 'Awaiting teacher response', 'next_action' => 'Monitor the Teacher response');
         }

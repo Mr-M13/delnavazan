@@ -30,6 +30,7 @@ use Delnavazan\Platform\Core\Application\PostIntroPreparationService;
 use Delnavazan\Platform\Core\Application\ProposalService;
 use Delnavazan\Platform\Core\Application\StudentIdentityResolutionService;
 use Delnavazan\Platform\Core\Application\StudentService;
+use Delnavazan\Platform\Core\Application\SkipIntroBookingService;
 use Delnavazan\Platform\Core\Application\TeacherAssignmentService;
 use Delnavazan\Platform\Core\Application\TeacherAvailabilityAssentService;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
@@ -255,6 +256,12 @@ final class EnrolmentWorkspaceController {
                 if ($declineReason === '') throw new \InvalidArgumentException('Record a decline reason.');
                 (new DeclineBookingRequestService())->decline($requestId, $declineReason, 'decline-' . $idempotency);
                 return 'The booking request was declined and removed from the active queues. Student archiving remains a separate action.';
+            case 'skip_intro':
+                self::requireCap('dzn_manage_booking_request_coordination');
+                $skipReason = trim(sanitize_text_field((string) ($post['reason'] ?? '')));
+                if ($skipReason === '') throw new \InvalidArgumentException('Record the skip-intro reason.');
+                (new SkipIntroBookingService())->skip($requestId, $skipReason, 'skip-intro-' . $idempotency);
+                return 'Skip-intro recorded. The accepted arrangement can now be converted to an Enrolment.';
             case 'total_override_intro':
                 self::requireCap('dzn_manage_booking_request_coordination');
                 self::requireCap('dzn_manage_teacher_availability_assent');
@@ -270,6 +277,7 @@ final class EnrolmentWorkspaceController {
                         'local_date' => sanitize_text_field((string) ($post['override_local_date'] ?? '')),
                         'local_start_time' => sanitize_text_field((string) ($post['override_local_start_time'] ?? '')),
                         'timezone' => sanitize_text_field((string) ($post['override_schedule_timezone'] ?? '')),
+                        'arrangement_ack' => sanitize_key((string) ($post['arrangement_ack'] ?? '')),
                     ),
                     $overrideReason,
                     'total-override-' . $idempotency
@@ -690,6 +698,7 @@ final class EnrolmentWorkspaceController {
             'Choose an active Enrolment with a current Term and assigned Teacher' => 'Choose an active Enrolment that already has a current Term and an assigned Teacher.',
             'standard_allocation_exhausted' => 'This Term has no remaining standard class allocation. Use a replacement or start a new Term.',
             'standard_funding_exhausted' => 'The funded allocation for this Term is exhausted; a standard class cannot be added.',
+            'intro_not_completed' => 'Record the introductory outcome (or an audited skip-intro decision) before converting this arrangement to an Enrolment.',
             'replacement_allocation_exhausted' => 'This Term has no remaining replacement allowance.',
             'stale_teacher_assignment' => 'The Teacher assignment changed while you were working. Reload and review the current Enrolment.',
             'canonical_enrolment_required' => 'This Enrolment is not eligible for a canonical class.',

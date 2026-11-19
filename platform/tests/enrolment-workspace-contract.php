@@ -24,6 +24,9 @@ $response = $read('src/Core/Application/BookingTeacherResponseService.php');
 $responseRepo = $read('src/Core/Infrastructure/Repository/BookingTeacherResponseRepository.php');
 $journey = $read('src/Core/Application/BookingJourneyReadService.php');
 $decline = $read('src/Core/Application/DeclineBookingRequestService.php');
+$skip = $read('src/Core/Application/SkipIntroBookingService.php');
+$conversion = $read('src/Core/Application/EnrolmentConversionService.php');
+$conversionRepo = $read('src/Core/Infrastructure/Repository/EnrolmentConversionRepository.php');
 $css = $read('src/Admin/Assets/admin.css');
 $bootstrap = $read('delnavazan-platform.php');
 $worker = $read('src/Integrations/BookingStudentNotificationWorker.php');
@@ -154,6 +157,12 @@ $contains($view, array('BookingJourneyReadService', 'primaryJourneyAction(', 'dz
 $contains($decline, array('public function decline(', "'resolution_state' => 'declined'", "'booking_request.declined'", "'booking_declined'", 'invalidateRecordedForCaseRetirement'), 'Declining a request must close the booking request, retire offers/notifications, close the case and invalidate assents in one audited command.');
 $contains($controller, array("case 'decline_request':", "dzn_manage_booking_request_coordination", 'Student archiving remains a separate action.'), 'The decline command must be capability-gated and keep student archiving separate.');
 $contains($view, array('declineRequestForm(', 'Decline this request', "'decline_request'"), 'The case page must expose the single audited decline action.');
+$contains($skip, array('public function skip(', "'booking_request.skip_intro'", "'reason_digest'"), 'Skip intro must be one audited decision and change no other records.');
+$contains($conversion, array('intro_not_completed', 'introCompletedForBooking('), 'Enrolment conversion must refuse while the intro is incomplete and read the ordering guard from the booking journey.');
+$contains($conversionRepo, array('public function introCompletedForBooking(', 'booking_request.skip_intro', "outcome='delivered'"), 'The conversion guard must accept a delivered outcome or an audited skip-intro decision.');
+$contains($response, array('acceptedArrangementForRequest(', 'Confirm the arrangement override before creating the intro.', 'arrangement_guard'), 'The total override must refuse when an accepted arrangement exists without an explicit acknowledgement.');
+$contains($controller, array("case 'skip_intro':", 'Skip-intro recorded'), 'The skip-intro command must be dispatched through the workspace controller.');
+$contains($view, array('skipIntroForm(', 'Skip the intro', 'arrangement_ack', "'skip_intro'"), 'The case page must expose the skip-intro decision and the arrangement acknowledgement on the override.');
 $contains($intro, array(
     'BookingRequestSubmissionService',
     'StudentIdentityResolutionService',

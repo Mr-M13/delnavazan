@@ -126,7 +126,8 @@ final class BookingTeacherResponseService {
             }else{
                 $deliveryId=$this->repository->createDelivery(array('uid'=>$uid,'booking_request_id'=>$requestId,'requested_time_id'=>$requestedTimeId,'teacher_id'=>(int)$teacher->id,'state'=>'pending_request','match_strength'=>'claim','created_at'=>$now,'updated_at'=>$now));
             }
-            $deadline=BookingAllocationService::addSeconds($now,BookingAllocationService::RESPONSE_SECONDS);
+            $deadline=BookingAllocationService::deadlineFor((string)$time->starts_at_utc,$now,0);
+            if($deadline===null)throw new \InvalidArgumentException('Booking time is no longer available');
             $this->repository->insertClaimOffer($requestId,$deliveryId,(int)$teacher->id,$requestedTimeId,$now,$deadline);
             $locked=$this->repository->deliveryByUid($uid,true);
             if(!$locked||(int)$locked->teacher_id!==(int)$teacher->id)throw new \RuntimeException('Booking request not found');

@@ -78,6 +78,31 @@ final class BookingAllocationRepository {
         if($wpdb->update($this->p.'booking_allocation_offers',array('state'=>$outcome,'active_slot'=>null,'responded_at'=>$now,'reason_code'=>$reason),array('id'=>$offerId,'state'=>'pending','active_slot'=>1))!==1)throw new \RuntimeException('Allocation offer changed concurrently');
     }
     /**
+     * Extend the same pending sole-Teacher offer. Never moves `offered_at`, so the
+     * Teacher's original delivery time stays honest; only the deadline advances.
+     */
+    public function extendOffer(int $offerId,string $deadline,string $now):void{
+        global $wpdb;
+        $changed=$wpdb->query($wpdb->prepare("UPDATE {$this->p}booking_allocation_offers SET deadline_at=%s WHERE id=%d AND state='pending' AND active_slot=1 AND deadline_at<%s",$deadline,$offerId,$deadline));
+        if($changed!==1)throw new \RuntimeException('Allocation offer hold failed');
+    }
+    public function hasAlert(int $requestId,string $kind):bool{
+        global $wpdb;
+        return (bool)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$this->p}booking_allocation_alerts WHERE booking_request_id=%d AND kind=%s AND state='open' LIMIT 1",$requestId,$kind));
+    }
+    /** Durable Student/Teacher booking notice, unique per delivery and kind. */
+    public function queueBookingNotice(int $deliveryId,int $offerId,string $kind,string $now):void{
+        global $wpdb;
+        if($deliveryId<1||$kind==='')throw new \RuntimeException('Allocation notice target required');
+        $exists=$wpdb->get_var($wpdb->prepare("SELECT id FROM {$this->p}booking_request_student_notifications WHERE delivery_id=%d AND notification_kind=%s",$deliveryId,$kind));
+        if($exists)return;
+        $data=array('uid'=>Identifier::uid(),'delivery_id'=>$deliveryId,'confirmation_id'=>null,'notification_kind'=>$kind,'state'=>'queued','attempt_count'=>0,'next_attempt_at'=>$now,'lease_token_digest'=>null,'lease_expires_at'=>null,'last_error_code'=>null,'handed_off_at'=>null,'created_at'=>$now,'updated_at'=>$now);
+        if($wpdb->insert($this->p.'booking_request_student_notifications',$data)===false){
+            $exists=$wpdb->get_var($wpdb->prepare("SELECT id FROM {$this->p}booking_request_student_notifications WHERE delivery_id=%d AND notification_kind=%s",$deliveryId,$kind));
+            if(!$exists)throw new \RuntimeException('Allocation notice persistence failed');
+        }
+    }
+    /**
      * Retire every other pending offer for the same Teacher and interval.
      *
      * Called only while the winning path already holds the Teacher scheduling
@@ -156,7 +181,25 @@ final class BookingAllocationRepository {
     public function markAlertNotified(int $id,string $now):void{global $wpdb;if($wpdb->update($this->p.'booking_allocation_alerts',array('notified_at'=>$now),array('id'=>$id,'state'=>'open','notified_at'=>null))===false)throw new \RuntimeException('Allocation alert notice marker failed');}
     public function unnotifiedExpirations(int $limit=25):array{global $wpdb;$limit=max(1,min(50,$limit));return (array)$wpdb->get_results("SELECT id,teacher_id FROM {$this->p}booking_allocation_offers WHERE state='expired' AND expiry_notified_at IS NULL ORDER BY id LIMIT {$limit}");}
     public function markExpiryNotified(int $id,string $now):void{global $wpdb;if($wpdb->update($this->p.'booking_allocation_offers',array('expiry_notified_at'=>$now),array('id'=>$id,'state'=>'expired','expiry_notified_at'=>null))===false)throw new \RuntimeException('Allocation expiry notice marker failed');}
-    public function dueRequests(string $now,int $limit=25):array{global $wpdb;return (array)$wpdb->get_col($wpdb->prepare("SELECT DISTINCT r.id FROM {$this->p}booking_requests r LEFT JOIN {$this->p}booking_allocation_offers o ON o.booking_request_id=r.id AND o.active_slot=1 WHERE r.lifecycle_status='submitted' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL AND r.selected_intro_course_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM {$this->p}booking_request_confirmations c WHERE c.booking_request_id=r.id AND c.state<>'failed') AND (o.deadline_at<=%s OR (r.created_at<=DATE_SUB(%s, INTERVAL 72 HOUR) AND (o.id IS NOT NULL OR EXISTS (SELECT 1 FROM {$this->p}booking_allocation_alerts a0 WHERE a0.booking_request_id=r.id AND a0.kind='referral')) AND NOT EXISTS (SELECT 1 FROM {$this->p}booking_allocation_alerts a WHERE a.booking_request_id=r.id AND a.kind='escalation'))) ORDER BY r.id LIMIT %d",$now,$now,$limit));}
+    public function dueRequests(string $now,int $limit=25):array{
+        global $wpdb;
+        $limit=max(1,min(50,$limit));
+        return (array)$wpdb->get_col($wpdb->prepare(
+            "SELECT DISTINCT r.id
+               FROM {$this->p}booking_requests r
+               LEFT JOIN {$this->p}booking_allocation_offers o ON o.booking_request_id=r.id AND o.active_slot=1
+               INNER JOIN (SELECT booking_request_id,MIN(starts_at_utc) earliest_start_utc FROM {$this->p}booking_request_requested_times GROUP BY booking_request_id) t ON t.booking_request_id=r.id
+              WHERE r.lifecycle_status='submitted' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL AND r.selected_intro_course_id IS NOT NULL
+                AND NOT EXISTS (SELECT 1 FROM {$this->p}booking_request_confirmations c WHERE c.booking_request_id=r.id AND c.state<>'failed')
+                AND (
+                    (o.id IS NOT NULL AND o.deadline_at<=%s)
+                    OR (t.earliest_start_utc<=DATE_ADD(%s,INTERVAL 12 HOUR)
+                        AND NOT EXISTS (SELECT 1 FROM {$this->p}booking_allocation_alerts a WHERE a.booking_request_id=r.id AND a.kind='escalation' AND a.state='open'))
+                )
+              ORDER BY r.id LIMIT %d",
+            $now,$now,$limit
+        ));
+    }
     public function confirmationExists(int $requestId):bool{global $wpdb;return (bool)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$this->p}booking_request_confirmations WHERE booking_request_id=%d LIMIT 1",$requestId));}
     public function historicalOffer(int $requestId,object $delivery,string $deadline):void{
         global $wpdb;
@@ -166,7 +209,7 @@ final class BookingAllocationRepository {
     public function alerts(int $requestId):array{global $wpdb;return (array)$wpdb->get_results($wpdb->prepare("SELECT kind,reason_code,priority,state,created_at,resolved_at FROM {$this->p}booking_allocation_alerts WHERE booking_request_id=%d ORDER BY id",$requestId));}
     private function enqueueOfferNotification(int $offerId,string $now):void{global $wpdb;if($wpdb->insert($this->p.'booking_allocation_notifications',array('offer_id'=>$offerId,'state'=>'queued','attempt_count'=>0,'next_attempt_at'=>$now,'lease_expires_at'=>null,'last_error_code'=>null,'handed_off_at'=>null,'created_at'=>$now,'updated_at'=>$now))===false)throw new \RuntimeException('Allocation notification persistence failed');}
     public function dueNotifications(string $now,int $limit=20):array{global $wpdb;return (array)$wpdb->get_col($wpdb->prepare("SELECT id FROM {$this->p}booking_allocation_notifications WHERE (state IN ('queued','retryable') AND next_attempt_at<=%s) OR (state='sending' AND lease_expires_at<=%s) ORDER BY id LIMIT %d",$now,$now,$limit));}
-    public function notification(int $id,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT n.*,o.booking_request_id,o.teacher_id,o.requested_time_id,o.state offer_state,o.deadline_at,o.active_slot,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,s.full_name,COALESCE(NULLIF(t.display_name,''),NULLIF(t.persian_name,''),t.reference_code) teacher_name,COALESCE(NULLIF(c.name_fa,''),c.name_en) course_name,rt.starts_at_utc,p.timezone teacher_timezone,l.wordpress_user_id FROM {$this->p}booking_allocation_notifications n INNER JOIN {$this->p}booking_allocation_offers o ON o.id=n.offer_id INNER JOIN {$this->p}booking_requests r ON r.id=o.booking_request_id INNER JOIN {$this->p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1 INNER JOIN {$this->p}teachers t ON t.id=o.teacher_id LEFT JOIN {$this->p}courses c ON c.id=r.selected_intro_course_id INNER JOIN {$this->p}booking_request_requested_times rt ON rt.id=o.requested_time_id LEFT JOIN {$this->p}teacher_availability_profiles p ON p.teacher_id=o.teacher_id LEFT JOIN {$this->p}teacher_principal_links l ON l.teacher_id=o.teacher_id AND l.status='active' AND l.revoked_at IS NULL WHERE n.id=%d".($lock?' FOR UPDATE':''),$id))?:null;}
+    public function notification(int $id,bool $lock=false):?object{global $wpdb;return $wpdb->get_row($wpdb->prepare("SELECT n.*,o.booking_request_id,o.teacher_id,o.requested_time_id,o.state offer_state,o.deadline_at,o.offered_at,o.active_slot,r.lifecycle_status,r.resolution_state,r.privacy_erased_at,s.full_name,COALESCE(NULLIF(t.display_name,''),NULLIF(t.persian_name,''),t.reference_code) teacher_name,COALESCE(NULLIF(c.name_fa,''),c.name_en) course_name,rt.starts_at_utc,p.timezone teacher_timezone,l.wordpress_user_id FROM {$this->p}booking_allocation_notifications n INNER JOIN {$this->p}booking_allocation_offers o ON o.id=n.offer_id INNER JOIN {$this->p}booking_requests r ON r.id=o.booking_request_id INNER JOIN {$this->p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1 INNER JOIN {$this->p}teachers t ON t.id=o.teacher_id LEFT JOIN {$this->p}courses c ON c.id=r.selected_intro_course_id INNER JOIN {$this->p}booking_request_requested_times rt ON rt.id=o.requested_time_id LEFT JOIN {$this->p}teacher_availability_profiles p ON p.teacher_id=o.teacher_id LEFT JOIN {$this->p}teacher_principal_links l ON l.teacher_id=o.teacher_id AND l.status='active' AND l.revoked_at IS NULL WHERE n.id=%d".($lock?' FOR UPDATE':''),$id))?:null;}
     public function updateNotification(int $id,string $from,array $data):void{global $wpdb;if($wpdb->update($this->p.'booking_allocation_notifications',$data,array('id'=>$id,'state'=>$from))!==1)throw new \RuntimeException('Allocation notification changed concurrently');}
     /** Called while the privacy owner holds the request row lock. */
     public function erase(int $requestId):void{

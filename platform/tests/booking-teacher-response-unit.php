@@ -85,6 +85,7 @@ namespace Delnavazan\Platform\Core\Application {
         public static bool $acceptableResult = false;
         public static function resetAcceptableCalls(): void { self::$acceptableCalls = array(); self::$acceptableResult = false; }
         public static function addSeconds(string $utc,int $seconds): string { return (new \DateTimeImmutable($utc,new \DateTimeZone('UTC')))->modify(($seconds>=0?'+':'').$seconds.' seconds')->format('Y-m-d H:i:s'); }
+        public static function deadlineFor(string $startUtc,string $now,int $remainingPool,bool $enforceTerminalStop=true): ?string { return (new \DateTimeImmutable($now,new \DateTimeZone('UTC')))->modify('+4 hours')->format('Y-m-d H:i:s'); }
         public function assertPending(object $delivery,string $now):void{}
         public function assertAcceptable(object $delivery,string $now,?int $requestedTimeId=null,bool $allowOutsideAvailability=false):bool{
             self::$acceptableCalls[]=array('delivery_id'=>(int)$delivery->id,'requested_time_id'=>$requestedTimeId,'allow_outside'=>$allowOutsideAvailability);

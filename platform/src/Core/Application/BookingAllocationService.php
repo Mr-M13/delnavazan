@@ -11,8 +11,12 @@ use Delnavazan\Platform\Core\Support\Identifier;
  * automatic history lives in the allocation ledger.
  */
 final class BookingAllocationService {
+    /** The 24-hour response window is the ceiling for one offer. */
     public const RESPONSE_SECONDS=BookingLeadTimePolicy::RESPONSE_WINDOW_SECONDS;
-    public const ESCALATION_SECONDS=259200;
+    /** No new offer is made inside T−12h; the request escalates. */
+    public const TERMINAL_REFERRAL_REASON='terminal_offer_window_closed';
+    /** The silent, still-viable sole Teacher keeps the same pending offer. */
+    public const HOLD_ALERT_REASON='sole_candidate_unanswered';
     // A response must finish before the lesson begins; leave an hour for
     // confirmation and provider projection after the complete response window.
     public const PROJECTION_BUFFER_SECONDS=BookingLeadTimePolicy::PROJECTION_BUFFER_SECONDS;
@@ -50,9 +54,10 @@ final class BookingAllocationService {
         if(!$candidates){$this->repo->referral($requestId,$this->emptyCandidatesReason($times,$now,true,'no_viable_teacher'),$now);return null;}
         $last=$this->repo->cursor($courseId,$now);
         $chosen=$this->next($candidates,$last,array(),$now);
+        $deadline=$this->deadlineFor($this->startForTimeId((int)$chosen['requested_time_id'],$times),$now,count($candidates));
+        if($deadline===null){$this->repo->referral($requestId,self::TERMINAL_REFERRAL_REASON,$now);return null;}
         $this->repo->advanceCursor($courseId,$chosen['teacher_id'],$now);
         $deliveryId=$this->deliveries->create(array('uid'=>Identifier::uid(),'booking_request_id'=>$requestId,'requested_time_id'=>$chosen['requested_time_id'],'teacher_id'=>$chosen['teacher_id'],'state'=>'pending_request','match_strength'=>$chosen['match_strength'],'created_at'=>$now,'updated_at'=>$now));
-        $deadline=self::addSeconds($now,self::RESPONSE_SECONDS);
         $this->repo->addOffer($requestId,$deliveryId,$chosen,1,$now,$deadline);
         return array('delivery_id'=>$deliveryId,'teacher_id'=>$chosen['teacher_id'],'requested_time_id'=>$chosen['requested_time_id'],'state'=>'pending_request','match_strength'=>$chosen['match_strength'],'deadline_at'=>$deadline);
     }
@@ -64,24 +69,57 @@ final class BookingAllocationService {
         $offer=$this->repo->offer($requestId,true);
         if(!$offer||(int)$offer->delivery_id!==(int)$delivery->id||(int)$offer->teacher_id!==(int)$delivery->teacher_id||$delivery->state!=='pending_request')throw new \InvalidArgumentException('Booking offer is no longer pending');
         if($outcome==='expired'&&(string)$offer->deadline_at>$now)throw new \InvalidArgumentException('Booking offer has not expired');
-        $this->repo->transitionOffer((int)$offer->id,$outcome,$now,$outcome);
         $request=$this->repo->request($requestId);
-        if(!$request||$request->lifecycle_status!=='submitted'||$request->resolution_state!=='unresolved'||$request->privacy_erased_at!==null)return null;
+        if(!$request||$request->lifecycle_status!=='submitted'||$request->resolution_state!=='unresolved'||$request->privacy_erased_at!==null){
+            $this->repo->transitionOffer((int)$offer->id,$outcome,$now,$outcome);
+            return null;
+        }
         $history=$this->repo->history($requestId);
         $offered=array_map(static fn(object $row):int=>(int)$row->teacher_id,$history);
         $times=$this->repo->times($requestId);
         $this->lockEligibleTeacherRoots((int)$request->selected_intro_course_id,$now);
-        $candidates=$this->candidates((int)$request->selected_intro_course_id,$times,$now);
+        $candidates=$this->candidates((int)$request->selected_intro_course_id,$times,$now,true,(int)$requestId);
+        // The hold question is "can this Teacher still accept?", not "could a new
+        // offer be made?". Inside the maximum-window lead no new offer is possible,
+        // but the current Teacher may still be perfectly viable until T−1h.
+        $viable=$this->candidates((int)$request->selected_intro_course_id,$times,$now,false,(int)$requestId);
+        $pool=$this->availablePool($candidates,$offered);
         $next=$this->next($candidates,(int)$offer->teacher_id,$offered,$now);
-        if(!$next){
-            $this->deliveries->transitionForAllocation((int)$delivery->id,'pending_request',$outcome,$now);
-            $this->repo->referral($requestId,$this->emptyCandidatesReason($times,$now,true,'candidates_exhausted'),$now);
+        $requestStart=$this->earliestStart($times);
+        $terminal=$requestStart!==null&&self::addSeconds($requestStart,-BookingLeadTimePolicy::PROJECTION_BUFFER_SECONDS)<=$now;
+
+        $nextDeadline=$next?$this->deadlineFor($this->startForTimeId((int)$next['requested_time_id'],$times),$now,count($pool)):null;
+        if($next&&$nextDeadline!==null){
+            $this->repo->transitionOffer((int)$offer->id,$outcome,$now,$outcome);
+            $deliveryId=$this->repo->rotateDelivery($delivery,$next,$now);
+            $this->repo->addOffer($requestId,$deliveryId,$next,(int)$offer->offer_sequence+1,$now,$nextDeadline);
+            return array('delivery_id'=>$deliveryId,'teacher_id'=>$next['teacher_id'],'requested_time_id'=>$next['requested_time_id'],'state'=>'pending_request','match_strength'=>$next['match_strength'],'deadline_at'=>$nextDeadline);
+        }
+
+        // Sole-teacher hold: an expiry (never a decline) of the current Teacher, who
+        // is still viable, when no next offer can be made, keeps the same pending
+        // offer alive. The hold is not a new offer, so it may extend past T−12h up
+        // to T−1h.
+        if($outcome==='expired'&&!$terminal&&isset($viable[(int)$offer->teacher_id])){
+            $holdDeadline=$this->deadlineFor($this->startForTimeId((int)$offer->requested_time_id,$times),$now,1,false);
+            if($holdDeadline!==null&&$holdDeadline>(string)$offer->deadline_at){
+                $this->repo->extendOffer((int)$offer->id,$holdDeadline,$now);
+                $this->repo->alert($requestId,'hold',self::HOLD_ALERT_REASON,'high',$now);
+                $this->repo->queueBookingNotice((int)$delivery->id,(int)$offer->id,'hold_teacher',$now);
+                return null;
+            }
+        }
+
+        $this->repo->transitionOffer((int)$offer->id,$outcome,$now,$outcome);
+        $this->deliveries->transitionForAllocation((int)$delivery->id,'pending_request',$outcome,$now);
+        if($terminal){
+            $this->repo->queueBookingNotice((int)$delivery->id,(int)$offer->id,'terminal',$now);
+            $this->repo->referral($requestId,self::TERMINAL_REFERRAL_REASON,$now);
             return null;
         }
-        $deliveryId=$this->repo->rotateDelivery($delivery,$next,$now);
-        $deadline=self::addSeconds($now,self::RESPONSE_SECONDS);
-        $this->repo->addOffer($requestId,$deliveryId,$next,(int)$offer->offer_sequence+1,$now,$deadline);
-        return array('delivery_id'=>$deliveryId,'teacher_id'=>$next['teacher_id'],'requested_time_id'=>$next['requested_time_id'],'state'=>'pending_request','match_strength'=>$next['match_strength'],'deadline_at'=>$deadline);
+        $reason=isset($viable[(int)$offer->teacher_id])?'candidates_exhausted':'teacher_became_unavailable';
+        $this->repo->referral($requestId,$this->emptyCandidatesReason($times,$now,true,$reason),$now);
+        return null;
     }
 
     public function assertPending(object $delivery,string $now):void{
@@ -182,9 +220,9 @@ final class BookingAllocationService {
             if(!$request||$request->lifecycle_status!=='submitted'||$request->resolution_state!=='unresolved'||$request->privacy_erased_at!==null||$this->repo->confirmationExists($requestId)){$this->repo->commit();return;}
             $offer=$this->repo->offer($requestId,true);
             if($offer&&$delivery&&$delivery->state==='pending_request'&&(string)$offer->deadline_at<=$now)$this->advanceLocked($delivery,'expired',$now);
-            if((string)$request->created_at<=self::addSeconds($now,-self::ESCALATION_SECONDS)){
-                $this->repo->alert($requestId,'escalation','unaccepted_after_72h','high',$now);
-                $this->repo->referral($requestId,'unaccepted_after_72h',$now);
+            $start=$this->earliestStart($this->repo->times($requestId));
+            if($start!==null&&self::addSeconds($start,-BookingLeadTimePolicy::TERMINAL_ESCALATION_SECONDS)<=$now&&!$this->repo->hasAlert($requestId,'escalation')){
+                $this->repo->alert($requestId,'escalation','unresolved_at_terminal_threshold','high',$now);
             }
             $this->repo->commit();
         }catch(\Throwable $error){
@@ -201,9 +239,11 @@ final class BookingAllocationService {
         $offer=$this->repo->offer($requestId);
         $confirmed=$this->repo->confirmationExists($requestId);
         $eligible=$request->lifecycle_status==='submitted'&&$request->resolution_state==='unresolved'&&$request->privacy_erased_at===null&&!$confirmed;
-        $candidates=$eligible?$this->candidates((int)$request->selected_intro_course_id,$this->repo->times($requestId),$now):array();
+        $times=$this->repo->times($requestId);
+        $candidates=$eligible?$this->candidates((int)$request->selected_intro_course_id,$times,$now):array();
         $action=!$eligible?'preserve_existing_lifecycle':($offer?'already_allocated':($delivery&&$delivery->state==='pending_request'?'reconcile_legacy_offer':($delivery?'manual_review':($candidates?'start_offer':'refer_administrator'))));
-        return array('request_id'=>$requestId,'reference'=>(string)($request->reference_code??''),'submitted_at'=>(string)$request->created_at,'action'=>$action,'existing_delivery_state'=>$delivery?(string)$delivery->state:null,'active_offer'=>$offer!==null,'confirmation_exists'=>$confirmed,'viable_teacher_count'=>count($candidates),'past_72_hours'=>(string)$request->created_at<=self::addSeconds($now,-self::ESCALATION_SECONDS));
+        $start=$this->earliestStart($times);
+        return array('request_id'=>$requestId,'reference'=>(string)($request->reference_code??''),'submitted_at'=>(string)$request->created_at,'action'=>$action,'existing_delivery_state'=>$delivery?(string)$delivery->state:null,'active_offer'=>$offer!==null,'confirmation_exists'=>$confirmed,'viable_teacher_count'=>count($candidates),'terminal_threshold_reached'=>$start!==null&&self::addSeconds($start,-BookingLeadTimePolicy::TERMINAL_ESCALATION_SECONDS)<=$now,'terminal_expiry_reached'=>$start!==null&&self::addSeconds($start,-BookingLeadTimePolicy::PROJECTION_BUFFER_SECONDS)<=$now);
     }
     /** Only an explicit, audited operator action can turn a legacy request into offers. */
     public function recover(int $requestId,string $now):array{
@@ -216,15 +256,15 @@ final class BookingAllocationService {
             if($preview['action']==='manual_review'){$this->repo->referral($requestId,'legacy_delivery_requires_review',$now);}
             elseif($preview['action']==='reconcile_legacy_offer'){
                 $delivery=$this->repo->delivery($requestId,true);
-                $deadline=self::addSeconds((string)$delivery->created_at,self::RESPONSE_SECONDS);
-                $this->repo->historicalOffer($requestId,$delivery,$deadline);
-                if($deadline<=$now)$this->advanceLocked($delivery,'expired',$now);
+                $start=$this->earliestStart($this->repo->times($requestId));
+                $deadline=$start!==null?$this->deadlineFor($start,(string)$delivery->created_at,max(0,(int)$preview['viable_teacher_count'])):null;
+                if($deadline===null){$this->repo->referral($requestId,self::TERMINAL_REFERRAL_REASON,$now);}
+                else{
+                    $this->repo->historicalOffer($requestId,$delivery,$deadline);
+                    if($deadline<=$now)$this->advanceLocked($delivery,'expired',$now);
+                }
             }else{
                 $this->startWithinTransaction($requestId,(int)$request->selected_intro_course_id,$this->repo->times($requestId),$now);
-            }
-            if((string)$request->created_at<=self::addSeconds($now,-self::ESCALATION_SECONDS)){
-                $this->repo->alert($requestId,'escalation','unaccepted_after_72h','high',$now);
-                $this->repo->referral($requestId,'unaccepted_after_72h',$now);
             }
             $this->repo->commit();return $preview+array('applied'=>true);
         }catch(\Throwable $error){
@@ -236,6 +276,33 @@ final class BookingAllocationService {
     public static function addSeconds(string $utc,int $seconds):string{
         return (new \DateTimeImmutable($utc,new \DateTimeZone('UTC')))->modify(($seconds>=0?'+':'').$seconds.' seconds')->format('Y-m-d H:i:s');
     }
+    /**
+     * The single offer-window authority.
+     *
+     * The budget is everything between now and the terminal stop (T−12h). It is
+     * split across the Teachers still in the pool plus this offer, clamped to
+     * [4h, 24h], then capped so confirmation and projection finish before T−1h.
+     *
+     * A new offer is impossible when the minimum four-hour window would already
+     * cross the terminal stop: this is what makes a 26h/3 request produce three
+     * four-hour windows and then stop, instead of inventing a fifth hour of
+     * budget. Callers may disable the terminal gate only for a sole-Teacher hold,
+     * which extends the same offer (not a new offer) up to T−1h.
+     *
+     * @param int $remainingPool Candidates still eligible for an offer, including the one being offered.
+     */
+    public static function deadlineFor(string $startUtc,string $now,int $remainingPool,bool $enforceTerminalStop=true):?string{
+        $start=strtotime($startUtc.' UTC');$at=strtotime($now.' UTC');
+        if($start===false||$at===false||$start<=$at)return null;
+        $terminalStop=$start-BookingLeadTimePolicy::TERMINAL_ESCALATION_SECONDS;
+        if($enforceTerminalStop&&$at+BookingLeadTimePolicy::MIN_WINDOW_SECONDS>$terminalStop)return null;
+        $budget=max(0,$terminalStop-$at);
+        $pool=max(0,$remainingPool);
+        $window=(int)floor($budget/($pool+1));
+        $window=max(BookingLeadTimePolicy::MIN_WINDOW_SECONDS,min(BookingLeadTimePolicy::RESPONSE_WINDOW_SECONDS,$window));
+        $deadline=min($at+$window,$start-BookingLeadTimePolicy::PROJECTION_BUFFER_SECONDS);
+        return $deadline<=$at?null:gmdate('Y-m-d H:i:s',$deadline);
+    }
     /** @return array<int,array{teacher_id:int,requested_time_id:int,match_strength:string,sequence:int}> */
     private function candidates(int $courseId,array $times,string $now,bool $fullResponseWindow=true,int $excludeBookingRequestId=0,bool $includePendingOffers=true,bool $allowOutsideAvailability=false):array{
         if($courseId<1)return array();
@@ -244,11 +311,11 @@ final class BookingAllocationService {
         foreach($teachers as $teacher)foreach($times as $time){
             $start=(string)(is_array($time)?$time['starts_at_utc']:$time->starts_at_utc);
             $end=(string)(is_array($time)?$time['occupied_ends_at_utc']:$time->occupied_ends_at_utc);
-            // One boundary authority: the shared policy predicate, the decision
-            // instant and the strictness used by the day grid and intake. Never
-            // re-derive the boundary here, or a time can be requestable on the
-            // public grid and unofferable in allocation.
-            if(!BookingLeadTimePolicy::isStartAllowed($start,$now,$fullResponseWindow))continue;
+            // One boundary authority for the allocation decision: a new offer uses
+            // the time-budgeted offer window (4h before T−12h), while an acceptance
+            // recheck uses the projection buffer only. The public day grid keeps
+            // the maximum-window lead for new submissions.
+            if($fullResponseWindow?!BookingLeadTimePolicy::isStartOfferable($start,$now):!BookingLeadTimePolicy::isStartAllowed($start,$now,false))continue;
             $teacherId=(int)$teacher->teacher_id;
             $coverage=$this->coverage($teacherId,$start,$end,$this->availability->instrumentIdForCourse($courseId));
             $outside=$coverage===null;
@@ -264,6 +331,30 @@ final class BookingAllocationService {
         ksort($result,SORT_NUMERIC);
         return $result;
     }
+    /** Candidates not yet offered this request, including the one about to be chosen. */
+    private function availablePool(array $candidates,array $offered):array{
+        $pool=array();
+        foreach($candidates as $id=>$candidate)if(!in_array((int)$id,$offered,true))$pool[(int)$id]=$candidate;
+        return $pool;
+    }
+    private function startForTimeId(int $timeId,array $times):string{
+        foreach($times as $time){
+            $id=(int)(is_array($time)?($time['id']??0):($time->id??0));
+            if($id===$timeId)return (string)(is_array($time)?($time['starts_at_utc']??''):($time->starts_at_utc??''));
+        }
+        return '';
+    }
+    /** The earliest requested start bounds the request-level terminal thresholds. */
+    private function earliestStart(array $times):?string{
+        $starts=array();
+        foreach($times as $time){
+            $start=(string)(is_array($time)?($time['starts_at_utc']??''):($time->starts_at_utc??''));
+            if($start!=='')$starts[]=$start;
+        }
+        if(!$starts)return null;
+        sort($starts);
+        return $starts[0];
+    }
     /**
      * Approved allocation order:
      *
@@ -277,8 +368,7 @@ final class BookingAllocationService {
      * expiry always moves to a different Teacher. The sort is total and stable, so
      * the same inputs always select the same Teacher.
      */
-    private function next(array $candidates,int $last,array $offered,string $now):?array{
-        $pool=array();
+    private function next(array $candidates,int $last,array $offered,string $now):?array{        $pool=array();
         foreach($candidates as $id=>$candidate)if(!in_array($id,$offered,true))$pool[$id]=$candidate;
         if(!$pool)return null;
         $workload=$this->workload->scores(array_keys($pool),$now);
@@ -326,7 +416,8 @@ final class BookingAllocationService {
     private function emptyCandidatesReason(array $times,string $now,bool $fullResponseWindow,string $fallback):string{
         $starts=array();
         foreach($times as $time)$starts[]=(string)(is_array($time)?$time['starts_at_utc']:$time->starts_at_utc);
-        return BookingLeadTimePolicy::allStartsInsideMinimumNotice($starts,$now,$fullResponseWindow)?self::LEAD_TIME_REFERRAL_REASON:$fallback;
+        $inside=$fullResponseWindow?BookingLeadTimePolicy::allStartsInsideOfferWindow($starts,$now):BookingLeadTimePolicy::allStartsInsideMinimumNotice($starts,$now,false);
+        return $inside?self::LEAD_TIME_REFERRAL_REASON:$fallback;
     }
     /** Lock in a global Teacher-id order before allocating across instruments. */
     private function lockEligibleTeacherRoots(int $courseId,string $now):void{

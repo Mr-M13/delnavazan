@@ -51,7 +51,7 @@ final class TeacherOpenBookingRequestRepository {
                 INNER JOIN {$this->prefix}booking_request_requested_times rt ON rt.id=(
                     SELECT rt0.id FROM {$this->prefix}booking_request_requested_times rt0
                     WHERE rt0.booking_request_id=r.id
-                      AND rt0.starts_at_utc>DATE_ADD(UTC_TIMESTAMP(),INTERVAL 3600 SECOND)
+                      AND rt0.starts_at_utc>DATE_ADD(UTC_TIMESTAMP(),INTERVAL 43200 SECOND)
                     ORDER BY rt0.sequence_number ASC,rt0.id ASC LIMIT 1
                 )
                 WHERE r.lifecycle_status='submitted' AND r.resolution_state='unresolved' AND r.privacy_erased_at IS NULL

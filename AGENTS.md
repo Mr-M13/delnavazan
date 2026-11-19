@@ -173,7 +173,12 @@ is optional strict parity. Docker is required only for the runtime suites.
   surface is covered by `php platform/tests/booking-payment-expiry-unit.php`
   (deadline math, expiry transition and slot release) and
   `php platform/tests/booking-payment-slot-security-contract.php` (paid-intro
-  canonical visibility, unpaid non-blocking and conflict-at-payment). The retired-URL surface is covered by
+  canonical visibility, unpaid non-blocking and conflict-at-payment). The
+  time-budgeted offer surface is covered by
+  `php platform/tests/booking-offer-window-unit.php`
+  (the 4h–24h formula, the T−12h terminal gate and the hold exception) and
+  `php platform/tests/booking-sole-teacher-hold-unit.php` (extend-not-expire,
+  one hold alert, terminal expiry and decline-is-not-a-hold). The retired-URL surface is covered by
   `php platform/tests/seo-legacy-redirects-contract.php` and
   `php platform/tests/seo-legacy-redirects-unit.php`: every URL in
   `deployment/seo/production-seo-baseline.csv` must stay mapped to a live target, and a retired path

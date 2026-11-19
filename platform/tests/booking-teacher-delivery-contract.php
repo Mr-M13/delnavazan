@@ -60,7 +60,7 @@ foreach (array(
     "r.lifecycle_status='submitted'", "r.resolution_state='unresolved'", 'r.privacy_erased_at IS NULL',
     "identity.outcome='resolved'", 'teacher_course_eligibilities', "offer.active_slot=1",
     "confirmation.state<>'failed'", "existing.state IN ('accepting','confirmed')",
-    'prior.teacher_id=%d', 'INTERVAL 3600 SECOND', 'ORDER BY rt0.sequence_number ASC',
+    'prior.teacher_id=%d', 'INTERVAL 43200 SECOND', 'ORDER BY rt0.sequence_number ASC',
 ) as $needle) {
     $assert(str_contains($open_repo, $needle), 'Unmatched request query must exclude every matched, erased or already-offered request: ' . $needle);
 }

@@ -27,6 +27,7 @@ $readService = $read('src/Core/Application/EnrolmentWorkspaceReadService.php');
 $lifecycle = $read('src/Core/Application/IntroLessonLifecycleService.php');
 $portalController = $read('src/Portals/IntroLessonLifecycleController.php');
 $match = $read('src/Core/Application/AdministratorBookingMatchService.php');
+$adminIntro = $read('src/Core/Application/AdministratorIntroBookingService.php');
 $worker = $read('src/Integrations/BookingStudentNotificationWorker.php');
 $studentSchedule = $read('theme/template-parts/portal/schedule.php');
 $teacherClasses = $read('theme/template-parts/teacher-portal/classes.php');
@@ -75,10 +76,21 @@ $contains($controller, array(
 $contains($view, array('dzn-intro-form-error', 'Introductory lesson was not created.'), 'Create errors must render inside the form');
 $contains($controller, array(
     "'student_slot_conflict' => 'The Student already has an overlapping booking or class.",
+    "'student_instrument_already_enrolled' =>",
+    "'Student occupancy read failed' =>",
+    "'Booking Request requested time persistence failed' =>",
+    "'Booking Request compensation failed'",
+    "'Idempotency operation unavailable'",
     "'EWI-'",
     "workspace][' . \$failureReference",
     "Reference: ' . \$failureReference",
-), 'Manual-intro refusals must identify Student conflicts clearly and retain an opaque server-log reference for unexpected failures');
+), 'Manual-intro refusals must identify Student conflicts and persistence failures, and retain an opaque server-log reference');
+$contains($adminIntro, array(
+    'assertAvailableForPreview($studentId',
+    'studentHasActiveInstrumentEnrollment($studentId',
+    'studentOccupancyConflicts($studentId',
+    "'include_open_requests' => true",
+), 'Manual intro must preflight the same Student occupancy that intake enforces');
 
 // 6. Administrator manual/intro match must dispatch the same projector as the teacher path.
 $contains($match, array(
@@ -113,7 +125,7 @@ $contains($lifecycle, array(
     "if (!in_array(\$actorRole, array('admin', 'teacher'), true))",
     'PortalPrincipalResolver',
     'dzn_manage_booking_request_coordination',
-    'CanonicalTeacherOccupancyReadService',
+    'BookingTeacherOccupancyReadService',
     'LessonRescheduleRepository',
     "queueNotification((int) \$confirmation->delivery_id, (int) \$confirmation->id, 'cancelled'",
     "'rescheduled_teacher'",

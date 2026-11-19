@@ -680,12 +680,22 @@ final class EnrolmentWorkspaceController {
 
     private static function safeMessage(\Throwable $exception, string $failureReference = ''): string {
         $message = $exception->getMessage();
+        if (str_starts_with($message, 'Booking Request compensation failed')) {
+            return 'The failed booking could not be fully cleaned up. Contact support with the reference.';
+        }
         return match ($message) {
             'allocation_busy','teacher_busy' => 'Another booking change is being committed for this Teacher. Nothing was changed; retry in a moment.',
             'Unauthorized' => 'You no longer have permission for this action.',
             'teacher_slot_conflict' => 'The Teacher already has a class at that time. Choose another slot; nothing was double-booked.',
             'student_slot_conflict' => 'The Student already has an overlapping booking or class. Choose another time; nothing was duplicated.',
             'student_instrument_already_enrolled' => 'This Student already has an active enrolment for this instrument. An introductory lesson was not created.',
+            'Student occupancy read failed' => 'The Student calendar could not be checked. No change was saved; retry in a moment.',
+            'Booking Request persistence failed' => 'The booking request could not be saved. No change was saved; retry.',
+            'Booking Request contact snapshot persistence failed' => 'The Student contact snapshot could not be saved. Review the Student contact fields and retry.',
+            'Booking Request requested time persistence failed' => 'The selected time could not be saved. No change was saved; retry or choose another time.',
+            'Idempotency persistence failed','Idempotency completion failed','Idempotency operation unavailable' => 'The booking attempt could not be finalized. Reload the page and try again; no change was saved.',
+            'Introductory booking request could not be resolved' => 'The booking request could not be resolved after creation. Check the Student’s requests before retrying.',
+            'Introductory booking time could not be resolved' => 'The booking time could not be resolved after creation. Check the Student’s requests before retrying.',
             'active_future_schedule_exists' => 'This Enrolment still has future scheduled classes. Cancel or reschedule them before changing the Teacher assignment.',
             'intro_not_finished' => 'The introductory lesson has not finished yet.',
             'intro_outcome_already_recorded' => 'A different outcome is already recorded for this introductory lesson.',

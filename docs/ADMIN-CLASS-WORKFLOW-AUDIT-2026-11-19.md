@@ -189,8 +189,10 @@ dispatch (or explicit “docs-only” note). No phase merges around a failing ch
   recent journey failures, so EWI references can be resolved without ad-hoc host access.
 - Deliverable: diagnostics PR + doc update. No production dispatch if diagnostic-only.
 
-### Phase 1 — One journey status, everywhere (read model rollout)
+### Phase 1 — One journey status, everywhere (read model + admin UX)
 
+- Implemented against `docs/ADMIN-CLASS-WORKFLOW-UX-SPEC.md`: one status vocabulary, one
+  primary action per state, and every advanced/constrained action behind “More actions”.
 - Replace the case-page stack with a single `Resolve this request` panel rendered from
   `status()`: exactly one primary action + “More actions”.
 - Migrate `EnrolmentWorkspaceView::caseActions`, the Enrolment queue stage labels, and the

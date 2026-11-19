@@ -64,6 +64,13 @@ final class EnrolmentWorkspaceController {
             EnrolmentWorkspaceView::introInsights($read, $_GET);
             return;
         }
+        if (($_GET['view'] ?? '') === 'reconciliation') {
+            if (!current_user_can(Menu::ENROLMENT_TRIALS_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
+            echo '<div class="wrap dzn-enrolment"><h1>Enrolment reconciliation</h1><p><a href="' . esc_url(admin_url('admin.php?page=' . self::PAGE)) . '">← Back to Enrolment</a></p>';
+            EnrolmentWorkspaceView::reconciliationPanel($read);
+            echo '</div>';
+            return;
+        }
         if ($requestId > 0) {
             if (!current_user_can(Menu::ENROLMENT_TRIALS_CAP)) wp_die('Forbidden', 'Delnavazan', array('response' => 403));
             $case = $read->bookingCase($requestId);

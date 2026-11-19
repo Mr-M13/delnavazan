@@ -165,6 +165,9 @@ $contains($conversionRepo, array('public function introCompletedForBooking(', 'b
 $contains($response, array('acceptedArrangementForRequest(', 'Confirm the arrangement override before creating the intro.', 'arrangement_guard'), 'The total override must refuse when an accepted arrangement exists without an explicit acknowledgement.');
 $contains($controller, array("case 'skip_intro':", 'Skip-intro recorded'), 'The skip-intro command must be dispatched through the workspace controller.');
 $contains($view, array('skipIntroForm(', 'Skip the intro', 'arrangement_ack', "'skip_intro'"), 'The case page must expose the skip-intro decision and the arrangement acknowledgement on the override.');
+$contains($readService, array('public function reconciliationReport(', "'arrangement_without_intro'", "'closed_case_open_request'", "'enrolment_without_intro'", "'expired_delivery_without_confirmation'"), 'A read-only reconciliation report must enumerate every mixed-state class without mutating records.');
+$contains($view, array('reconciliationPanel(', 'Reconciliation report'), 'The Enrolment workspace must render the reconciliation report.');
+$contains($controller, array("=== 'reconciliation')"), 'The workspace controller must route the reconciliation report view.');
 $contains($intro, array(
     'BookingRequestSubmissionService',
     'StudentIdentityResolutionService',

@@ -478,6 +478,81 @@ final class EnrolmentWorkspaceReadService {
     }
 
     /**
+     * Dry-run reconciliation: every booking request whose authorities disagree.
+     *
+     * Read-only. Each row names the issue class so the owner can decide per request
+     * (confirm the intro, record a skip, convert the arrangement, or decline).
+     *
+     * @return array{rows:array<int,array<string,mixed>>,counts:array<string,int>,total:int}
+     */
+    public function reconciliationReport(): array {
+        $this->requireAny(array('dzn_view_booking_requests', 'dzn_manage_booking_request_coordination'));
+        global $wpdb;
+        $p = $this->p;
+        $rows = array();
+        $counts = array('arrangement_without_intro' => 0, 'closed_case_open_request' => 0, 'enrolment_without_intro' => 0, 'expired_delivery_without_confirmation' => 0);
+        $add = static function (array $row, string $issue, string $label) use (&$rows, &$counts): void {
+            $row['issue'] = $issue;
+            $row['label'] = $label;
+            $rows[] = $row;
+            $counts[$issue]++;
+        };
+        // 1. Accepted arrangement without a delivered intro or an audited skip decision.
+        $arrangements = $wpdb->get_results(
+            "SELECT r.id request_id,r.reference_code,COALESCE(NULLIF(s.full_name,''),'Learner') learner_name,asa.reference_code arrangement_reference
+               FROM {$p}accepted_service_arrangements asa
+               INNER JOIN {$p}booking_requests r ON r.id=asa.booking_request_id
+               LEFT JOIN {$p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1
+              WHERE r.privacy_erased_at IS NULL
+                AND r.lifecycle_status='submitted' AND r.resolution_state='unresolved'
+                AND NOT EXISTS (SELECT 1 FROM {$p}booking_request_intro_outcomes o WHERE o.booking_request_id=r.id AND o.outcome='delivered')
+                AND NOT EXISTS (SELECT 1 FROM {$p}platform_audit_events e WHERE e.aggregate_type='booking_request' AND e.aggregate_id=r.id AND e.event_type='booking_request.skip_intro')
+                AND NOT EXISTS (SELECT 1 FROM {$p}enrolments en WHERE en.accepted_service_arrangement_id=asa.id AND en.archived_at IS NULL)
+              ORDER BY asa.id"
+        ) ?: array();
+        foreach ($arrangements as $row) $add(array('request_id' => (int) $row->request_id, 'reference' => (string) $row->reference_code, 'learner' => (string) $row->learner_name, 'detail' => 'Arrangement ' . (string) $row->arrangement_reference), 'arrangement_without_intro', 'Accepted arrangement without an intro decision');
+        // 2. Closed coordination case whose booking request is still open.
+        $closedCases = $wpdb->get_results(
+            "SELECT r.id request_id,r.reference_code,COALESCE(NULLIF(s.full_name,''),'Learner') learner_name,cc.state case_state,cc.state_reason_code
+               FROM {$p}coordination_cases cc
+               INNER JOIN {$p}booking_requests r ON r.id=cc.booking_request_id
+               LEFT JOIN {$p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1
+              WHERE cc.state IN ('withdrawn','declined','unable_to_arrange','abandoned')
+                AND r.privacy_erased_at IS NULL
+                AND r.lifecycle_status='submitted' AND r.resolution_state='unresolved'
+              ORDER BY cc.id"
+        ) ?: array();
+        foreach ($closedCases as $row) $add(array('request_id' => (int) $row->request_id, 'reference' => (string) $row->reference_code, 'learner' => (string) $row->learner_name, 'detail' => 'Case ' . ucfirst(str_replace('_', ' ', (string) $row->case_state)) . ' (' . (string) ($row->state_reason_code ?: 'no reason') . ')'), 'closed_case_open_request', 'Closed case with an open booking request');
+        // 3. Converted Enrolment whose booking has no delivered intro or skip decision.
+        $enrolments = $wpdb->get_results(
+            "SELECT r.id request_id,r.reference_code,COALESCE(NULLIF(s.full_name,''),'Learner') learner_name,e.reference_code enrolment_reference
+               FROM {$p}enrolments e
+               INNER JOIN {$p}accepted_service_arrangements asa ON asa.id=e.accepted_service_arrangement_id
+               INNER JOIN {$p}booking_requests r ON r.id=asa.booking_request_id
+               LEFT JOIN {$p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1
+              WHERE e.archived_at IS NULL
+                AND NOT EXISTS (SELECT 1 FROM {$p}booking_request_intro_outcomes o WHERE o.booking_request_id=r.id AND o.outcome='delivered')
+                AND NOT EXISTS (SELECT 1 FROM {$p}platform_audit_events e2 WHERE e2.aggregate_type='booking_request' AND e2.aggregate_id=r.id AND e2.event_type='booking_request.skip_intro')
+              ORDER BY e.id"
+        ) ?: array();
+        foreach ($enrolments as $row) $add(array('request_id' => (int) $row->request_id, 'reference' => (string) $row->reference_code, 'learner' => (string) $row->learner_name, 'detail' => 'Enrolment ' . (string) $row->enrolment_reference), 'enrolment_without_intro', 'Enrolment without a delivered intro or skip decision');
+        // 4. Terminal Teacher delivery with no confirmation while the request stays open.
+        $deliveries = $wpdb->get_results(
+            "SELECT r.id request_id,r.reference_code,COALESCE(NULLIF(s.full_name,''),'Learner') learner_name,d.state delivery_state
+               FROM {$p}booking_request_teacher_deliveries d
+               INNER JOIN {$p}booking_requests r ON r.id=d.booking_request_id
+               LEFT JOIN {$p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1
+              WHERE d.state IN ('expired','declined','capacity_lost')
+                AND r.privacy_erased_at IS NULL
+                AND r.lifecycle_status='submitted' AND r.resolution_state='unresolved'
+                AND NOT EXISTS (SELECT 1 FROM {$p}booking_request_confirmations c WHERE c.booking_request_id=r.id)
+              ORDER BY d.id"
+        ) ?: array();
+        foreach ($deliveries as $row) $add(array('request_id' => (int) $row->request_id, 'reference' => (string) $row->reference_code, 'learner' => (string) $row->learner_name, 'detail' => 'Teacher delivery ' . (string) $row->delivery_state), 'expired_delivery_without_confirmation', 'Expired or declined delivery without a confirmation');
+        return array('rows' => $rows, 'counts' => $counts, 'total' => count($rows));
+    }
+
+    /**
      * Post-intro survey signals for the onboarding team.
      *
      * @return array{total:int,reasons:array<int,array<string,mixed>>,recent:array<int,array<string,mixed>>}

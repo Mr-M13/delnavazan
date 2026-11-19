@@ -36,6 +36,29 @@ final class BookingJourneyReadService {
     }
 
     /**
+     * Map a legacy booking-stage key onto the shared status vocabulary, so the
+     * Enrolment queue and the case page can label the same state identically
+     * without a per-row query.
+     *
+     * @return array{key:string,label:string,tone:string}
+     */
+    public static function statusForStage(string $stageKey): array {
+        $key = match ($stageKey) {
+            'identity' => 'identity',
+            'new' => 'new',
+            'teacher_match', 'teacher_agreed' => 'awaiting_teacher',
+            'intro_scheduled' => 'trial_scheduled',
+            'provisioning_pending', 'provisioning_failed', 'intro_payment_pending' => 'provisioning',
+            'intro_outcome' => 'outcome_due',
+            'post_intro' => 'continuation',
+            'converted' => 'enrolled',
+            'expired', 'closed', 'archived' => 'closed',
+            default => 'new',
+        };
+        return array('key' => $key, 'label' => self::label($key), 'tone' => self::tone($key));
+    }
+
+    /**
      * @return array<string,mixed>|null status + primary action + supporting facts
      */
     public function status(int $requestId): ?array {

@@ -288,14 +288,15 @@ final class EnrolmentWorkspaceView {
             if ($history) $classes[] = 'is-history';
             echo '<tr class="' . esc_attr(implode(' ', $classes)) . '">';
             $priorityLabel = !empty($row['attention']) ? 'Needs attention' : (!empty($row['is_today']) ? 'Today' : 'On track');
-            $priorityClass = !empty($row['attention']) ? 'dzn-badge--danger' : (!empty($row['is_today']) ? 'dzn-badge--gold' : ($row['kind'] === 'intro' ? 'dzn-badge--teal' : 'dzn-badge--soft'));
+            $introTone = !empty($row['status_tone']) ? self::badgeTone((string) $row['status_tone']) : ($row['kind'] === 'intro' ? 'teal' : 'soft');
+            $priorityClass = !empty($row['attention']) ? 'dzn-badge--danger' : (!empty($row['is_today']) ? 'dzn-badge--gold' : 'dzn-badge--' . $introTone);
             echo '<td><span class="dzn-badge ' . $priorityClass . '">' . esc_html($priorityLabel) . '</span><br><span class="dzn-type-chip">' . esc_html((string) $row['type_label']) . '</span>' . (!empty($row['attention_reason']) ? '<br><small>' . esc_html((string) $row['attention_reason']) . '</small>' : '') . '</td>';
             echo '<td><strong>' . esc_html((string) $row['date_label']) . '</strong><br><small>' . esc_html((string) $row['reference']) . '</small></td>';
             echo '<td>' . esc_html((string) $row['student_name']) . '</td><td>' . esc_html((string) $row['teacher_name']) . '</td>';
             echo '<td>' . self::teacherOfferCell($row) . '</td>';
             echo '<td>' . esc_html((string) $row['instrument']) . '<br><small>' . esc_html((string) $row['course_name']) . '</small></td>';
             echo '<td>' . esc_html((string) ($row['term_reference'] ?: '—')) . (!empty($row['term_progress']) ? '<br><small>' . esc_html((string) $row['term_progress']) . '</small>' : '') . '</td>';
-            echo '<td><span class="dzn-badge dzn-badge--soft">' . esc_html((string) $row['state_label']) . '</span><br><small>' . esc_html((string) $row['attendance_label']) . '</small></td>';
+            echo '<td><span class="dzn-badge dzn-badge--soft">' . esc_html((string) ($row['status_label'] ?? $row['state_label'])) . '</span><br><small>' . esc_html((string) $row['attendance_label']) . '</small></td>';
             echo '<td><a class="button button-primary button-small" data-dzn-class-admin data-dzn-class-admin-label="' . esc_attr((string) $row['student_name'] . ' · ' . (string) $row['reference']) . '" href="' . esc_url((string) $row['url']) . '">Open Class admin</a>';
             if (!$history && !empty($row['meet_retry'])) {
                 $retry = $row['meet_retry'];
@@ -305,6 +306,16 @@ final class EnrolmentWorkspaceView {
             echo '</td></tr>';
         }
         echo '</tbody></table></div>';
+    }
+
+    /** Map a journey status tone onto the existing badge tone classes. */
+    private static function badgeTone(string $tone): string {
+        return match ($tone) {
+            'warn', 'gold' => 'gold',
+            'danger' => 'danger',
+            'teal', 'ok' => 'teal',
+            default => 'soft',
+        };
     }
 
     /**
@@ -683,18 +694,26 @@ final class EnrolmentWorkspaceView {
             self::primaryJourneyAction($case, $journey);
         }
         echo '<details class="dzn-action-panel dzn-more-actions"' . ($journey === null ? ' open' : '') . '><summary><strong>More actions</strong><br><small>Constrained and advanced actions for this request.</small></summary><div class="dzn-action-panel__body">';
-        if ($case['identity_state']['key'] !== 'verified' && current_user_can('dzn_resolve_booking_request_student_identity')) self::identityActions($case);
+        $journeyStatus = $journey !== null ? (string) $journey['status'] : '';
+        $primaryOperation = $journey !== null ? (string) $journey['primary']['operation'] : '';
+        $closedStatus = in_array($journeyStatus, array('declined', 'closed'), true);
+        $activeStatuses = in_array($journeyStatus, array('identity', 'new', 'awaiting_teacher', 'needs_review'), true);
+        if ($closedStatus) {
+            echo '<p class="dzn-inline-note">This request is closed; review the history below. No further action applies.</p>';
+        } else {
+        if ($journey === null || ($journeyStatus === 'identity' && $primaryOperation !== 'identity_resolve' && $case['identity_state']['key'] !== 'verified' && current_user_can('dzn_resolve_booking_request_student_identity'))) self::identityActions($case);
         // Once a confirmation exists, the Teacher's acceptance is durable. Do not offer coordination
         // or "record agreement" controls that imply the Teacher has not answered.
-        if (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) self::coordinationActions($case);
-        if (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) self::declineRequestForm($case);
-        if (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination') && $journey !== null && $journey['facts']['arrangement'] !== null) self::skipIntroForm($case);
-        if ($case['identity_state']['key'] === 'verified' && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent') && current_user_can('dzn_override_canonical_lesson_schedule_availability') && !$case['confirmed']) self::totalOverrideForm($case);
-        if ($case['identity_state']['key'] === 'verified' && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent') && !$case['confirmed']) self::manualMatchForm($case);
+        if (!$case['confirmed'] && $activeStatuses && $primaryOperation !== 'open_coordination' && current_user_can('dzn_manage_booking_request_coordination')) self::coordinationActions($case);
+        if (!$case['confirmed'] && $activeStatuses && $primaryOperation !== 'review' && current_user_can('dzn_manage_booking_request_coordination')) self::declineRequestForm($case);
+        if (!$case['confirmed'] && $journeyStatus === 'needs_review' && $primaryOperation !== 'review' && current_user_can('dzn_manage_booking_request_coordination') && $journey !== null && $journey['facts']['arrangement'] !== null) self::skipIntroForm($case);
+        if ($case['identity_state']['key'] === 'verified' && !$case['confirmed'] && $activeStatuses && $primaryOperation !== 'total_override_intro' && $primaryOperation !== 'review' && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent') && current_user_can('dzn_override_canonical_lesson_schedule_availability')) self::totalOverrideForm($case);
+        if ($case['identity_state']['key'] === 'verified' && !$case['confirmed'] && $activeStatuses && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent')) self::manualMatchForm($case);
         if ($case['confirmed'] && empty($case['outcome'])) self::introLifecycleForms($case);
         if ($case['confirmed'] && empty($case['outcome']) && current_user_can('dzn_manage_post_intro_automation')) self::outcomeForm($case);
         if ($case['confirmed'] && empty($case['outcome']) && !current_user_can('dzn_manage_post_intro_automation')) echo '<p>Outcome recording requires post-intro automation access.</p>';
         if ($case['confirmed'] && !empty($case['outcome'])) echo '<p class="dzn-inline-note">The introductory outcome is recorded as <strong>' . esc_html((string) $case['outcome']['label']) . '</strong>. The post-intro decision is shown above.</p>';
+        }
         echo '</div></details>';
         if (!$case['confirmed'] && !in_array($case['stage_key'], array('identity', 'provisioning_pending', 'provisioning_failed', 'intro_payment_pending'), true)) echo '<p class="description">A normal confirmed match requires an active central Google organizer and provider projection. No control on this page invents either.</p>';
         echo '</section>';

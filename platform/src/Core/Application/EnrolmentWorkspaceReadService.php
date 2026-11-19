@@ -253,6 +253,7 @@ final class EnrolmentWorkspaceReadService {
                 if ($localDate === '') $localDate = (string) ($firstTime['local_date'] ?? '');
                 if ($localDate === '' && $startsAt !== '') $localDate = substr($startsAt, 0, 10);
                 $attention = !$history && $this->introNeedsAttention($case);
+                $stageStatus = BookingJourneyReadService::statusForStage((string) $case['stage_key']);
                 $rows[] = array(
                     'kind' => 'intro',
                     'type_label' => 'Intro',
@@ -274,6 +275,9 @@ final class EnrolmentWorkspaceReadService {
                     'local_date' => $localDate,
                     'is_today' => $localDate !== '' && $localDate === $this->academyToday(),
                     'state_label' => (string) $case['stage_label'],
+                    'status_key' => $stageStatus['key'],
+                    'status_label' => $stageStatus['label'],
+                    'status_tone' => $stageStatus['tone'],
                     'attendance_label' => $confirmation !== null ? (string) ($confirmation['state_label'] ?? '') : 'Not scheduled',
                     'attention' => $attention,
                     'attention_reason' => $attention ? (string) $case['next_action'] : '',

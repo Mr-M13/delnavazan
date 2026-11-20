@@ -80,4 +80,22 @@ foreach (array('short', '../../etc/passwd', 'file id with spaces') as $bad) {
 $assert(Rule::accessType() === 'OPEN', 'Absent-organizer access type must default to OPEN.');
 $assert(in_array(Rule::accessType(), array('OPEN', 'TRUSTED', 'RESTRICTED'), true), 'Access type is outside the supported set.');
 
+/*
+ * A signed-in Meet account must be digested with the same canonical evidence function that the
+ * Phase-P identity registry uses. An adapter-local sha256 digest made every verified mapping
+ * unreachable and silently deferred all automatic attendance.
+ */
+if (!function_exists('wp_salt')) { function wp_salt(string $scheme = 'auth'): string { return 'unit-salt-' . $scheme; } }
+if (!function_exists('wp_json_encode')) { function wp_json_encode(mixed $value, int $flags = 0): string|false { return json_encode($value, $flags); } }
+require_once $root . '/src/Core/Application/CanonicalAttendanceIdempotency.php';
+require_once $root . '/src/Integrations/GoogleWorkspace/MeetAttendanceService.php';
+$attendanceReflection = new ReflectionClass(\Delnavazan\Platform\Integrations\GoogleWorkspace\MeetAttendanceService::class);
+$attendanceService = $attendanceReflection->newInstanceWithoutConstructor();
+$shapeMethod = $attendanceReflection->getMethod('participantShape');
+$shapeMethod->setAccessible(true);
+$signedShape = $shapeMethod->invoke($attendanceService, array('name' => 'participants/1', 'signedinUser' => array('user' => 'users/123', 'displayName' => 'Teacher')));
+$canonicalDigest = \Delnavazan\Platform\Core\Application\CanonicalAttendanceIdempotency::evidence('users/123');
+$assert($signedShape['account_digest'] === $canonicalDigest, 'A signed-in Meet account must use the canonical identity-registry digest.');
+$assert($signedShape['account_digest'] !== hash('sha256', 'dzn-meet-account:users/123'), 'The retired adapter-local Meet digest must not return.');
+
 echo "Google Meet classroom rule unit passed\n";

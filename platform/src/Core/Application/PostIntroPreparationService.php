@@ -19,6 +19,7 @@ final class PostIntroPreparationService {
     public const OUTCOME_STUDENT_NO_SHOW = 'student_no_show';
     public const OUTCOME_TEACHER_CANCELLED = 'teacher_cancelled';
     public const OUTCOME_STUDENT_CANCELLED = 'student_cancelled';
+    public const SOURCE_PROVIDER = 'provider_evidence';
 
     private PostIntroRepository $repository;
 
@@ -45,6 +46,37 @@ final class PostIntroPreparationService {
         $confirmation = $this->repository->confirmationByUid($confirmationUid);
         if (!$confirmation) throw new \InvalidArgumentException('intro_booking_not_found');
         return $this->recordOutcome($confirmation, $outcome, $note, 'admin', $adminUserId);
+    }
+
+    /**
+     * Record a delivered introductory outcome from a server-recomputed provider assessment.
+     *
+     * This path is deliberately narrow: it only accepts the exact occurrence, the locked rule and
+     * threshold, both participant roles, and at least one durable session. The caller must hold the
+     * provider-evidence capability; the Meet adapter re-reads and re-assesses the durable evidence
+     * before calling here. An existing manual outcome is never replaced.
+     *
+     * @param array<string,mixed> $evidence
+     * @return array{outcome_id:int,created:bool,state?:string,source:string,provider_code:string}
+     */
+    public function recordProviderDelivered(string $confirmationUid, array $evidence, string $key): array {
+        if (!current_user_can('dzn_ingest_canonical_attendance_evidence')) throw new \RuntimeException('Unauthorized');
+        if (!ProviderEvidenceSystemActor::isConfigured()) throw new \RuntimeException('provider_evidence_system_actor_unconfigured');
+        if (trim($key) === '') throw new \InvalidArgumentException('intro_attendance_command_key_required');
+        $confirmation = $this->repository->confirmationByUid($confirmationUid);
+        if (!$confirmation) throw new \InvalidArgumentException('intro_booking_not_found');
+        if (trim((string) ($evidence['provider_code'] ?? '')) !== 'google_meet') throw new \InvalidArgumentException('intro_attendance_provider_invalid');
+        if ((string) ($evidence['rule_version'] ?? '') !== CanonicalAttendanceRule::RULE_VERSION) throw new \InvalidArgumentException('intro_attendance_rule_invalid');
+        if ((int) ($evidence['threshold_seconds'] ?? 0) !== CanonicalAttendanceRule::THRESHOLD_SECONDS) throw new \InvalidArgumentException('intro_attendance_threshold_invalid');
+        if ((int) ($evidence['qualifying_seconds'] ?? 0) < CanonicalAttendanceRule::THRESHOLD_SECONDS) throw new \InvalidArgumentException('intro_attendance_threshold_not_met');
+        if ((string) ($evidence['occurrence_start_utc'] ?? '') !== (string) $confirmation->starts_at_utc || (string) ($evidence['occurrence_end_utc'] ?? '') !== (string) $confirmation->ends_at_utc) {
+            throw new \InvalidArgumentException('intro_attendance_occurrence_mismatch');
+        }
+        $roles = (array) ($evidence['participant_roles'] ?? array());
+        if (!in_array('teacher', $roles, true) || !in_array('student', $roles, true)) throw new \InvalidArgumentException('intro_attendance_participant_roles_required');
+        if ((int) ($evidence['session_count'] ?? 0) < 1) throw new \InvalidArgumentException('intro_attendance_evidence_missing');
+        $recorded = $this->recordOutcome($confirmation, self::OUTCOME_DELIVERED, '', self::SOURCE_PROVIDER, (int) get_current_user_id());
+        return array_merge($recorded, array('source' => self::SOURCE_PROVIDER, 'provider_code' => 'google_meet'));
     }
 
     private function recordOutcome(object $confirmation, string $outcome, string $note, string $source, int $recordedBy): array {

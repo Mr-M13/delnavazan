@@ -14,10 +14,11 @@ if (getenv('DZN_POST_INTRO_RUNTIME_TEST') !== 'authority' || !defined('WP_CLI') 
     exit(1);
 }
 
-use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CanonicalTermAuthorityService,CatalogueService,CommercialCatalogueService,CommercialPatternService,CommercialPaymentService,CommercialPolicyService,CommercialSupport,InstalmentDeadlinePolicy,IntegrationSecretService,PostIntroContinuationService,PostIntroFulfilmentReadService,PostIntroPlanQuoteService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor,ProviderIntegrationRule,ProviderIntegrationService,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
+use Delnavazan\Platform\Core\Application\{BookingRequestSubmissionService,CanonicalAttendanceIdempotency,CanonicalAttendanceIdentityService,CanonicalTermAuthorityService,CatalogueService,CommercialCatalogueService,CommercialPatternService,CommercialPaymentService,CommercialPolicyService,CommercialSupport,InstalmentDeadlinePolicy,IntegrationSecretService,PostIntroContinuationService,PostIntroFulfilmentReadService,PostIntroPlanQuoteService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor,ProviderEvidenceSystemActor,ProviderIntegrationRule,ProviderIntegrationService,StudentAcceptanceAuthorityService,StudentIdentityResolutionService,TeachingEligibilityService,TeacherAvailabilityService};
 use Delnavazan\Platform\Core\Application\Checkout\{CheckoutSessionPort,StudentCheckoutInitiationService,StudentCommercialCheckoutReadService};
 use Delnavazan\Platform\Core\Infrastructure\Repository\{CommercialAuthorityRepository,PostIntroRepository};
 use Delnavazan\Platform\Integrations\{ContractProviderAdapters,PostIntroActivationWorker,PostIntroSettlementHook};
+use Delnavazan\Platform\Integrations\GoogleWorkspace\MeetIntroAttendanceService;
 use Delnavazan\Platform\Portals\PortalAuthenticatedReadService;
 
 global $wpdb;
@@ -1230,5 +1231,84 @@ $unchangedObligations = $repository->obligationsForOffer((int) $deadlineOffer->i
 $unchangedChoice = $repository->activePlanChoice((int) $deadlinePrep->id);
 dzn_pia_assert((string) $unchangedObligations[1]->due_at === $expectedDueAt, 'unsetting the policy must not rewrite an existing offer deadline');
 dzn_pia_assert((int) $unchangedChoice->policy_version === (int) $policySet['policy_version'], 'unsetting the policy must not rewrite an existing plan-choice version');
+
+// ---------------------------------------------------------------------------
+// Automatic introductory attendance from durable Meet participant sessions.
+// The booking Lesson does not exist yet, so this path must re-read the sessions,
+// resolve the exact Teacher/Student through the identity registry, apply the same
+// 20-minute rule, and record the delivered outcome through the provider actor.
+// ---------------------------------------------------------------------------
+$autoBooking = $booking('auto-attendance', 3, '03:10:00');
+$autoConfirmation = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}booking_request_confirmations WHERE uid=%s", $autoBooking['confirmation']));
+dzn_pia_assert($autoConfirmation !== null, 'auto-attendance confirmation required');
+$autoStart = (string) $autoConfirmation->starts_at_utc;
+$autoEnd = (string) $autoConfirmation->ends_at_utc;
+
+wp_set_current_user($actor);
+$providerActorId = ProviderEvidenceSystemActor::provision();
+dzn_pia_assert($providerActorId > 0 && ProviderEvidenceSystemActor::isConfigured(), 'provider evidence actor must be provisioned for automatic attendance');
+$teacherMeetAccount = 'users/auto-teacher-' . $suffix;
+$studentMeetAccount = 'users/auto-student-' . $suffix;
+$identities = new CanonicalAttendanceIdentityService();
+$identities->record(array(
+    'provider_code' => 'google_meet', 'participant_role' => 'teacher', 'participant_id' => $teacherId,
+    'provider_account_key' => $teacherMeetAccount,
+    'provenance_reference' => 'runtime-auto-teacher', 'evidence_reference' => 'runtime-auto-teacher-' . $suffix,
+), 'runtime-auto-map-teacher-' . $suffix);
+$identities->record(array(
+    'provider_code' => 'google_meet', 'participant_role' => 'student', 'participant_id' => (int) $autoBooking['student'],
+    'provider_account_key' => $studentMeetAccount,
+    'provenance_reference' => 'runtime-auto-student', 'evidence_reference' => 'runtime-auto-student-' . $suffix,
+), 'runtime-auto-map-student-' . $suffix);
+
+$autoClassroomId = (int) $wpdb->insert($p . 'meet_classrooms', array(
+    'uid' => \Delnavazan\Platform\Core\Support\Identifier::uid(),
+    'lesson_id' => null, 'schedule_version_id' => null, 'booking_confirmation_id' => (int) $autoConfirmation->id,
+    'classroom_kind' => 'booking_confirmation', 'teacher_id' => $teacherId, 'student_id' => 0,
+    'teacher_email_digest' => hash('sha256', 'runtime-auto-teacher-' . $suffix),
+    'student_email_digest' => hash('sha256', 'runtime-auto-student-' . $suffix),
+    'organizer_email' => 'classroom@delnavazan.com', 'calendar_id' => 'primary',
+    'classroom_state' => 'ready', 'active_slot' => 1, 'recording_state' => 'not_requested',
+    'cohost_state' => 'ready', 'starts_at_utc' => $autoStart, 'ends_at_utc' => $autoEnd,
+    'schedule_timezone' => 'UTC', 'version' => 1,
+    'created_at' => $now, 'created_by' => $actor, 'updated_at' => $now, 'updated_by' => $actor,
+));
+dzn_pia_assert($autoClassroomId > 0, 'auto-attendance classroom persistence');
+$autoRecordId = (int) $wpdb->insert($p . 'meet_conference_records', array(
+    'uid' => \Delnavazan\Platform\Core\Support\Identifier::uid(), 'classroom_id' => $autoClassroomId,
+    'conference_record_name' => 'conferenceRecords/runtime-auto-' . $suffix,
+    'start_time' => $autoStart, 'end_time' => $autoEnd, 'recording_expected' => 0,
+    'discovered_at' => $now, 'created_at' => $now,
+));
+dzn_pia_assert($autoRecordId > 0, 'auto-attendance conference record persistence');
+$autoJoin = gmdate('Y-m-d H:i:s', strtotime($autoStart . ' UTC +5 minutes'));
+$autoLeave = gmdate('Y-m-d H:i:s', strtotime($autoStart . ' UTC +27 minutes'));
+foreach (array(
+    array('role' => 'teacher', 'account' => $teacherMeetAccount),
+    array('role' => 'student', 'account' => $studentMeetAccount),
+) as $participant) {
+    $ok = $wpdb->insert($p . 'meet_participant_sessions', array(
+        'uid' => \Delnavazan\Platform\Core\Support\Identifier::uid(),
+        'classroom_id' => $autoClassroomId, 'conference_record_id' => $autoRecordId,
+        'participant_name' => 'participants/runtime-auto-' . $participant['role'] . '-' . $suffix,
+        'participant_type' => 'signedin',
+        'participant_account_digest' => CanonicalAttendanceIdempotency::evidence((string) $participant['account']),
+        'participant_session_name' => 'participantSessions/runtime-auto-' . $participant['role'] . '-' . $suffix,
+        'join_at_utc' => $autoJoin, 'leave_at_utc' => $autoLeave, 'observed_at' => $now,
+        'mapped_role' => null, 'mapped_participant_id' => null, 'mapping_state' => 'unverified',
+        'created_at' => $now,
+    ));
+    dzn_pia_assert($ok === 1, 'auto-attendance participant session persistence: ' . $participant['role']);
+}
+
+$autoSettlement = (new MeetIntroAttendanceService())->settleClassroom($autoClassroomId);
+dzn_pia_assert(($autoSettlement['state'] ?? '') === 'delivered', 'automatic introductory attendance must deliver on qualifying provider evidence');
+$autoOutcome = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}booking_request_intro_outcomes WHERE booking_request_id=%d", (int) $autoBooking['request']));
+dzn_pia_assert($autoOutcome !== null && (string) $autoOutcome->outcome === 'delivered' && (string) $autoOutcome->source === 'provider_evidence', 'automatic attendance must record the provider-evidence delivered outcome');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}platform_audit_events WHERE aggregate_type='booking_request' AND aggregate_id=%d AND event_type='intro_attendance.auto_delivered'", (int) $autoBooking['request'])) === 1, 'automatic attendance must leave exactly one audit event');
+
+$autoRepeat = (new MeetIntroAttendanceService())->settleClassroom($autoClassroomId);
+dzn_pia_assert(($autoRepeat['state'] ?? '') === 'already_recorded', 'a repeated automatic-attendance pass must not re-record the outcome');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_intro_outcomes WHERE booking_request_id=%d", (int) $autoBooking['request'])) === 1, 'a repeated automatic-attendance pass must keep one outcome');
 
 echo "Post-intro enrolment automation runtime passed\n";

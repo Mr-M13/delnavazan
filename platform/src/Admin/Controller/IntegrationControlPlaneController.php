@@ -691,6 +691,7 @@ final class IntegrationControlPlaneController {
      * implementations. Teacher personal Google authorization is not requested or stored.
      */
     private static function renderGoogleCard(IntegrationSettingsService $settings):void{
+        global $wpdb;
         $ready=false;$redacted=array();
         try{$ready=$settings->ready('google');$redacted=$settings->redacted('google');}catch(\Throwable){}
         $secretStored=false;foreach($redacted as $value)if($value===true){$secretStored=true;break;}
@@ -707,7 +708,20 @@ final class IntegrationControlPlaneController {
         try{
             $report=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomReconciler())->report(10);
             $counts=(array)($report['counts']??array());
+            $attendanceActorReady=\Delnavazan\Platform\Core\Application\ProviderEvidenceSystemActor::isConfigured();
+            $verifiedMappings=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}dzn_canonical_attendance_participant_mappings WHERE provider_code='google_meet' AND state='verified'");
+            $sessionsAwaitingMapping=(int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}dzn_meet_participant_sessions WHERE mapping_state IN ('unmapped','ambiguous','verified_intake_deferred','verified_intake_failed')");
+            try{$attendanceCutover=(new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalAttendanceRepository())->latestPolicy();}catch(\Throwable){$attendanceCutover=null;}
             echo '<p class="dzn-settings-meta">Missing future classrooms: lessons '.esc_html((string)(int)($counts['missing_lesson_classrooms']??0)).' · bookings '.esc_html((string)(int)($counts['missing_booking_classrooms']??0)).' · Unconfirmed accepted bookings: '.esc_html((string)(int)($counts['unconfirmed_booking_projections']??0)).' · Failed/blocked: '.esc_html((string)(int)($counts['blocked_or_failed_classrooms']??0)).'</p>';
+            echo '<p class="dzn-settings-meta">Automatic attendance: '.esc_html($attendanceActorReady?'provider actor ready':'provider actor not provisioned').' · Verified Meet mappings: '.esc_html((string)$verifiedMappings).' · Sessions awaiting mapping: '.esc_html((string)$sessionsAwaitingMapping).' · Standard cutover: '.esc_html($attendanceCutover!==null?(string)$attendanceCutover->cutover_utc:'not recorded').'</p>';
+            if(!$attendanceActorReady){
+                echo '<div class="notice notice-warning inline"><p>Automatic attendance is not active. Provision the narrow provider-evidence actor once: <code>wp dzn-meet provision_attendance_actor --user=&lt;administrator_id&gt;</code>. Until then, Teacher confirmation remains the attendance fallback.</p></div>';
+            }elseif($verifiedMappings===0){
+                echo '<div class="notice notice-warning inline"><p>No verified Meet participant mapping exists. Automatic attendance cannot attribute a participant until an administrator maps the signed-in <code>users/{id}</code> account: <code>wp dzn-meet map_account --role=teacher|student --participant_id=&lt;id&gt; --account_key=&lt;users/id&gt; --user=&lt;administrator_id&gt;</code>.</p></div>';
+            }
+            if($attendanceCutover===null){
+                echo '<div class="notice notice-info inline"><p>No standard attendance cutover is recorded, so standard Term classes cannot settle automatically yet. Introductory classes use the dedicated auto-attendance rule and do not depend on this cutover. A prospective cutover remains an explicit administrator decision.</p></div>';
+            }
             $problems=array_merge((array)($report['failed_booking_projections']??array()),(array)($report['blocked_or_failed_classrooms']??array()));
             if($problems){
                 echo '<div class="notice notice-warning inline"><p><strong>Classroom recovery is required.</strong> Review <code>wp dzn-meet repair --dry-run --json --user=&lt;administrator_id&gt;</code>, then apply the approved digest with <code>wp dzn-meet repair --plan=&lt;digest&gt; --user=&lt;administrator_id&gt;</code>. Manual <code>worker --discover</code> is preview-only. Permanent co-host refusals require an explicit <code>wp dzn-meet approve-cohost-exception</code> or tenant-policy correction.</p><ul>';

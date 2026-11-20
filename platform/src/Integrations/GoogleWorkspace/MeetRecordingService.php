@@ -30,7 +30,10 @@ final class MeetRecordingService {
     public function reconcileClassroom(int $classroomId):array{
         $classroom=$this->repository->classroom($classroomId);
         if(!$classroom)throw new \InvalidArgumentException('meet_classroom_required');
-        if((int)$classroom->lesson_id<1)return array('reconciled'=>false,'reason'=>'classroom_without_lesson');
+        // Booking classrooms have no Lesson yet, but they do have their own sealed Calendar/Meet
+        // reference. Reconciling them is what makes the official conference record (and therefore
+        // participant attendance) available before the post-intro outcome creates the Lesson.
+        if((int)$classroom->lesson_id<1&&(int)($classroom->booking_confirmation_id??0)<1)return array('reconciled'=>false,'reason'=>'classroom_without_lesson');
         $references=$this->references($classroom);
         if($references===null)return array('reconciled'=>false,'reason'=>'reference_unavailable');
         $code=GoogleWorkspaceClassroomRule::meetingCode((string)$references['join_uri_reference']);

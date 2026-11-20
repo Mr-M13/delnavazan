@@ -1,7 +1,8 @@
 <?php
 namespace Delnavazan\Platform\Integrations\GoogleWorkspace;
 
-use Delnavazan\Platform\Core\Application\{CanonicalAttendanceIdempotency,CanonicalAttendanceIntakeService,ProviderEvidenceSystemActor};
+use Delnavazan\Platform\Core\Application\{CanonicalAttendanceIdempotency,CanonicalAttendanceIdentityService,CanonicalAttendanceIntakeService,ProviderEvidenceSystemActor};
+use Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalAttendanceRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
 
 /**
@@ -18,24 +19,30 @@ final class MeetAttendanceService {
     public function __construct(
         private ?GoogleWorkspaceRepository $repository=null,
         private ?GoogleWorkspaceApiClient $api=null,
-        private ?CanonicalAttendanceIntakeService $intake=null
+        private ?CanonicalAttendanceIntakeService $intake=null,
+        private ?CanonicalAttendanceRepository $identities=null,
+        private ?MeetIntroAttendanceService $introSettlement=null
     ){
         $this->repository??=new GoogleWorkspaceRepository();
         $this->api??=new GoogleWorkspaceApiClient($this->repository);
         $this->intake??=new CanonicalAttendanceIntakeService();
+        $this->identities??=new CanonicalAttendanceRepository();
+        $this->introSettlement??=new MeetIntroAttendanceService();
     }
 
     /** Discover participants and participant sessions for one reconciled conference. */
     public function reconcileClassroom(int $classroomId,?string $conferenceRecordName=null):array{
         $classroom=$this->repository->classroom($classroomId);
-        if(!$classroom||(int)$classroom->lesson_id<1)return array('reconciled'=>false,'reason'=>'classroom_without_lesson');
+        if(!$classroom)return array('reconciled'=>false,'reason'=>'classroom_required');
+        $isBooking=(int)$classroom->lesson_id<1&&(int)($classroom->booking_confirmation_id??0)>0;
+        if((int)$classroom->lesson_id<1&&!$isBooking)return array('reconciled'=>false,'reason'=>'classroom_without_lesson');
         $record=$conferenceRecordName!==null
             ?$this->repository->conferenceRecordByName(GoogleWorkspaceClassroomRule::conferenceRecordName($conferenceRecordName))
             :$this->repository->conferenceRecordForClassroom($classroomId);
         if(!$record)return array('reconciled'=>false,'reason'=>'conference_record_required');
         $participants=$this->api->listParticipants((string)$record->conference_record_name);
         if($participants['status']<200||$participants['status']>=300)return array('reconciled'=>false,'reason'=>'participants_unavailable','response'=>$participants);
-        $sessions=0;$ingested=0;$deferred=0;
+        $sessions=0;$ingested=0;$deferred=0;$bookingMapped=0;
         foreach((array)($participants['body']['participants']??array()) as $participant){
             if(!is_array($participant))continue;
             $shape=$this->participantShape($participant);
@@ -47,13 +54,30 @@ final class MeetAttendanceService {
                 $sessions++;
                 $row=$this->upsertSession($classroom,$record,$shape,$session);
                 if($row===null)continue;
+                if($isBooking){
+                    if($this->mapBookingSession($row,$shape)==='mapped')$bookingMapped++;
+                    else $deferred++;
+                    continue;
+                }
                 $mapping=$this->repository->verifiedAttendanceMapping($shape['account_digest']);
                 $intake=$this->maybeIngest($classroom,$row,$shape,$mapping);
                 if($intake==='ingested')$ingested++;
                 if($intake==='deferred')$deferred++;
             }
         }
-        return array('reconciled'=>true,'sessions'=>$sessions,'canonical_ingested'=>$ingested,'deferred'=>$deferred,'conference_record_id'=>(int)$record->id);
+        $result=array('reconciled'=>true,'sessions'=>$sessions,'conference_record_id'=>(int)$record->id);
+        if($isBooking){
+            $result['booking_mapped']=$bookingMapped;
+            $result['booking_deferred']=$deferred;
+            // The booking Lesson does not exist until the outcome is recorded, so the introductory
+            // adapter re-assesses the durable participant sessions and records the delivered
+            // outcome directly instead of entering Phase P.
+            $result['auto_settlement']=$this->introSettlement->settleClassroom((int)$classroom->id);
+            return $result;
+        }
+        $result['canonical_ingested']=$ingested;
+        $result['deferred']=$deferred;
+        return $result;
     }
 
     private function participantShape(array $participant):?array{
@@ -64,7 +88,10 @@ final class MeetAttendanceService {
         $phone=$participant['phoneUser']??null;
         if(is_array($signed)&&trim((string)($signed['user']??''))!==''){
             $account=trim((string)$signed['user']);
-            return array('type'=>'signedin','account_key'=>$account,'account_digest'=>hash('sha256','dzn-meet-account:'.$account),'display_name'=>trim((string)($signed['displayName']??'')),'participant_name'=>$name);
+            // The identity registry is keyed by the canonical attendance evidence digest, never
+            // by an adapter-local hash. Using a different digest made every verified Meet mapping
+            // unreachable, so automatic attendance was always deferred.
+            return array('type'=>'signedin','account_key'=>$account,'account_digest'=>CanonicalAttendanceIdempotency::evidence($account),'display_name'=>trim((string)($signed['displayName']??'')),'participant_name'=>$name);
         }
         if(is_array($anonymous)){
             $display=trim((string)($anonymous['displayName']??''));
@@ -84,10 +111,16 @@ final class MeetAttendanceService {
         $leave=GoogleWorkspaceClassroomRule::fromRfc3339((string)($session['endTime']??''));
         $existing=$this->repository->participantSession($name);
         if($existing){
-            $this->repository->updateParticipantSession((int)$existing->id,array(
+            $update=array(
                 'leave_at_utc'=>$leave?:$existing->leave_at_utc,
                 'observed_at'=>gmdate('Y-m-d H:i:s'),
-            ),array('id'=>(int)$existing->id));
+            );
+            if(($existing->join_at_utc===null||$existing->join_at_utc==='')&&$join!==null)$update['join_at_utc']=$join;
+            // Repair rows written by the retired adapter digest so a verified mapping recorded
+            // before this fix can be re-resolved from the canonical registry.
+            if((string)($existing->participant_account_digest??'')!==(string)$shape['account_digest'])$update['participant_account_digest']=$shape['account_digest'];
+            if((string)($existing->participant_type??'')!==(string)$shape['type'])$update['participant_type']=$shape['type'];
+            $this->repository->updateParticipantSession((int)$existing->id,$update,array('id'=>(int)$existing->id));
             return $this->repository->participantSession($name);
         }
         $id=$this->repository->insertParticipantSession(array(
@@ -100,6 +133,35 @@ final class MeetAttendanceService {
         ));
         $row=$this->repository->participantSession($name);
         return $row?:($id>0?(object)array('id'=>$id,'participant_session_name'=>$name):null);
+    }
+
+    /**
+     * Map one booking participant session for observability.
+     *
+     * Booking classrooms never enter Phase P; the introductory settlement re-resolves the exact
+     * teacher/student from the durable registry itself. This state is operational visibility only.
+     */
+    private function mapBookingSession(object $row,array $shape):string{
+        $id=(int)$row->id;
+        if((string)$shape['type']!=='signedin'){
+            $this->repository->updateParticipantSession($id,array('mapping_state'=>'unmapped','mapped_role'=>null,'mapped_participant_id'=>null),array('id'=>$id));
+            return 'deferred';
+        }
+        $teacher=CanonicalAttendanceIdentityService::resolve($this->identities->mappingsForAccount('google_meet',(string)$shape['account_digest'],'teacher'));
+        $student=CanonicalAttendanceIdentityService::resolve($this->identities->mappingsForAccount('google_meet',(string)$shape['account_digest'],'student'));
+        $teacherResolved=$teacher['state']==='resolved';
+        $studentResolved=$student['state']==='resolved';
+        if($teacherResolved!==$studentResolved){
+            $role=$teacherResolved?'teacher':'student';
+            $participantId=(int)($teacherResolved?$teacher['participant_id']:$student['participant_id']);
+            $this->repository->updateParticipantSession($id,array('mapping_state'=>'verified_booking','mapped_role'=>$role,'mapped_participant_id'=>$participantId),array('id'=>$id));
+            return 'mapped';
+        }
+        $this->repository->updateParticipantSession($id,array(
+            'mapping_state'=>($teacherResolved&&$studentResolved)?'ambiguous':'unmapped',
+            'mapped_role'=>null,'mapped_participant_id'=>null,
+        ),array('id'=>$id));
+        return 'deferred';
     }
 
     /** Only a verified Phase-P mapping is allowed to become qualifying attendance. */

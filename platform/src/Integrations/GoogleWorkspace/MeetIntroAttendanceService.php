@@ -58,6 +58,8 @@ final class MeetIntroAttendanceService {
             if((string)$classroom->starts_at_utc!==(string)$confirmation->starts_at_utc||(string)$classroom->ends_at_utc!==(string)$confirmation->ends_at_utc){
                 return array('state'=>'classroom_schedule_stale','retry'=>false);
             }
+            $record=$this->repository->conferenceRecordForClassroom((int)$classroom->id);
+            if(!$record)return array('state'=>'conference_record_required','retry'=>false);
             $existing=$this->postIntro->outcomeByBooking((int)$confirmation->booking_request_id);
             if($existing)return array('state'=>'already_recorded','outcome'=>(string)$existing->outcome,'retry'=>false);
 
@@ -70,7 +72,6 @@ final class MeetIntroAttendanceService {
             if(empty($assessment['eligible']))return array('state'=>'not_eligible','retry'=>false,'assessment'=>$assessment);
             if(!ProviderEvidenceSystemActor::isConfigured())return array('state'=>'actor_unconfigured','retry'=>true,'assessment'=>$assessment);
 
-            $record=$this->repository->conferenceRecordForClassroom((int)$classroom->id);
             $evidence=array(
                 'provider_code'=>self::PROVIDER,
                 'rule_version'=>CanonicalAttendanceRule::RULE_VERSION,

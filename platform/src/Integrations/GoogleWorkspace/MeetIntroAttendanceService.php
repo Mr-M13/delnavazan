@@ -68,7 +68,7 @@ final class MeetIntroAttendanceService {
             $window=CanonicalAttendanceRule::window((string)$confirmation->starts_at_utc,(string)$confirmation->ends_at_utc);
             if((string)$window['window_end_utc']>$now)return array('state'=>'window_open','window_end_utc'=>(string)$window['window_end_utc'],'retry'=>true);
 
-            $assessment=$this->assess($classroom,$confirmation);
+            $assessment=$this->assess($classroom,$confirmation,(int)$record->id);
             if(empty($assessment['eligible']))return array('state'=>'not_eligible','retry'=>false,'assessment'=>$assessment);
             if(!ProviderEvidenceSystemActor::isConfigured())return array('state'=>'actor_unconfigured','retry'=>true,'assessment'=>$assessment);
 
@@ -112,11 +112,15 @@ final class MeetIntroAttendanceService {
     }
 
     /** @return array<string,mixed> */
-    private function assess(object $classroom,object $confirmation):array{
+    private function assess(object $classroom,object $confirmation,int $conferenceRecordId):array{
         $sessions=$this->repository->participantSessionsForClassroom((int)$classroom->id);
         $teacher=array();$student=array();
-        $unmapped=0;$ambiguous=0;$mismatched=0;
+        $unmapped=0;$ambiguous=0;$mismatched=0;$counted=0;
         foreach($sessions as $row){
+            // A rescheduled classroom may retain sessions from an earlier conference record. Only
+            // the record reconciled for this exact occurrence may contribute.
+            if((int)($row->conference_record_id??0)!==$conferenceRecordId)continue;
+            $counted++;
             $digest=(string)($row->participant_account_digest??'');
             if($digest===''){$unmapped++;continue;}
             $teacherRows=$this->identities->mappingsForAccount(self::PROVIDER,$digest,'teacher');
@@ -145,7 +149,7 @@ final class MeetIntroAttendanceService {
         if($ambiguous>0)$anomalies[]='participant_ambiguous';
         if($mismatched>0)$anomalies[]='participant_identity_mismatch';
         if($assessment['seconds']<CanonicalAttendanceRule::THRESHOLD_SECONDS&&$teacher&&$student)$anomalies[]='overlap_below_threshold';
-        $assessment['session_count']=count($sessions);
+        $assessment['session_count']=$counted;
         $assessment['anomalies']=array_values(array_unique($anomalies));
         return $assessment;
     }

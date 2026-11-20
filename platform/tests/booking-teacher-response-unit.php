@@ -275,16 +275,23 @@ namespace {
     $overrideRepository->teacher->readiness_state='not_ready';
     $overrideRepository->slotConflicts=array(array('conflict_id'=>999));
     $overrideRepository->teacherConflicts=array(array('conflict_id'=>998));
+    // The override must choose a genuinely future local time. Keep the fixture relative to the
+    // run instead of pinning a date that silently becomes historical.
+    $overrideZone=new \DateTimeZone('Australia/Brisbane');
+    $overrideDate=(new \DateTimeImmutable('+3 days',$overrideZone))->format('Y-m-d');
+    $overrideLocal=new \DateTimeImmutable($overrideDate.' 12:00:00',$overrideZone);
+    $overrideStartUtc=$overrideLocal->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+    $overrideEndUtc=$overrideLocal->modify('+30 minutes')->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
     $override=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($overrideRepository,null,$freePricing))->administratorTotalOverrideConfirmDelivery(
-        12,9,array('local_date'=>'2026-11-20','local_start_time'=>'12:00','timezone'=>'Australia/Brisbane'),'Agreed by phone with the Teacher and Student','total-override-once'
+        12,9,array('local_date'=>$overrideDate,'local_start_time'=>'12:00','timezone'=>'Australia/Brisbane'),'Agreed by phone with the Teacher and Student','total-override-once'
     );
     $assert($override['state']==='accepting' && $overrideRepository->delivery->state==='accepting','The total override must enter provider projection with a confirmation.');
     $assert($overrideRepository->studentConflictCalls===0 && $overrideRepository->teacherConflictCalls===0,'The total override must bypass Student and Teacher occupancy reads.');
     $assert((int)$overrideRepository->delivery->teacher_id===9 && (int)$overrideRepository->delivery->requested_time_id===500,'The total override must re-point the expired delivery to the chosen Teacher and time.');
     $overrideTime=$overrideRepository->requestedTimes[500]??null;
-    $assert($overrideTime!==null && (string)$overrideTime->starts_at_utc==='2026-11-20 02:00:00' && (string)$overrideTime->instructional_ends_at_utc==='2026-11-20 02:30:00','The override must append the exact local time as a requested-time fact in UTC.');
+    $assert($overrideTime!==null && (string)$overrideTime->starts_at_utc===$overrideStartUtc && (string)$overrideTime->instructional_ends_at_utc===$overrideEndUtc,'The override must append the exact local time as a requested-time fact in UTC.');
     $overrideConfirmation=$overrideRepository->confirmations[(int)$override['confirmation_id']]??null;
-    $assert($overrideConfirmation!==null && (int)$overrideConfirmation->teacher_id===9 && (string)$overrideConfirmation->starts_at_utc==='2026-11-20 02:00:00','The override confirmation must use the chosen Teacher and exact instant.');
+    $assert($overrideConfirmation!==null && (int)$overrideConfirmation->teacher_id===9 && (string)$overrideConfirmation->starts_at_utc===$overrideStartUtc,'The override confirmation must use the chosen Teacher and exact instant.');
     $overrideAudit=array_values(array_filter($overrideRepository->audits,static fn($row)=>(string)$row->event_type==='booking_request.total_scheduling_override' && (string)$row->reason_code==='total_override'));
     $assert(count($overrideAudit)===1 && str_contains((string)$overrideAudit[0]->safe_detail,'teacher_occupancy') && str_contains((string)$overrideAudit[0]->safe_detail,'student_occupancy'),'The total override must record which scheduling constraints were bypassed.');
 
@@ -298,12 +305,12 @@ namespace {
     $guardRepository->delivery->privacy_erased_at=null;
     $guardRepository->arrangement=(object)array('id'=>9,'confirmation_value'=>'affirmed','accepted_at'=>'2026-11-19 00:00:00');
     $guardRefused=false;
-    try{(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($guardRepository,null,$freePricing))->administratorTotalOverrideConfirmDelivery(12,9,array('local_date'=>'2026-11-20','local_start_time'=>'12:00','timezone'=>'Australia/Brisbane','arrangement_ack'=>''),'Agreed by phone','arrangement-guard-once');}
+    try{(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($guardRepository,null,$freePricing))->administratorTotalOverrideConfirmDelivery(12,9,array('local_date'=>$overrideDate,'local_start_time'=>'12:00','timezone'=>'Australia/Brisbane','arrangement_ack'=>''),'Agreed by phone','arrangement-guard-once');}
     catch(\InvalidArgumentException $error){$guardRefused=$error->getMessage()==='Confirm the arrangement override before creating the intro.';}
     $assert($guardRefused && $guardRepository->confirmations===array(),'The total override must refuse while an accepted arrangement exists without the explicit acknowledgement.');
     $ackRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\BookingTeacherResponseRepository();
     $ackRepository->request=$guardRepository->request;$ackRepository->course=$guardRepository->course;$ackRepository->delivery->state='expired';$ackRepository->delivery->lifecycle_status='submitted';$ackRepository->delivery->resolution_state='unresolved';$ackRepository->delivery->privacy_erased_at=null;$ackRepository->arrangement=$guardRepository->arrangement;
-    $acked=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($ackRepository,null,$freePricing))->administratorTotalOverrideConfirmDelivery(12,9,array('local_date'=>'2026-11-20','local_start_time'=>'12:00','timezone'=>'Australia/Brisbane','arrangement_ack'=>'1'),'Agreed by phone','arrangement-ack-once');
+    $acked=(new \Delnavazan\Platform\Core\Application\BookingTeacherResponseService($ackRepository,null,$freePricing))->administratorTotalOverrideConfirmDelivery(12,9,array('local_date'=>$overrideDate,'local_start_time'=>'12:00','timezone'=>'Australia/Brisbane','arrangement_ack'=>'1'),'Agreed by phone','arrangement-ack-once');
     $ackAudit=array_values(array_filter($ackRepository->audits,static fn($row)=>(string)$row->event_type==='booking_request.total_scheduling_override'));
     $assert($acked['state']==='accepting' && count($ackAudit)===1 && str_contains((string)$ackAudit[0]->safe_detail,'arrangement_guard'),'An explicit arrangement acknowledgement must allow the override and record the arrangement guard bypass.');
 

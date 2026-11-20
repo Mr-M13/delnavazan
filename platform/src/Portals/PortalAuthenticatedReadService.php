@@ -1,6 +1,8 @@
 <?php
 namespace Delnavazan\Platform\Portals;
 
+use Delnavazan\Platform\Core\Application\IntroLessonOutcomeProjection;
+
 /**
  * Authenticated, read-only composition surface for first-party portal UIs.
  *
@@ -324,12 +326,18 @@ final class PortalAuthenticatedReadService {
         $p = $wpdb->prefix . 'dzn_';
         $column = $kind === 'teacher' ? 'teacher_id' : 'student_id';
         $row = $wpdb->get_row($wpdb->prepare(
-            "SELECT l.id,l.uid,l.reference_code,l.lesson_type,l.status,l.student_id,l.teacher_id,v.id schedule_id,v.starts_at_utc,v.ends_at_utc,v.schedule_timezone,c.reference_code course_reference,c.name_fa course_name_fa,c.name_en course_name_en,s.reference_code student_reference FROM {$p}lessons l INNER JOIN {$p}lesson_schedule_versions v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL LEFT JOIN {$p}courses c ON c.id=l.course_id LEFT JOIN {$p}students s ON s.id=l.student_id WHERE l.id=%d AND l.{$column}=%d AND l.record_model='legacy_phase1' AND l.status IN ('scheduled','completed') AND l.archived_at IS NULL",
+            "SELECT l.id,l.uid,l.reference_code,l.lesson_type,l.status,l.student_id,l.teacher_id,l.booking_request_id,v.id schedule_id,v.starts_at_utc,v.ends_at_utc,v.schedule_timezone,c.reference_code course_reference,c.name_fa course_name_fa,c.name_en course_name_en,s.reference_code student_reference,intro.outcome intro_outcome FROM {$p}lessons l INNER JOIN {$p}lesson_schedule_versions v ON v.id=l.current_schedule_version_id AND v.lesson_id=l.id AND v.superseded_at IS NULL LEFT JOIN {$p}courses c ON c.id=l.course_id LEFT JOIN {$p}students s ON s.id=l.student_id LEFT JOIN {$p}booking_request_intro_outcomes intro ON intro.booking_request_id=l.booking_request_id WHERE l.id=%d AND l.{$column}=%d AND l.record_model='legacy_phase1' AND l.status IN ('scheduled','completed') AND l.archived_at IS NULL",
             $lessonId,
             $principalId
         ));
         if (!$row || $wpdb->last_error !== '') throw new \InvalidArgumentException('portal_object_not_portal_visible');
         if ((int) $row->id < 1 || (int) $row->schedule_id < 1 || trim((string) $row->starts_at_utc) === '' || trim((string) $row->ends_at_utc) === '' || trim((string) $row->schedule_timezone) === '') throw new \InvalidArgumentException('portal_upstream_aggregate_invalid');
+        $introDelivered = IntroLessonOutcomeProjection::isDelivered(
+            'legacy_phase1',
+            (string) $row->lesson_type,
+            (int) ($row->booking_request_id ?? 0),
+            (string) ($row->intro_outcome ?? '')
+        );
         return array(
             'version' => 'portal_lesson_v1',
             'lesson_uid' => trim((string) $row->uid) ?: 'legacy-' . (int) $row->id,
@@ -346,8 +354,8 @@ final class PortalAuthenticatedReadService {
             'ends_at_utc' => (string) $row->ends_at_utc,
             'schedule_timezone' => (string) $row->schedule_timezone,
             'schedule_version_uid' => 'legacy-schedule-' . (int) $row->schedule_id,
-            'delivery_state_summary' => (string) $row->status === 'completed' ? 'completed' : 'not_recorded',
-            'attendance_state_summary' => 'not_recorded',
+            'delivery_state_summary' => $introDelivered ? 'delivered' : ((string) $row->status === 'completed' ? 'completed' : 'not_recorded'),
+            'attendance_state_summary' => $introDelivered ? IntroLessonOutcomeProjection::SETTLED : 'not_recorded',
             'join_available' => false,
             'join_refusal_reason' => 'legacy_class_read_only',
             'absence_available' => false,

@@ -107,6 +107,8 @@ $introAttendance = $read('platform/src/Integrations/GoogleWorkspace/MeetIntroAtt
 $check('introductory settlement reuses the locked attendance rule', str_contains($introAttendance, 'CanonicalAttendanceRule::assess') && str_contains($introAttendance, 'CanonicalAttendanceRule::THRESHOLD_SECONDS') && str_contains($introAttendance, 'CanonicalAttendanceRule::window'));
 $check('introductory settlement re-reads durable sessions and verified exact participants', str_contains($introAttendance, 'participantSessionsForClassroom') && str_contains($introAttendance, 'resolveExpected') && str_contains($introAttendance, 'mappingsForAccount'));
 $check('introductory settlement waits for the post-class window', str_contains($introAttendance, "array('state'=>'window_open'") && str_contains($introAttendance, 'window_end_utc'));
+$check('introductory settlement requires the reconciled conference record', str_contains($introAttendance, "array('state'=>'conference_record_required'"));
+$check('introductory settlement rejects an inactive or non-reconcilable classroom', str_contains($introAttendance, "array('state'=>'classroom_not_reconcilable'"));
 $check('introductory settlement never replaces a manual outcome', str_contains($introAttendance, "array('state'=>'already_recorded'"));
 $check('introductory settlement records only through the provider actor and prep service', str_contains($introAttendance, 'ProviderEvidenceSystemActor::run') && str_contains($introAttendance, 'recordProviderDelivered'));
 $check('introductory settlement leaves an idempotent audit event', str_contains($introAttendance, "event_type'=>'intro_attendance.auto_delivered'") && str_contains($introAttendance, "reason_code'=>'provider_evidence_delivered'"));

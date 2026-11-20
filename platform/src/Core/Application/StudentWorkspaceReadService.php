@@ -921,7 +921,7 @@ final class StudentWorkspaceReadService {
         $page = min(max(1, $page), $pages);
         $offset = ($page - 1) * $perPage;
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT l.id,l.reference_code,l.lesson_type,COALESCE(l.lifecycle_state,l.status) lesson_state,l.status legacy_status,
+            "SELECT l.id,l.reference_code,l.lesson_type,l.record_model,l.booking_request_id,COALESCE(l.lifecycle_state,l.status) lesson_state,l.status legacy_status,
                     l.term_id,l.replacement_for_lesson_id,l.completed_at,l.cancelled_at,l.teacher_assignment_id,l.current_schedule_version_id,
                     t.sequence_number term_sequence,COALESCE(NULLIF(c.name_en,''),c.name_fa) course_name,
                     COALESCE(NULLIF(teacher.display_name,''),NULLIF(teacher.english_name,''),teacher.persian_name) teacher_name,
@@ -930,7 +930,8 @@ final class StudentWorkspaceReadService {
                     COALESCE(csv.local_wall_time,lsv.local_wall_time) local_wall_time,
                     COALESCE(csv.schedule_timezone,lsv.schedule_timezone) schedule_timezone,
                     COALESCE(csv.id,lsv.id) schedule_version_id,
-                    outcome.outcome_code,outcome.attendance_state,outcome.delivery_state
+                    outcome.outcome_code,outcome.attendance_state,outcome.delivery_state,
+                    intro.outcome intro_outcome
              FROM {$this->p}lessons l
              LEFT JOIN {$this->p}terms t ON t.id=l.term_id
              LEFT JOIN {$this->p}courses c ON c.id=l.course_id
@@ -938,6 +939,7 @@ final class StudentWorkspaceReadService {
              LEFT JOIN {$this->p}canonical_lesson_schedule_versions csv ON csv.lesson_id=l.id AND csv.applicable_slot=1 AND csv.superseded_at IS NULL
              LEFT JOIN {$this->p}lesson_schedule_versions lsv ON lsv.id=l.current_schedule_version_id AND lsv.lesson_id=l.id AND lsv.superseded_at IS NULL
              LEFT JOIN {$this->p}canonical_lesson_delivery_outcomes outcome ON outcome.lesson_id=l.id AND outcome.applicable_slot=1
+             LEFT JOIN {$this->p}booking_request_intro_outcomes intro ON intro.booking_request_id=l.booking_request_id
              WHERE l.student_id=%d AND l.archived_at IS NULL
              ORDER BY COALESCE(csv.starts_at_utc,lsv.starts_at_utc) DESC,l.id DESC LIMIT %d OFFSET %d",
             $studentId, $perPage, $offset
@@ -993,6 +995,16 @@ final class StudentWorkspaceReadService {
         $row->attendance_label = $row->attendance_state !== null && (string) $row->attendance_state !== ''
             ? ucfirst(str_replace('_', ' ', (string) $row->attendance_state))
             : 'No recorded attendance issue';
+        $introAttendance = IntroLessonOutcomeProjection::attendanceState(
+            (string) ($row->record_model ?? ''),
+            (string) ($row->lesson_type ?? ''),
+            (int) ($row->booking_request_id ?? 0),
+            (string) ($row->intro_outcome ?? '')
+        );
+        if ($introAttendance !== null) {
+            $row->attendance_state = $introAttendance;
+            $row->attendance_label = 'Attended · recorded introductory outcome';
+        }
         $row->term_label = $row->term_id ? 'Term ' . (int) $row->term_sequence : 'Introductory / unassigned';
         $row->replacement_label = $row->replacement_for_lesson_id ? 'Replacement lesson' : '';
         $isCancelled = in_array($state, array('cancelled'), true);

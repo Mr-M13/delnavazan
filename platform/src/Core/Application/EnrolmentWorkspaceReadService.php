@@ -1892,7 +1892,7 @@ final class EnrolmentWorkspaceReadService {
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT l.id,l.uid,l.reference_code,l.lesson_type,l.status,l.student_id,l.teacher_id,l.course_id,l.enrolment_id,l.term_id,
-                    l.record_model,l.current_schedule_version_id,
+                    l.booking_request_id,l.record_model,l.current_schedule_version_id,
                     s.display_name student_name,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name,
                     COALESCE(NULLIF(c.name_en,''),c.name_fa) course_name,
                     e.reference_code enrolment_reference,e.lifecycle_state enrolment_state,
@@ -1901,7 +1901,8 @@ final class EnrolmentWorkspaceReadService {
                     sv.id schedule_version_id,sv.starts_at_utc,sv.ends_at_utc,sv.schedule_timezone,sv.local_wall_date,sv.local_wall_time,
                     NULL duration_minutes,NULL buffer_minutes,
                     NULL assignment_state,NULL outcome_code,NULL delivery_state,NULL attendance_state,NULL remedy_class,
-                    NULL attendance_case_id,NULL attendance_case_state,NULL attendance_case_version
+                    NULL attendance_case_id,NULL attendance_case_state,NULL attendance_case_version,
+                    intro.outcome intro_outcome
              FROM {$this->p}lessons l
              LEFT JOIN {$this->p}students s ON s.id=l.student_id
              LEFT JOIN {$this->p}teachers t ON t.id=l.teacher_id
@@ -1909,10 +1910,20 @@ final class EnrolmentWorkspaceReadService {
              LEFT JOIN {$this->p}enrolments e ON e.id=l.enrolment_id
              LEFT JOIN {$this->p}terms term ON term.id=l.term_id
              LEFT JOIN {$this->p}lesson_schedule_versions sv ON sv.id=l.current_schedule_version_id
+             LEFT JOIN {$this->p}booking_request_intro_outcomes intro ON intro.booking_request_id=l.booking_request_id
              WHERE l.record_model='legacy_phase1' AND l.archived_at IS NULL
              ORDER BY COALESCE(sv.starts_at_utc,'9999-12-31 23:59:59') ASC,l.id DESC LIMIT %d",
             self::CLASS_LIMIT
         )) ?: array();
+        foreach($rows as$row){
+            $attendance=IntroLessonOutcomeProjection::attendanceState((string)$row->record_model,(string)$row->lesson_type,(int)($row->booking_request_id??0),(string)($row->intro_outcome??''));
+            if($attendance!==null){
+                $row->attendance_state=$attendance;
+                $row->delivery_state=IntroLessonOutcomeProjection::DELIVERED;
+                $row->outcome_code=IntroLessonOutcomeProjection::DELIVERED;
+                $row->attendance_source='intro_outcome';
+            }
+        }
         return $rows;
     }
 
@@ -2022,7 +2033,7 @@ final class EnrolmentWorkspaceReadService {
         $caseState = (string) ($row->attendance_case_state ?? '');
         $outcomeState = (string) ($row->attendance_state ?? '');
         if ($caseState === 'review_required') return array('key' => 'review', 'label' => 'Review required', 'detail' => 'Evidence conflict or missing identity needs a decision.');
-        if ($outcomeState !== '') return array('key' => $outcomeState, 'label' => ucfirst(str_replace('_', ' ', $outcomeState)), 'detail' => 'From the canonical delivery outcome.');
+        if ($outcomeState !== '') return array('key' => $outcomeState, 'label' => ucfirst(str_replace('_', ' ', $outcomeState)), 'detail' => (string) ($row->attendance_source ?? '') === 'intro_outcome' ? 'Recorded by the introductory outcome.' : 'From the canonical delivery outcome.');
         if ($caseState !== '') return array('key' => $caseState, 'label' => ucfirst(str_replace('_', ' ', $caseState)), 'detail' => 'Canonical attendance case.');
         if ((string) ($row->ends_at_utc ?? '') < gmdate('Y-m-d H:i:s')) return array('key' => 'missing', 'label' => 'No evidence', 'detail' => 'A clicked link or administrator presence is not attendance evidence.');
         return array('key' => 'pending', 'label' => 'Pending', 'detail' => 'Attendance is decided after the class ends.');

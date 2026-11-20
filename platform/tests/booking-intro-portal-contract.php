@@ -53,4 +53,31 @@ $assert(count(dzn_theme_platform_merge_intro_rows(array($lesson))) === 1, 'An in
 $double = dzn_theme_platform_merge_intro_rows(array($row(array('kind' => 'term', 'lesson_uid' => 'A')), $row(array('kind' => 'term', 'lesson_uid' => 'B')), $booked));
 $assert(count($double) === 2 && 'intro' === $double[1]['kind'], 'One booking must consume exactly one introductory Lesson.');
 $assert(count(dzn_theme_platform_merge_intro_rows(array($booked))) === 1, 'A booking with no provisioned Lesson must remain visible on its own.');
+
+/*
+ * A delivered introductory outcome is the attendance fact for its legacy Lesson.
+ *
+ * The booking-linked introductory Lesson is legacy_phase1 and has no Phase-O delivery outcome or
+ * Phase-P attendance case. The Teacher-recorded `delivered` outcome must project onto the class,
+ * student-history and portal reads as delivered/attended instead of "No evidence".
+ */
+require_once $root . '/src/Core/Application/IntroLessonOutcomeProjection.php';
+$projection = '\\Delnavazan\\Platform\\Core\\Application\\IntroLessonOutcomeProjection';
+$assert($projection::isDelivered('legacy_phase1', 'introductory', 91, 'delivered'), 'A delivered booking-linked introductory Lesson must project as delivered.');
+$assert(!$projection::isDelivered('legacy_phase1', 'introductory', 0, 'delivered'), 'A standalone introductory Lesson has no booking outcome to project.');
+$assert(!$projection::isDelivered('canonical_term_lesson_v1', 'standard', 91, 'delivered'), 'A canonical Term Lesson must never use the introductory projection.');
+$assert(!$projection::isDelivered('legacy_phase1', 'introductory', 91, 'student_no_show'), 'A non-delivered outcome must not mark attendance.');
+$assert($projection::attendanceState('legacy_phase1', 'introductory', 91, 'delivered') === 'attended', 'The delivered outcome must project canonical attended vocabulary.');
+$assert($projection::deliveryStateSummary('legacy_phase1', 'introductory', 91, 'delivered') === 'delivered' && $projection::attendanceStateSummary('legacy_phase1', 'introductory', 91, 'delivered') === 'settled', 'The portal projection must expose delivered and settled.');
+
+$enrolmentRead = (string) file_get_contents($root . '/src/Core/Application/EnrolmentWorkspaceReadService.php');
+$studentRead = (string) file_get_contents($root . '/src/Core/Application/StudentWorkspaceReadService.php');
+$portalRead = (string) file_get_contents($root . '/src/Portals/PortalAuthenticatedReadService.php');
+$teacherRead = (string) file_get_contents($root . '/src/Core/Application/TeacherWorkspaceReadService.php');
+foreach (array('enrolment' => $enrolmentRead, 'student' => $studentRead, 'portal' => $portalRead, 'teacher' => $teacherRead) as $surface => $source) {
+    $assert(str_contains($source, 'booking_request_intro_outcomes') && str_contains($source, 'IntroLessonOutcomeProjection'), 'The ' . $surface . ' read surface must join the introductory outcome and use the projection.');
+}
+$assert(str_contains($portalRead, "'delivery_state_summary' => \$introDelivered ? 'delivered'") && str_contains($portalRead, "'attendance_state_summary' => \$introDelivered ? IntroLessonOutcomeProjection::SETTLED"), 'The legacy portal Lesson must expose a delivered introductory outcome as delivered and settled.');
+$assert(str_contains($enrolmentRead, "\$row->attendance_source='intro_outcome'") && str_contains($enrolmentRead, 'Recorded by the introductory outcome.'), 'The class record must attribute projected attendance to the introductory outcome.');
+$assert(str_contains($studentRead, 'Attended · recorded introductory outcome'), 'The student history must show the projected introductory attendance.');
 echo "Booking intro portal contract passed\n";

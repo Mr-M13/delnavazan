@@ -413,15 +413,16 @@ final class TeacherWorkspaceReadService {
         global $wpdb;
         $p = $wpdb->prefix . 'dzn_';
         $lessons = $wpdb->get_results($wpdb->prepare(
-            "SELECT l.id,l.reference_code class_reference,l.lesson_type,l.record_model,l.lifecycle_state,l.status,
+            "SELECT l.id,l.reference_code class_reference,l.lesson_type,l.booking_request_id,l.record_model,l.lifecycle_state,l.status,
                     s.display_name student_name,COALESCE(NULLIF(c.name_en,''),c.name_fa) course_name,
                     v.starts_at_utc,v.ends_at_utc,v.schedule_timezone,v.local_wall_date,v.local_wall_time,
-                    d.outcome_code,d.delivery_state
+                    d.outcome_code,d.delivery_state,intro.outcome intro_outcome
              FROM {$p}lessons l
              LEFT JOIN {$p}students s ON s.id=l.student_id
              LEFT JOIN {$p}courses c ON c.id=l.course_id
              LEFT JOIN {$p}canonical_lesson_schedule_versions v ON v.lesson_id=l.id AND v.applicable_slot=1
              LEFT JOIN {$p}canonical_lesson_delivery_outcomes d ON d.lesson_id=l.id AND d.applicable_slot=1
+             LEFT JOIN {$p}booking_request_intro_outcomes intro ON intro.booking_request_id=l.booking_request_id
              WHERE l.teacher_id=%d AND l.archived_at IS NULL
              ORDER BY COALESCE(v.starts_at_utc,d.occurrence_starts_at_utc) DESC,l.id DESC LIMIT 300",
             $teacherId
@@ -430,6 +431,15 @@ final class TeacherWorkspaceReadService {
         try { $today = (new \DateTimeImmutable('today', new \DateTimeZone($timezone)))->format('Y-m-d'); } catch (\Throwable) { $today = gmdate('Y-m-d'); }
         $result = array('today' => array(), 'upcoming' => array(), 'recent' => array(), 'replacements' => array(), 'attendance' => array());
         foreach ($lessons as $lesson) {
+            if (IntroLessonOutcomeProjection::isDelivered(
+                (string) ($lesson->record_model ?? ''),
+                (string) ($lesson->lesson_type ?? ''),
+                (int) ($lesson->booking_request_id ?? 0),
+                (string) ($lesson->intro_outcome ?? '')
+            )) {
+                $lesson->outcome_code = IntroLessonOutcomeProjection::DELIVERED;
+                $lesson->delivery_state = IntroLessonOutcomeProjection::DELIVERED;
+            }
             $start = (string) ($lesson->starts_at_utc ?? '');
             $isFuture = $start !== '' && $start > $now;
             $isToday = (string) ($lesson->local_wall_date ?? '') === $today;

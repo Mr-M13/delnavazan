@@ -108,6 +108,7 @@ $check('recording service repository calls resolve to real methods' . ($missingR
 $runbook = $read('docs/MEET-RECORDING-RUNBOOK.md');
 $check('the Meet recording runbook documents provider-side causes and platform alerts', str_contains($runbook, 'recording_stopped_while_participants_remained') && str_contains($runbook, 'Let users record their meetings') && str_contains($runbook, 'recording_missing'));
 $check('the Meet recording runbook documents the web-join requirement and the confirmed case', str_contains($runbook, 'Failed to initialise') && str_contains($runbook, 'joined from a **phone**') && str_contains($runbook, 'Meet quality tool'));
+$check('the Meet recording runbook documents the mobile recording matrix', str_contains($runbook, 'Android Meet app') && str_contains($runbook, 'iPhone / iPad') && str_contains($runbook, 'Start recording') && str_contains($runbook, 'Do not turn off moderation'));
 
 $playback = $read('platform/src/Integrations/GoogleWorkspace/MeetRecordingPlaybackController.php');
 $check('playback is authenticated', str_contains($playback, 'is_user_logged_in()'));
@@ -190,7 +191,8 @@ $check('branded entry page shows scheduled lesson information', str_contains($me
 $check('branded entry page gives Teachers entry troubleshooting guidance', str_contains($meetTemplate, 'اگر ورود به کلاس مشکل داشت') && str_contains($meetTemplate, 'واتس‌اپ'));
 $check('branded entry page gives Teachers sound troubleshooting guidance', str_contains($meetTemplate, 'اگر صدا مشکل داشت') && str_contains($meetTemplate, 'Noise suppression'));
 $check('branded entry page requires Teachers to confirm completion', str_contains($meetTemplate, 'پس از پایان کلاس') && str_contains($meetTemplate, 'تأیید برگزاری و حضور'));
-$check('branded entry page tells Teachers to join from a computer so auto-recording starts', str_contains($meetTemplate, 'ضبط کلاس') && str_contains($meetTemplate, 'مرورگر رایانه') && str_contains($meetTemplate, 'برنامهٔ موبایل'));
+$check('branded entry page tells Teachers to join from a computer so auto-recording starts', str_contains($meetTemplate, 'ضبط کلاس') && str_contains($meetTemplate, 'مرورگر رایانه') && str_contains($meetTemplate, 'اندروید'));
+$check('branded entry page tells Android Teachers to start recording manually and states the iPhone limit', str_contains($meetTemplate, 'شروع ضبط') && str_contains($meetTemplate, 'آیفون'));
 $check('branded entry page posts to the authenticated join controller', str_contains($meetTemplate, 'wp_create_nonce') && str_contains($meetTemplate, 'admin-post.php'));
 $check('Teacher pre-class page reads the canonical briefing service', str_contains($meetTemplate, 'TeacherClassroomBriefingReadService'));
 $check('Teacher pre-class page shows the previous private note and term timeline', str_contains($meetTemplate, 'یادداشت جلسهٔ گذشته') && str_contains($meetTemplate, 'خط زمانی ترم هنرجو'));

@@ -36,9 +36,29 @@ participant consent were both ON, and the space config was `autoRecordingGenerat
 quality tool showed **`Recording status: Failed to initialise`** for the calls, and the Teacher
 co-host (`nimasepandar@gmail.com`, a verified COHOST space member) had joined from a **phone** in
 every affected meeting while the organizer was not in the call. The recording never initialised.
-Conclusion: this is a join-device requirement, not a Delnavazan configuration fault. The Teacher
-must join from a computer web browser for auto-recording to start. The pre-class page now tells the
-Teacher this explicitly.
+Conclusion: this is a join-device requirement, not a Delnavazan configuration fault. The pre-class
+page now tells the Teacher this explicitly.
+
+## Mobile devices (Android and iPhone)
+
+Google's device rules differ, and the platform has no API to override them:
+
+| Device | Automatic recording | Manual recording by the COHOST Teacher |
+|---|---|---|
+| Computer web browser | Starts automatically when the host/co-host joins | Works |
+| Android Meet app | **Never starts automatically** — Google requires a host/co-host on web | **Works**: Teacher opens the meeting menu (⋮) → Recording → Start recording and keeps the app open |
+| iPhone / iPad | Never starts automatically | **Not supported at all** — Google only allows recording on a computer or Android device |
+
+Operational guidance:
+
+- **Android Teachers**: start the recording manually at the beginning of class; it is saved to the
+  organizer's Drive exactly like an automatic recording, and the platform reconciles and alerts the
+  same way.
+- **iPhone Teachers**: recording is not possible from the device. For a class that must be recorded,
+  the Teacher joins from a computer browser, or Delnavazan arranges an Android device or a computer
+  for that class.
+- Do not turn off moderation/host management to "unlock" mobile recording: out-of-domain
+  participants cannot record in non-moderated meetings, so that change makes it worse.
 
 ## Owner-side verification (Google admin)
 

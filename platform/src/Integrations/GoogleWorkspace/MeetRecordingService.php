@@ -15,6 +15,8 @@ use Delnavazan\Platform\Core\Support\Identifier;
 final class MeetRecordingService {
     private const END_GRACE_SECONDS=1800;
     private const PROCESSING_GRACE_SECONDS=7200;
+    /** A recording that ended this long before the last participant left was cut short. */
+    private const TRUNCATION_GRACE_SECONDS=300;
 
     public function __construct(
         private ?GoogleWorkspaceRepository $repository=null,
@@ -232,6 +234,52 @@ final class MeetRecordingService {
         if($record->end_time!==null&&$end+self::PROCESSING_GRACE_SECONDS<$now&&$classroom->recording_state==='configured'&&$artifacts===array()){
             $this->raiseAlert((int)$classroom->id,'recording_ended_without_artifact','recording_ended_unexpectedly');
         }
+        $this->checkTruncatedRecording($classroom,$record);
+    }
+
+    /**
+     * Detect a recording that ended while participants demonstrably stayed in the call.
+     *
+     * Reconciliation runs after the lesson, so the in-lesson early-end check above can never see a
+     * recording stop mid-class. The durable participant sessions are the post-hoc signal: when the
+     * last participant left at least TRUNCATION_GRACE_SECONDS after the recording's end time, the
+     * recording was cut short by the provider (for example an organizer Drive quota stop) rather
+     * than the class simply ending early. The artifact keeps its verification but is marked so the
+     * evidence trail shows it was truncated.
+     */
+    private function checkTruncatedRecording(object $classroom,object $record):void{
+        // The classroom's recording_state flips to `recorded` as soon as a file is verified, so the
+        // durable expectation flag on the conference record is the signal here.
+        if((int)($record->recording_expected??0)!==1)return;
+        $presence=$this->latestParticipantPresence((int)$classroom->id);
+        if($presence===null)return;
+        foreach($this->repository->recordings((int)$classroom->id) as $row){
+            if((int)($row->conference_record_id??0)!==(int)($record->id??0))continue;
+            $state=(string)($row->state??'');
+            if(!in_array($state,array('ENDED','FILE_GENERATED'),true))continue;
+            $artifactEnd=(string)($row->end_time??'');
+            if($artifactEnd==='')continue;
+            if(strtotime($artifactEnd.' UTC')+self::TRUNCATION_GRACE_SECONDS>=strtotime($presence.' UTC'))continue;
+            $this->raiseAlert((int)$classroom->id,'recording_ended_early','recording_stopped_while_participants_remained');
+            if((string)($row->failure_reason_code??'')===''){
+                $this->repository->updateRecording((int)$row->id,array(
+                    'failure_reason_code'=>'recording_ended_early','updated_at'=>gmdate('Y-m-d H:i:s'),
+                ),array('id'=>(int)$row->id));
+            }
+        }
+    }
+
+    /** Latest durable participant presence for a classroom, or null while nothing is known. */
+    private function latestParticipantPresence(int $classroomId):?string{
+        $latest=null;
+        foreach($this->repository->participantSessionsForClassroom($classroomId) as $session){
+            $leave=(string)($session->leave_at_utc??'');
+            $observed=(string)($session->observed_at??'');
+            $candidate=$leave!==''?$leave:$observed;
+            if($candidate==='')continue;
+            if($latest===null||strtotime($candidate.' UTC')>strtotime($latest.' UTC'))$latest=$candidate;
+        }
+        return $latest;
     }
 
     private function handleMissingRecord(object $classroom):array{

@@ -88,6 +88,10 @@ $check('missing permissions data is not treated as private', str_contains($recor
 $check('public and broad sharing are denied and alerted', str_contains($recording, 'recording_privacy_public') || str_contains($recording, 'recording_privacy_not_private'));
 $check('missing recording raises an administrator alert', str_contains($recording, 'recording_missing'));
 $check('unexpected recording end raises an administrator alert', str_contains($recording, 'recording_ended_unexpectedly'));
+$check('a recording stopped while participants remained raises an administrator alert', str_contains($recording, 'recording_stopped_while_participants_remained') && str_contains($recording, 'participantSessionsForClassroom') && str_contains($recording, 'TRUNCATION_GRACE_SECONDS'));
+$check('truncated recordings are marked in the artifact evidence', str_contains($recording, "'failure_reason_code'=>'recording_ended_early'"));
+$runbook = $read('docs/MEET-RECORDING-RUNBOOK.md');
+$check('the Meet recording runbook documents provider-side causes and platform alerts', str_contains($runbook, 'recording_stopped_while_participants_remained') && str_contains($runbook, 'Let users record their meetings') && str_contains($runbook, 'recording_missing'));
 
 $playback = $read('platform/src/Integrations/GoogleWorkspace/MeetRecordingPlaybackController.php');
 $check('playback is authenticated', str_contains($playback, 'is_user_logged_in()'));

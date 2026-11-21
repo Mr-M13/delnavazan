@@ -658,6 +658,16 @@ final class EnrolmentWorkspaceView {
         if (!empty($case['post_intro']['state'])) {
             echo '<h3>After the introductory lesson</h3><dl class="dzn-facts">';
             self::fact('Recorded outcome', (string) ($case['outcome']['label'] ?? 'Not recorded'));
+            $outcomeSource = (string) ($case['outcome']['source'] ?? '');
+            if ($outcomeSource !== '') {
+                $outcomeSourceLabel = match ($outcomeSource) {
+                    'provider_evidence' => 'Automatic — Google Meet participant evidence',
+                    'teacher_portal' => 'Teacher portal',
+                    'admin' => 'Administrator',
+                    default => ucfirst(str_replace('_', ' ', $outcomeSource)),
+                };
+                self::fact('Outcome source', $outcomeSourceLabel, 'Recorded at ' . (string) ($case['outcome']['recorded_at'] ?? ''));
+            }
             self::fact('Attendance / delivery evidence', (string) ($case['outcome']['label'] ?? 'No outcome evidence yet'), 'Administrator presence or a clicked link is never attendance evidence.');
             self::fact('Student decision', (string) ($case['post_intro']['state_label'] ?? '—'));
             self::fact('First regular slot', trim((string) (($case['post_intro']['local_date'] ?? '') . ' ' . ($case['post_intro']['local_time'] ?? '') . ' ' . ($case['post_intro']['schedule_timezone'] ?? ''))));

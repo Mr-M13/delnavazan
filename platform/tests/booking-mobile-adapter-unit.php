@@ -61,9 +61,9 @@ $settings = new DznBookingAdapterSettings(array(
     'sms' => array('api_key' => 'test-key', 'messaging_profile_id' => 'profile-1', 'sender_id' => '+15550000001'),
     'whatsapp' => array('sender_id' => '+15550000001', 'messaging_profile_id' => 'profile-1'),
 ));
-$definition = TelnyxTemplateRegistry::definitions()['delnavazan_booking_confirmation_fa'];
+$definition = TelnyxTemplateRegistry::definitions()['delnavazan_booking_confirmation_v2_fa'];
 $template = (object) array(
-    'provider' => 'telnyx', 'template_name' => 'delnavazan_booking_confirmation_fa', 'language' => 'fa',
+    'provider' => 'telnyx', 'template_name' => 'delnavazan_booking_confirmation_v2_fa', 'language' => 'fa',
     'status' => 'APPROVED', 'category' => 'UTILITY', 'event_key' => 'booking.requested.student', 'audience' => 'student',
     'variable_order' => implode(',', $definition['variable_order']),
 );

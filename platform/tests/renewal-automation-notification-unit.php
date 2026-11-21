@@ -67,9 +67,9 @@ namespace {
     foreach (array(
         'renewal.automatic_charged.student' => 'delnavazan_renewal_automatic_charged_student_fa',
         'renewal.automatic_failed.student' => 'delnavazan_renewal_automatic_failed_student_fa',
-        'renewal.automatic_upcoming.student' => 'delnavazan_renewal_reminder_fa',
+        'renewal.automatic_upcoming.student' => 'delnavazan_renewal_reminder_v2_fa',
         'renewal.guarantee_deadline_approaching.student' => 'delnavazan_renewal_guarantee_deadline_approaching_student_fa',
-        'renewal.manual_payment_required.student' => 'delnavazan_payment_due_fa',
+        'renewal.manual_payment_required.student' => 'delnavazan_payment_due_v2_fa',
         'renewal.term_lapsed.student' => 'delnavazan_renewal_term_lapsed_student_fa',
     ) as $key => $templateName) {
         $definition = \Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry::definitionForName($templateName);

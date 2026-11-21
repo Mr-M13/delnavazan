@@ -285,13 +285,13 @@ $readinessLibrary = new DznNotificationReadinessFakeLibrary(
     array(
         'booking.requested.student' => array(
             'state' => TelnyxTemplateAuthority::MAPPED,
-            'mapping' => array('name' => 'delnavazan_booking_confirmation_fa', 'language' => 'fa', 'source' => 'discovery'),
-            'primary' => array('name' => 'delnavazan_booking_confirmation_fa', 'status' => 'APPROVED', 'variable_order' => array('name', 'course', 'when', 'portal_url')),
+            'mapping' => array('name' => 'delnavazan_booking_confirmation_v2_fa', 'language' => 'fa', 'source' => 'discovery'),
+            'primary' => array('name' => 'delnavazan_booking_confirmation_v2_fa', 'status' => 'APPROVED', 'variable_order' => array('name', 'course', 'when', 'portal_url')),
         ),
         'booking.confirmed.student' => array(
             'state' => TelnyxTemplateAuthority::CONTRACT_MISMATCH,
             'mapping' => array('name' => '', 'language' => '', 'source' => 'discovery'),
-            'primary' => array('name' => 'delnavazan_intro_confirmed_fa', 'status' => 'APPROVED', 'variable_order' => array('name', 'course', 'teacher', 'when')),
+            'primary' => array('name' => 'delnavazan_intro_confirmed_v2_fa', 'status' => 'APPROVED', 'variable_order' => array('name', 'course', 'teacher', 'when')),
         ),
         'booking.cancelled.student' => array(
             'state' => TelnyxTemplateAuthority::NOT_MAPPED,
@@ -301,7 +301,7 @@ $readinessLibrary = new DznNotificationReadinessFakeLibrary(
         'booking.new.teacher' => array(
             'state' => TelnyxTemplateAuthority::NOT_APPROVED,
             'mapping' => array('name' => '', 'language' => '', 'source' => 'discovery'),
-            'primary' => array('name' => 'delnavazan_teacher_new_booking_fa', 'status' => 'PENDING', 'variable_order' => array()),
+            'primary' => array('name' => 'delnavazan_teacher_new_booking_v2_fa', 'status' => 'PENDING', 'variable_order' => array()),
         ),
     )
 );

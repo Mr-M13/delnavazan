@@ -56,7 +56,7 @@ $fail('WhatsApp body sender wins over the business profile sender',str_contains(
 
 $fail('out-of-order facts never regress message state',str_contains($service,"if(!empty(\$result['applied']))\$this->provider->updateMessageState"));
 $fail('bindings require a verified webhook key',str_contains($configuration,'webhookPublicKey')&&str_contains($configuration,'webhookPublicKey()!==')&&str_contains($bindings,'smsReady()')&&str_contains($bindings,'whatsappReady()'));
-$fail('template registry maps approved names',str_contains($registry,'delnavazan_payment_due_fa')&&str_contains($registry,'delnavazan_class_access_fa')&&str_contains($registry,'variable_order'));
+$fail('template registry maps approved names',str_contains($registry,'delnavazan_payment_due_v2_fa')&&str_contains($registry,'delnavazan_class_access_v2_fa')&&str_contains($registry,'variable_order'));
 $fail('template discovery is explicit and read-only',str_contains($discovery,'/v2/whatsapp/message_templates')&&str_contains($discovery,'Refresh')===false&&str_contains($discovery,'sync()'));
 $fail('settings expose Telnyx webhook key and WABA',str_contains($settings,"'webhook_public_key'=>'text'")&&str_contains($settings,"'waba_id'=>'text'")&&str_contains($settings,"'sender_id'=>'text'"));
 $fail('admin shows verified webhook and discovery',str_contains($admin,'Verified webhook')&&str_contains($admin,'Refresh approved templates')&&str_contains($admin,'dzn_telnyx_template_sync')&&str_contains($admin,'Webhook URL'));

@@ -48,9 +48,9 @@ $sms=TelnyxSmsAdapter::messagePayload('+15550001111','سلام','+15550000001','
 if(($sms['from']??'')!=='+15550000001'||isset($sms['messaging_profile_id'])||($sms['text']??'')!=='سلام')throw new RuntimeException('SMS sender payload contract failed');
 $sms=TelnyxSmsAdapter::messagePayload('+15550001111','سلام','','profile-1');
 if(($sms['messaging_profile_id']??'')!=='profile-1'||isset($sms['from']))throw new RuntimeException('SMS profile payload contract failed');
-$wa=TelnyxWhatsAppAdapter::templatePayload('+15550000001','+15550001111','delnavazan_class_access_fa','fa',array('name','course','teacher','when'),array('name'=>'باران','course'=>'تار','teacher'=>'ندا','when'=>'شنبه'),'profile-1');
+$wa=TelnyxWhatsAppAdapter::templatePayload('+15550000001','+15550001111','delnavazan_class_access_v2_fa','fa',array('name','course','teacher','when'),array('name'=>'باران','course'=>'تار','teacher'=>'ندا','when'=>'شنبه'),'profile-1');
 $template=$wa['whatsapp_message']['template']??array();
-if(($template['name']??'')!=='delnavazan_class_access_fa'||($template['language']['code']??'')!=='fa')throw new RuntimeException('WhatsApp template identity contract failed');
+if(($template['name']??'')!=='delnavazan_class_access_v2_fa'||($template['language']['code']??'')!=='fa')throw new RuntimeException('WhatsApp template identity contract failed');
 if(($wa['messaging_profile_id']??'')!=='profile-1')throw new RuntimeException('WhatsApp payload must include the messaging profile when the sender is not SMS-enabled');
 $params=$template['components'][0]['parameters']??array();
 if(array_column($params,'text')!==array('باران','تار','ندا','شنبه'))throw new RuntimeException('WhatsApp body parameter order contract failed');
@@ -68,7 +68,7 @@ foreach($registry as $name=>$definition){
     if(TelnyxTemplateRegistry::eventKeyForName($name)!==$definition['event_key'])throw new RuntimeException('registry event lookup failed: '.$name);
     if($definition['variable_order']===array()||count($definition['variable_order'])!==count(array_unique($definition['variable_order'])))throw new RuntimeException('registry variable order invalid: '.$name);
 }
-if(TelnyxTemplateRegistry::nameForEvent('lesson.access.student')!=='delnavazan_class_access_fa')throw new RuntimeException('registry reverse lookup failed');
+if(TelnyxTemplateRegistry::nameForEvent('lesson.access.student')!=='delnavazan_class_access_v2_fa')throw new RuntimeException('registry reverse lookup failed');
 $error=TelnyxWhatsAppAdapter::providerError(array('errors'=>array(array('code'=>'40310','title'=>'Invalid to','detail'=>'The number +15550001111 or student@example.com is invalid'))));
 if(($error['provider_code']??'')!=='40310'||!str_contains((string)$error['provider_title'],'Invalid')||!str_contains((string)$error['provider_detail'],'[number]')||!str_contains((string)$error['provider_detail'],'[email]')||str_contains((string)$error['provider_detail'],'+15550001111')||str_contains((string)$error['provider_detail'],'student@example.com'))throw new RuntimeException('provider error detail must be parsed and redacted');
 if(!\Delnavazan\Platform\Core\Application\NotificationRule::providerStopApplies('MANUAL_RENEWAL_PAYMENT_REQUIRED','mobile'))throw new RuntimeException('provider STOP must suppress a mobile payment intent');

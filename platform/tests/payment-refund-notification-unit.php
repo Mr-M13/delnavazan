@@ -62,7 +62,7 @@ namespace {
      *       variables, so the dispatch-time provider mapping can never invent a parameter. */
     foreach (array(
         'payment.failed.student' => 'delnavazan_payment_failed_student_fa',
-        'payment.recovered.student' => 'delnavazan_payment_received_fa',
+        'payment.recovered.student' => 'delnavazan_payment_received_v2_fa',
         'refund.review_required.student' => 'delnavazan_refund_review_required_student_fa',
         'refund.resolved.student' => 'delnavazan_refund_resolved_student_fa',
     ) as $key => $templateName) {

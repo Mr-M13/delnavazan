@@ -3,7 +3,7 @@
     "provider": "telnyx",
     "templates": [
         {
-            "name": "delnavazan_intro_confirmed_fa",
+            "name": "delnavazan_intro_confirmed_v2_fa",
             "event_key": "booking.confirmed.student",
             "audience": "student",
             "language": "fa",
@@ -89,7 +89,7 @@
             }
         },
         {
-            "name": "delnavazan_teacher_new_booking_fa",
+            "name": "delnavazan_teacher_new_booking_v2_fa",
             "event_key": "booking.new.teacher",
             "audience": "teacher",
             "language": "fa",
@@ -113,7 +113,7 @@
             }
         },
         {
-            "name": "delnavazan_booking_confirmation_fa",
+            "name": "delnavazan_booking_confirmation_v2_fa",
             "event_key": "booking.requested.student",
             "audience": "student",
             "language": "fa",
@@ -133,7 +133,7 @@
             }
         },
         {
-            "name": "delnavazan_class_access_fa",
+            "name": "delnavazan_class_access_v2_fa",
             "event_key": "lesson.access.student",
             "audience": "student",
             "language": "fa",
@@ -155,7 +155,7 @@
             }
         },
         {
-            "name": "delnavazan_class_cancelled_fa",
+            "name": "delnavazan_class_cancelled_v2_fa",
             "event_key": "lesson.cancelled.student",
             "audience": "student",
             "language": "fa",
@@ -177,7 +177,7 @@
             }
         },
         {
-            "name": "delnavazan_class_reminder_fa",
+            "name": "delnavazan_class_reminder_v2_fa",
             "event_key": "lesson.reminder.student",
             "audience": "student",
             "language": "fa",
@@ -219,7 +219,7 @@
             }
         },
         {
-            "name": "delnavazan_payment_received_fa",
+            "name": "delnavazan_payment_received_v2_fa",
             "event_key": "payment.recovered.student",
             "audience": "student",
             "language": "fa",
@@ -241,7 +241,7 @@
             }
         },
         {
-            "name": "delnavazan_enrolment_confirmation_fa",
+            "name": "delnavazan_enrolment_confirmation_v2_fa",
             "event_key": "post_intro.activated.student",
             "audience": "student",
             "language": "fa",
@@ -341,7 +341,7 @@
             }
         },
         {
-            "name": "delnavazan_renewal_reminder_fa",
+            "name": "delnavazan_renewal_reminder_v2_fa",
             "event_key": "renewal.automatic_upcoming.student",
             "audience": "student",
             "language": "fa",
@@ -385,7 +385,7 @@
             }
         },
         {
-            "name": "delnavazan_payment_due_fa",
+            "name": "delnavazan_payment_due_v2_fa",
             "event_key": "renewal.manual_payment_required.student",
             "audience": "student",
             "language": "fa",
@@ -425,7 +425,7 @@
             }
         },
         {
-            "name": "delnavazan_class_rescheduled_fa",
+            "name": "delnavazan_class_rescheduled_v2_fa",
             "event_key": "reschedule.change.accepted.student",
             "audience": "student",
             "language": "fa",
@@ -445,7 +445,7 @@
             }
         },
         {
-            "name": "delnavazan_teacher_schedule_change_fa",
+            "name": "delnavazan_teacher_schedule_change_v2_fa",
             "event_key": "reschedule.change.accepted.teacher",
             "audience": "teacher",
             "language": "fa",
@@ -529,7 +529,7 @@
             }
         },
         {
-            "name": "delnavazan_reschedule_request_fa",
+            "name": "delnavazan_reschedule_request_v2_fa",
             "event_key": "reschedule.change.proposed.student",
             "audience": "student",
             "language": "fa",
@@ -569,7 +569,7 @@
             }
         },
         {
-            "name": "delnavazan_reschedule_rejected_fa",
+            "name": "delnavazan_reschedule_rejected_v2_fa",
             "event_key": "reschedule.change.rejected.student",
             "audience": "student",
             "language": "fa",

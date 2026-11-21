@@ -15,13 +15,18 @@ $root = dirname(__DIR__);
 require_once $root . '/src/Integrations/Notifications/NotificationTemplateValidationException.php';
 require_once $root . '/src/Integrations/Notifications/NotificationCatalogue.php';
 require_once $root . '/src/Integrations/Notifications/NotificationTemplateSanitizer.php';
+require_once $root . '/src/Core/Infrastructure/Repository/NotificationProviderRepository.php';
 require_once $root . '/src/Integrations/Notifications/TelnyxTemplateRegistry.php';
+require_once $root . '/src/Integrations/Notifications/TelnyxTemplateAuthority.php';
 require_once $root . '/src/Integrations/Notifications/SmsIrTemplateRegistry.php';
+require_once $root . '/src/Integrations/Notifications/WhatsAppProviderReadinessReadService.php';
 
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateSanitizer;
 use Delnavazan\Platform\Integrations\Notifications\SmsIrTemplateRegistry;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateAuthority;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry;
+use Delnavazan\Platform\Integrations\Notifications\WhatsAppProviderReadinessReadService;
 
 $fail = static function (string $name, bool $ok): void {
     if (!$ok) throw new RuntimeException('Notification template readiness contract failed: ' . $name);
@@ -246,5 +251,66 @@ foreach ((array) ($inventory['events'] ?? array()) as $inventoryEvent) if (isset
 $fail('the inventory maps the new booking to the intro-request template', (string) ($smsByEvent['booking.new.teacher']['sms_registry_key'] ?? '') === SmsIrTemplateRegistry::INTRO_BOOKING);
 $fail('the inventory maps the reminder to the account-referral template', (string) ($smsByEvent['lesson.reminder.student']['sms_registry_key'] ?? '') === SmsIrTemplateRegistry::GENERIC);
 $fail('the inventory keeps the dedicated invitation SMS outside the general mapping', (string) ($smsByEvent['teacher.invitation_issued.teacher']['sms_state'] ?? '') === 'dedicated_secure_route');
+
+/* 10. WhatsApp provider readiness projection. It must distinguish an approved discovery mapping,
+ *    a stale variable contract, a manual mapping with no provider evidence and an event whose
+ *    WhatsApp channel is switched off but would also be blocked. */
+final class DznNotificationReadinessFakeLibrary {
+    public function __construct(private array $enabledEvents, private array $channels, private array $evidence) {}
+    public function eventEnabled(string $eventKey): bool { return !empty($this->enabledEvents[$eventKey]); }
+    public function eventChannelEnabled(string $eventKey, string $channel): bool { return !empty($this->channels[$eventKey][$channel]); }
+    public function providerEvidence(string $eventKey, string $locale): array {
+        return $this->evidence[$eventKey] ?? array(
+            'state' => TelnyxTemplateAuthority::NOT_MAPPED,
+            'mapping' => array('name' => '', 'language' => '', 'source' => 'discovery'),
+            'primary' => null,
+        );
+    }
+}
+$readinessLibrary = new DznNotificationReadinessFakeLibrary(
+    array(
+        'booking.requested.student' => true,
+        'booking.confirmed.student' => true,
+        'booking.cancelled.student' => true,
+        'booking.new.teacher' => true,
+        'booking.rescheduled.student' => true,
+    ),
+    array(
+        'booking.requested.student' => array('whatsapp' => true),
+        'booking.confirmed.student' => array('whatsapp' => true),
+        'booking.cancelled.student' => array('whatsapp' => true),
+        'booking.new.teacher' => array('whatsapp' => true),
+        'booking.rescheduled.student' => array('whatsapp' => false),
+    ),
+    array(
+        'booking.requested.student' => array(
+            'state' => TelnyxTemplateAuthority::MAPPED,
+            'mapping' => array('name' => 'delnavazan_booking_confirmation_fa', 'language' => 'fa', 'source' => 'discovery'),
+            'primary' => array('name' => 'delnavazan_booking_confirmation_fa', 'status' => 'APPROVED', 'variable_order' => array('name', 'course', 'when', 'portal_url')),
+        ),
+        'booking.confirmed.student' => array(
+            'state' => TelnyxTemplateAuthority::CONTRACT_MISMATCH,
+            'mapping' => array('name' => '', 'language' => '', 'source' => 'discovery'),
+            'primary' => array('name' => 'delnavazan_intro_confirmed_fa', 'status' => 'APPROVED', 'variable_order' => array('name', 'course', 'teacher', 'when')),
+        ),
+        'booking.cancelled.student' => array(
+            'state' => TelnyxTemplateAuthority::NOT_MAPPED,
+            'mapping' => array('name' => 'delnavazan_intro_cancelled_fa', 'language' => 'fa', 'source' => 'manual'),
+            'primary' => null,
+        ),
+        'booking.new.teacher' => array(
+            'state' => TelnyxTemplateAuthority::NOT_APPROVED,
+            'mapping' => array('name' => '', 'language' => '', 'source' => 'discovery'),
+            'primary' => array('name' => 'delnavazan_teacher_new_booking_fa', 'status' => 'PENDING', 'variable_order' => array()),
+        ),
+    )
+);
+$readiness = (new WhatsAppProviderReadinessReadService($readinessLibrary))->report();
+$fail('the readiness projection counts four enabled WhatsApp events', $readiness['enabled'] === 4);
+$fail('the readiness projection counts one ready event', $readiness['ready'] === 1);
+$fail('the readiness projection blocks a stale provider contract', ($readiness['blocked']['booking.confirmed.student'] ?? '') === 'contract_mismatch');
+$fail('the readiness projection blocks an unapproved provider template', ($readiness['blocked']['booking.new.teacher'] ?? '') === 'not_approved');
+$fail('the readiness projection flags a manual mapping without provider evidence', isset($readiness['unverified']['booking.cancelled.student']));
+$fail('the readiness projection reports a disabled blocked event separately', isset($readiness['disabled_blocked']['booking.rescheduled.student']));
 
 echo "Notification template readiness contract passed\n";

@@ -7,6 +7,7 @@ use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
 use Delnavazan\Platform\Core\Application\NotificationDiagnosticsReadService;
 use Delnavazan\Platform\Core\Application\PermissionRegistry;
 use Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceOAuthService;
+use Delnavazan\Platform\Integrations\Notifications\WhatsAppProviderReadinessReadService;
 
 /**
  * Extensible diagnostic registry.
@@ -93,6 +94,7 @@ final class DiagnosticRegistry {
                     $this->check('notifications.failed', 'Failed notifications', 'Delivery failures are visible with a safe reason code.', 'dzn_view_notification_authority', array($this, 'checkNotificationFailures')),
                     $this->check('notifications.providers', 'Email, SMS and WhatsApp readiness', 'Provider configuration is present and locally valid.', 'dzn_view_notification_authority', array($this, 'checkNotificationProviders'), 'dzn-integrations'),
                     $this->check('notifications.templates', 'Template mapping and approval', 'Every active notification workflow points at an active template and no duplicate active mapping exists.', 'dzn_view_notification_authority', array($this, 'checkNotificationTemplates'), 'dzn-notifications'),
+                    $this->check('notifications.whatsapp_provider', 'WhatsApp provider mapping', 'Every enabled WhatsApp event has an approved provider template matched to the current variable contract.', 'dzn_view_notification_authority', array($this, 'checkWhatsAppProviderMapping'), 'dzn-notifications'),
                     $this->check('notifications.sms', 'SMS readiness', 'SMS is configured for independently enabled notification events.', 'dzn_view_notification_authority', array($this, 'checkNotificationSms')),
                 ),
             ),
@@ -505,6 +507,35 @@ final class DiagnosticRegistry {
         if ($duplicates > 0) return array('state' => 'failed', 'detail' => $duplicates . ' duplicate active workflow mapping(s) exist.', 'technical_code' => 'notification_template_duplicate', 'related' => array('page=dzn-notifications'));
         if ($missing > 0) return array('state' => 'degraded', 'detail' => $missing . ' active workflow(s) do not point at an active template.', 'technical_code' => 'notification_template_missing', 'related' => array('page=dzn-notifications'));
         return array('state' => 'healthy', 'detail' => $active . ' active workflow mapping(s) point at active templates with no duplicate.', 'technical_code' => 'notification_templates_ready');
+    }
+
+    private function checkWhatsAppProviderMapping(): array {
+        $report = (new WhatsAppProviderReadinessReadService())->report();
+        $enabled = (int) ($report['enabled'] ?? 0);
+        $blocked = (array) ($report['blocked'] ?? array());
+        $unverified = (array) ($report['unverified'] ?? array());
+        $disabledBlocked = (array) ($report['disabled_blocked'] ?? array());
+        $problems = array();
+        foreach ($blocked as $eventKey => $state) $problems[] = $eventKey . ' (' . $state . ')';
+        foreach ($unverified as $eventKey => $state) $problems[] = $eventKey . ' (manual mapping, no provider evidence)';
+        if ($problems !== array()) {
+            $detail = $enabled . ' WhatsApp event(s) enabled; ' . count($problems) . ' cannot send: '
+                . implode(', ', array_slice($problems, 0, 8))
+                . (count($problems) > 8 ? ' …' : '')
+                . '. Correct the provider contract in Telnyx, then refresh approved templates.';
+            if ($disabledBlocked !== array()) $detail .= ' ' . count($disabledBlocked) . ' disabled event(s) would also be blocked if enabled.';
+            return array('state' => 'degraded', 'detail' => $detail, 'technical_code' => 'whatsapp_provider_mapping_incomplete', 'related' => array('page=dzn-notifications'));
+        }
+        if ($enabled === 0) {
+            $detail = 'WhatsApp is configured, but no notification event has WhatsApp enabled.';
+            if ($disabledBlocked !== array()) $detail .= ' ' . count($disabledBlocked) . ' event(s) are off and would be blocked if enabled: '
+                . implode(', ', array_slice(array_keys($disabledBlocked), 0, 8))
+                . (count($disabledBlocked) > 8 ? ' …' : '') . '.';
+            return array('state' => 'not_configured', 'detail' => $detail, 'technical_code' => 'whatsapp_no_enabled_events', 'related' => array('page=dzn-notifications'));
+        }
+        $detail = $enabled . ' WhatsApp event(s) have an approved provider template matched to the current contract.';
+        if ($disabledBlocked !== array()) $detail .= ' ' . count($disabledBlocked) . ' disabled event(s) would be blocked if enabled.';
+        return array('state' => 'healthy', 'detail' => $detail, 'technical_code' => 'whatsapp_provider_mapping_ready');
     }
 
     private function checkNotificationSms(): array {

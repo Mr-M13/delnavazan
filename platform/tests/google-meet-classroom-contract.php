@@ -93,6 +93,18 @@ $check('missing recording raises an administrator alert', str_contains($recordin
 $check('unexpected recording end raises an administrator alert', str_contains($recording, 'recording_ended_unexpectedly'));
 $check('a recording stopped while participants remained raises an administrator alert', str_contains($recording, 'recording_stopped_while_participants_remained') && str_contains($recording, 'participantSessionsForClassroom') && str_contains($recording, 'TRUNCATION_GRACE_SECONDS'));
 $check('truncated recordings are marked in the artifact evidence', str_contains($recording, "'failure_reason_code'=>'recording_ended_early'"));
+// Every repository method the recording service calls must exist. A typo here is fatal in
+// production reconciliation and string-only source checks cannot catch it.
+$recordingRepository = $read('platform/src/Integrations/GoogleWorkspace/GoogleWorkspaceRepository.php');
+preg_match_all('/\$this->repository->([A-Za-z_][A-Za-z0-9_]*)\(/', $recording, $repositoryCalls);
+preg_match_all('/function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/', $recordingRepository, $repositoryMethods);
+$declaredRepositoryMethods = array();
+foreach ($repositoryMethods[1] as $declaredMethod) $declaredRepositoryMethods[$declaredMethod] = true;
+$missingRepositoryMethods = array();
+foreach (array_unique($repositoryCalls[1]) as $repositoryCall) {
+    if (!isset($declaredRepositoryMethods[$repositoryCall])) $missingRepositoryMethods[] = $repositoryCall;
+}
+$check('recording service repository calls resolve to real methods' . ($missingRepositoryMethods !== array() ? ': missing ' . implode(',', $missingRepositoryMethods) : ''), $missingRepositoryMethods === array());
 $runbook = $read('docs/MEET-RECORDING-RUNBOOK.md');
 $check('the Meet recording runbook documents provider-side causes and platform alerts', str_contains($runbook, 'recording_stopped_while_participants_remained') && str_contains($runbook, 'Let users record their meetings') && str_contains($runbook, 'recording_missing'));
 

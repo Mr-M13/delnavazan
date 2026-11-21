@@ -253,7 +253,7 @@ final class MeetRecordingService {
         if((int)($record->recording_expected??0)!==1)return;
         $presence=$this->latestParticipantPresence((int)$classroom->id);
         if($presence===null)return;
-        foreach($this->repository->recordings((int)$classroom->id) as $row){
+        foreach($this->repository->recordingsForClassroom((int)$classroom->id) as $row){
             if((int)($row->conference_record_id??0)!==(int)($record->id??0))continue;
             $state=(string)($row->state??'');
             if(!in_array($state,array('ENDED','FILE_GENERATED'),true))continue;

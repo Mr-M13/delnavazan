@@ -29,20 +29,20 @@ $row=static function(string $name,array $definition,string $status='APPROVED',?s
         'variable_order'=>$order??implode(',',$definition['variable_order']),'last_verified_at'=>'2026-11-01 00:00:00',
     );
 };
-$name='delnavazan_teacher_new_booking_fa';
+$name='delnavazan_teacher_new_booking_v2_fa';
 $definition=TelnyxTemplateRegistry::definitions()[$name];
 $authority=new TelnyxTemplateAuthority(new DznTemplateAuthorityRepository(array($row($name,$definition))));
 $resolved=$authority->resolve($definition['event_key'],'fa-IR');
 if($resolved['state']!==TelnyxTemplateAuthority::MAPPED||$resolved['name']!==$name||$resolved['variable_order']!==$definition['variable_order'])throw new RuntimeException('approved registry mapping did not resolve: '.$name);
 
-$definition=TelnyxTemplateRegistry::definitions()['delnavazan_teacher_new_booking_fa'];
-$pending=new TelnyxTemplateAuthority(new DznTemplateAuthorityRepository(array($row('delnavazan_teacher_new_booking_fa',$definition,'PENDING'))));
+$definition=TelnyxTemplateRegistry::definitions()['delnavazan_teacher_new_booking_v2_fa'];
+$pending=new TelnyxTemplateAuthority(new DznTemplateAuthorityRepository(array($row('delnavazan_teacher_new_booking_v2_fa',$definition,'PENDING'))));
 if($pending->resolve($definition['event_key'],'fa-IR')['state']!==TelnyxTemplateAuthority::NOT_APPROVED)throw new RuntimeException('pending provider mapping must fail closed');
-$ambiguous=new TelnyxTemplateAuthority(new DznTemplateAuthorityRepository(array($row('delnavazan_teacher_new_booking_fa',$definition),$row('delnavazan_teacher_new_booking_fa',$definition))));
+$ambiguous=new TelnyxTemplateAuthority(new DznTemplateAuthorityRepository(array($row('delnavazan_teacher_new_booking_v2_fa',$definition),$row('delnavazan_teacher_new_booking_v2_fa',$definition))));
 if($ambiguous->resolve($definition['event_key'],'fa-IR')['state']!==TelnyxTemplateAuthority::AMBIGUOUS)throw new RuntimeException('ambiguous approved mappings must fail closed');
-$mismatch=new TelnyxTemplateAuthority(new DznTemplateAuthorityRepository(array($row('delnavazan_teacher_new_booking_fa',$definition,'APPROVED','teacher,student,course,when'))));
+$mismatch=new TelnyxTemplateAuthority(new DznTemplateAuthorityRepository(array($row('delnavazan_teacher_new_booking_v2_fa',$definition,'APPROVED','teacher,student,course,when'))));
 if($mismatch->resolve($definition['event_key'],'fa-IR')['state']!==TelnyxTemplateAuthority::CONTRACT_MISMATCH)throw new RuntimeException('variable-order mismatch must fail closed');
-$cleared=$row('delnavazan_teacher_new_booking_fa',$definition);$cleared->event_key=null;$cleared->variable_order='';
+$cleared=$row('delnavazan_teacher_new_booking_v2_fa',$definition);$cleared->event_key=null;$cleared->variable_order='';
 $clearedAuthority=new TelnyxTemplateAuthority(new DznTemplateAuthorityRepository(array($cleared)));
 if($clearedAuthority->resolve($definition['event_key'],'fa-IR')['state']!==TelnyxTemplateAuthority::CONTRACT_MISMATCH)throw new RuntimeException('discovery-cleared event mapping must not fall back to a manual option');
 $missing=new TelnyxTemplateAuthority(new DznTemplateAuthorityRepository(array()));

@@ -457,14 +457,14 @@ namespace {
     $mapped = $library->status($event, 'whatsapp', 'fa-IR');
     $fail('provider mapping is recorded', $library->providerMapping('booking.confirmed.student.whatsapp.fa-IR')['name'] === 'booking_confirmed_fa');
     $fail('the workspace exposes the linked provider name', ($mapped['provider_name'] ?? '') === 'booking_confirmed_fa');
-    $fail('the workspace exposes the registered provider name before discovery', ($mapped['provider_expected_name'] ?? '') === 'delnavazan_intro_confirmed_fa');
+    $fail('the workspace exposes the registered provider name before discovery', ($mapped['provider_expected_name'] ?? '') === 'delnavazan_intro_confirmed_v2_fa');
     $invalidMap = false;
     try { $library->saveProviderMapping($event, 'whatsapp', 'fa-IR', 'Bad Name!', 'fa'); } catch (InvalidArgumentException $error) { $invalidMap = true; }
     $fail('invalid provider name is refused', $invalidMap);
 
     $provider = new NotificationProviderRepository();
     $provider->upsertTemplate(array(
-        'uid'=>'01TESTPROVIDERTEMPLATE0001','provider'=>'telnyx','template_name'=>'delnavazan_teacher_new_booking_fa','language'=>'fa',
+        'uid'=>'01TESTPROVIDERTEMPLATE0001','provider'=>'telnyx','template_name'=>'delnavazan_teacher_new_booking_v2_fa','language'=>'fa',
         'provider_template_id'=>'meta-1','category'=>'UTILITY','status'=>'APPROVED','event_key'=>'booking.new.teacher','audience'=>'teacher',
         'variable_order'=>'teacher,course,student,when,response_window,teacher_portal_url','template_text'=>'درود {{1}}، «{{2}}» با {{3}} در {{4}} — {{5}} {{6}}',
         'last_verified_at'=>'2026-11-01 00:00:00','created_at'=>'2026-11-01 00:00:00','updated_at'=>'2026-11-01 00:00:00',
@@ -473,8 +473,8 @@ namespace {
     $discoveredStatus = $discoveredLibrary->status('booking.new.teacher','whatsapp','fa-IR');
     $discoveredMapping = $discoveredLibrary->providerMapping('booking.new.teacher.whatsapp.fa-IR');
     $discoveredEvidence = $discoveredLibrary->providerEvidence('booking.new.teacher','fa-IR');
-    $fail('approved discovery is the administration mapping authority', $discoveredStatus['provider_state']==='mapped'&&$discoveredMapping['source']==='discovery'&&$discoveredMapping['name']==='delnavazan_teacher_new_booking_fa');
-    $fail('the workspace exposes the discovered provider name', ($discoveredStatus['provider_name'] ?? '') === 'delnavazan_teacher_new_booking_fa');
+    $fail('approved discovery is the administration mapping authority', $discoveredStatus['provider_state']==='mapped'&&$discoveredMapping['source']==='discovery'&&$discoveredMapping['name']==='delnavazan_teacher_new_booking_v2_fa');
+    $fail('the workspace exposes the discovered provider name', ($discoveredStatus['provider_name'] ?? '') === 'delnavazan_teacher_new_booking_v2_fa');
     $fail('the workspace exposes the approved provider body', is_array($discoveredEvidence['primary'] ?? null) && str_contains((string) $discoveredEvidence['primary']['template_text'], '{{1}}') && str_contains((string) $discoveredEvidence['primary']['template_text'], '{{6}}'));
     $fail('approved discovery does not require a duplicate manual option', !isset(($GLOBALS['dzn_test_options'][NotificationTemplateLibrary::OPTION_WHATSAPP]??array())['booking.new.teacher.whatsapp.fa-IR']));
     $conflictingMap=false;
@@ -482,7 +482,7 @@ namespace {
     $fail('manual mapping cannot contradict approved discovery', $conflictingMap);
 
     $provider->upsertTemplate(array(
-        'uid'=>'01TESTMARKETINGTEMPLATE001','provider'=>'telnyx','template_name'=>'delnavazan_teacher_new_booking_fa','language'=>'fa',
+        'uid'=>'01TESTMARKETINGTEMPLATE001','provider'=>'telnyx','template_name'=>'delnavazan_teacher_new_booking_v2_fa','language'=>'fa',
         'provider_template_id'=>'meta-marketing','category'=>'MARKETING','status'=>'APPROVED','event_key'=>'booking.new.teacher','audience'=>'teacher',
         'variable_order'=>'teacher,course,student,when,response_window,teacher_portal_url','last_verified_at'=>'2026-11-01 00:00:00','created_at'=>'2026-11-01 00:00:00','updated_at'=>'2026-11-01 00:00:00',
     ));
@@ -654,7 +654,7 @@ namespace {
     /* 11c. The positive path: a manually mapped route becomes bulk-publishable only when the draft
      *      body is the exact copy the mapping was recorded against and an editor approved it. */
     $waBody = (string) $library->activeCopy('booking.confirmed.student', 'whatsapp', 'fa-IR')['body'];
-    $library->saveProviderMapping('booking.confirmed.student', 'whatsapp', 'fa-IR', 'delnavazan_intro_confirmed_fa', 'fa');
+    $library->saveProviderMapping('booking.confirmed.student', 'whatsapp', 'fa-IR', 'delnavazan_intro_confirmed_v2_fa', 'fa');
     $library->saveDraft('booking.confirmed.student', 'whatsapp', 'fa-IR', 'عنوان واتس‌اپ', $waBody);
     $fail('a mapped WhatsApp draft without editorial approval is still refused', $library->draftReviewPolicy('booking.confirmed.student', 'whatsapp', 'fa-IR')['allowed'] === false);
     $library->approveDraft('booking.confirmed.student', 'whatsapp', 'fa-IR');
@@ -669,7 +669,7 @@ namespace {
     /* 11d. A discovered but contract-invalid template is evidence, not a usable mapping: the
      *      workspace must still name it and show the approved body while sending stays blocked. */
     $provider->upsertTemplate(array(
-        'uid'=>'01TESTINTROCONFIRMEDTEXT0001','provider'=>'telnyx','template_name'=>'delnavazan_intro_confirmed_fa','language'=>'fa',
+        'uid'=>'01TESTINTROCONFIRMEDTEXT0001','provider'=>'telnyx','template_name'=>'delnavazan_intro_confirmed_v2_fa','language'=>'fa',
         'provider_template_id'=>'meta-intro-confirmed','category'=>'UTILITY','status'=>'APPROVED','event_key'=>null,'audience'=>'student',
         'variable_order'=>'name,course,teacher,when','template_text'=>'درود {{1}}، کلاس «{{2}}» با {{3}} در {{4}} تأیید شد.',
         'last_verified_at'=>'2026-11-01 00:00:00','created_at'=>'2026-11-01 00:00:00','updated_at'=>'2026-11-01 00:00:00',
@@ -679,7 +679,7 @@ namespace {
     $mismatchMapping = $mismatchLibrary->providerMapping('booking.confirmed.student.whatsapp.fa-IR');
     $mismatchEvidence = $mismatchLibrary->providerEvidence('booking.confirmed.student','fa-IR');
     $fail('a contract mismatch is not presented as a usable mapping', $mismatchStatus['provider_state']==='contract_mismatch'&&$mismatchMapping['name']==='');
-    $fail('a contract mismatch still exposes the discovered provider name', is_array($mismatchEvidence['primary']??null)&&$mismatchEvidence['primary']['name']==='delnavazan_intro_confirmed_fa'&&$mismatchEvidence['primary']['status']==='APPROVED');
+    $fail('a contract mismatch still exposes the discovered provider name', is_array($mismatchEvidence['primary']??null)&&$mismatchEvidence['primary']['name']==='delnavazan_intro_confirmed_v2_fa'&&$mismatchEvidence['primary']['status']==='APPROVED');
     $fail('a contract mismatch still exposes the approved provider body', str_contains((string)($mismatchEvidence['primary']['template_text']??''),'{{4}}'));
     $fail('the English route does not claim the Persian registered template name', $mismatchLibrary->providerEvidence('booking.confirmed.student','en')['expected_name']===null);
 
@@ -927,7 +927,7 @@ namespace {
     ob_start();
     $editorMethod->invoke(null, $library, $cardEvent, 'whatsapp', 'fa-IR');
     $whatsappEditorHtml = (string) ob_get_clean();
-    $fail('the WhatsApp editor names the discovered provider template', str_contains($whatsappEditorHtml, 'delnavazan_intro_confirmed_fa'));
+    $fail('the WhatsApp editor names the discovered provider template', str_contains($whatsappEditorHtml, 'delnavazan_intro_confirmed_v2_fa'));
     $fail('the WhatsApp editor shows the approved provider body read-only', str_contains($whatsappEditorHtml, 'Approved provider body') && str_contains($whatsappEditorHtml, 'درود {{1}}'));
     $fail('the WhatsApp editor flags a provider body that differs from the local copy', str_contains($whatsappEditorHtml, 'Provider body differs from the reviewed local copy'));
     $fail('the WhatsApp editor offers the in-place provider refresh', str_contains($whatsappEditorHtml, 'dzn_notification_provider_refresh'));

@@ -143,23 +143,23 @@ exactly one APPROVED Utility row whose variable order matches the local contract
 
 | Provider template | Event | Audience | Variable order |
 |---|---|---|---|
-| `delnavazan_booking_confirmation_fa` | `booking.requested.student` | student | name, course, when, portal_url |
-| `delnavazan_intro_confirmed_fa` | `booking.confirmed.student` | student | name, course, teacher, when, portal_url |
+| `delnavazan_booking_confirmation_v2_fa` | `booking.requested.student` | student | name, course, when, portal_url |
+| `delnavazan_intro_confirmed_v2_fa` | `booking.confirmed.student` | student | name, course, teacher, when, portal_url |
 | `delnavazan_intro_cancelled_fa` | `booking.cancelled.student` | student | name, course, teacher, when, portal_url |
 | `delnavazan_intro_declined_fa` | `booking.declined.student` | student | name, teacher, course, portal_url |
 | `delnavazan_intro_rescheduled_fa` | `booking.rescheduled.student` | student | name, course, teacher, when, portal_url |
-| `delnavazan_class_rescheduled_fa` | `reschedule.change.accepted.student` | student | name, when, timezone, portal_url |
-| `delnavazan_class_reminder_fa` | `lesson.reminder.student` | student | name, course, teacher, when, portal_url |
-| `delnavazan_reschedule_request_fa` | `reschedule.change.proposed.student` | student | name, when, timezone, portal_url |
-| `delnavazan_enrolment_confirmation_fa` | `post_intro.activated.student` | student | name, course, teacher, portal_url |
-| `delnavazan_payment_due_fa` | `renewal.manual_payment_required.student` | student | name, course, amount, due_date, portal_url |
-| `delnavazan_payment_received_fa` | `payment.recovered.student` | student | name, course, amount, paid_date, portal_url |
-| `delnavazan_renewal_reminder_fa` | `renewal.automatic_upcoming.student` | student | name, course, due_date, amount, portal_url |
-| `delnavazan_class_cancelled_fa` | `lesson.cancelled.student` | student | name, course, teacher, when, portal_url |
-| `delnavazan_teacher_new_booking_fa` | `booking.new.teacher` | teacher | teacher, course, student, when, response_window, teacher_portal_url |
-| `delnavazan_teacher_schedule_change_fa` | `reschedule.change.accepted.teacher` | teacher | teacher, when, timezone, teacher_portal_url |
-| `delnavazan_reschedule_rejected_fa` | `reschedule.change.rejected.student` | student | name, when, portal_url |
-| `delnavazan_class_access_fa` | `lesson.access.student` | student | name, course, teacher, when, portal_url |
+| `delnavazan_class_rescheduled_v2_fa` | `reschedule.change.accepted.student` | student | name, when, timezone, portal_url |
+| `delnavazan_class_reminder_v2_fa` | `lesson.reminder.student` | student | name, course, teacher, when, portal_url |
+| `delnavazan_reschedule_request_v2_fa` | `reschedule.change.proposed.student` | student | name, when, timezone, portal_url |
+| `delnavazan_enrolment_confirmation_v2_fa` | `post_intro.activated.student` | student | name, course, teacher, portal_url |
+| `delnavazan_payment_due_v2_fa` | `renewal.manual_payment_required.student` | student | name, course, amount, due_date, portal_url |
+| `delnavazan_payment_received_v2_fa` | `payment.recovered.student` | student | name, course, amount, paid_date, portal_url |
+| `delnavazan_renewal_reminder_v2_fa` | `renewal.automatic_upcoming.student` | student | name, course, due_date, amount, portal_url |
+| `delnavazan_class_cancelled_v2_fa` | `lesson.cancelled.student` | student | name, course, teacher, when, portal_url |
+| `delnavazan_teacher_new_booking_v2_fa` | `booking.new.teacher` | teacher | teacher, course, student, when, response_window, teacher_portal_url |
+| `delnavazan_teacher_schedule_change_v2_fa` | `reschedule.change.accepted.teacher` | teacher | teacher, when, timezone, teacher_portal_url |
+| `delnavazan_reschedule_rejected_v2_fa` | `reschedule.change.rejected.student` | student | name, when, portal_url |
+| `delnavazan_class_access_v2_fa` | `lesson.access.student` | student | name, course, teacher, when, portal_url |
 | `delnavazan_payment_failed_student_fa` | `payment.failed.student` | student | name, course, amount, portal_url |
 | `delnavazan_refund_resolved_student_fa` | `refund.resolved.student` | student | name, amount, portal_url |
 | `delnavazan_refund_review_required_student_fa` | `refund.review_required.student` | student | name, amount, portal_url |

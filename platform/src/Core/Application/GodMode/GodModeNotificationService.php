@@ -50,7 +50,7 @@ final class GodModeNotificationService {
             }catch(\Throwable $error){$state='failed';$provider='telnyx_sms';$outcome='transport_exception';$failure='sms_transport_exception';}
         }elseif($channel==='whatsapp'){
             $to=(string)($recipient['phone']??'');
-            $name='delnavazan_class_access_fa';
+            $name='delnavazan_class_access_v2_fa';
             try{
                 $adapter=new TelnyxWhatsAppAdapter(new IntegrationSettingsService());
                 $result=$adapter->sendTest($to,$name,TelnyxTemplateRegistry::LANGUAGE,TelnyxTemplateRegistry::sampleParameters());

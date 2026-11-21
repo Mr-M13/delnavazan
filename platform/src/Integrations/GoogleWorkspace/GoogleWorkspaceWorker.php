@@ -94,7 +94,15 @@ final class GoogleWorkspaceWorker {
             }
 
             $repository=new GoogleWorkspaceRepository();
-            // 2. Re-evaluate consent and artifact configuration for soon-upcoming classrooms at most hourly.
+            // 2. Converge Calendar reminder suppression for every upcoming classroom (lesson and
+            //    booking alike). One audited PATCH per classroom stops Google's default event
+            //    reminders from emailing guests and duplicating Delnavazan's own notifications.
+            foreach($repository->upcoming(25) as $classroom){
+                try{
+                    (new GoogleWorkspaceClassroomService())->suppressEventReminders((int)$classroom->id);
+                }catch(\Throwable $error){do_action('dzn_meet_configuration_failed',(int)$classroom->id,get_class($error));}
+            }
+            // 3. Re-evaluate consent and artifact configuration for soon-upcoming classrooms at most hourly.
             foreach($repository->upcoming(25) as $classroom){
                 try{
                     $last=(string)($classroom->recording_consent_at??'');
@@ -102,7 +110,7 @@ final class GoogleWorkspaceWorker {
                     (new GoogleWorkspaceClassroomService())->syncRecordingConfiguration((int)$classroom->id);
                 }catch(\Throwable $error){do_action('dzn_meet_configuration_failed',(int)$classroom->id,get_class($error));}
             }
-            // 3. Reconcile ended classrooms: official recording artifacts and participant sessions.
+            // 4. Reconcile ended classrooms: official recording artifacts and participant sessions.
             foreach($repository->dueReconciliation(10) as $classroom){
                 try{
                     $recording=(new MeetRecordingService($repository))->reconcileClassroom((int)$classroom->id);

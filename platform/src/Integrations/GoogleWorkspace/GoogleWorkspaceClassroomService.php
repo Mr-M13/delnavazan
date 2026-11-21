@@ -245,6 +245,7 @@ final class GoogleWorkspaceClassroomService {
         $event=$this->api->updateCalendarEvent((string)$references['provider_object_reference'],array(
             'start'=>array('dateTime'=>GoogleWorkspaceClassroomRule::rfc3339($startsAtUtc),'timeZone'=>$timezone),
             'end'=>array('dateTime'=>GoogleWorkspaceClassroomRule::rfc3339($endsAtUtc),'timeZone'=>$timezone),
+            'reminders'=>array('useDefault'=>false),
         ));
         if($event['status']<200||$event['status']>=300){
             $this->recordProviderFailure($classroom,$event,'calendar_projection','calendar_projection_failed');
@@ -303,6 +304,7 @@ final class GoogleWorkspaceClassroomService {
         $event=$this->api->updateCalendarEvent((string)$references['provider_object_reference'],array(
             'start'=>array('dateTime'=>GoogleWorkspaceClassroomRule::rfc3339((string)$version->starts_at_utc),'timeZone'=>(string)$version->schedule_timezone),
             'end'=>array('dateTime'=>GoogleWorkspaceClassroomRule::rfc3339((string)$version->ends_at_utc),'timeZone'=>(string)$version->schedule_timezone),
+            'reminders'=>array('useDefault'=>false),
             'extendedProperties'=>array('private'=>array('dzn_schedule_version_id'=>(string)$scheduleVersionId)),
         ));
         if($event['status']<200||$event['status']>=300){
@@ -337,6 +339,7 @@ final class GoogleWorkspaceClassroomService {
         $event=$this->api->updateCalendarEvent((string)$references['provider_object_reference'],array(
             'start'=>array('dateTime'=>GoogleWorkspaceClassroomRule::rfc3339($startsAtUtc),'timeZone'=>$timezone),
             'end'=>array('dateTime'=>GoogleWorkspaceClassroomRule::rfc3339($endsAtUtc),'timeZone'=>$timezone),
+            'reminders'=>array('useDefault'=>false),
             'extendedProperties'=>array('private'=>array('dzn_booking_confirmation_uid'=>(string)$confirmation->uid)),
         ));
         if($event['status']<200||$event['status']>=300){
@@ -393,6 +396,7 @@ final class GoogleWorkspaceClassroomService {
                     'teacher_email'=>$email,
                     'student_email'=>(string)($lesson->student_email??''),
                 )),
+                'reminders'=>array('useDefault'=>false),
                 'extendedProperties'=>array('private'=>array(
                     'dzn_lesson_id'=>(string)$lessonId,
                     'dzn_schedule_version_id'=>(string)$classroom->schedule_version_id,
@@ -492,6 +496,39 @@ final class GoogleWorkspaceClassroomService {
         ),array('id'=>$classroomId));
         $this->audit($classroomId,'update',!empty($eligibility['eligible'])?'recording_enabled':'recording_disabled',$eligibility['reason']??null,$response);
         return array('updated'=>true,'recording_state'=>!empty($eligibility['eligible'])?'configured':'disabled','eligibility'=>$eligibility);
+    }
+
+    /**
+     * Suppress Google's reminder emails for one classroom's Calendar event.
+     *
+     * Calendar invitations, updates and cancellations already send with sendUpdates=none, so no
+     * invitation or change email is ever produced. This PATCH also disables the event's reminders,
+     * which are the remaining Google email source: without it, the organizer calendar's default
+     * reminders email every guest and duplicate Delnavazan's own booking/lesson notifications.
+     *
+     * The call converges events that were created before reminders were disabled in the event
+     * bodies. An audit row makes the PATCH one-shot per classroom; a non-retryable refusal is
+     * recorded and never hot-retried, while a retryable failure is retried on a later worker pass.
+     */
+    public function suppressEventReminders(int $classroomId):array{
+        $classroom=$this->repository->classroom($classroomId);
+        if(!$classroom)throw new \InvalidArgumentException('meet_classroom_required');
+        if($this->repository->classroomEventExists($classroomId,array('reminders_suppressed','reminders_failed'))){
+            return array('suppressed'=>false,'reason'=>'already_suppressed','classroom_id'=>$classroomId);
+        }
+        $references=$this->openReferences($classroom);
+        if($references===null)return array('suppressed'=>false,'reason'=>'reference_unavailable','classroom_id'=>$classroomId);
+        $response=$this->api->updateCalendarEvent((string)$references['provider_object_reference'],array(
+            'reminders'=>array('useDefault'=>false),
+        ));
+        if($response['status']<200||$response['status']>=300){
+            $retryable=MeetProvisioningRule::isRetryableResponse((int)$response['status'],$response['error_class']??null);
+            if(!$retryable)$this->audit($classroomId,'update','reminders_failed',$this->providerDetail($response),$response);
+            return array('suppressed'=>false,'reason'=>$retryable?'meet_reminders_suppression_retryable':'meet_reminders_suppression_failed','response_status'=>$response['status'],'classroom_id'=>$classroomId);
+        }
+        $this->audit($classroomId,'update','reminders_suppressed',null,$response);
+        $this->repository->updateClassroom($classroomId,array('updated_at'=>gmdate('Y-m-d H:i:s')),array('id'=>$classroomId));
+        return array('suppressed'=>true,'classroom_id'=>$classroomId);
     }
 
     // ---- Provisioning -----------------------------------------------------------------------
@@ -791,6 +828,11 @@ final class GoogleWorkspaceClassroomService {
             'end'=>array('dateTime'=>GoogleWorkspaceClassroomRule::rfc3339((string)$facts['ends_at_utc']),'timeZone'=>(string)$facts['timezone']),
             'attendees'=>$attendance,
             'guestsCanInviteOthers'=>false,'guestsCanModify'=>false,'guestsCanSeeOtherGuests'=>false,
+            // Calendar invitations already send with sendUpdates=none. Disabling the event's
+            // reminders removes the remaining Google email source: without it, the organizer
+            // calendar's default reminders email every guest and duplicate Delnavazan's own
+            // booking/lesson notifications.
+            'reminders'=>array('useDefault'=>false),
             // Attach the existing app-created space. Calendar documents the
             // {conferenceSolution, entryPoints} form as the representation of existing conference
             // details; createRequest is only for asking Google to generate a new conference.

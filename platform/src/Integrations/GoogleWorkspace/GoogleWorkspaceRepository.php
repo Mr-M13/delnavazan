@@ -257,6 +257,15 @@ final class GoogleWorkspaceRepository {
         return $this->row("SELECT * FROM {$this->p}meet_classroom_events WHERE command_digest=%s",$digest);
     }
     public function insertEvent(array $data):int{return $this->insert('meet_classroom_events',$data);}
+    /** Whether a classroom already recorded one of the given audit result states. */
+    public function classroomEventExists(int $classroomId,array $resultStates):bool{
+        $states=array_values(array_filter(array_map('strval',$resultStates),static fn(string $state):bool=>$state!==''));
+        if($states===array()||$classroomId<1)return false;
+        global $wpdb;
+        $placeholders=implode(',',array_fill(0,count($states),'%s'));
+        $args=array_merge(array("SELECT COUNT(*) FROM {$this->p}meet_classroom_events WHERE classroom_id=%d AND result_state IN ($placeholders) LIMIT 1",$classroomId),$states);
+        return (int)$wpdb->get_var($wpdb->prepare(...$args))>0;
+    }
     public function events(int $classroomId):array{
         return $this->rows("SELECT * FROM {$this->p}meet_classroom_events WHERE classroom_id=%d ORDER BY id",$classroomId);
     }

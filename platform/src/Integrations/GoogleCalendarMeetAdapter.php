@@ -158,6 +158,7 @@ final class GoogleCalendarMeetAdapter implements ProviderCalendarPort,ProviderMe
                         'requestId'=>substr(hash('sha256','dzn-meet:'.$facts['lesson_id'].':'.$facts['schedule_version_id']),0,40),
                         'conferenceSolutionKey'=>array('type'=>'hangoutsMeet'),
                     )),
+                    'reminders'=>array('useDefault'=>false),
                     'extendedProperties'=>array('private'=>array(
                         'dzn_lesson_id'=>(string)$facts['lesson_id'],
                         'dzn_schedule_version_id'=>(string)$facts['schedule_version_id'],

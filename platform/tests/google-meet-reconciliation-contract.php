@@ -62,6 +62,8 @@ $check('worker invokes reconciliation and a single-run lock', str_contains($work
 $check('worker honours the emergency provisioning flag', str_contains($worker, 'GoogleWorkspaceClassroomService::enabled()'));
 $check('direct provisioning is blocked at the emergency pause', (bool)preg_match('/function ensureForLesson.*?if\(!self::enabled\(\)\)/s', $classrooms) && (bool)preg_match('/function ensureForBooking.*?if\(!self::enabled\(\)\)/s', $classrooms));
 $check('recording and attendance reconciliation continue while provisioning is paused', str_contains($worker, "dzn_meet_provisioning_paused") && str_contains($worker, 'dueReconciliation(10)') && str_contains($worker, 'MeetRecordingService'));
+$check('worker converges Calendar reminder suppression for upcoming classrooms', str_contains($worker, 'suppressEventReminders') && substr_count($worker, 'upcoming(25)') >= 2 && str_contains($repository, 'classroomEventExists'));
+$check('reminder suppression audit is one-shot per classroom', str_contains($repository, 'result_state IN') && str_contains($repository, 'meet_classroom_events'));
 $check('worker cron is registered and lock released in finally', str_contains($worker, 'add_action(self::HOOK') && str_contains($worker, 'wp_schedule_event') && str_contains($worker, 'finally') && str_contains($worker, 'self::releaseLock()'));
 $check('manual worker discovery cannot apply without repair', str_contains($cli, 'MeetCommandPolicy::worker') && str_contains($cliPolicy, 'discovery_requires_repair') && str_contains($cli, '$decision[\'mode\']===\'rejected\''));
 $check('manual worker apply passes the approved digest', str_contains($cli, 'run($limit,false,false,(string)$decision[\'plan\'])'));

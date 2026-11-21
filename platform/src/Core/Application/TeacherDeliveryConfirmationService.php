@@ -18,16 +18,16 @@ use Delnavazan\Platform\Portals\PortalPrincipalResolver;
  * implementation:
  *
  *  - it only accepts the exact active Teacher principal and the exact applicable schedule version;
- *  - it never confirms before the canonical occurrence end;
- *  - it refuses when an unresolved attendance review, a conflicting delivery outcome or a
- *    cancelled Lesson exists;
+ *  - it never confirms before the canonical occurrence end, or after the bounded manual window;
+ *  - it treats missing/incomplete/unverified automatic evidence as a Teacher fallback, while a
+ *    contradictory or integrity-sensitive attendance case remains administrator review;
+ *  - it never overwrites an automatically settled delivered outcome;
  *  - it records the ordinary `delivered` outcome through `CanonicalLessonDeliveryService` and then
  *    completes through `CanonicalLessonAuthorityService`, so Finance keeps its existing seam;
  *  - deterministic command keys make a repeated submit converge on the same result;
  *  - it never creates a replacement, absence entitlement, payment or payout.
  */
 final class TeacherDeliveryConfirmationService {
-    private const UNRESOLVED_ATTENDANCE=array('open','ready_for_review','settlement_pending');
     private const REASON='teacher_confirmed_delivery';
 
     public function __construct(
@@ -46,7 +46,7 @@ final class TeacherDeliveryConfirmationService {
         $this->lessonService??=new CanonicalLessonAuthorityService();
     }
 
-    /** @return array{lesson_id:int,outcome_id:int,lesson_state:string,converged:bool,already_completed:bool} */
+    /** @return array{lesson_id:int,outcome_id:int,lesson_state:string,converged:bool,already_completed:bool,already_automatic:bool} */
     public function confirm(int $lessonId,string $scheduleVersionUid,string $key):array{
         if($lessonId<1||trim($scheduleVersionUid)==='')throw new \InvalidArgumentException('portal_object_not_found');
         $principal=(new PortalPrincipalResolver())->resolve('teacher');
@@ -64,9 +64,11 @@ final class TeacherDeliveryConfirmationService {
         if(!$version||(string)$version->uid!==$scheduleVersionUid)throw new \InvalidArgumentException('schedule_version_conflict');
         $now=gmdate('Y-m-d H:i:s');
         if((string)$version->ends_at_utc>$now)throw new \InvalidArgumentException('occurrence_not_ended');
+        if(!ManualAttendanceWindowRule::open((string)$version->ends_at_utc,$now))throw new \InvalidArgumentException('manual_attendance_window_expired');
 
         foreach((array)$this->attendance->casesForLesson($lessonId) as $case){
-            if(in_array((string)($case->state??''),self::UNRESOLVED_ATTENDANCE,true))throw new \InvalidArgumentException('attendance_review_pending');
+            $refusal=TeacherAttendanceFallbackRule::refusal($case,$this->attendance);
+            if($refusal!==null)throw new \InvalidArgumentException($refusal);
         }
 
         $guard=new CanonicalLessonDeliveryGuard();
@@ -74,6 +76,7 @@ final class TeacherDeliveryConfirmationService {
         if($effective!==null&&(string)$effective->outcome_code!=='delivered')throw new \InvalidArgumentException('attendance_outcome_final');
 
         $alreadyCompleted='completed'===$state;
+        $alreadyAutomatic=$effective!==null&&(string)($effective->reason_code??'')==='attendance_automatic_provider_settlement';
         if($effective===null){
             $this->deliveryService->recordTeacherConfirmedDelivery($lessonId,$teacherId,array(
                 'expected_lesson_state'=>$state,
@@ -106,6 +109,7 @@ final class TeacherDeliveryConfirmationService {
             'lesson_state'=>'completed',
             'converged'=>true,
             'already_completed'=>$alreadyCompleted,
+            'already_automatic'=>$alreadyAutomatic,
         );
     }
 }

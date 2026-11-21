@@ -28,8 +28,12 @@ $assert(str_contains($confirmation, 'hasActiveTeacherAuthority'), 'The confirmat
 $assert(str_contains($confirmation, 'portal_object_not_owned'), 'The confirmation must refuse a Lesson owned by another Teacher');
 $assert(str_contains($confirmation, 'schedule_version_conflict'), 'The confirmation must bind the exact schedule version');
 $assert(str_contains($confirmation, 'occurrence_not_ended'), 'The confirmation must refuse before the canonical occurrence end');
-$assert(str_contains($confirmation, "'open','ready_for_review','settlement_pending'"), 'Unresolved attendance review must block confirmation');
+$assert(str_contains($confirmation, 'ManualAttendanceWindowRule::open') && str_contains($confirmation, 'manual_attendance_window_expired'), 'Teacher confirmation must be bounded by the seven-day manual window');
+$fallback = $read('src/Core/Application/TeacherAttendanceFallbackRule.php');
+$assert(str_contains($confirmation, 'TeacherAttendanceFallbackRule::refusal') && str_contains($fallback, 'SAFE_ANOMALIES'), 'Missing or incomplete automatic evidence must expose the bounded Teacher fallback');
+$assert(str_contains($fallback, 'attendance_conflict_review_required') && str_contains($fallback, 'attendance_settlement_in_progress'), 'Conflicting evidence and a pending automatic settlement must stay with administrator review');
 $assert(str_contains($confirmation, 'attendance_outcome_final'), 'A conflicting delivery outcome must block confirmation');
+$assert(str_contains($confirmation, 'already_automatic'), 'An already settled automatic outcome must be reported distinctly');
 $assert(str_contains($confirmation, 'recordTeacherConfirmedDelivery'), 'Confirmation must record the canonical delivered fact');
 $assert(str_contains($confirmation, 'completeTeacherConfirmedDelivery'), 'Confirmation must complete through canonical Lesson authority');
 $assert(str_contains($confirmation, "'teacher-confirm-delivery:'") && str_contains($confirmation, "'teacher-confirm-complete:'"), 'Confirmation keys must be deterministic per Lesson and schedule version');
@@ -43,13 +47,17 @@ $assert(str_contains($authority, 'function completeTeacherConfirmedDelivery('), 
 $assert(str_contains($authority, 'portal_object_not_owned'), 'Lesson authority must independently re-check ownership under lock');
 
 $assert(str_contains($controller, "'class_completed'"), 'A successful confirmation must return its own outcome status');
+$assert(str_contains($controller, 'class_auto_recorded') && str_contains($controller, 'class_already_recorded'), 'A duplicate confirmation must distinguish automatic and prior manual records');
 $assert(str_contains($controller, 'completion_too_early'), 'A too-early confirmation must return a meaningful error');
+$assert(str_contains($controller, 'manual_window_expired'), 'A confirmation after the window must return a meaningful error');
 $assert(str_contains($controller, 'completion_not_allowed'), 'A refused confirmation must return a meaningful error');
 $assert(str_contains($controller, "wp_verify_nonce(\$nonce,'dzn_teacher_report_delivery')"), 'The controller must verify the Theme-issued delivery nonce action');
 $assert(str_contains($controller, 'completion_unavailable'), 'A failed confirmation must return a meaningful error');
 $assert(substr_count($controller, 'TeacherDeliveryConfirmationService') === 1, 'Delivered confirmation must use the canonical teacher-confirmation seam');
 
 $assert(str_contains($notices, "'class_completed'"), 'The Teacher Portal must show the successful completion status');
+$assert(str_contains($notices, "'class_auto_recorded'") && str_contains($notices, "'class_already_recorded'"), 'The Teacher Portal must explain that automatic or prior attendance needs no duplicate confirmation');
+$assert(str_contains($notices, "'manual_window_expired'"), 'The Teacher Portal must explain the expired manual window');
 $assert(str_contains($notices, "'completion_too_early'") && str_contains($notices, "'completion_not_allowed'"), 'The Teacher Portal must show controlled failure statuses');
 
 echo "teacher-delivery-confirmation-contract: OK\n";

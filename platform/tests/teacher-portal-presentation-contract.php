@@ -287,6 +287,9 @@ namespace {
     $check('presentation reads no tables, calls no provider and creates no domain state', !preg_match('/\$wpdb|wp_remote_|curl_|Delnavazan\\\\Platform|platform_outbox|update_option|update_user_meta/', $joined_src));
     $bridge = (string) file_get_contents($theme . '/inc/platform-bridge.php');
     $check('view model supplies locale-aware date, UTC start and one teacher timezone for every lesson', str_contains($bridge, "'date' => dzn_theme_platform_calendar_time") && str_contains($bridge, "'starts_at_utc' => (string)") && str_contains($bridge, "'timezone' => \$class_timezone") && str_contains($bridge, "'teacher_timezone' => \$teacher_timezone") && str_contains($bridge, "dzn_theme_platform_teacher_day_window"));
+    $check('manual completion is bounded by the seven-day rule', str_contains($bridge, 'ManualAttendanceWindowRule::open') && str_contains($bridge, 'مهلت ثبت دستی'));
+    $check('teacher notices distinguish automatic and already-recorded outcomes', str_contains($joined_src, 'class_auto_recorded') && str_contains($joined_src, 'class_already_recorded') && str_contains($joined_src, 'manual_window_expired'));
+    $check('recent recorded intro outcomes expose the automatic source', str_contains($bridge, 'post_intro_recorded_outcomes') && str_contains($bridge, 'ثبت خودکار از شواهد Google Meet') && str_contains((string) file_get_contents($theme . '/template-parts/teacher-portal/post-intro-outcomes.php'), 'source_key'));
     $check('canonical term lessons fall back from empty display reference to lesson UID', str_contains($bridge, 'reference_code') && str_contains($bridge, 'lesson_uid') && str_contains($bridge, "if ( '' === \$reference )"));
     $check('shell never echoes an arbitrary dzn_notice query value', !str_contains($parts['shell'], "\$_GET['dzn_notice']") && str_contains($parts['shell'], 'dzn_theme_teacher_portal_notices'));
     $js = (string) file_get_contents($theme . '/assets/js/teacher-portal.js');

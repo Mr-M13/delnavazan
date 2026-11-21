@@ -130,6 +130,8 @@ $providerActor = $read('platform/src/Core/Application/ProviderEvidenceSystemActo
 $cli = $read('platform/src/Admin/Cli/MeetMigrationCommand.php');
 $check('provider-evidence actor is explicitly provisioned and least-privileged', str_contains($providerActor, 'public static function provision') && str_contains($providerActor, "ROLE='dzn_provider_evidence'") && str_contains($providerActor, 'provider_evidence_system_actor_unauthorized'));
 $check('Meet CLI exposes explicit provider-evidence actor provisioning', str_contains($cli, 'provision_attendance_actor') && str_contains($cli, 'Provider evidence actor'));
+$check('Meet CLI exposes a read-only signed-in participant account listing', str_contains($cli, 'participant_accounts') && str_contains($cli, 'listParticipants') && str_contains($cli, "type='signedin'"));
+$check('recording failure alerts remain administrator-only', str_contains($recording, "get_option('admin_email')") && !str_contains($recording, 'NotificationCatalogue') && !str_contains($recording, 'PortalNotificationRecorder'));
 
 $migration = $read('platform/src/Core/Infrastructure/Migration/Migrator.php');
 $check('migration 068 is wired', str_contains($migration, '068_google_meet_classroom_authority'));

@@ -29,11 +29,12 @@ final class TeacherDeliveryClaimController {
         $lesson=max(0,(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}lessons WHERE uid=%s AND archived_at IS NULL LIMIT 1",$lessonUid)));
         if($lesson<1||$scheduleUid==='')self::back('completion_unavailable');
         try{
-            (new \Delnavazan\Platform\Core\Application\TeacherDeliveryConfirmationService())->confirm(
+            $result=(new \Delnavazan\Platform\Core\Application\TeacherDeliveryConfirmationService())->confirm(
                 $lesson,
                 $scheduleUid,
                 'teacher-confirmation:'.get_current_user_id().':'.$lesson.':'.$scheduleUid
             );
+            if(!empty($result['already_completed']))self::back(!empty($result['already_automatic'])?'class_auto_recorded':'class_already_recorded');
             self::back('class_completed');
         }catch(\InvalidArgumentException $error){
             self::back(self::deliveryError((string)$error->getMessage()));
@@ -46,7 +47,10 @@ final class TeacherDeliveryClaimController {
     private static function deliveryError(string $reason):string{
         return match($reason){
             'occurrence_not_ended'=>'completion_too_early',
-            'attendance_review_pending','attendance_outcome_final','lesson_cancelled','schedule_version_conflict','portal_object_not_owned'=>'completion_not_allowed',
+            'manual_attendance_window_expired'=>'manual_window_expired',
+            'attendance_settlement_in_progress'=>'attendance_settlement_in_progress',
+            'attendance_conflict_review_required'=>'attendance_conflict_review_required',
+            'attendance_outcome_final','lesson_cancelled','schedule_version_conflict','portal_object_not_owned'=>'completion_not_allowed',
             default=>'completion_unavailable',
         };
     }

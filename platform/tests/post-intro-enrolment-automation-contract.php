@@ -94,6 +94,11 @@ $contains($preparation, array(
 $assert(str_contains($repository, 'canonical_continuation_slot_authorities'), 'the preparation must read the persisted slot authority');
 $assert(str_contains($preparation, 'assertSlotAvailable') && str_contains($preparation, "'teacher_unavailable'"), 'the committed slot must be covered by published Teacher availability');
 $assert(str_contains($preparation, 'ELIGIBLE_FROM') && str_contains($preparation, 'intro_outcome_outside_window'), 'historical intros must not enter the automation queue');
+$assert(str_contains($preparation, 'ManualAttendanceWindowRule::open') && str_contains($preparation, 'manual_attendance_window_expired'), 'a Teacher-owned intro outcome must be bounded by the seven-day manual window');
+$assert(str_contains($repository, 'ManualAttendanceWindowRule::DAYS') && str_contains($repository, 'recentRecordedOutcomesForTeacher'), 'the Teacher queue must respect the window and expose recently recorded outcomes');
+$outcomeController = $read('platform/src/Portals/PostIntroTeacherOutcomeController.php');
+$outcomeTemplate = $read('theme/template-parts/teacher-portal/post-intro-outcomes.php');
+$assert(str_contains($outcomeController, 'window_expired') && str_contains($outcomeTemplate, "'window_expired'"), 'an expired Teacher outcome must return and explain the bounded-window status');
 $assert(str_contains($repository, 'activePatternForAnyTeacher') && str_contains($continuation, 'commercial_pattern_teacher_conflict'), 'a pattern for another Teacher must fail closed');
 $assert(str_contains($continuationService, 'assertOngoingCourse') && str_contains($continuationService, 'ongoing_course_instrument_conflict'), 'the ongoing Course must be validated against the intro Course instrument');
 $assert(str_contains($continuationService, 'DECISION_TEACHER_UNSUITABLE,$now,$actor,$ongoingCourseId'), 'the Teacher match-exception path must pass the ongoing Course to openCase');

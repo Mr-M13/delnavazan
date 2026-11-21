@@ -61,9 +61,10 @@ $assert(str_contains($portalRead, "(l.teacher_id=%d OR v.teacher_id=%d)") && str
 $assert(str_contains($actions, "'meet_label'") && str_contains($classes, 'ورود با گوگل میت (پشتیبان)'), 'Meet must be labelled as the backup.');
 $assert(str_contains($classes, "'primary_class' => 'dzn-button dzn-tp-btn-join'"), 'The Delnavazan classroom must remain the primary action.');
 
-// Calendar: compact expandable cards with only canonical fields.
+// Calendar: compact expandable cards with only canonical fields, no participant calendar export.
 $assert(str_contains($calendar, '<details class="dzn-tp-calendar__item">'), 'Calendar entries must be compact expandable cards.');
-$assert(str_contains($calendar, 'dzn-tp-calendar-action--link') && str_contains($calendar, 'افزودن به تقویم'), 'Calendar export must be a small secondary link.');
+$assert(!str_contains($calendar, 'calendar_export_url') && !str_contains($calendar, 'افزودن به تقویم'), 'Participant calendar export links must not return; the portal is the only entry.');
+$assert(!str_contains($classes, 'calendar_export_url'), 'Today rows must not offer a participant calendar export.');
 $assert(str_contains($calendar, "item['instrument']") && str_contains($calendar, "item['student']") && str_contains($calendar, "item['term_label']") && str_contains($calendar, "item['golden_hour_label']"), 'Calendar cards must use the canonical instrument, student, term and golden-hour fields.');
 $assert(str_contains($bridge, "'instrument' => \$course_label") && str_contains($bridge, "'golden_hour_label' => \$golden_summary"), 'The view model must supply those calendar fields.');
 

@@ -122,7 +122,6 @@ $card_index = 0;
 					<a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( $finish_url ); ?>">ثبت یادداشت و پایان کلاس</a>
 				<?php endif; ?>
 				<?php if ( true === $item['details_available'] ) : ?><button class="dzn-tp-chevron" type="button" aria-expanded="false" aria-controls="<?php echo esc_attr( $details_id ); ?>" aria-label="نمایش جزئیات کلاس" data-dzn-tp-toggle="<?php echo esc_attr( $details_id ); ?>" data-dzn-tp-label-open="بستن جزئیات کلاس" data-dzn-tp-label-closed="نمایش جزئیات کلاس"><span class="dzn-tp-chevron__icon" aria-hidden="true">⌄</span></button><?php endif; ?>
-				<?php if ( ! empty( $item['calendar_export_url'] ) ) : ?><a class="dzn-tp-calendar-action" href="<?php echo esc_url( (string) $item['calendar_export_url'] ); ?>" title="افزودن به تقویم" aria-label="افزودن این کلاس به تقویم"><span aria-hidden="true">＋</span> تقویم</a><?php endif; ?>
 			</div>
 			<?php if ( true === $item['details_available'] ) : ?>
 			<div id="<?php echo esc_attr( $details_id ); ?>" class="dzn-tp-class-details" hidden>

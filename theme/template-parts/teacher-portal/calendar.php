@@ -49,7 +49,6 @@ $timezone = (string) ( $args['timezone'] ?? ( $args['model']['teacher_timezone']
 			</summary>
 			<div class="dzn-tp-calendar__detail" id="<?php echo esc_attr( $details_id ); ?>">
 				<?php if ( '' !== $label ) : ?><p><?php echo esc_html( $label ); ?></p><?php endif; ?>
-				<?php if ( ! empty( $item['calendar_export_url'] ) ) : ?><a class="dzn-tp-calendar-action dzn-tp-calendar-action--link" href="<?php echo esc_url( (string) $item['calendar_export_url'] ); ?>">افزودن به تقویم</a><?php endif; ?>
 			</div>
 		</details>
 		<?php endif; ?>

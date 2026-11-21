@@ -6,12 +6,14 @@
  */
 
 $items = isset( $args['items'] ) && is_array( $args['items'] ) ? $args['items'] : array();
+$recorded = isset( $args['recorded'] ) && is_array( $args['recorded'] ) ? $args['recorded'] : array();
 $status = sanitize_key( (string) ( $_GET['post_intro_outcome'] ?? '' ) );
 $messages = array(
 	'recorded' => 'نتیجهٔ کلاس آشنایی ثبت شد.',
+	'window_expired' => 'مهلت ثبت نتیجهٔ این کلاس آشنایی (۷ روز پس از پایان) گذشته است؛ برای اصلاح با پشتیبانی تماس بگیرید.',
 	'unavailable' => 'ثبت نتیجه در حال حاضر ممکن نیست. لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.',
 );
-if ( ! $items && ! isset( $messages[ $status ] ) ) {
+if ( ! $items && ! $recorded && ! isset( $messages[ $status ] ) ) {
 	return;
 }
 ?>
@@ -26,7 +28,7 @@ if ( ! $items && ! isset( $messages[ $status ] ) ) {
 		<p class="dzn-portal-action-status" aria-live="polite"><?php echo esc_html( $messages[ $status ] ); ?></p>
 	<?php endif; ?>
 	<?php if ( $items ) : ?>
-		<p class="dzn-portal-help">پس از پایان زمان کلاس، نتیجهٔ واقعی برگزاری را ثبت کنید. فقط «برگزار شد» اجازهٔ ادامهٔ خودکار ثبت‌نام را می‌دهد.</p>
+		<p class="dzn-portal-help">پس از پایان زمان کلاس، نتیجهٔ واقعی برگزاری را ثبت کنید. مهلت ثبت دستی ۷ روز پس از پایان کلاس است. فقط «برگزار شد» اجازهٔ ادامهٔ خودکار ثبت‌نام را می‌دهد.</p>
 		<?php foreach ( $items as $item ) : ?>
 			<article class="dzn-tp-class">
 				<div>
@@ -45,6 +47,22 @@ if ( ! $items && ! isset( $messages[ $status ] ) ) {
 					</select>
 					<button class="dzn-button" type="submit">ثبت نتیجه</button>
 				</form>
+			</article>
+		<?php endforeach; ?>
+	<?php endif; ?>
+	<?php if ( $recorded ) : ?>
+		<h3>نتیجه‌های ثبت‌شدهٔ اخیر</h3>
+		<p class="dzn-portal-help">این کلاس‌ها بسته شده‌اند و فرم تأیید دوباره ندارند. اگر نتیجه‌ای خودکار ثبت شده باشد، منبع آن در همان ردیف مشخص است.</p>
+		<?php foreach ( $recorded as $entry ) : ?>
+			<article class="dzn-tp-class dzn-tp-class--recorded">
+				<div>
+					<strong><?php echo esc_html( (string) ( $entry['student'] ?? '' ) ); ?></strong>
+					<p><?php echo esc_html( trim( (string) ( $entry['course'] ?? '' ) . ' · ' . (string) ( $entry['when'] ?? '' ) ) ); ?></p>
+				</div>
+				<div>
+					<span class="dzn-status-badge <?php echo 'provider_evidence' === (string) ( $entry['source_key'] ?? '' ) ? 'is-ok' : 'is-info'; ?>"><?php echo esc_html( (string) ( $entry['outcome'] ?? 'ثبت شد' ) ); ?></span>
+					<p class="dzn-portal-help"><?php echo esc_html( (string) ( $entry['source'] ?? '' ) ); ?><?php echo '' !== (string) ( $entry['recorded_at'] ?? '' ) ? ' · ' . esc_html( (string) $entry['recorded_at'] ) : ''; ?></p>
+				</div>
 			</article>
 		<?php endforeach; ?>
 	<?php endif; ?>

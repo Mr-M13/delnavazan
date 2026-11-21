@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Core\Application;
 
+use Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalAttendanceRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\LessonRescheduleRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\TeacherLessonNoteRepository;
 use Delnavazan\Platform\Portals\PortalPrincipalResolver;
@@ -16,7 +17,7 @@ use Delnavazan\Platform\Portals\PortalPrincipalResolver;
  * still performed by TeacherDeliveryConfirmationService.
  */
 final class TeacherClassroomBriefingReadService {
-    private const UNRESOLVED_ATTENDANCE=array('open','ready_for_review','settlement_pending');
+    private const REVIEW_STATES=array('open','ready_for_review','settlement_pending','review_required');
 
     public function __construct(
         private ?TeacherLessonNoteRepository $notes=null,
@@ -280,13 +281,13 @@ final class TeacherClassroomBriefingReadService {
     private function completion(object $lesson,object $schedule,int $teacherId):array{
         global $wpdb;$p=$wpdb->prefix.'dzn_';
         $outcome=$wpdb->get_row($wpdb->prepare(
-            "SELECT outcome_code,delivery_state,attendance_state FROM {$p}canonical_lesson_delivery_outcomes
+            "SELECT outcome_code,delivery_state,attendance_state,reason_code,evidence_at FROM {$p}canonical_lesson_delivery_outcomes
              WHERE lesson_id=%d AND applicable_slot=1 LIMIT 1",
             (int)$lesson->id
         ));
         if($wpdb->last_error!=='')$outcome=null;
         $case=$wpdb->get_row($wpdb->prepare(
-            "SELECT state FROM {$p}canonical_attendance_cases
+            "SELECT id,state FROM {$p}canonical_attendance_cases
              WHERE lesson_id=%d AND schedule_version_id=%d ORDER BY id DESC LIMIT 1",
             (int)$lesson->id,(int)$schedule->id
         ));
@@ -297,13 +298,19 @@ final class TeacherClassroomBriefingReadService {
         $lifecycle=(string)$lesson->lifecycle_state;
         $end=(int)(strtotime((string)$schedule->ends_at_utc.' UTC')?:0);
         $ended=$end>0&&$end<=time();
-        $reviewPending=in_array($caseState,self::UNRESOLVED_ATTENDANCE,true);
+        $attendance=new CanonicalAttendanceRepository();
+        $fallbackAllowed=TeacherAttendanceFallbackRule::allows($case,$attendance);
+        $reviewPending=in_array($caseState,self::REVIEW_STATES,true)&&!$fallbackAllowed;
+        $manualWindowOpen=ManualAttendanceWindowRule::open((string)$schedule->ends_at_utc);
+        $manualWindowClosesAt=ManualAttendanceWindowRule::closesAt((string)$schedule->ends_at_utc);
         $recorded=''!==$outcomeCode;
         $delivered=in_array($outcomeCode,array('delivered','completed'),true);
         $completed=$delivered;
+        $automatic=$recorded&&(string)($outcome->reason_code??'')==='attendance_automatic_provider_settlement';
 
         $available=$ended
             && !$recorded
+            && $manualWindowOpen
             && in_array($lifecycle,array('authorised','completed'),true)
             && !$reviewPending;
 
@@ -317,15 +324,21 @@ final class TeacherClassroomBriefingReadService {
         if(''===$outcomeLabel&&'completed'===$lifecycle)$outcomeLabel='پایان‌یافته — گزارش برگزاری ثبت نشده';
 
         if($completed){
-            $message='این کلاس تکمیل شده است و فرم گزارش برگزاری برای آن نمایش داده نمی‌شود.';
+            $message=$automatic
+                ?'حضور و برگزاری این کلاس به‌صورت خودکار از شواهد Google Meet ثبت شده است؛ نیازی به تأیید دوباره نیست.'
+                :'این کلاس تکمیل شده است و فرم گزارش برگزاری برای آن نمایش داده نمی‌شود.';
         }elseif($reviewPending){
-            $message='این کلاس در انتظار بررسی حضور است؛ گزارش تازه‌ای ثبت نمی‌شود.';
+            $message='شواهد حضور این کلاس متناقض یا نیازمند بررسی مدیر است؛ گزارش تازه‌ای ثبت نمی‌شود.';
         }elseif(!$ended){
             $message='پس از پایان زمان کلاس می‌توانید برگزاری و حضور را تأیید کنید.';
+        }elseif(!$manualWindowOpen){
+            $message='مهلت ثبت دستی این کلاس گذشته است؛ برای اصلاح با پشتیبانی تماس بگیرید.';
         }elseif($recorded){
             $message='برای این کلاس پیش‌تر وضعیت برگزاری ثبت شده است.';
         }elseif(!in_array($lifecycle,array('authorised','completed'),true)){
             $message='این کلاس در وضعیت قابل گزارش نیست.';
+        }elseif($caseState==='ready_for_review'&&$fallbackAllowed){
+            $message='شواهد خودکار برای ثبت حضور کافی نبود؛ می‌توانید برگزاری و حضور را تأیید کنید. تأیید شما ثبت می‌شود و پروندهٔ حضور برای بررسی مدیر باقی می‌ماند.';
         }else{
             $message='اگر کلاس برگزار شد، برگزاری و حضور را تأیید کنید.';
         }
@@ -335,6 +348,10 @@ final class TeacherClassroomBriefingReadService {
             'completed'=>$completed,
             'review_pending'=>$reviewPending,
             'recorded'=>$recorded,
+            'automatic'=>$automatic,
+            'manual_window_open'=>$manualWindowOpen,
+            'manual_window_closes_at'=>$manualWindowClosesAt,
+            'fallback_allowed'=>$fallbackAllowed,
             'outcome_code'=>$outcomeCode,
             'outcome_label'=>$outcomeLabel,
             'message'=>$message,

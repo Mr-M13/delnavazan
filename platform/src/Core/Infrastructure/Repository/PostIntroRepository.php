@@ -605,6 +605,7 @@ final class PostIntroRepository {
         global $wpdb;
         $limit = max(1, min(50, $limit));
         $now = gmdate('Y-m-d H:i:s');
+        $oldest = gmdate('Y-m-d H:i:s', time() - \Delnavazan\Platform\Core\Application\ManualAttendanceWindowRule::DAYS * 86400);
         return $wpdb->get_results($wpdb->prepare(
             "SELECT c.uid confirmation_uid,c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.local_wall_date,c.local_wall_time,
                     r.reference_code,s.full_name student_name,COALESCE(NULLIF(course.name_fa,''),course.name_en) course_name,
@@ -616,10 +617,34 @@ final class PostIntroRepository {
              LEFT JOIN {$this->p}courses course ON course.id=COALESCE(r.selected_intro_course_id,0)
              LEFT JOIN {$this->p}teachers t ON t.id=c.teacher_id
              LEFT JOIN {$this->p}booking_request_intro_outcomes o ON o.confirmation_id=c.id
-             WHERE c.teacher_id=%d AND c.state='confirmed' AND c.ends_at_utc<=%s AND c.ends_at_utc>=%s AND o.id IS NULL
+             WHERE c.teacher_id=%d AND c.state='confirmed' AND c.ends_at_utc<=%s AND c.ends_at_utc>=%s AND c.ends_at_utc>=%s AND o.id IS NULL
                AND r.privacy_erased_at IS NULL
              ORDER BY c.ends_at_utc DESC LIMIT {$limit}",
-            $teacherId, $now, self::ELIGIBLE_FROM
+            $teacherId, $now, $oldest, self::ELIGIBLE_FROM
+        )) ?: array();
+    }
+
+    /**
+     * Recently recorded introductory outcomes for the Teacher's read-only status view.
+     *
+     * @return list<object>
+     */
+    public function recentRecordedOutcomesForTeacher(int $teacherId, int $limit = 10): array {
+        global $wpdb;
+        $limit = max(1, min(30, $limit));
+        $oldest = gmdate('Y-m-d H:i:s', time() - \Delnavazan\Platform\Core\Application\ManualAttendanceWindowRule::DAYS * 86400);
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT o.outcome,o.source,o.recorded_at,c.ends_at_utc,c.schedule_timezone,
+                    r.reference_code,s.full_name student_name,
+                    COALESCE(NULLIF(course.name_fa,''),course.name_en) course_name
+             FROM {$this->p}booking_request_intro_outcomes o
+             INNER JOIN {$this->p}booking_request_confirmations c ON c.id=o.confirmation_id
+             INNER JOIN {$this->p}booking_requests r ON r.id=o.booking_request_id
+             LEFT JOIN {$this->p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1
+             LEFT JOIN {$this->p}courses course ON course.id=COALESCE(r.selected_intro_course_id,0)
+             WHERE o.teacher_id=%d AND o.recorded_at>=%s AND r.privacy_erased_at IS NULL
+             ORDER BY o.recorded_at DESC,o.id DESC LIMIT {$limit}",
+            $teacherId, $oldest
         )) ?: array();
     }
 

@@ -98,4 +98,35 @@ $canonicalDigest = \Delnavazan\Platform\Core\Application\CanonicalAttendanceIdem
 $assert($signedShape['account_digest'] === $canonicalDigest, 'A signed-in Meet account must use the canonical identity-registry digest.');
 $assert($signedShape['account_digest'] !== hash('sha256', 'dzn-meet-account:users/123'), 'The retired adapter-local Meet digest must not return.');
 
+/* Teacher manual attendance is bounded to seven days after the occurrence end. */
+require_once $root . '/src/Core/Application/ManualAttendanceWindowRule.php';
+$assert(\Delnavazan\Platform\Core\Application\ManualAttendanceWindowRule::closesAt('2026-11-01 10:00:00') === '2026-11-08 10:00:00', 'The manual attendance window must close exactly seven days after the occurrence end.');
+$assert(\Delnavazan\Platform\Core\Application\ManualAttendanceWindowRule::open('2026-11-01 10:00:00', '2026-11-08 09:59:59'), 'The manual attendance window must stay open before the seventh-day boundary.');
+$assert(!\Delnavazan\Platform\Core\Application\ManualAttendanceWindowRule::open('2026-11-01 10:00:00', '2026-11-08 10:00:01'), 'The manual attendance window must close after the seventh-day boundary.');
+$assert(!\Delnavazan\Platform\Core\Application\ManualAttendanceWindowRule::open('not-a-time'), 'An invalid occurrence end must fail closed.');
+
+/*
+ * Missing/incomplete/ambiguous evidence may fall back to the Teacher; contradictory or
+ * integrity-sensitive anomalies remain administrator review.
+ */
+if (!class_exists('DznAttendanceRuleFakeWpdb')) {
+    final class DznAttendanceRuleFakeWpdb {
+        public string $prefix = 'wp_';
+        public array $rows = array();
+        public function prepare(string $sql, mixed ...$args): string { return $sql; }
+        public function get_results(string $sql): array { return $this->rows; }
+    }
+}
+$GLOBALS['wpdb'] = new DznAttendanceRuleFakeWpdb();
+require_once $root . '/src/Core/Infrastructure/Repository/CanonicalAttendanceRepository.php';
+require_once $root . '/src/Core/Application/TeacherAttendanceFallbackRule.php';
+$fallbackRepository = new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalAttendanceRepository();
+$readyCase = (object) array('id' => 1, 'state' => 'ready_for_review');
+$GLOBALS['wpdb']->rows = array((object) array('code' => 'teacher_participation_unproven'), (object) array('code' => 'overlap_below_threshold'));
+$assert(\Delnavazan\Platform\Core\Application\TeacherAttendanceFallbackRule::allows($readyCase, $fallbackRepository), 'Missing or below-threshold evidence must allow the Teacher fallback.');
+$GLOBALS['wpdb']->rows = array((object) array('code' => 'participant_identity_mismatch'));
+$assert(!\Delnavazan\Platform\Core\Application\TeacherAttendanceFallbackRule::allows($readyCase, $fallbackRepository), 'A participant identity mismatch must stay with administrator review.');
+$assert(!\Delnavazan\Platform\Core\Application\TeacherAttendanceFallbackRule::allows((object) array('id' => 2, 'state' => 'settlement_pending'), $fallbackRepository), 'A pending automatic settlement must not accept a Teacher override.');
+$assert(\Delnavazan\Platform\Core\Application\TeacherAttendanceFallbackRule::allows((object) array('id' => 3, 'state' => 'open'), $fallbackRepository), 'An open automatic case must allow the Teacher fallback.');
+
 echo "Google Meet classroom rule unit passed\n";

@@ -25,7 +25,7 @@ final class PostIntroTeacherOutcomeController {
             (new PostIntroPreparationService())->recordTeacherOutcome($uid, (int) $principal['id'], $outcome, $note);
             self::redirect('recorded');
         } catch (\Throwable $error) {
-            self::redirect('unavailable');
+            self::redirect($error instanceof \InvalidArgumentException && $error->getMessage() === 'manual_attendance_window_expired' ? 'window_expired' : 'unavailable');
         }
     }
 

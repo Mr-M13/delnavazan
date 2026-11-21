@@ -87,6 +87,7 @@ final class PostIntroPreparationService {
         if ($confirmation->state !== 'confirmed') throw new \InvalidArgumentException('intro_booking_not_confirmed');
         if ((string) $confirmation->ends_at_utc > gmdate('Y-m-d H:i:s')) throw new \InvalidArgumentException('intro_not_finished');
         if ((string) $confirmation->ends_at_utc < self::ELIGIBLE_FROM) throw new \InvalidArgumentException('intro_outcome_outside_window');
+        if ($source === 'teacher_portal' && !ManualAttendanceWindowRule::open((string) $confirmation->ends_at_utc)) throw new \InvalidArgumentException('manual_attendance_window_expired');
         if ((int) ($confirmation->student_id ?? 0) < 1) throw new \InvalidArgumentException('student_identity_unresolved');
 
         $existing = $this->repository->outcomeByBooking((int) $confirmation->booking_request_id);

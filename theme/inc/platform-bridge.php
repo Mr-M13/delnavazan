@@ -2674,7 +2674,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$completion_claimed = array_key_exists( 'completion_claimed', $lesson ) ? (bool) $lesson['completion_claimed'] : false;
 		$completion_review_pending = array_key_exists( 'completion_review_pending', $lesson )
 			? (bool) $lesson['completion_review_pending']
-			: in_array( $attendance_summary, array( 'review_required', 'pending_review', 'conflict', 'disputed' ), true );
+			: in_array( $attendance_summary, array( 'review_required', 'pending_review', 'conflict', 'disputed', 'settlement_pending' ), true );
 		$completion_available = array_key_exists( 'completion_available', $lesson )
 			? (bool) $lesson['completion_available']
 			: ( $ended
@@ -2685,8 +2685,12 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				&& ! $completion_review_pending
 				&& ! $recorded_outcome
 				&& '' !== (string) ( $lesson['schedule_version_uid'] ?? '' ) );
-		// The completion form is only shown for an occurrence that has ended and is still open.
-		$completion_available = $completion_available && $ended && ! $completion_completed && ! $completion_claimed;
+		// The completion form is only shown for an occurrence that has ended, is still open and
+		// remains inside the bounded Teacher manual window.
+		$manual_window_open = class_exists( '\\Delnavazan\\Platform\\Core\\Application\\ManualAttendanceWindowRule' )
+			? \Delnavazan\Platform\Core\Application\ManualAttendanceWindowRule::open( (string) ( $lesson['ends_at_utc'] ?? '' ) )
+			: false;
+		$completion_available = $completion_available && $ended && ! $completion_completed && ! $completion_claimed && $manual_window_open;
 		$completion_outcome_labels = array(
 			'completed'              => 'برگزار شد',
 			'delivered'              => 'برگزار شد',
@@ -2711,6 +2715,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				$completion_message = 'این کلاس در انتظار بررسی حضور است؛ گزارش تازه‌ای ثبت نمی‌شود.';
 			} elseif ( ! $ended ) {
 				$completion_message = 'پس از پایان زمان کلاس می‌توانید برگزاری و حضور را تأیید کنید.';
+			} elseif ( ! $manual_window_open && ! $recorded_outcome ) {
+				$completion_message = 'مهلت ثبت دستی این کلاس (۷ روز پس از پایان) گذشته است؛ برای اصلاح با پشتیبانی تماس بگیرید.';
 			} elseif ( 'authorised' !== (string) ( $lesson['lifecycle_state'] ?? '' ) || $is_booking ) {
 				$completion_message = 'این کلاس در وضعیت قابل گزارش نیست.';
 			} elseif ( $recorded_outcome ) {
@@ -3256,6 +3262,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		return $start && $start >= $now;
 	} ) );
 	$post_intro_outcomes = array();
+	$post_intro_recorded = array();
 	$teacher_read_health['teacher_post_intro_outcomes'] = array( 'state' => 'ok' );
 	try {
 		$outcome_rows = ( new \Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository() )->pendingOutcomeConfirmationsForTeacher( (int) ( $onboarding['teacher_id'] ?? 0 ) );
@@ -3268,6 +3275,20 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				'timezone' => (string) $outcome_row->schedule_timezone,
 				'action_url' => admin_url( 'admin-post.php?action=dzn_post_intro_outcome' ),
 				'nonce' => wp_create_nonce( 'dzn_post_intro_outcome' ),
+			);
+		}
+		$recorded_rows = ( new \Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository() )->recentRecordedOutcomesForTeacher( (int) ( $onboarding['teacher_id'] ?? 0 ) );
+		$outcome_labels = array( 'delivered' => 'برگزار شد', 'student_no_show' => 'هنرجو حاضر نشد', 'teacher_cancelled' => 'مدرس لغو کرد', 'student_cancelled' => 'هنرجو لغو کرد' );
+		$source_labels = array( 'provider_evidence' => 'ثبت خودکار از شواهد Google Meet', 'teacher_portal' => 'ثبت توسط مدرس', 'admin' => 'ثبت توسط مدیر' );
+		foreach ( $recorded_rows as $recorded_row ) {
+			$post_intro_recorded[] = array(
+				'student' => (string) $recorded_row->student_name,
+				'course' => (string) $recorded_row->course_name,
+				'when' => dzn_theme_platform_calendar_time( (string) $recorded_row->ends_at_utc, (string) $recorded_row->schedule_timezone, $teacher_calendar, $teacher_locale, 'datetime' ),
+				'outcome' => (string) ( $outcome_labels[ (string) $recorded_row->outcome ] ?? 'ثبت شد' ),
+				'source' => (string) ( $source_labels[ (string) $recorded_row->source ] ?? (string) $recorded_row->source ),
+				'source_key' => (string) $recorded_row->source,
+				'recorded_at' => dzn_theme_platform_calendar_time( (string) $recorded_row->recorded_at, $teacher_timezone, $teacher_calendar, $teacher_locale, 'datetime' ),
 			);
 		}
 	} catch ( \Throwable $e ) {
@@ -3295,6 +3316,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'booking_provisioning' => (array) ( $data['booking_provisioning'] ?? array() ),
 		'god_mode_test_classes' => (array) ( $data['god_mode_test_classes'] ?? array() ),
 		'post_intro_outcomes' => $post_intro_outcomes,
+		'post_intro_recorded_outcomes' => $post_intro_recorded,
 		'read_health' => $teacher_read_health,
 		'statistics' => array('active_students'=>(string)count($studentNames),'upcoming'=>(string)$upcoming_count,'lessons_month'=>(string)count($monthRows),'hours_month'=>number_format_i18n($seconds/HOUR_IN_SECONDS,1)),
 		'classes' => $classes,

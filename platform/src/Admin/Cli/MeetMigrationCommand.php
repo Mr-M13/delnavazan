@@ -1,7 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Admin\Cli;
 
-use Delnavazan\Platform\Integrations\GoogleWorkspace\{GoogleWorkspaceClassroomService,GoogleWorkspaceOAuthService,GoogleWorkspaceRepository,MeetAttendanceService,MeetRecordingService};
+use Delnavazan\Platform\Integrations\GoogleWorkspace\{GoogleWorkspaceApiClient,GoogleWorkspaceClassroomRule,GoogleWorkspaceClassroomService,GoogleWorkspaceOAuthService,GoogleWorkspaceRepository,MeetAttendanceService,MeetRecordingService};
 use Delnavazan\Platform\Core\Application\ProviderEvidenceSystemActor;
 
 /** Operator commands for the Google Meet migration. No command deletes historical data. */
@@ -314,9 +314,85 @@ final class MeetMigrationCommand {
     }
 
     /**
+     * List the signed-in Meet accounts and participant sessions for one classroom.
+     *
+     * Signed-in participants expose only `users/{id}`. This read-only command prints the exact
+     * account key needed by `map_account`; anonymous and phone guests are reported as unmappable.
+     *
+     * ## OPTIONS
+     * --classroom_id=<id>
+     * [--format=<table|json>]
+     *
+     * ## EXAMPLES
+     * wp dzn-meet participant_accounts --classroom_id=123 --user=1
+     * wp dzn-meet participant_accounts --classroom_id=123 --format=json --user=1
+     */
+    public function participant_accounts(array $args,array $assoc):void{
+        self::requireOperator();
+        $classroomId=(int)($assoc['classroom_id']??0);
+        $format=(string)($assoc['format']??'table');
+        if($classroomId<1)\WP_CLI::error('--classroom_id is required.');
+        if(!in_array($format,array('table','json'),true))\WP_CLI::error('--format must be table or json.');
+        $repository=new GoogleWorkspaceRepository();
+        $classroom=$repository->classroom($classroomId);
+        if(!$classroom)\WP_CLI::error('Classroom '.$classroomId.' was not found.');
+        $record=$repository->conferenceRecordForClassroom($classroomId);
+        if(!$record)\WP_CLI::error('No conference record is stored for classroom '.$classroomId.'. Reconcile the classroom first.');
+        $api=new GoogleWorkspaceApiClient($repository);
+        $participants=$api->listParticipants((string)$record->conference_record_name);
+        if($participants['status']<200||$participants['status']>=300)\WP_CLI::error('Meet participants could not be read (HTTP '.(int)$participants['status'].').');
+        $rows=array();
+        foreach((array)($participants['body']['participants']??array()) as $participant){
+            if(!is_array($participant))continue;
+            $name=trim((string)($participant['name']??''));
+            if($name==='')continue;
+            $signed=$participant['signedinUser']??null;
+            $anonymous=$participant['anonymousUser']??null;
+            $phone=$participant['phoneUser']??null;
+            $type='unknown';$account=null;$display='';
+            if(is_array($signed)&&trim((string)($signed['user']??''))!==''){
+                $type='signedin';$account=trim((string)$signed['user']);$display=trim((string)($signed['displayName']??''));
+            }elseif(is_array($anonymous)){
+                $type='anonymous';$display=trim((string)($anonymous['displayName']??''));
+            }elseif(is_array($phone)){
+                $type='phone';$display=trim((string)($phone['displayName']??''));
+            }
+            $sessions=array();
+            $list=$api->listParticipantSessions($name);
+            if($list['status']>=200&&$list['status']<300){
+                foreach((array)($list['body']['participantSessions']??array()) as $session){
+                    if(!is_array($session))continue;
+                    $sessions[]=array(
+                        'name'=>(string)($session['name']??''),
+                        'join_at_utc'=>GoogleWorkspaceClassroomRule::fromRfc3339((string)($session['startTime']??'')),
+                        'leave_at_utc'=>GoogleWorkspaceClassroomRule::fromRfc3339((string)($session['endTime']??'')),
+                    );
+                }
+            }
+            $rows[]=array('participant_name'=>$name,'type'=>$type,'account_key'=>$account,'display_name'=>$display,'sessions'=>$sessions);
+        }
+        if($format==='json'){
+            \WP_CLI::line((string)wp_json_encode(array('classroom_id'=>$classroomId,'conference_record'=> (string)$record->conference_record_name,'participants'=>$rows),JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT));
+            return;
+        }
+        if(!$rows){ \WP_CLI::log('No participant resource was returned for this conference record.'); return; }
+        foreach($rows as $row){
+            $sessions=array_map(static fn(array $session):string=>(string)$session['name'].'('.substr((string)$session['join_at_utc'],0,16).'→'.substr((string)$session['leave_at_utc'],0,16).')',$row['sessions']);
+            \WP_CLI::log(
+                'type='.$row['type']
+                .' · account='.($row['account_key']!==null?$row['account_key']:'not map-able')
+                .' · display='.($row['display_name']!==''?$row['display_name']:'—')
+                .' · sessions='.(!$sessions?'none':implode(', ',$sessions))
+            );
+        }
+        \WP_CLI::log('Map a signed-in account with: wp dzn-meet map_account --role=teacher|student --participant_id=<id> --account_key=<users/id> --user=<administrator_id>');
+    }
+
+    /**
      * Map a Meet participant account to a canonical Teacher or Student for attendance.
      *
-     * Signed-in Meet participants expose `users/{id}`; copy it from the stored participant session.
+     * Signed-in Meet participants expose `users/{id}`; use `participant_accounts` to read the exact
+     * account key for one classroom, then map it to the canonical Teacher or Student.
      *
      * ## OPTIONS
      * --role=<teacher|student>

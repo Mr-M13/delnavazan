@@ -64,6 +64,10 @@ $fail('admin lists discovered templates with their linked event and variable evi
 $fail('admin compares the provider body with the reviewed local copy',str_contains($admin,'Local copy')&&str_contains($admin,'NotificationCatalogue::defaultCopy')&&str_contains($admin,'No registry'));
 $fail('notification admin shows the linked provider name and approved body',str_contains($notificationAdmin,'providerEvidence')&&str_contains($notificationAdmin,'Approved provider body')&&str_contains($notificationAdmin,'dzn_notification_provider_refresh'));
 $fail('notification admin names linked and expected provider templates',str_contains($notificationAdmin,'Telnyx:')&&str_contains($notificationAdmin,'provider_expected_name'));
+$readiness=$read($root.'/src/Integrations/Notifications/WhatsAppProviderReadinessReadService.php');
+$diagnostics=$read($root.'/src/Core/Application/Diagnostics/DiagnosticRegistry.php');
+$fail('diagnostics report WhatsApp provider readiness',str_contains($diagnostics,'notifications.whatsapp_provider')&&str_contains($diagnostics,'checkWhatsAppProviderMapping')&&str_contains($readiness,'manual_unverified')&&str_contains($readiness,'disabled_blocked'));
+$fail('notification admin shows the registry contract and marks manual mapping without evidence',str_contains($notificationAdmin,'Discovery record:')&&str_contains($notificationAdmin,'Manual mapping (unverified)')&&str_contains($notificationAdmin,'$expectedOrder=$registryOrder'));
 $fail('admin readiness is secret-free',str_contains($readService,"'telnyx'=>array")&&str_contains($readService,'webhook_signature')&&str_contains($readService,'dispatch_actor'));
 $fail('mobile channels are independently policy-gated',str_contains($composite,'channelPolicy')&&str_contains($composite,'allowed(')&&str_contains($composite,'foreach'));
 $fail('no webhook code sends a live message',strpos($service,'wp_remote_post')===false&&strpos($controller,'wp_remote_post')===false);

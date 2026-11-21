@@ -798,6 +798,9 @@ final class NotificationManagementController {
         $linked=(string)($mapping['name']??'');
         $state=(string)($status['provider_state']??'not_mapped');
         $reason=(string)($evidence['reason']??'');
+        $manualUnverified=(string)($mapping['source']??'')==='manual'
+            &&!is_array($primary)
+            &&(string)($evidence['state']??'')!==TelnyxTemplateAuthority::MAPPED;
         $ready=self::providerReady('whatsapp');
         $localCopy=$library->activeCopy($eventKey,'whatsapp',$locale);
         $localBody=is_array($localCopy)?trim((string)($localCopy['body']??'')):'';
@@ -816,16 +819,21 @@ final class NotificationManagementController {
         echo '<section class="dzn-nc-provider"><h3>WhatsApp provider template (Telnyx)</h3>';
         echo '<p>Meta approves the provider template separately. The provider body below is what Telnyx delivers; the local copy above is the editable Delnavazan representation. They do not have to be identical, but a difference is flagged so you can reconcile them.</p>';
         echo '<dl class="dzn-notif-lifecycle">';
-        echo '<dt>Mapping status</dt><dd><span class="dzn-badge '.(in_array($state,array('mapped'),true)?'is-ok':'is-warn').'">'.esc_html(self::providerStateLabel($state)).'</span>'.($reason!==''?' <span class="dzn-notif-meta">'.esc_html($reason).'</span>':'').'</dd>';
+        $mappingLabel=$manualUnverified?'Manual mapping (unverified)':self::providerStateLabel($state);
+        $mappingOk=!$manualUnverified&&in_array($state,array('mapped'),true);
+        echo '<dt>Mapping status</dt><dd><span class="dzn-badge '.($mappingOk?'is-ok':'is-warn').'">'.esc_html($mappingLabel).'</span>'.($reason!==''?' <span class="dzn-notif-meta">'.esc_html($reason).'</span>':'').'</dd>';
+        if($manualUnverified)echo '<p class="dzn-notif-note"><strong>This manual mapping has no provider evidence.</strong> Discovery has not found an approved Telnyx template for this event. Run Refresh provider templates; treat delivery as unverified until it does.</p>';
         echo '<dt>Linked template</dt><dd>'.($linked!==''?'<code dir="ltr">'.esc_html($linked).'</code> · '.esc_html((string)($mapping['language']??'')).' · '.esc_html(self::providerMappingSource((string)($mapping['source']??''))):'<em>Not linked</em>').'</dd>';
         if($expected!==''&&$expected!==$linked&&($primary===null||(string)$primary['name']!==$expected))echo '<dt>Registered name</dt><dd><code dir="ltr">'.esc_html($expected).'</code> <span class="dzn-notif-meta">expected for this event</span></dd>';
         if($primary!==null){
-            $order=array_values((array)($primary['variable_order']??array()));
+            $registryOrder=array_values($order);
+            $storedOrder=array_values((array)($primary['variable_order']??array()));
+            $expectedOrder=$registryOrder!==array()?$registryOrder:$storedOrder;
             $providerCount=(int)preg_match_all('/\{\{[0-9]+\}\}/',(string)($primary['template_text']??''));
             $providerStatus=((string)$primary['status']!=='')?(string)$primary['status']:'UNKNOWN';
             echo '<dt>Discovered template</dt><dd><code dir="ltr">'.esc_html((string)$primary['name']).'</code> · '.esc_html((string)$primary['language']).'</dd>';
             echo '<dt>Provider status</dt><dd>'.esc_html($providerStatus).((string)$primary['category']!==''?' · '.esc_html((string)$primary['category']):'').'</dd>';
-            echo '<dt>Variable contract</dt><dd>Expected '.esc_html((string)count($order)).' parameter(s)'.($order!==array()?' · <code dir="ltr">'.esc_html(implode(', ',$order)).'</code>':'').' · Provider body: '.esc_html($providerCount>0?(string)$providerCount:'not captured').'</dd>';
+            echo '<dt>Variable contract</dt><dd>Expected '.esc_html((string)count($expectedOrder)).' parameter(s)'.($expectedOrder!==array()?' · <code dir="ltr">'.esc_html(implode(', ',$expectedOrder)).'</code>':'').($storedOrder!==array()&&$storedOrder!==$expectedOrder?' · Discovery record: '.esc_html((string)count($storedOrder)).' parameter(s) (<code dir="ltr">'.esc_html(implode(', ',$storedOrder)).'</code>)':'').' · Provider body: '.esc_html($providerCount>0?(string)$providerCount:'not captured').'</dd>';
             if((string)($primary['last_verified_at']??'')!=='')echo '<dt>Last verified</dt><dd><code dir="ltr">'.esc_html((string)$primary['last_verified_at']).'</code></dd>';
             $bodyLabel=match($providerStatus){'APPROVED'=>'Approved provider body','PENDING'=>'Provider body (pending approval)','REJECTED'=>'Provider body (rejected)',default=>'Provider body'};
             echo '<dt>'.esc_html($bodyLabel).'</dt><dd>';

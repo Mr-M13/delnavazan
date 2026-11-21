@@ -258,7 +258,7 @@ namespace {
     $assert(($body['conferenceData']['conferenceId'] ?? '') === 'abc-defg-hij', 'The Calendar event must carry the app space meeting code.');
     $assert(($body['conferenceData']['conferenceSolution']['key']['type'] ?? '') === 'hangoutsMeet', 'The Calendar event must use the Meet conference solution.');
     $assert(($body['conferenceData']['entryPoints'][0]['uri'] ?? '') === 'https://meet.google.com/abc-defg-hij', 'The Calendar event must attach the app space join URI.');
-    $assert(($body['attendees'][0]['email'] ?? '') === 'teacher@example.test' && ($body['attendees'][1]['email'] ?? '') === 'student@example.test', 'The Calendar invitation must retain Teacher and Student attendees.');
+    $assert(!isset($body['attendees']), 'The Calendar event must not add participants as attendees by default; the Meet link stays in the authenticated portal.');
     $memberCall = null;
     foreach ($api->calls as $call) if (($call[0] ?? '') === 'createMember') $memberCall = $call;
     $assert($memberCall !== null && $memberCall[1] === 'spaces/AppSpace_123' && $memberCall[2] === 'teacher@example.test' && $memberCall[3] === 'COHOST', 'The teacher must be assigned COHOST on the exact app space resource name.');

@@ -391,17 +391,20 @@ final class GoogleWorkspaceClassroomService {
         }
         $lesson=$this->repository->lessonWithParticipants($lessonId);
         if($lesson){
-            $event=$this->api->updateCalendarEvent((string)$references['provider_object_reference'],array(
-                'attendees'=>$this->attendanceEmails(array(
-                    'teacher_email'=>$email,
-                    'student_email'=>(string)($lesson->student_email??''),
-                )),
+            $patch=array(
                 'reminders'=>array('useDefault'=>false),
                 'extendedProperties'=>array('private'=>array(
                     'dzn_lesson_id'=>(string)$lessonId,
                     'dzn_schedule_version_id'=>(string)$classroom->schedule_version_id,
                 )),
-            ));
+            );
+            if(GoogleWorkspaceFeatureFlags::calendarAttendees()){
+                $patch['attendees']=$this->attendanceEmails(array(
+                    'teacher_email'=>$email,
+                    'student_email'=>(string)($lesson->student_email??''),
+                ));
+            }
+            $event=$this->api->updateCalendarEvent((string)$references['provider_object_reference'],$patch);
             if($event['status']<200||$event['status']>=300){
                 $this->recordProviderFailure($classroom,$event,'calendar_projection','calendar_projection_failed');
                 throw new \RuntimeException(MeetProvisioningRule::failureCode(
@@ -529,6 +532,42 @@ final class GoogleWorkspaceClassroomService {
         $this->audit($classroomId,'update','reminders_suppressed',null,$response);
         $this->repository->updateClassroom($classroomId,array('updated_at'=>gmdate('Y-m-d H:i:s')),array('id'=>$classroomId));
         return array('suppressed'=>true,'classroom_id'=>$classroomId);
+    }
+
+    /**
+     * Remove Teacher and Student attendees from one classroom's Calendar event.
+     *
+     * Adding participants as attendees makes Google copy the event — including its Meet link — to
+     * their own calendars, where it can be joined outside the authenticated portal window. New
+     * events are created without attendees; this convergence PATCH clears attendees from events
+     * created before that policy. The event stays on the organizer calendar as the recording
+     * projection, and the COHOST membership is unaffected.
+     *
+     * Like reminder suppression, the audit row makes it one-shot per classroom; retryable failures
+     * retry on a later worker pass and a permanent refusal is recorded without hot retries.
+     */
+    public function detachCalendarAttendees(int $classroomId):array{
+        if(GoogleWorkspaceFeatureFlags::calendarAttendees()){
+            return array('detached'=>false,'reason'=>'attendees_enabled','classroom_id'=>$classroomId);
+        }
+        $classroom=$this->repository->classroom($classroomId);
+        if(!$classroom)throw new \InvalidArgumentException('meet_classroom_required');
+        if($this->repository->classroomEventExists($classroomId,array('calendar_attendees_detached','calendar_attendees_detach_failed'))){
+            return array('detached'=>false,'reason'=>'already_detached','classroom_id'=>$classroomId);
+        }
+        $references=$this->openReferences($classroom);
+        if($references===null)return array('detached'=>false,'reason'=>'reference_unavailable','classroom_id'=>$classroomId);
+        $response=$this->api->updateCalendarEvent((string)$references['provider_object_reference'],array(
+            'attendees'=>array(),
+        ));
+        if($response['status']<200||$response['status']>=300){
+            $retryable=MeetProvisioningRule::isRetryableResponse((int)$response['status'],$response['error_class']??null);
+            if(!$retryable)$this->audit($classroomId,'update','calendar_attendees_detach_failed',$this->providerDetail($response),$response);
+            return array('detached'=>false,'reason'=>$retryable?'meet_attendees_detach_retryable':'meet_attendees_detach_failed','response_status'=>$response['status'],'classroom_id'=>$classroomId);
+        }
+        $this->audit($classroomId,'update','calendar_attendees_detached',null,$response);
+        $this->repository->updateClassroom($classroomId,array('updated_at'=>gmdate('Y-m-d H:i:s')),array('id'=>$classroomId));
+        return array('detached'=>true,'classroom_id'=>$classroomId);
     }
 
     // ---- Provisioning -----------------------------------------------------------------------
@@ -820,13 +859,12 @@ final class GoogleWorkspaceClassroomService {
         $spaceName=GoogleWorkspaceClassroomRule::spaceName((string)($space['space_name']??''));
         $join=GoogleWorkspaceClassroomRule::meetUri((string)($space['join_uri_reference']??''));
         $meetingCode=GoogleWorkspaceClassroomRule::meetingCode($join);
-        $attendance=$this->attendanceEmails($facts);
+        $attendance=GoogleWorkspaceFeatureFlags::calendarAttendees()?$this->attendanceEmails($facts):array();
         $body=array(
             'id'=>$eventId,'summary'=>(string)$facts['summary'],
             'description'=>(string)($facts['description']??''),
             'start'=>array('dateTime'=>GoogleWorkspaceClassroomRule::rfc3339((string)$facts['starts_at_utc']),'timeZone'=>(string)$facts['timezone']),
             'end'=>array('dateTime'=>GoogleWorkspaceClassroomRule::rfc3339((string)$facts['ends_at_utc']),'timeZone'=>(string)$facts['timezone']),
-            'attendees'=>$attendance,
             'guestsCanInviteOthers'=>false,'guestsCanModify'=>false,'guestsCanSeeOtherGuests'=>false,
             // Calendar invitations already send with sendUpdates=none. Disabling the event's
             // reminders removes the remaining Google email source: without it, the organizer
@@ -850,6 +888,9 @@ final class GoogleWorkspaceClassroomService {
                 'dzn_lesson_reference'=>(string)$facts['lesson_uid'],
             )),
         );
+        // Participants are not added by default: an attendee copy would put the Meet link in the
+        // Teacher/Student Google Calendar and bypass the authenticated portal join window.
+        if($attendance!==array())$body['attendees']=$attendance;
         $response=$this->api->createCalendarEvent($body);
         $created=false;
         if($response['status']===409){

@@ -21,12 +21,24 @@ never moves or deletes recording files.
 | Symptom | Most likely cause | Verification |
 |---|---|---|
 | Recording never starts (no spinner) | `autoRecordingGeneration` OFF (opt-out or failed config PATCH), Teacher joined on mobile, admin disabled recording, unsupported Workspace edition | Check the classroom row `recording_state` in the recording health report; re-run config sync |
-| Recording starts, then stops mid-class with a "recording stopped" message | Organizer Drive quota exhausted (personal **or** organization quota); Drive disabled mid-flight; admin policy change | Check Drive storage of the organizer account and the Workspace org storage |
-| Short recording file exists but the class continued | Same as above — Meet kept a partial MP4 | The platform raises the `recording_ended_early` alert (`recording_stopped_while_participants_remained`) |
+| Recording spins for a few minutes, then "recording stopped" / nothing saved | **The host or co-host did not join on web.** Google only initialises auto-recording when the organizer or the COHOST Teacher joins from a computer browser; a Teacher on the mobile app or a phone produces exactly this spinner-then-stop. Drive quota, Drive write policy and admin recording settings are secondary causes | Meet quality tool → open the meeting → **Recording status**. It reports **"Failed to initialise"** when no web host/co-host was present. Check the participant device icons in the same view: a phone icon next to the Teacher's email confirms it |
+| Short recording file exists but the class continued | Recording was cut short mid-call (for example Drive quota or a policy stop) | The platform raises the `recording_ended_early` alert (`recording_stopped_while_participants_remained`) |
 | No recording file at all after class | Recording never started, or stopped before any file persisted | The platform raises the `recording_missing` alert after the 2-hour processing grace |
 
 Note the July 2026 Google change: the "Meet Recordings" folder is now "Legacy Meet Recordings"
 inside a new "Google Meet" folder with per-meeting sub-folders. Old links keep working.
+
+## Confirmed production case (21 November 2026)
+
+Two introductory classes (17 and 20 November 2026) failed exactly this way. The organizer account
+had **300 GB free and 0 bytes used**, Business Standard was assigned, the Meet recording policy and
+participant consent were both ON, and the space config was `autoRecordingGeneration: ON`. The Meet
+quality tool showed **`Recording status: Failed to initialise`** for the calls, and the Teacher
+co-host (`nimasepandar@gmail.com`, a verified COHOST space member) had joined from a **phone** in
+every affected meeting while the organizer was not in the call. The recording never initialised.
+Conclusion: this is a join-device requirement, not a Delnavazan configuration fault. The Teacher
+must join from a computer web browser for auto-recording to start. The pre-class page now tells the
+Teacher this explicitly.
 
 ## Owner-side verification (Google admin)
 
@@ -41,7 +53,11 @@ inside a new "Google Meet" folder with per-meeting sub-folders. Old links keep w
 3. **Admin console** — Apps → Google Workspace → Google Meet → Meet video settings: confirm
    "Let users record their meetings" is ON for the organizer's organizational unit, and that the
    organizer's Drive is not disabled.
-4. **In-meeting evidence** — the Meet UI message at the moment of failure names the cause
+4. **Meet quality tool** — Apps → Google Workspace → Google Meet → Meet quality tool → open the
+   meeting: `Recording status` should read `Recording` (or a completed recording). `Failed to
+   initialise` means no host/co-host was in the call on web. The participant rows show device icons;
+   a phone icon next to the Teacher confirms the cause.
+5. **In-meeting evidence** — the Meet UI message at the moment of failure names the cause
    ("Not enough storage space", admin policy, etc.). Ask the Teacher to screenshot it.
 
 ## What the platform reports

@@ -173,10 +173,10 @@ if (!$wpdb->get_row($wpdb->prepare("SELECT id FROM {$p}commercial_prices WHERE p
  * @return array{request:int,student:int,principal:int,confirmation:string,delivery:int}
  */
 $bookingSequence = 0;
-$booking = function (string $label, int $hoursAgo, string $wallTime) use ($wpdb, $p, $instrumentId, $introCourse, $teacherId, $actor, $suffix, $now, &$bookingSequence): array {
+$booking = function (string $label, int $hoursAgo, string $wallTime, ?string $futureDate = null) use ($wpdb, $p, $instrumentId, $introCourse, $teacherId, $actor, $suffix, $now, &$bookingSequence): array {
     wp_set_current_user($actor);
     $bookingSequence++;
-    $futureDate = gmdate('Y-m-d', strtotime('+' . (14 + $bookingSequence) . ' days'));
+    $futureDate ??= gmdate('Y-m-d', strtotime('+' . (14 + $bookingSequence) . ' days'));
     $submission = (new BookingRequestSubmissionService())->submitPublic(array(
         'requested_instrument_id' => $instrumentId,
         'selected_intro_course_id' => $introCourse,
@@ -215,6 +215,21 @@ $booking = function (string $label, int $hoursAgo, string $wallTime) use ($wpdb,
     $authority->establishPrincipal($studentId, (int) $userId, 'synthetic_fixture', 'synthetic_fixture', $now, $actor);
 
     $delivery = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}booking_request_teacher_deliveries WHERE booking_request_id=%d LIMIT 1", $requestId));
+    if (!$delivery) {
+        // Allocation may leave a synthetic request unassigned when its generated date falls on a
+        // weekday outside the fixture Teacher's availability. This fixture is not proving the
+        // allocator; create the delivery row the confirmation scenario needs.
+        $requestedTimeId = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$p}booking_request_requested_times WHERE booking_request_id=%d ORDER BY sequence_number LIMIT 1", $requestId));
+        dzn_pia_assert($requestedTimeId > 0, 'requested time required');
+        $inserted = $wpdb->insert($p . 'booking_request_teacher_deliveries', array(
+            'uid' => \Delnavazan\Platform\Core\Support\Identifier::uid(),
+            'booking_request_id' => $requestId, 'requested_time_id' => $requestedTimeId,
+            'teacher_id' => $teacherId, 'state' => 'pending_request', 'match_strength' => 'possible',
+            'created_at' => $now, 'updated_at' => $now, 'responded_at' => null,
+        ));
+        dzn_pia_assert($inserted === 1, 'delivery fixture persistence');
+        $delivery = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}booking_request_teacher_deliveries WHERE booking_request_id=%d LIMIT 1", $requestId));
+    }
     dzn_pia_assert($delivery !== null, 'intake delivery required');
     $deliveryId = (int) $delivery->id;
     $requestedTimeId = (int) $delivery->requested_time_id;
@@ -1238,7 +1253,7 @@ dzn_pia_assert((int) $unchangedChoice->policy_version === (int) $policySet['poli
 // resolve the exact Teacher/Student through the identity registry, apply the same
 // 20-minute rule, and record the delivered outcome through the provider actor.
 // ---------------------------------------------------------------------------
-$autoBooking = $booking('auto-attendance', 3, '03:10:00');
+$autoBooking = $booking('auto-attendance', 3, '03:10:00', gmdate('Y-m-d', strtotime('+15 days')));
 $autoConfirmation = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}booking_request_confirmations WHERE uid=%s", $autoBooking['confirmation']));
 dzn_pia_assert($autoConfirmation !== null, 'auto-attendance confirmation required');
 $autoStart = (string) $autoConfirmation->starts_at_utc;

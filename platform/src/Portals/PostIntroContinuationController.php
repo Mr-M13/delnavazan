@@ -18,9 +18,12 @@ final class PostIntroContinuationController {
         $planKind = sanitize_key((string) ($_POST['plan_kind'] ?? ''));
         $quoteToken = strtolower(sanitize_text_field((string) ($_POST['quote_token'] ?? '')));
         $instalmentsOptIn = (string) ($_POST['instalments_opt_in'] ?? '') === '1';
+        // The Student submits the code only. The canonical promotion authority re-reads every
+        // amount and eligibility fact from the issued offer; the raw code is never logged.
+        $promotionCode = mb_substr(sanitize_text_field((string) ($_POST['promotion_code'] ?? '')), 0, 64, 'UTF-8');
         try {
             if (!preg_match('/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/D', $uid)) throw new \InvalidArgumentException('post_intro_invitation_not_found');
-            $result = (new PostIntroContinuationService())->continue($uid, $attested, $planKind, $quoteToken, $instalmentsOptIn);
+            $result = (new PostIntroContinuationService())->continue($uid, $attested, $planKind, $quoteToken, $instalmentsOptIn, $promotionCode);
             if (!empty($result['redirect_url'])) {
                 wp_redirect((string) $result['redirect_url'], 303);
                 exit;
@@ -40,7 +43,10 @@ final class PostIntroContinuationController {
             'post_intro_invitation_not_found', 'post_intro_invitation_not_ready', 'checkout_temporarily_unavailable',
             'post_intro_retryable', 'checkout_pending', 'payment_received', 'activated', 'plan_choice_conflict', 'plan_quote_stale',
             'plan_quote_required', 'plan_unavailable', 'plan_selection_in_progress',
-            'instalment_due_date_policy_invalid', 'instalment_due_date_schedule_unavailable' => $message,
+            'instalment_due_date_policy_invalid', 'instalment_due_date_schedule_unavailable',
+            'post_intro_promotion_invalid', 'post_intro_promotion_already_applied',
+            'post_intro_promotion_offer_closed', 'post_intro_promotion_rate_limited',
+            'post_intro_promotion_unavailable' => $message,
             default => 'post_intro_unavailable',
         };
     }

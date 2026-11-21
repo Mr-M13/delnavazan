@@ -138,6 +138,13 @@ $assert(str_contains($continuation, 'reservationForCase') && str_contains($conti
 $assert(str_contains($continuation, 'claimStudentActionAt') && str_contains($continuation, 'concurrentReplay'), 'Student commands must use one durable action instant and not poison the invitation');
 $assert(str_contains($continuation, "'post_intro_retryable'") && str_contains($studentController, "'post_intro_retryable'"), 'A pre-payment transient failure must leave the Student invitation retryable.');
 $assert(!str_contains($continuation, "'prepared', 'checkout_pending', 'exception'"), 'an exception preparation must require admin retry before the Student action');
+$assert(str_contains($continuation, 'applyPromotion') && str_contains($continuation, 'promotionFailureStatus'), 'the term payment step must apply a Student code through the canonical promotion authority');
+$assert(strpos($continuation, 'applyPromotion') < strpos($continuation, 'new StudentCheckoutInitiationService()'), 'a code must be applied before any hosted Checkout session is created');
+foreach (array('post_intro_promotion_invalid', 'post_intro_promotion_already_applied', 'post_intro_promotion_offer_closed', 'post_intro_promotion_rate_limited', 'post_intro_promotion_unavailable') as $promotionStatus) {
+    $assert(str_contains($continuation, $promotionStatus) && str_contains($studentController, $promotionStatus), 'every controlled promotion refusal must reach the portal as a safe status: ' . $promotionStatus);
+}
+$assert(!str_contains($studentController, 'error_log') && !str_contains($studentController, 'var_dump'), 'a Student promotion code must never be logged');
+$assert(str_contains($studentController, "'promotion_code'") && str_contains($studentController, 'sanitize_text_field') && str_contains($studentController, '0, 64'), 'the Student action must accept only a bounded, sanitised code');
 $assert(str_contains($repository, 'r.privacy_erased_at IS NULL') && str_contains($preparation, 'privacy_erased_at'), 'privacy-erased bookings must not surface a Student invitation');
 $assert(str_contains($continuation, "== 'unavailable'") && str_contains($continuation, 'checkout_temporarily_unavailable'), 'explicit checkout unavailability must not be reported as pending');
 $assert(!str_contains($continuation, 'date_of_birth'), 'the Student action must not invent demographic authority');
@@ -264,6 +271,12 @@ $contains($studentRead, array(
 ), 'the Student card must be read-only and actionable');
 $assert(!str_contains($studentRead, 'exception_detail'), 'the Student projection must not expose raw exception detail');
 $contains($studentCard, array('dzn_post_intro_continue', 'preparation_uid', 'adult_attested', 'پرداخت کامل ترم', 'two_instalments', 'instalments_opt_in'), 'the Student card must render the full-term default and explicit instalment opt-in');
+$assert(str_contains($studentRead, "'promotion_eligible'") && str_contains($studentRead, "'promotion_applied'"), 'the Student card must expose the canonical code eligibility, not infer it in the browser');
+$assert(str_contains($studentCard, 'name="promotion_code"') && str_contains($studentCard, 'promotion_eligible') && str_contains($studentCard, 'promotion_applied'), 'the term payment step must render the discount field it applies');
+$assert(!str_contains($studentCard, 'name="amount_minor"') && !str_contains($studentCard, 'name="discount_minor"'), 'the Student card must never submit an amount or a discount');
+foreach (array('post_intro_promotion_invalid', 'post_intro_promotion_already_applied', 'post_intro_promotion_offer_closed', 'post_intro_promotion_rate_limited', 'post_intro_promotion_unavailable') as $promotionStatus) {
+    $assert(str_contains($studentCard, $promotionStatus), 'the Student card must explain a refused code: ' . $promotionStatus);
+}
 $contains($studentShell, array("dzn_theme_portal_component( 'post-intro'"), 'the Student shell must include the continuation card');
 $contains($studentController, array('check_admin_referer', 'wp_redirect', 'safeStatus'), 'the Student action must verify the nonce and redirect safely');
 $assert(str_contains($studentController, "checkout_temporarily_unavailable") && str_contains($studentController, "\$result['message']"), 'explicit checkout unavailability must reach the portal message');

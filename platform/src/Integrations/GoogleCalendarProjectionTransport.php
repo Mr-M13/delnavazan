@@ -54,6 +54,7 @@ final class GoogleCalendarProjectionTransport {
         $body=array(
             'start'=>array('dateTime'=>$this->rfc3339($startsAtUtc),'timeZone'=>$timezone),
             'end'=>array('dateTime'=>$this->rfc3339($endsAtUtc),'timeZone'=>$timezone),
+            'reminders'=>array('useDefault'=>false),
         );
         $response=$this->send('PATCH',self::CALENDAR_ORIGIN.'/calendar/v3/calendars/primary/events/'.rawurlencode($eventId).'?conferenceDataVersion=1&sendUpdates=none',$this->accessToken($credentialMaterial),$body);
         if($response['code']<200||$response['code']>=300)throw new \RuntimeException('google_calendar_revision_refused');

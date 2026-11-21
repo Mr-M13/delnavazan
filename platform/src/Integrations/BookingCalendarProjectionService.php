@@ -282,6 +282,7 @@ final class BookingCalendarProjectionService {
             'start'=>array('dateTime'=>$this->rfc3339((string)$confirmation->starts_at_utc),'timeZone'=>(string)$confirmation->schedule_timezone),
             'end'=>array('dateTime'=>$this->rfc3339((string)$confirmation->ends_at_utc),'timeZone'=>(string)$confirmation->schedule_timezone),
             'conferenceData'=>array('createRequest'=>array('requestId'=>substr(hash('sha256','dzn-meet:booking-confirmation:'.(string)$confirmation->uid),0,40),'conferenceSolutionKey'=>array('type'=>'hangoutsMeet'))),
+            'reminders'=>array('useDefault'=>false),
             'extendedProperties'=>array('private'=>array('dzn_booking_confirmation_uid'=>(string)$confirmation->uid)),
         ));
     }

@@ -61,6 +61,9 @@ $check('legacy Calendar-created spaces are replaced on the same event', str_cont
 $check('member operations use the exact app space name', str_contains($service, 'MeetCoHostRule::canManageMembers') && str_contains($service, "spaceName(\$name)"));
 $check('Teacher and Student are Calendar attendees', str_contains($service, 'attendanceEmails($facts)'));
 $check('Calendar projections do not send Google invitation or update emails', str_contains($api, 'sendUpdates=none') && !str_contains($api, 'sendUpdates=all'));
+$check('Calendar events disable Google reminder emails', str_contains($service, "'reminders'=>array('useDefault'=>false)") && substr_count($service, "'reminders'=>array('useDefault'=>false)") >= 5);
+$check('existing events converge to no reminders through an audited one-shot patch', str_contains($service, 'suppressEventReminders') && str_contains($service, "'reminders_suppressed'") && str_contains($service, "'reminders_failed'"));
+$check('reminder suppression is never hot-retried after a permanent refusal', str_contains($service, 'MeetProvisioningRule::isRetryableResponse') && str_contains($service, 'meet_reminders_suppression_retryable'));
 $check('Teacher is assigned COHOST', str_contains($service, "createMember(\$space,\$email,'COHOST')"));
 $check('co-host refusal reports the exact provider response', str_contains($service, "'meet_cohost_assignment_refused'") && str_contains($service, "'response'=>\$response"));
 $check('co-host membership is explicitly verified', str_contains($service, 'verifyCoHostMember') && str_contains($service, "'cohost_verified'"));

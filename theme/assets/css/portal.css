@@ -1132,6 +1132,15 @@
   margin-block: 0.75rem;
 }
 
+.dzn-post-intro__promotion {
+  margin-block: 0.75rem 0.5rem;
+}
+
+.dzn-post-intro__promotion .dzn-portal-help {
+  display: block;
+  margin-block-start: 0.35rem;
+}
+
 /* =========================================================
    RESPONSIVE SHELL
    One canonical main region; the desktop masthead and the

@@ -56,6 +56,11 @@ final class PostIntroStudentReadService {
                 $choice = $this->repository->activePlanChoice((int) $preparation->id);
                 if ($choice) $selectedPlan = (string) $choice->plan_kind;
             }
+            // The canonical rule: a code may only replace an offer that is still issued and has no
+            // promotion yet. Before issuance the offer does not exist, so the code is applied when
+            // the Student submits the chosen plan; a started plan can never take one.
+            $promotionApplied = $offer !== null && (int) ($offer->promotion_id ?? 0) > 0;
+            $promotionEligible = $actionable && ($offer === null || ((string) $offer->state === 'issued' && !$promotionApplied));
             $quote = null;
             if ($actionable && !$offer) {
                 try {
@@ -84,6 +89,8 @@ final class PostIntroStudentReadService {
                 'term_label' => 'ترم ۱',
                 'selected_plan_kind' => $selectedPlan,
                 'plan_locked' => $offer !== null,
+                'promotion_eligible' => $promotionEligible,
+                'promotion_applied' => $promotionApplied,
                 'plan_options' => is_array($quote['options'] ?? null) ? $quote['options'] : array(),
                 'quote_token' => is_array($quote) ? (string) ($quote['quote_token'] ?? '') : '',
                 'currency' => is_array($quote) ? (string) ($quote['currency'] ?? '') : '',

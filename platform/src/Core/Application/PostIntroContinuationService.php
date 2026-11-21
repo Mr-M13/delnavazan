@@ -5,6 +5,7 @@ use Delnavazan\Platform\Core\Application\Checkout\StudentCheckoutInitiationServi
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 use Delnavazan\Platform\Core\Support\Identifier;
 use Delnavazan\Platform\Portals\PortalPrincipalResolver;
+use Delnavazan\Platform\Portals\PortalRateLimiter;
 
 /**
  * Student-owned "complete payment and confirm enrolment" action.
@@ -13,6 +14,10 @@ use Delnavazan\Platform\Portals\PortalPrincipalResolver;
  * (the continuation decision and hosted Checkout). Canonical acceptance, conversion and
  * commercial issuance run under the dedicated automation principal, while the final acceptance
  * still names the real Student WordPress principal as the accepting person.
+ *
+ * An optional discount code is the Student's own commercial choice: it travels no further than the
+ * canonical promotion authority, which re-reads the offer and supersedes it immutably before any
+ * hosted Checkout session exists. No amount or discount is ever accepted from the browser.
  */
 final class PostIntroContinuationService {
     public function __construct(private ?PostIntroRepository $repository = null) {
@@ -20,7 +25,7 @@ final class PostIntroContinuationService {
     }
 
     /** @return array{state:string,redirect_url:?string,message:string} */
-    public function continue(string $preparationUid, bool $adultAttested, ?string $planKind = null, ?string $quoteToken = null, bool $instalmentsOptIn = false): array {
+    public function continue(string $preparationUid, bool $adultAttested, ?string $planKind = null, ?string $quoteToken = null, bool $instalmentsOptIn = false, ?string $promotionCode = null): array {
         $repository = $this->repository;
         global $wpdb;
         $preparation = $repository->preparationByUid($preparationUid);
@@ -347,12 +352,35 @@ final class PostIntroContinuationService {
             }
 
             $obligations = $repository->obligationsForOffer((int) $preparation->offer_id);
-            $first = null;
-            foreach ($obligations as $obligation) {
-                if ((int) $obligation->obligation_sequence === 1) { $first = $obligation; break; }
+            $first = $this->firstObligation($obligations);
+
+            // A Student-owned discount code is applied through the canonical promotion authority
+            // before any hosted Checkout session exists. The browser supplies the code only; every
+            // amount, currency and eligibility fact is re-read from the issued offer snapshot.
+            $promotionCode = trim((string) $promotionCode);
+            if ($promotionCode !== '') {
+                // Same budget and surface as the Student promotion REST route: a code must never
+                // become a cheap guessing oracle just because it is submitted from this form.
+                if (!(new PortalRateLimiter())->allow('commercial_promotion_apply', (string) $studentUserId)) {
+                    throw new \InvalidArgumentException('post_intro_promotion_rate_limited');
+                }
+                try {
+                    (new CommercialOfferService())->applyPromotion((int) $first->id, $promotionCode, $studentId);
+                } catch (\Throwable $promotionError) {
+                    // The controlled status is the only thing that crosses the portal boundary; the
+                    // original error is retained as the previous exception for local diagnosis.
+                    throw new \InvalidArgumentException(self::promotionFailureStatus($promotionError), 0, $promotionError);
+                }
+                $preparation = $repository->preparation((int) $preparation->id) ?? $preparation;
+                // A 100% code settles the zero-value offer through the internal path, so the
+                // enrolment is already paid and must never open a provider Checkout.
+                if ((string) $preparation->state === 'payment_received') return array('state' => 'payment_received', 'redirect_url' => null, 'message' => 'payment_received');
+                if ((string) $preparation->state === 'activated') return array('state' => 'activated', 'redirect_url' => null, 'message' => 'already_activated');
+                // Supersession repoints the preparation at the discounted revision; Checkout must
+                // read the payable obligation from that revision, never the retired snapshot.
+                $obligations = $repository->obligationsForOffer((int) $preparation->offer_id);
+                $first = $this->firstObligation($obligations);
             }
-            $first ??= $obligations[0] ?? null;
-            if (!$first || trim((string) $first->uid) === '') throw new \RuntimeException('commercial_obligation_missing');
 
             try {
                 $checkout = (new StudentCheckoutInitiationService())->initiate(array('obligation_uid' => (string) $first->uid));
@@ -378,7 +406,7 @@ final class PostIntroContinuationService {
                 $this->expire($preparation);
                 throw $error;
             }
-            if (in_array($message, array('plan_choice_conflict', 'plan_quote_stale', 'plan_quote_required', 'plan_unavailable', 'plan_selection_in_progress', 'instalment_due_date_policy_invalid', 'instalment_due_date_schedule_unavailable'), true)) {
+            if (in_array($message, array('plan_choice_conflict', 'plan_quote_stale', 'plan_quote_required', 'plan_unavailable', 'plan_selection_in_progress', 'instalment_due_date_policy_invalid', 'instalment_due_date_schedule_unavailable', 'post_intro_promotion_invalid', 'post_intro_promotion_already_applied', 'post_intro_promotion_offer_closed', 'post_intro_promotion_rate_limited', 'post_intro_promotion_unavailable'), true)) {
                 throw $error;
             }
             // A committed idempotent command or a concurrent winner is not a review exception.
@@ -432,6 +460,43 @@ final class PostIntroContinuationService {
             if (str_contains($message, $needle)) return true;
         }
         return false;
+    }
+
+    /** The offer's first payable obligation, or a controlled integrity failure. */
+    private function firstObligation(array $obligations): object {
+        $first = null;
+        foreach ($obligations as $obligation) {
+            if ((int) $obligation->obligation_sequence === 1) { $first = $obligation; break; }
+        }
+        $first ??= $obligations[0] ?? null;
+        if (!$first || trim((string) $first->uid) === '') throw new \RuntimeException('commercial_obligation_missing');
+        return $first;
+    }
+
+    /**
+     * Map the canonical promotion authority's controlled refusals to one safe Student status.
+     *
+     * The raw reason names codes, offers and internal facts the Student does not own, so it never
+     * crosses the portal boundary. The preparation stays actionable: a wrong code is retryable and
+     * must not consume the invitation or poison it into the administrator exception queue.
+     */
+    private static function promotionFailureStatus(\Throwable $error): string {
+        $message = trim($error->getMessage());
+        if ($message === 'promotion_already_applied') return 'post_intro_promotion_already_applied';
+        if ($message === 'promotion_rate_limited') return 'post_intro_promotion_rate_limited';
+        if (in_array($message, array(
+            'promotion_offer_already_paid', 'promotion_offer_already_started',
+            'promotion_offer_expired', 'promotion_offer_superseded', 'promotion_offer_unavailable',
+        ), true)) {
+            return 'post_intro_promotion_offer_closed';
+        }
+        if (in_array($message, array(
+            'promotion_student_required', 'commercial_obligation_required',
+            'promotion_obligation_unavailable', 'commercial_offer_integrity_conflict',
+        ), true)) {
+            return 'post_intro_promotion_unavailable';
+        }
+        return $error instanceof \InvalidArgumentException ? 'post_intro_promotion_invalid' : 'post_intro_promotion_unavailable';
     }
 
     private function assertPatternIdentity(object $preparation, object $pattern): void {

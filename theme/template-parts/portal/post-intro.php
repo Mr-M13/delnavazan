@@ -33,7 +33,30 @@ $messages = array(
 	'survey_recorded' => 'پاسخ شما ثبت شد. همکاران ما برای بررسی و پیگیری با شما تماس می‌گیرند.',
 	'continuation_closed' => 'این پروندهٔ ثبت‌نام قبلاً بسته شده است. برای پیگیری با پشتیبانی تماس بگیرید.',
 	'teacher_match_suppressed' => 'این مسیر ثبت‌نام توسط مدرس برای بررسی به مدیر ارجاع شده است. برای پیگیری با پشتیبانی تماس بگیرید.',
+	'post_intro_promotion_invalid' => 'کد تخفیف واردشده معتبر نیست یا برای این ثبت‌نام قابل استفاده نیست. کد را بررسی کنید و دوباره تلاش کنید.',
+	'post_intro_promotion_already_applied' => 'برای این طرح از قبل یک کد تخفیف اعمال شده است. برای تکمیل ثبت‌نام، پرداخت را ادامه دهید.',
+	'post_intro_promotion_offer_closed' => 'این طرح دیگر قابل تغییر با کد تخفیف نیست. اگر پرداخت را تکمیل نکرده‌اید، با پشتیبانی تماس بگیرید.',
+	'post_intro_promotion_rate_limited' => 'تعداد تلاش‌های کد تخفیف زیاد است. لطفاً چند دقیقهٔ دیگر دوباره تلاش کنید.',
+	'post_intro_promotion_unavailable' => 'اعمال کد تخفیف اکنون ممکن نیست. لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.',
 );
+// The code is optional and belongs to the payment step: it is applied before any hosted
+// Checkout session exists and the server never accepts an amount from this form.
+$render_promotion = static function ( array $item, string $suffix ): void {
+	$reference = (string) ( $item['reference'] ?? '' );
+	if ( ! empty( $item['promotion_applied'] ) ) {
+		echo '<p class="dzn-portal-help">' . esc_html__( 'کد تخفیف روی این طرح اعمال شده است.', 'delnavazan-theme' ) . '</p>';
+		return;
+	}
+	if ( empty( $item['promotion_eligible'] ) ) {
+		return;
+	}
+	$id = 'dzn-post-intro-promotion-' . ( '' !== $reference ? $reference . '-' : '' ) . $suffix;
+	echo '<p class="dzn-portal-control dzn-post-intro__promotion">';
+	echo '<label for="' . esc_attr( $id ) . '">' . esc_html__( 'کد تخفیف (اختیاری)', 'delnavazan-theme' ) . '</label>';
+	echo '<input type="text" id="' . esc_attr( $id ) . '" name="promotion_code" maxlength="64" autocomplete="off" spellcheck="false" placeholder="' . esc_attr__( 'کد تخفیف را وارد کنید', 'delnavazan-theme' ) . '" />';
+	echo '<span class="dzn-portal-help">' . esc_html__( 'اگر کد تخفیف دارید، پیش از پرداخت آن را وارد کنید. مبلغ نهایی پس از بررسی کد در صفحهٔ پرداخت نمایش داده می‌شود.', 'delnavazan-theme' ) . '</span>';
+	echo '</p>';
+};
 $items = array_values( array_filter( $items, static function ( $item ): bool {
 	return is_array( $item ) && ( ! empty( $item['actionable'] ) || ! empty( $item['survey_available'] ) );
 } ) );
@@ -91,6 +114,7 @@ if ( ! $items && ! isset( $messages[ $status ] ) ) {
 							<input type="hidden" name="action" value="dzn_post_intro_continue">
 							<input type="hidden" name="preparation_uid" value="<?php echo esc_attr( (string) ( $item['reference'] ?? '' ) ); ?>">
 							<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['nonce'] ?? '' ) ); ?>">
+							<?php $render_promotion( $item, 'locked' ); ?>
 							<?php if ( $attestation ) : ?>
 								<label class="dzn-booking__privacy"><input type="checkbox" name="adult_attested" value="1" required> تأیید می‌کنم هنرجو ۱۸ سال یا بیشتر دارد و می‌تواند این ثبت‌نام را بپذیرد.</label>
 							<?php endif; ?>
@@ -108,6 +132,7 @@ if ( ! $items && ! isset( $messages[ $status ] ) ) {
 									<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['nonce'] ?? '' ) ); ?>">
 									<input type="hidden" name="plan_kind" value="full">
 									<input type="hidden" name="quote_token" value="<?php echo esc_attr( (string) $item['quote_token'] ); ?>">
+									<?php $render_promotion( $item, 'full' ); ?>
 									<?php if ( $attestation ) : ?>
 										<label class="dzn-booking__privacy"><input type="checkbox" name="adult_attested" value="1" required> تأیید می‌کنم هنرجو ۱۸ سال یا بیشتر دارد و می‌تواند این ثبت‌نام را بپذیرد.</label>
 									<?php endif; ?>
@@ -132,6 +157,7 @@ if ( ! $items && ! isset( $messages[ $status ] ) ) {
 									<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['nonce'] ?? '' ) ); ?>">
 									<input type="hidden" name="plan_kind" value="two_instalments">
 									<input type="hidden" name="quote_token" value="<?php echo esc_attr( (string) $item['quote_token'] ); ?>">
+									<?php $render_promotion( $item, 'two' ); ?>
 									<label class="dzn-booking__privacy"><input type="checkbox" name="instalments_opt_in" value="1" required> پرداخت در دو قسط را انتخاب می‌کنم و مبلغ و زمان‌بندی آن را پذیرفته‌ام.</label>
 									<?php if ( $attestation ) : ?>
 										<label class="dzn-booking__privacy"><input type="checkbox" name="adult_attested" value="1" required> تأیید می‌کنم هنرجو ۱۸ سال یا بیشتر دارد و می‌تواند این ثبت‌نام را بپذیرد.</label>

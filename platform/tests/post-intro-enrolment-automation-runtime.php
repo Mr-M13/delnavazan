@@ -1326,4 +1326,89 @@ $autoRepeat = (new MeetIntroAttendanceService())->settleClassroom($autoClassroom
 dzn_pia_assert(($autoRepeat['state'] ?? '') === 'already_recorded', 'a repeated automatic-attendance pass must not re-record the outcome');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_intro_outcomes WHERE booking_request_id=%d", (int) $autoBooking['request'])) === 1, 'a repeated automatic-attendance pass must keep one outcome');
 
+/* -------------------------------------------------------------------------------------------------
+ * M. The term payment step applies a Student discount code before any hosted Checkout exists.
+ * ------------------------------------------------------------------------------------------------- */
+$promotions = new \Delnavazan\Platform\Core\Application\CommercialPromotionService();
+wp_set_current_user($actor);
+dzn_pia_assert(user_can($actor, 'dzn_manage_commercial_promotions'), 'the runtime administrator must hold the promotion capability');
+$discountCode = 'RUNTIME10-' . strtoupper(substr($suffix, 0, 4));
+$promotion = $promotions->define(array(
+    'promotion_code' => $discountCode, 'kind' => 'percentage', 'percentage_bp' => 1000,
+    'per_beneficiary_limit' => 1, 'evidence_channel' => 'staff_record',
+    'evidence_reference' => 'runtime-discount-' . $suffix, 'evidence_at' => gmdate('Y-m-d H:i:s'),
+), dzn_pia_key('promotion'));
+dzn_pia_assert((int) ($promotion['promotion_id'] ?? 0) > 0, 'an administrator must be able to define the discount code');
+
+$discountBooking = $booking('discount', 2, '00:17:00');
+wp_set_current_user($teacherUser);
+$preparations->recordTeacherOutcome($discountBooking['confirmation'], $teacherId, 'delivered', 'Synthetic discount delivery');
+$discountPrep = $repository->preparationByBooking($discountBooking['request']);
+dzn_pia_assert($discountPrep !== null && (string) $discountPrep->state === 'prepared', 'discount preparation must be prepared, got ' . ($discountPrep ? (string) $discountPrep->state . ' (' . (string) ($discountPrep->exception_code ?? '') . ': ' . (string) ($discountPrep->exception_detail ?? '') . ')' : 'missing'));
+wp_set_current_user((int) $discountBooking['principal']);
+$discountQuote = (new PostIntroPlanQuoteService())->forPreparation($discountPrep, (int) $discountPrep->student_id);
+$discountCard = (new \Delnavazan\Platform\Portals\PostIntroStudentReadService())->forStudent((int) $discountBooking['student']);
+dzn_pia_assert(count($discountCard) === 1 && $discountCard[0]['promotion_eligible'] === true && $discountCard[0]['promotion_applied'] === false, 'the term payment card must offer the discount field before a code is applied');
+
+// A wrong code is refused safely and leaves the issued offer payable and unchanged.
+$discountRefusal = null;
+try {
+    $continuations->continue((string) $discountPrep->uid, true, 'full', (string) $discountQuote['quote_token'], false, 'NOT-A-REAL-CODE');
+} catch (Throwable $error) { $discountRefusal = $error; }
+dzn_pia_assert($discountRefusal !== null && $discountRefusal->getMessage() === 'post_intro_promotion_invalid', 'an unknown code must return the controlled invalid status, got ' . ($discountRefusal ? get_debug_type($discountRefusal) . ': ' . $discountRefusal->getMessage() : 'no exception'));
+$discountPrep = $repository->preparationByBooking($discountBooking['request']);
+$issuedDiscountOffer = $repository->offer((int) $discountPrep->offer_id);
+dzn_pia_assert($issuedDiscountOffer !== null && (string) $issuedDiscountOffer->state === 'issued' && $issuedDiscountOffer->promotion_id === null, 'a refused code must leave the issued offer payable and un-discounted');
+dzn_pia_assert((string) $discountPrep->state === 'checkout_pending', 'a refused code must keep the invitation actionable');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_offers WHERE continuation_case_id=%d", (int) $discountPrep->continuation_case_id)) === 1, 'a refused code must not create an offer revision');
+$retryCard = (new \Delnavazan\Platform\Portals\PostIntroStudentReadService())->forStudent((int) $discountBooking['student']);
+dzn_pia_assert(count($retryCard) === 1 && $retryCard[0]['promotion_eligible'] === true && $retryCard[0]['promotion_applied'] === false, 'a refused code must leave the discount field available for a retry');
+
+// The same Student submits the valid code: the issued snapshot is superseded, never edited.
+$discountAction = $continuations->continue((string) $discountPrep->uid, true, 'full', (string) $discountQuote['quote_token'], false, $discountCode);
+dzn_pia_assert(($discountAction['state'] ?? '') === 'checkout_pending', 'the discounted payment step must stay payable');
+$discountPrep = $repository->preparationByBooking($discountBooking['request']);
+$discountedOffer = $repository->offer((int) $discountPrep->offer_id);
+$discountedRows = (new CommercialAuthorityRepository())->offersForContinuation((int) $discountPrep->continuation_case_id);
+$supersededRows = array_values(array_filter($discountedRows, static fn(object $row): bool => (string) $row->state === 'superseded'));
+$expectedDiscount = \Delnavazan\Platform\Core\Application\CommercialMoney::percentage((int) $issuedDiscountOffer->base_amount_minor, 1000);
+dzn_pia_assert($discountedOffer !== null && (int) $discountedOffer->id !== (int) $issuedDiscountOffer->id, 'the discounted offer must be a new immutable revision');
+dzn_pia_assert((int) $discountedOffer->promotion_id === (int) $promotion['promotion_id'] && (int) $discountedOffer->promotion_amount_minor === $expectedDiscount, 'the live revision must snapshot the exact promotion and amount');
+dzn_pia_assert((int) $discountedOffer->amount_due_minor === (int) $issuedDiscountOffer->base_amount_minor - $expectedDiscount, 'the payable amount must be the canonical discounted amount');
+dzn_pia_assert((int) $discountedOffer->base_amount_minor === (int) $issuedDiscountOffer->base_amount_minor, 'discounting must not rewrite the base price');
+dzn_pia_assert(count($supersededRows) === 1 && (string) $supersededRows[0]->state === 'superseded', 'the original snapshot must become superseded history');
+dzn_pia_assert((int) $discountPrep->offer_id === (int) $discountedOffer->id && (string) $discountPrep->offer_uid === (string) $discountedOffer->uid, 'the preparation must follow the live discounted revision');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_promotion_redemptions WHERE promotion_id=%d", (int) $promotion['promotion_id'])) === 0, 'an unpaid discounted offer must not consume the code');
+
+// The card now reports the applied code and no longer offers another one.
+$discountCard = (new \Delnavazan\Platform\Portals\PostIntroStudentReadService())->forStudent((int) $discountBooking['student']);
+dzn_pia_assert(count($discountCard) === 1 && $discountCard[0]['promotion_applied'] === true && $discountCard[0]['promotion_eligible'] === false, 'the card must stop offering a code once the revision carries one');
+$discountedObligations = $repository->obligationsForOffer((int) $discountedOffer->id);
+dzn_pia_assert(count($discountedObligations) === 1 && (int) $discountedObligations[0]->amount_minor === (int) $discountedOffer->amount_due_minor, 'the discounted obligation must be the payable amount, not a client value');
+
+// A 100% code settles internally: the Student is enrolled without a provider Checkout or a charge.
+$freeCode = 'RUNTIMEFREE-' . strtoupper(substr($suffix, 0, 4));
+// Defining a code is an owner action; the preceding assertions left the Student principal current.
+wp_set_current_user($actor);
+$freePromotion = $promotions->define(array(
+    'promotion_code' => $freeCode, 'kind' => 'percentage', 'percentage_bp' => 10000,
+    'per_beneficiary_limit' => 1, 'evidence_channel' => 'staff_record',
+    'evidence_reference' => 'runtime-free-' . $suffix, 'evidence_at' => gmdate('Y-m-d H:i:s'),
+), dzn_pia_key('promotion-free'));
+$freeBooking = $booking('discount-free', 2, '01:47:00');
+wp_set_current_user($teacherUser);
+$preparations->recordTeacherOutcome($freeBooking['confirmation'], $teacherId, 'delivered', 'Synthetic full-discount delivery');
+$freePrep = $repository->preparationByBooking($freeBooking['request']);
+wp_set_current_user((int) $freeBooking['principal']);
+$freeQuote = (new PostIntroPlanQuoteService())->forPreparation($freePrep, (int) $freePrep->student_id);
+$freeAction = $continuations->continue((string) $freePrep->uid, true, 'full', (string) $freeQuote['quote_token'], false, $freeCode);
+dzn_pia_assert(($freeAction['state'] ?? '') === 'payment_received' && $freeAction['redirect_url'] === null, 'a fully discounted term must settle without a provider redirect');
+$freePrep = $repository->preparationByBooking($freeBooking['request']);
+dzn_pia_assert((string) $freePrep->state === 'payment_received', 'a fully discounted term must be recorded as paid');
+$freeOffer = $repository->offer((int) $freePrep->offer_id);
+dzn_pia_assert($freeOffer !== null && (int) $freeOffer->amount_due_minor === 0 && (int) $freeOffer->promotion_id === (int) $freePromotion['promotion_id'], 'the live revision must carry the full discount');
+$freeObligations = $repository->obligationsForOffer((int) $freeOffer->id);
+dzn_pia_assert(count($freeObligations) === 1 && (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}commercial_obligation_settlements WHERE obligation_id=%d", (int) $freeObligations[0]->id)) === 1, 'the zero-value obligation must have exactly one internal settlement');
+dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}post_intro_activation_jobs WHERE preparation_id=%d", (int) $freePrep->id)) === 1, 'the paid term must enqueue exactly one activation job');
+
 echo "Post-intro enrolment automation runtime passed\n";

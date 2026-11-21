@@ -105,7 +105,6 @@ $render_rows = static function ( array $rows, bool $archive = false ) use ( $lab
 							</form>
 						</details>
 					<?php endif; ?>
-					<?php if ( ! empty( $item['calendar_export_url'] ) ) : ?><a class="dzn-portal-text-action dzn-schedule-row__calendar" href="<?php echo esc_url( (string) $item['calendar_export_url'] ); ?>"><?php esc_html_e( 'افزودن به تقویم', 'delnavazan-theme' ); ?></a><?php endif; ?>
 				</div>
 			</div>
 		</li>

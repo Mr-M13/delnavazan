@@ -30,8 +30,8 @@ $readModels = $read($root . '/src/Portals/PortalReadModels.php');
 $assert(str_contains($readModels, 'assigned_teacher_display_reference') && str_contains($readModels, "'teacher_display_reference'"), 'Student canonical lesson projection must include its authorised teacher display reference.');
 $assert(str_contains($bridge, 'dzn_theme_platform_calendar_export_url')
     && str_contains($bridge, "'_wpnonce' => wp_create_nonce( \$action )"), 'Portal models must issue signed export URLs.');
-$assert(str_contains($student, "['calendar_export_url']") && !str_contains($student, 'dzn-calendar-dialog'), 'Student calendar action must be a real export, not the disabled placeholder dialog.');
-$assert(str_contains($teacherCalendar, "['calendar_export_url']") && str_contains($teacherClasses, "['calendar_export_url']"), 'Teacher calendar and class surfaces must expose the export action.');
+$assert(!str_contains($student, "['calendar_export_url']") && !str_contains($student, 'dzn-calendar-dialog'), 'Student surfaces must not expose a calendar export; the portal is the only entry.');
+$assert(!str_contains($teacherCalendar, "['calendar_export_url']") && !str_contains($teacherClasses, "['calendar_export_url']"), 'Teacher calendar and class surfaces must not expose a calendar export.');
 $assert(!str_contains($shell, "dzn_theme_portal_component( 'feedback'")
     && !str_contains($shell, "dzn_theme_portal_component( 'contact'"), 'Dead feedback and contact sections must not render.');
 $assert(!file_exists($theme . '/template-parts/portal/feedback.php')

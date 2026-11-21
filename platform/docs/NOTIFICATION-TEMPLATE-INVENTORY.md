@@ -161,12 +161,12 @@ exactly one APPROVED Utility row whose variable order matches the local contract
 | `delnavazan_reschedule_rejected_v2_fa` | `reschedule.change.rejected.student` | student | name, when, portal_url |
 | `delnavazan_class_access_v2_fa` | `lesson.access.student` | student | name, course, teacher, when, portal_url |
 | `delnavazan_payment_failed_student_fa` | `payment.failed.student` | student | name, course, amount, portal_url |
-| `delnavazan_refund_resolved_student_fa` | `refund.resolved.student` | student | name, amount, portal_url |
-| `delnavazan_refund_review_required_student_fa` | `refund.review_required.student` | student | name, amount, portal_url |
-| `delnavazan_renewal_automatic_charged_student_fa` | `renewal.automatic_charged.student` | student | name, course, amount, paid_date, portal_url |
-| `delnavazan_renewal_automatic_failed_student_fa` | `renewal.automatic_failed.student` | student | name, course, amount, due_date, portal_url |
-| `delnavazan_renewal_guarantee_deadline_approaching_student_fa` | `renewal.guarantee_deadline_approaching.student` | student | name, course, due_date, amount, portal_url |
-| `delnavazan_renewal_term_lapsed_student_fa` | `renewal.term_lapsed.student` | student | name, course, portal_url |
+| `delnavazan_refund_resolved_student_v2_fa` | `refund.resolved.student` | student | name, amount, portal_url |
+| `delnavazan_refund_review_required_student_v2_fa` | `refund.review_required.student` | student | name, amount, portal_url |
+| `delnavazan_renewal_automatic_charged_student_v2_fa` | `renewal.automatic_charged.student` | student | name, course, amount, paid_date, portal_url |
+| `delnavazan_renewal_automatic_failed_student_v2_fa` | `renewal.automatic_failed.student` | student | name, course, amount, due_date, portal_url |
+| `delnavazan_renewal_guarantee_deadline_approaching_student_v2_fa` | `renewal.guarantee_deadline_approaching.student` | student | name, course, due_date, amount, portal_url |
+| `delnavazan_renewal_term_lapsed_student_v2_fa` | `renewal.term_lapsed.student` | student | name, course, portal_url |
 | `delnavazan_reschedule_change_cancelled_student_fa` | `reschedule.change.cancelled.student` | student | name, portal_url |
 | `delnavazan_reschedule_change_cancelled_teacher_fa` | `reschedule.change.cancelled.teacher` | teacher | teacher, teacher_portal_url |
 | `delnavazan_reschedule_change_failed_student_fa` | `reschedule.change.failed.student` | student | name, portal_url |

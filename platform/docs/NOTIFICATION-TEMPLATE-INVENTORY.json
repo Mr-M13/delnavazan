@@ -1,5 +1,5 @@
 {
-    "generated_at": "2026-11-21T03:08:56+00:00",
+    "generated_at": "2026-11-21T05:53:45+00:00",
     "catalogue_version": "2026-11-19.3",
     "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
     "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
@@ -318,7 +318,7 @@
             ]
         },
         {
-            "provider_template": "delnavazan_refund_resolved_student_fa",
+            "provider_template": "delnavazan_refund_resolved_student_v2_fa",
             "event_key": "refund.resolved.student",
             "audience": "student",
             "variable_order": [
@@ -328,7 +328,7 @@
             ]
         },
         {
-            "provider_template": "delnavazan_refund_review_required_student_fa",
+            "provider_template": "delnavazan_refund_review_required_student_v2_fa",
             "event_key": "refund.review_required.student",
             "audience": "student",
             "variable_order": [
@@ -338,7 +338,7 @@
             ]
         },
         {
-            "provider_template": "delnavazan_renewal_automatic_charged_student_fa",
+            "provider_template": "delnavazan_renewal_automatic_charged_student_v2_fa",
             "event_key": "renewal.automatic_charged.student",
             "audience": "student",
             "variable_order": [
@@ -350,7 +350,7 @@
             ]
         },
         {
-            "provider_template": "delnavazan_renewal_automatic_failed_student_fa",
+            "provider_template": "delnavazan_renewal_automatic_failed_student_v2_fa",
             "event_key": "renewal.automatic_failed.student",
             "audience": "student",
             "variable_order": [
@@ -362,7 +362,7 @@
             ]
         },
         {
-            "provider_template": "delnavazan_renewal_guarantee_deadline_approaching_student_fa",
+            "provider_template": "delnavazan_renewal_guarantee_deadline_approaching_student_v2_fa",
             "event_key": "renewal.guarantee_deadline_approaching.student",
             "audience": "student",
             "variable_order": [
@@ -374,7 +374,7 @@
             ]
         },
         {
-            "provider_template": "delnavazan_renewal_term_lapsed_student_fa",
+            "provider_template": "delnavazan_renewal_term_lapsed_student_v2_fa",
             "event_key": "renewal.term_lapsed.student",
             "audience": "student",
             "variable_order": [
@@ -3653,7 +3653,7 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": "delnavazan_refund_resolved_student_fa",
+                "whatsapp_registry_name": "delnavazan_refund_resolved_student_v2_fa",
                 "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_registry_key": "account_referral",
                 "sms_state": "approved_template_mapped"
@@ -3720,7 +3720,7 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": "delnavazan_refund_review_required_student_fa",
+                "whatsapp_registry_name": "delnavazan_refund_review_required_student_v2_fa",
                 "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_registry_key": "account_referral",
                 "sms_state": "approved_template_mapped"
@@ -3787,7 +3787,7 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": "delnavazan_renewal_automatic_charged_student_fa",
+                "whatsapp_registry_name": "delnavazan_renewal_automatic_charged_student_v2_fa",
                 "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_registry_key": "account_referral",
                 "sms_state": "approved_template_mapped"
@@ -3854,7 +3854,7 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": "delnavazan_renewal_automatic_failed_student_fa",
+                "whatsapp_registry_name": "delnavazan_renewal_automatic_failed_student_v2_fa",
                 "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_registry_key": "account_referral",
                 "sms_state": "approved_template_mapped"
@@ -3988,7 +3988,7 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": "delnavazan_renewal_guarantee_deadline_approaching_student_fa",
+                "whatsapp_registry_name": "delnavazan_renewal_guarantee_deadline_approaching_student_v2_fa",
                 "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_registry_key": "account_referral",
                 "sms_state": "approved_template_mapped"
@@ -4189,7 +4189,7 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": "delnavazan_renewal_term_lapsed_student_fa",
+                "whatsapp_registry_name": "delnavazan_renewal_term_lapsed_student_v2_fa",
                 "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_registry_key": "account_referral",
                 "sms_state": "approved_template_mapped"

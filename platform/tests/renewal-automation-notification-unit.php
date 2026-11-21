@@ -65,12 +65,12 @@ namespace {
     /* (ii) Every WhatsApp route is registry-mapped and its variable order is a subset of the declared
      *       variables, so the dispatch-time provider mapping can never invent a parameter. */
     foreach (array(
-        'renewal.automatic_charged.student' => 'delnavazan_renewal_automatic_charged_student_fa',
-        'renewal.automatic_failed.student' => 'delnavazan_renewal_automatic_failed_student_fa',
+        'renewal.automatic_charged.student' => 'delnavazan_renewal_automatic_charged_student_v2_fa',
+        'renewal.automatic_failed.student' => 'delnavazan_renewal_automatic_failed_student_v2_fa',
         'renewal.automatic_upcoming.student' => 'delnavazan_renewal_reminder_v2_fa',
-        'renewal.guarantee_deadline_approaching.student' => 'delnavazan_renewal_guarantee_deadline_approaching_student_fa',
+        'renewal.guarantee_deadline_approaching.student' => 'delnavazan_renewal_guarantee_deadline_approaching_student_v2_fa',
         'renewal.manual_payment_required.student' => 'delnavazan_payment_due_v2_fa',
-        'renewal.term_lapsed.student' => 'delnavazan_renewal_term_lapsed_student_fa',
+        'renewal.term_lapsed.student' => 'delnavazan_renewal_term_lapsed_student_v2_fa',
     ) as $key => $templateName) {
         $definition = \Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry::definitionForName($templateName);
         $fail($key . ' is registry-mapped', $definition !== null && $definition['event_key'] === $key);

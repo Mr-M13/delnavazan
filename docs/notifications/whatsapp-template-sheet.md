@@ -29,14 +29,16 @@ Do not add credentials to the repository; the workflow reads them only from the 
 
 ## Versioned migration (2026-11-21)
 
-Fourteen templates predate the current variable contract. Meta does not allow the reviewed body to
-replace an existing approved template in place, so those names carry a `_v2` segment
-(for example `delnavazan_booking_confirmation_v2_fa`). The creation workflow treats them as missing
-and creates them; the 26 unchanged names are skipped. After the new names reach `APPROVED`:
+Twenty templates predate the current variable contract: fourteen booking/lesson/renewal templates
+in the first batch and six refund/renewal templates found by the post-creation discovery refresh.
+Meta does not allow the reviewed body to replace an existing approved template in place, so those
+names carry a `_v2` segment (for example `delnavazan_booking_confirmation_v2_fa`). The creation
+workflow treats them as missing and creates them; the 20 unchanged names are skipped. After the new
+names reach `APPROVED`:
 
 1. Refresh approved templates in **Integrations → WhatsApp**.
 2. Confirm the registry maps the `_v2` names and a controlled test succeeds.
-3. Delete the 14 superseded templates in Telnyx; they are no longer referenced by the registry.
+3. Delete the 20 superseded templates in Telnyx; they are no longer referenced by the registry.
 4. Re-record or remove any manual provider mapping that still names an old template.
 
 The old templates stay in the WABA until step 3, so they can be compared or used for a rollback
@@ -80,14 +82,14 @@ override: correct the provider template in Telnyx, wait for approval, then refre
 | `delnavazan_payment_failed_student_fa` | `payment.failed.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=amount, `{{4}}`=portal_url |
 | `delnavazan_payment_received_v2_fa` | `payment.recovered.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=amount, `{{4}}`=paid_date, `{{5}}`=portal_url |
 | `delnavazan_enrolment_confirmation_v2_fa` | `post_intro.activated.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=teacher, `{{4}}`=portal_url |
-| `delnavazan_refund_resolved_student_fa` | `refund.resolved.student` | student | `{{1}}`=name, `{{2}}`=amount, `{{3}}`=portal_url |
-| `delnavazan_refund_review_required_student_fa` | `refund.review_required.student` | student | `{{1}}`=name, `{{2}}`=amount, `{{3}}`=portal_url |
-| `delnavazan_renewal_automatic_charged_student_fa` | `renewal.automatic_charged.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=amount, `{{4}}`=paid_date, `{{5}}`=portal_url |
-| `delnavazan_renewal_automatic_failed_student_fa` | `renewal.automatic_failed.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=amount, `{{4}}`=due_date, `{{5}}`=portal_url |
+| `delnavazan_refund_resolved_student_v2_fa` | `refund.resolved.student` | student | `{{1}}`=name, `{{2}}`=amount, `{{3}}`=portal_url |
+| `delnavazan_refund_review_required_student_v2_fa` | `refund.review_required.student` | student | `{{1}}`=name, `{{2}}`=amount, `{{3}}`=portal_url |
+| `delnavazan_renewal_automatic_charged_student_v2_fa` | `renewal.automatic_charged.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=amount, `{{4}}`=paid_date, `{{5}}`=portal_url |
+| `delnavazan_renewal_automatic_failed_student_v2_fa` | `renewal.automatic_failed.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=amount, `{{4}}`=due_date, `{{5}}`=portal_url |
 | `delnavazan_renewal_reminder_v2_fa` | `renewal.automatic_upcoming.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=due_date, `{{4}}`=amount, `{{5}}`=portal_url |
-| `delnavazan_renewal_guarantee_deadline_approaching_student_fa` | `renewal.guarantee_deadline_approaching.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=due_date, `{{4}}`=amount, `{{5}}`=portal_url |
+| `delnavazan_renewal_guarantee_deadline_approaching_student_v2_fa` | `renewal.guarantee_deadline_approaching.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=due_date, `{{4}}`=amount, `{{5}}`=portal_url |
 | `delnavazan_payment_due_v2_fa` | `renewal.manual_payment_required.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=amount, `{{4}}`=due_date, `{{5}}`=portal_url |
-| `delnavazan_renewal_term_lapsed_student_fa` | `renewal.term_lapsed.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=portal_url |
+| `delnavazan_renewal_term_lapsed_student_v2_fa` | `renewal.term_lapsed.student` | student | `{{1}}`=name, `{{2}}`=course, `{{3}}`=portal_url |
 | `delnavazan_class_rescheduled_v2_fa` | `reschedule.change.accepted.student` | student | `{{1}}`=name, `{{2}}`=when, `{{3}}`=timezone, `{{4}}`=portal_url |
 | `delnavazan_teacher_schedule_change_v2_fa` | `reschedule.change.accepted.teacher` | teacher | `{{1}}`=teacher, `{{2}}`=when, `{{3}}`=timezone, `{{4}}`=teacher_portal_url |
 | `delnavazan_reschedule_change_cancelled_student_fa` | `reschedule.change.cancelled.student` | student | `{{1}}`=name, `{{2}}`=portal_url |

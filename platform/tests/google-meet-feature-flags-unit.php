@@ -35,6 +35,8 @@ try {
     $assert($report['classroom_enabled']['source'] === 'default', 'Provisioning default source is wrong.');
     $assert($report['auto_reconcile']['effective'] === false, 'Automatic reconciliation must default to disabled.');
     $assert($report['auto_reconcile']['source'] === 'default', 'Automatic reconciliation default source is wrong.');
+    $assert($report['calendar_attendees']['effective'] === false, 'Calendar attendees must default to disabled so the Meet link cannot bypass the portal.');
+    $assert($report['calendar_attendees']['source'] === 'default', 'Calendar attendees default source is wrong.');
 
     putenv('DZN_MEET_CLASSROOM_ENABLED=0');
     putenv('DZN_MEET_AUTO_RECONCILE=1');
@@ -51,6 +53,14 @@ try {
     $GLOBALS['dzn_test_options']['dzn_meet_auto_reconcile'] = '0';
     $report = Flags::report();
     $assert($report['auto_reconcile']['effective'] === false && $report['auto_reconcile']['source'] === 'application_option', 'Application option disablement is wrong.');
+
+    $GLOBALS['dzn_test_options']['dzn_meet_calendar_attendees'] = '1';
+    $report = Flags::report();
+    $assert($report['calendar_attendees']['effective'] === true && $report['calendar_attendees']['source'] === 'application_option', 'Calendar attendee enablement option is wrong.');
+
+    $GLOBALS['dzn_test_options']['dzn_meet_calendar_attendees'] = '0';
+    $report = Flags::report();
+    $assert($report['calendar_attendees']['effective'] === false && $report['calendar_attendees']['source'] === 'application_option', 'Calendar attendee disablement option is wrong.');
 } finally {
     $restore();
     unset($GLOBALS['dzn_test_options']);

@@ -94,12 +94,15 @@ final class GoogleWorkspaceWorker {
             }
 
             $repository=new GoogleWorkspaceRepository();
-            // 2. Converge Calendar reminder suppression for every upcoming classroom (lesson and
-            //    booking alike). One audited PATCH per classroom stops Google's default event
-            //    reminders from emailing guests and duplicating Delnavazan's own notifications.
+            // 2. Converge Calendar email suppression and participant removal for every upcoming
+            //    classroom (lesson and booking alike). One audited PATCH per classroom stops
+            //    Google's default event reminders from emailing guests and keeps the Meet link out
+            //    of the Teacher/Student calendars, so the authenticated portal is the only entry.
+            $classroomService=new GoogleWorkspaceClassroomService();
             foreach($repository->upcoming(25) as $classroom){
                 try{
-                    (new GoogleWorkspaceClassroomService())->suppressEventReminders((int)$classroom->id);
+                    $classroomService->suppressEventReminders((int)$classroom->id);
+                    $classroomService->detachCalendarAttendees((int)$classroom->id);
                 }catch(\Throwable $error){do_action('dzn_meet_configuration_failed',(int)$classroom->id,get_class($error));}
             }
             // 3. Re-evaluate consent and artifact configuration for soon-upcoming classrooms at most hourly.

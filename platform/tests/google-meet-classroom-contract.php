@@ -59,7 +59,8 @@ $check('new provisioning never asks Calendar to create a second conference', !st
 $check('space provenance and organizer identity are sealed', str_contains($service, 'space_origin') && str_contains($service, 'space_organizer'));
 $check('legacy Calendar-created spaces are replaced on the same event', str_contains($service, 'replaceLegacyCalendarSpace') && str_contains($service, 'replacement_event_reference') && str_contains($service, 'legacy_space_replaced'));
 $check('member operations use the exact app space name', str_contains($service, 'MeetCoHostRule::canManageMembers') && str_contains($service, "spaceName(\$name)"));
-$check('Teacher and Student are Calendar attendees', str_contains($service, 'attendanceEmails($facts)'));
+$check('participants are not added to the organizer Calendar event by default', str_contains($service, 'calendarAttendees()?$this->attendanceEmails($facts):array()') && str_contains($service, 'if($attendance!==array())$body[\'attendees\']=$attendance;'));
+$check('existing Calendar events converge to no participants', str_contains($service, 'detachCalendarAttendees') && str_contains($service, "'calendar_attendees_detached'") && str_contains($service, "'attendees'=>array()"));
 $check('Calendar projections do not send Google invitation or update emails', str_contains($api, 'sendUpdates=none') && !str_contains($api, 'sendUpdates=all'));
 $check('Calendar events disable Google reminder emails', str_contains($service, "'reminders'=>array('useDefault'=>false)") && substr_count($service, "'reminders'=>array('useDefault'=>false)") >= 5);
 $check('existing events converge to no reminders through an audited one-shot patch', str_contains($service, 'suppressEventReminders') && str_contains($service, "'reminders_suppressed'") && str_contains($service, "'reminders_failed'"));

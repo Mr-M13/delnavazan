@@ -13,6 +13,8 @@ final class GoogleWorkspaceFeatureFlags {
     public const CLASSROOM_ENABLED='DZN_MEET_CLASSROOM_ENABLED';
     public const AUTO_RECONCILE='DZN_MEET_AUTO_RECONCILE';
     public const AUTO_RECONCILE_OPTION='dzn_meet_auto_reconcile';
+    public const CALENDAR_ATTENDEES='DZN_MEET_CALENDAR_ATTENDEES';
+    public const CALENDAR_ATTENDEES_OPTION='dzn_meet_calendar_attendees';
 
     /** New provisioning is allowed unless explicitly paused. */
     public static function classroomEnabled():bool {
@@ -25,17 +27,29 @@ final class GoogleWorkspaceFeatureFlags {
     }
 
     /**
+     * Whether Teacher and Student are added as attendees of the organizer's Calendar event.
+     *
+     * Default off: the event stays on the organizer calendar only, so the Google Meet link cannot
+     * bypass the authenticated portal join window. The Teacher joins as the space COHOST and the
+     * Student joins through the portal, which is all recording and attendance need.
+     */
+    public static function calendarAttendees():bool {
+        return self::resolve(self::CALENDAR_ATTENDEES, false, true, self::CALENDAR_ATTENDEES_OPTION)['effective'];
+    }
+
+    /**
      * Read-only report for diagnostics and tests.
      *
      * `source` is one of `constant`, `environment`, `application_option` or `default`.
      * Raw values are intentionally omitted.
      *
-     * @return array{classroom_enabled:array{effective:bool,source:string},auto_reconcile:array{effective:bool,source:string}}
+     * @return array{classroom_enabled:array{effective:bool,source:string},auto_reconcile:array{effective:bool,source:string},calendar_attendees:array{effective:bool,source:string}}
      */
     public static function report():array {
         return array(
             'classroom_enabled'=>self::resolve(self::CLASSROOM_ENABLED, true, false, null),
             'auto_reconcile'=>self::resolve(self::AUTO_RECONCILE, false, true, self::AUTO_RECONCILE_OPTION),
+            'calendar_attendees'=>self::resolve(self::CALENDAR_ATTENDEES, false, true, self::CALENDAR_ATTENDEES_OPTION),
         );
     }
 

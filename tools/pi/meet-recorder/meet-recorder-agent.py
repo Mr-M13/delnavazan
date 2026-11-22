@@ -68,7 +68,11 @@ def log(message: str) -> None:
 
 def http_json(url: str, method: str = "GET", payload: dict | None = None, timeout: int = 20) -> dict:
     data = None
-    headers = {"Authorization": f"Bearer {TOKEN}", "Accept": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Accept": "application/json",
+        "User-Agent": "Delnavazan-Meet-Recorder/1.0",
+    }
     if payload is not None:
         data = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"

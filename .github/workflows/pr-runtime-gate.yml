@@ -458,6 +458,8 @@ jobs:
           bash -n deployment/qa/retire-imported-enrolment.sh
           bash deployment/qa/retire-imported-enrolment-contract.sh
           php deployment/qa/retire-imported-enrolment-unit.php
+          bash -n deployment/qa/intro-preflight-diagnostic.sh
+          bash deployment/qa/intro-preflight-diagnostic-contract.sh
           bash deployment/qa/backup-rollback-contract.sh
           bash -n deployment/qa/install-host-tooling-contract.sh
           bash deployment/qa/install-host-tooling-contract.sh

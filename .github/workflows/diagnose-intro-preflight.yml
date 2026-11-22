@@ -1,0 +1,152 @@
+name: Diagnose intro preflight
+
+# Read-only diagnostic for the admin "Create intro" action.
+#
+# A failed manual intro creation shows only an opaque EWI reference, and the
+# host keeps no readable PHP error log for that path, so the operator cannot
+# see which precondition refused. This workflow runs the same services the
+# action uses and prints each check with the exact exception.
+#
+# It writes nothing: no backup, no confirm token, no attestation, no provider
+# call and no notification.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full 40-char SHA of the reviewed diagnostic on main
+        type: string
+        required: true
+      commit_sha:
+        description: Full 40-char SHA of the build currently deployed to production
+        type: string
+        required: true
+      student_reference:
+        description: Student record reference (for example DZN-STU-000017)
+        type: string
+        required: true
+      teacher_id:
+        description: Teacher id to test
+        type: string
+        required: true
+      course_id:
+        description: Introductory Course id to test
+        type: string
+        required: true
+      local_date:
+        description: Local date (YYYY-MM-DD)
+        type: string
+        required: true
+      local_time:
+        description: Local start time (HH:MM)
+        type: string
+        required: true
+      timezone:
+        description: IANA timezone for that local time
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: delnavazan-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    name: Diagnose one intro pre-flight
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - name: Require dispatch from main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this diagnostic from main only.' >&2; exit 1; }
+
+      - name: Check out the reviewed diagnostic source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate source and target
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          STUDENT_REFERENCE: ${{ inputs.student_reference }}
+          TEACHER_ID: ${{ inputs.teacher_id }}
+          COURSE_ID: ${{ inputs.course_id }}
+          LOCAL_DATE: ${{ inputs.local_date }}
+          LOCAL_TIME: ${{ inputs.local_time }}
+          TIMEZONE: ${{ inputs.timezone }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character reviewed source SHA.' >&2; exit 1; }
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character deployed SHA.' >&2; exit 1; }
+          [[ "$STUDENT_REFERENCE" =~ ^DZN-STU-[A-Z0-9]+$ ]] || { echo 'Provide the student record reference (DZN-STU-...).' >&2; exit 1; }
+          [[ "$TEACHER_ID" =~ ^[0-9]+$ && "$COURSE_ID" =~ ^[0-9]+$ ]] || { echo 'Teacher and Course ids must be numeric.' >&2; exit 1; }
+          [[ "$LOCAL_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo 'Local date must be YYYY-MM-DD.' >&2; exit 1; }
+          [[ "$LOCAL_TIME" =~ ^[0-9]{2}:[0-9]{2}$ ]] || { echo 'Local time must be HH:MM.' >&2; exit 1; }
+          [[ -n "$TIMEZONE" ]] || { echo 'Provide an IANA timezone.' >&2; exit 1; }
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/main \
+            || { echo 'The reviewed source SHA must be a commit on main.' >&2; exit 1; }
+          git merge-base --is-ancestor "$COMMIT_SHA" origin/main \
+            || { echo 'The deployed SHA must be a commit on main.' >&2; exit 1; }
+          bash deployment/qa/intro-preflight-diagnostic-contract.sh
+
+      - name: Configure pinned production SSH access
+        shell: bash
+        env:
+          PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          PRODUCTION_KNOWN_HOSTS: ${{ secrets.PRODUCTION_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_PRIVATE_KEY" && -n "$PRODUCTION_KNOWN_HOSTS" ]] || { echo 'Production SSH secrets are not configured in the protected environment.' >&2; exit 1; }
+          grep -Eq '^cp119\.hosting-cloud\.net[[:space:]]+ssh-(ed25519|rsa|ecdsa)' <<<"$PRODUCTION_KNOWN_HOSTS" || { echo 'Known-hosts secret must pin cp119.hosting-cloud.net.' >&2; exit 1; }
+          install -m 700 -d "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_production" >/dev/null
+          cat >> "$HOME/.ssh/config" <<'EOF'
+          Host cp119.hosting-cloud.net
+            UserKnownHostsFile ~/.ssh/known_hosts
+            StrictHostKeyChecking yes
+            IdentityFile ~/.ssh/id_production
+            IdentitiesOnly yes
+            BatchMode yes
+          EOF
+          chmod 600 "$HOME/.ssh/config"
+
+      - name: Run the read-only diagnostic
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          STUDENT_REFERENCE: ${{ inputs.student_reference }}
+          TEACHER_ID: ${{ inputs.teacher_id }}
+          COURSE_ID: ${{ inputs.course_id }}
+          LOCAL_DATE: ${{ inputs.local_date }}
+          LOCAL_TIME: ${{ inputs.local_time }}
+          TIMEZONE: ${{ inputs.timezone }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
+          bash deployment/qa/intro-preflight-diagnostic.sh "$COMMIT_SHA" "$STUDENT_REFERENCE" "$TEACHER_ID" "$COURSE_ID" "$LOCAL_DATE" "$LOCAL_TIME" "$TIMEZONE" \
+            | tee "$RUNNER_TEMP/intro-preflight-diagnostic.json"
+          jq -e '.ok == true and .read_only == true' "$RUNNER_TEMP/intro-preflight-diagnostic.json" >/dev/null
+
+      - name: Preserve diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-intro-preflight-${{ inputs.commit_sha }}
+          path: ${{ runner.temp }}/intro-preflight-diagnostic.json
+          if-no-files-found: warn
+          retention-days: 30

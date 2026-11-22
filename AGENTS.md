@@ -252,6 +252,14 @@ is optional strict parity. Docker is required only for the runtime suites.
   `bash deployment/qa/retire-imported-enrolment-contract.sh`, and the pure decision unit harness,
   `php deployment/qa/retire-imported-enrolment-unit.php`, run in the PR gate's production-tooling
   step. A session never runs the execute mode directly.
+- **Intro pre-flight diagnostic:** a failed admin "Create intro" shows only an opaque
+  `EWI-…` reference and the host keeps no readable PHP error log for it, so
+  `deployment/qa/intro-preflight-diagnostic.sh` runs the same read-only pre-flight on the host
+  and prints each check with the exact exception. It writes nothing, takes no backup, needs no
+  confirm token and no attestation, and is dispatched only through the protected
+  workflow-dispatch-only `diagnose-intro-preflight.yml` from `main`. Its offline source contract,
+  `bash deployment/qa/intro-preflight-diagnostic-contract.sh`, runs in the PR gate's
+  production-tooling step.
 - **Backup and rollback tooling:** `deployment/qa/backup-point.sh` takes one verified production
   rollback point on the host — a gzip + SHA-256 database export, a `public_html` archive without
   `wp-content/cache`, and a manifest recording the `main-<12 SHA>` build identity and

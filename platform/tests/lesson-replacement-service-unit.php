@@ -196,8 +196,10 @@ namespace {
     // Jalali input remains the Teacher's chosen presentation calendar.
     if (class_exists('IntlCalendar')) {
         // Derive the Jalali input from a future instant: a fixed Jalali date is a date bomb that
-        // starts failing the moment it passes (1405/09/01 = 2026-11-22 did).
-        $jalaliSeedDate = new DateTimeImmutable('+30 days', new DateTimeZone('Asia/Tehran'));
+        // starts failing the moment it passes (1405/09/01 = 2026-11-22 did). The offset must stay
+        // well inside LessonRescheduleService::MAX_HORIZON_DAYS (30); a seed at +30 days puts the
+        // 18:30 local start past the horizon on the same day and fails as reschedule_horizon_exceeded.
+        $jalaliSeedDate = new DateTimeImmutable('+7 days', new DateTimeZone('Asia/Tehran'));
         $jalaliSeed = IntlCalendar::createInstance(new DateTimeZone('Asia/Tehran'), 'fa_IR@calendar=persian');
         $jalaliSeed->setTime(((int) $jalaliSeedDate->format('U')) * 1000);
         $jalaliYear = (int) $jalaliSeed->get(IntlCalendar::FIELD_YEAR);

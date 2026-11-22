@@ -231,4 +231,18 @@ final class GoogleWorkspaceClassroomRule {
         $configured=defined('DZN_MEET_ACCESS_TYPE')?strtoupper(trim((string)constant('DZN_MEET_ACCESS_TYPE'))):'OPEN';
         return in_array($configured,array('OPEN','TRUSTED','RESTRICTED'),true)?$configured:'OPEN';
     }
+
+    /**
+     * The space's moderation policy.
+     *
+     * Moderation ON holds every participant who is not a space co-host in a waiting room until
+     * somebody admits them. The Meet link is reachable only through the authenticated portal now, so
+     * the link itself is the boundary and a waiting room mostly strands a class whose co-host has not
+     * joined yet. Moderation is therefore OFF unless the operator pins it back with
+     * `define('DZN_MEET_SPACE_MODERATION', 'ON')`.
+     */
+    public static function moderation():string {
+        $configured=defined('DZN_MEET_SPACE_MODERATION')?strtoupper(trim((string)constant('DZN_MEET_SPACE_MODERATION'))):'OFF';
+        return in_array($configured,array('ON','OFF'),true)?$configured:'OFF';
+    }
 }

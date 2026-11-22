@@ -270,7 +270,7 @@ namespace {
     }
     $assert($patchIndex !== null && $memberIndex !== null && $patchIndex < $memberIndex, 'Moderation and access must be configured before COHOST assignment.');
     $patch = $api->calls[$patchIndex];
-    $assert(($patch[2]['config']['moderation'] ?? '') === 'ON', 'Moderation must be explicitly ON for co-host management.');
+    $assert(($patch[2]['config']['moderation'] ?? '') === \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomRule::moderation(), 'Moderation must come from the documented rule, not an inline value.');
     $assert(($patch[2]['config']['artifactConfig']['recordingConfig']['autoRecordingGeneration'] ?? '') === 'ON', 'A booking must enable automatic recording by default.');
     $refs = $repo->referenceRow->references;
     $assert(($refs['space_origin'] ?? '') === 'app' && ($refs['space_name'] ?? '') === 'spaces/AppSpace_123', 'The sealed reference must record the app-owned exact space.');

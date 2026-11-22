@@ -478,6 +478,7 @@ final class GoogleWorkspaceClassroomService {
         $space=$this->spaceFor($references,$classroom);
         $response=$this->api->patchSpace($space,array('config'=>array(
             'accessType'=>GoogleWorkspaceClassroomRule::accessType(),
+            'moderation'=>GoogleWorkspaceClassroomRule::moderation(),
             'artifactConfig'=>array('recordingConfig'=>array('autoRecordingGeneration'=>!empty($eligibility['eligible'])?'ON':'OFF')),
         )));
         $now=gmdate('Y-m-d H:i:s');
@@ -499,6 +500,35 @@ final class GoogleWorkspaceClassroomService {
         ),array('id'=>$classroomId));
         $this->audit($classroomId,'update',!empty($eligibility['eligible'])?'recording_enabled':'recording_disabled',$eligibility['reason']??null,$response);
         return array('updated'=>true,'recording_state'=>!empty($eligibility['eligible'])?'configured':'disabled','eligibility'=>$eligibility);
+    }
+
+    /**
+     * Converge the join policy of a classroom that has no Lesson to sync (a booking confirmation).
+     *
+     * Booking spaces are provisioned ahead of the intro class, so one created before the moderation
+     * default changed would otherwise keep its waiting room. Runs at most hourly per classroom: a
+     * successful convergence refreshes `updated_at`, which the worker uses as its guard.
+     */
+    public function syncSpaceAccess(int $classroomId):array{
+        $classroom=$this->repository->classroom($classroomId);
+        if(!$classroom)return array('updated'=>false,'reason'=>'classroom_not_found');
+        if(!MeetCoHostRule::isReady((string)$classroom->classroom_state,(string)$classroom->cohost_state)){
+            return array('updated'=>false,'reason'=>'classroom_not_ready');
+        }
+        $references=$this->openReferences($classroom);
+        if($references===null)return array('updated'=>false,'reason'=>'reference_unavailable');
+        $space=$this->spaceFor($references,$classroom);
+        $response=$this->api->patchSpace($space,array('config'=>array(
+            'accessType'=>GoogleWorkspaceClassroomRule::accessType(),
+            'moderation'=>GoogleWorkspaceClassroomRule::moderation(),
+        )),'config.accessType,config.moderation');
+        if($response['status']<200||$response['status']>=300){
+            $this->audit($classroomId,'update','space_access_failed',$this->providerDetail($response),$response);
+            return array('updated'=>false,'reason'=>'meet_space_access_failed','response_status'=>$response['status'],'error_class'=>$response['error_class']??null);
+        }
+        $this->repository->updateClassroom($classroomId,array('updated_at'=>gmdate('Y-m-d H:i:s'),'updated_by'=>0),array('id'=>$classroomId));
+        $this->audit($classroomId,'update','space_access_converged',null,$response);
+        return array('updated'=>true,'moderation'=>GoogleWorkspaceClassroomRule::moderation(),'access_type'=>GoogleWorkspaceClassroomRule::accessType());
     }
 
     /**
@@ -595,12 +625,12 @@ final class GoogleWorkspaceClassroomService {
         }
         $space=$this->spaceFor($references,$classroom);
         $recordingOn=!empty($eligibility['eligible']);
-        // Configure moderation and access before assigning the co-host. A space is only useful when
-        // the teacher can join without knocking, and moderation is the feature that enables co-hosts
-        // to co-manage the call. This also proves the space is writable by the organizer grant.
+        // Configure access and moderation before assigning the co-host. Moderation is OFF unless the
+        // operator pins it (see GoogleWorkspaceClassroomRule::moderation): a waiting room with no
+        // host present strands the class, and the portal is the only source of the Meet link.
         $configResponse=$this->api->patchSpace($space,array('config'=>array(
             'accessType'=>GoogleWorkspaceClassroomRule::accessType(),
-            'moderation'=>'ON',
+            'moderation'=>GoogleWorkspaceClassroomRule::moderation(),
             'artifactConfig'=>array('recordingConfig'=>array('autoRecordingGeneration'=>$recordingOn?'ON':'OFF')),
         )),'config.accessType,config.moderation,config.artifactConfig.recordingConfig.autoRecordingGeneration');
         if($configResponse['status']<200||$configResponse['status']>=300){

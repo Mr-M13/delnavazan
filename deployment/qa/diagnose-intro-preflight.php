@@ -110,6 +110,22 @@ $report = array(
 	'facts'     => array(),
 );
 
+
+// A standard Course cannot carry an introductory booking. If the caller pointed at one,
+// resolve the active introductory Course for the same instrument so the diagnostic still
+// reaches the real pre-flight instead of stopping at the Course-type check.
+if ( $course && (string) $course->course_type !== 'introductory' ) {
+	$resolved = $wpdb->get_row( $wpdb->prepare(
+		"SELECT * FROM {$wpdb->prefix}dzn_courses WHERE instrument_id=%d AND course_type='introductory' AND status='active' AND archived_at IS NULL ORDER BY id ASC LIMIT 1",
+		(int) ( $course->instrument_id ?? 0 )
+	) );
+	$report['facts']['course_id_supplied'] = (int) $course->id;
+	$report['facts']['course_type_supplied'] = (string) $course->course_type;
+	if ( $resolved ) {
+		$course = $resolved;
+		$report['facts']['course_id_resolved'] = (int) $course->id;
+	}
+}
 if ( ! $student || ! $teacher || ! $course ) {
 	$report['ok'] = false;
 	$report['error'] = 'target_not_found';

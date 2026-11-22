@@ -28,6 +28,8 @@ $lifecycle = $read('src/Core/Application/IntroLessonLifecycleService.php');
 $portalController = $read('src/Portals/IntroLessonLifecycleController.php');
 $match = $read('src/Core/Application/AdministratorBookingMatchService.php');
 $adminIntro = $read('src/Core/Application/AdministratorIntroBookingService.php');
+$scheduleService = $read('src/Core/Application/LessonScheduleService.php');
+$preparation = $read('src/Core/Application/PostIntroPreparationService.php');
 $worker = $read('src/Integrations/BookingStudentNotificationWorker.php');
 $studentSchedule = $read('theme/template-parts/portal/schedule.php');
 $teacherClasses = $read('theme/template-parts/teacher-portal/classes.php');
@@ -89,6 +91,26 @@ $contains($controller, array(
     "private static function introFormValues",
 ), 'Create errors must preserve the form and return focus to it instead of the page top');
 $contains($view, array('dzn-intro-form-error', 'Introductory lesson was not created.'), 'Create errors must render inside the form');
+$contains($controller, array(
+    "case 'intro_administrative_completion':",
+    "requireCap('dzn_manage_post_intro_automation')",
+    "if (empty(\$post['acknowledge']))",
+    "recordAdministrativeCompletion(\$requestId",
+    "BookingCalendarProjectionService())->cancel((int) \$completionConfirmation->id)",
+), 'The administrator must be able to record the introductory stage as completed and start the continuation');
+$contains($view, array(
+    "formStart('intro_administrative_completion'",
+    'Record the introductory stage as completed',
+    'agreed to skip the introduction',
+), 'The administrative completion must be an explicit, acknowledged admin action');
+$contains($scheduleService, array(
+    "empty(\$input['administrative_completion'])",
+), 'A future confirmed occurrence may only be recorded through the explicit administrative completion flag');
+$contains($preparation, array(
+    "(string) \$outcome->source === 'administrator_completion'",
+    "'administrative_completion' => \$administrative",
+), 'The administrative path must be the only caller that bypasses the finished-occurrence guard');
+
 $contains($controller, array(
     "'student_slot_conflict' => 'The Student already has an overlapping booking or class.",
     "'student_instrument_already_enrolled' =>",

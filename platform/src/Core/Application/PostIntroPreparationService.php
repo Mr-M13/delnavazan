@@ -236,7 +236,8 @@ final class PostIntroPreparationService {
             ));
 
             try {
-                $preparation = PostIntroSystemActor::run(fn() => $this->advance($preparation, $confirmation));
+                $administrativeCompletion = (string) $outcome->source === 'administrator_completion';
+                $preparation = PostIntroSystemActor::run(fn() => $this->advance($preparation, $confirmation, $administrativeCompletion));
                 return array('preparation_id' => (int) $preparation->id, 'state' => (string) $preparation->state, 'created' => false);
             } catch (\Throwable $error) {
                 $code = $this->controlledCode($error);
@@ -271,7 +272,7 @@ final class PostIntroPreparationService {
         return $this->prepare((int) $preparation->outcome_id);
     }
 
-    private function advance(object $preparation, object $confirmation): object {
+    private function advance(object $preparation, object $confirmation, bool $administrative = false): object {
         $repository = $this->repository;
         $now = gmdate('Y-m-d H:i:s');
         $prepId = (int) $preparation->id;
@@ -320,6 +321,7 @@ final class PostIntroPreparationService {
         $schedule = $repository->currentScheduleVersion((int) $lesson->id);
         if (!$schedule) {
             (new LessonScheduleService())->recordConfirmedBookingOccurrence((int) $lesson->id, array(
+                'administrative_completion' => $administrative,
                 'booking_request_id' => $bookingId,
                 'starts_at_utc' => (string) $confirmation->starts_at_utc,
                 'ends_at_utc' => (string) $confirmation->ends_at_utc,

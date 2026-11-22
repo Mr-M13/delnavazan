@@ -1007,6 +1007,13 @@ final class EnrolmentWorkspaceView {
         echo '<p><label>Reason<select name="reason_code"><option value="duplicate_request">Duplicate request</option><option value="student_requested">Student requested</option><option value="teacher_requested">Teacher requested</option><option value="operational_change">Operational change</option></select></label></p>';
         echo '<button class="button" onclick="return confirm(\'Cancel this introductory lesson? The case and its history remain.\')">Cancel introductory lesson</button></form>';
         echo '</div></details>';
+        echo '<details class="dzn-action-panel dzn-action-panel--danger"><summary><strong>Record the introductory stage as completed</strong><br><small>Administrator action. Starts the normal continuation and payment invitation without holding an introductory class.</small></summary><div class="dzn-action-panel__body">';
+        echo '<p class="dzn-inline-note"><strong>This records the introductory outcome as delivered, attributed to your administrator account.</strong> The class is not taught and no attendance is claimed. Use it only when the Teacher and the Student/guardian already agreed to start the term without an introduction, for example a returning Student after a term break. A future provider event is retracted. No class exists until the continuation payment is verified.</p>';
+        self::formStart('intro_administrative_completion', array('request_id' => (int) $case['id']));
+        echo '<p><label>Evidence note<textarea name="note" rows="3" maxlength="500" required placeholder="Who agreed, how, and when"></textarea></label></p>';
+        echo '<p><label><input type="checkbox" name="acknowledge" value="1" required> I confirm the Teacher and the Student/guardian agreed to skip the introduction.</label></p>';
+        echo '<button class="button" onclick="return confirm(\'Record the introductory stage as completed? This starts the continuation payment workflow.\')">Record as completed</button></form>';
+        echo '</div></details>';
     }
 
     /** @param array<string,mixed> $case */

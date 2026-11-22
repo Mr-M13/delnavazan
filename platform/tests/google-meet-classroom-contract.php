@@ -69,7 +69,10 @@ $check('Teacher is assigned COHOST', str_contains($service, "createMember(\$spac
 $check('co-host refusal reports the exact provider response', str_contains($service, "'meet_cohost_assignment_refused'") && str_contains($service, "'response'=>\$response"));
 $check('co-host membership is explicitly verified', str_contains($service, 'verifyCoHostMember') && str_contains($service, "'cohost_verified'"));
 $check('failed co-host assignment blocks readiness', str_contains($service, "MeetCoHostRule::BLOCKED") && str_contains($service, "'classroom_state'=>\$retryable?'provisioning':'blocked'"));
-$check('no silent moderation downgrade exists', !str_contains($service, "'fallback_mode'=>'participant_with_moderation_off'") && !str_contains($service, "'moderation'=>'OFF'"));
+$check('moderation comes from the documented rule, never an inline literal', !str_contains($service, "'fallback_mode'=>'participant_with_moderation_off'") && !str_contains($service, "'moderation'=>'OFF'") && !str_contains($service, "'moderation'=>'ON'") && str_contains($service, 'GoogleWorkspaceClassroomRule::moderation()') && str_contains($service, 'syncSpaceAccess'));
+require_once dirname(__DIR__) . '/src/Integrations/GoogleWorkspace/GoogleWorkspaceClassroomRule.php';
+$check('spaces default to join-without-waiting-room', \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomRule::moderation() === 'OFF');
+$check('the runbook explains the waiting-room default and how to restore it', str_contains($read('docs/MEET-RECORDING-RUNBOOK.md'), 'DZN_MEET_SPACE_MODERATION') && str_contains($read('docs/MEET-RECORDING-RUNBOOK.md'), 'Waiting room and join policy'));
 $check('temporary co-host failures retry with bounded backoff', str_contains($service, 'MeetCoHostRule::retryDelaySeconds'));
 $check('administrator exception is explicit and audited', str_contains($service, 'approveCoHostException') && str_contains($service, 'cohost_exception_reason'));
 $check('organizer absence is supported by OPEN access', str_contains($rule, "return in_array(\$configured,array('OPEN','TRUSTED','RESTRICTED'),true)?\$configured:'OPEN';"));
@@ -109,7 +112,7 @@ $check('recording service repository calls resolve to real methods' . ($missingR
 $runbook = $read('docs/MEET-RECORDING-RUNBOOK.md');
 $check('the Meet recording runbook documents provider-side causes and platform alerts', str_contains($runbook, 'recording_stopped_while_participants_remained') && str_contains($runbook, 'Let users record their meetings') && str_contains($runbook, 'recording_missing'));
 $check('the Meet recording runbook documents the web-join requirement and the confirmed case', str_contains($runbook, 'Failed to initialise') && str_contains($runbook, 'joined from a **phone**') && str_contains($runbook, 'Meet quality tool'));
-$check('the Meet recording runbook documents the mobile recording matrix', str_contains($runbook, 'Android Meet app') && str_contains($runbook, 'iPhone / iPad') && str_contains($runbook, 'Start recording') && str_contains($runbook, 'Do not turn off moderation'));
+$check('the Meet recording runbook documents the mobile recording matrix', str_contains($runbook, 'Android Meet app') && str_contains($runbook, 'iPhone / iPad') && str_contains($runbook, 'Start recording') && str_contains($runbook, 'non-moderated meetings'));
 
 $playback = $read('platform/src/Integrations/GoogleWorkspace/MeetRecordingPlaybackController.php');
 $check('playback is authenticated', str_contains($playback, 'is_user_logged_in()'));

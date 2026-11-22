@@ -93,6 +93,10 @@ $contains($preparation, array(
 ), 'preparation must reuse the canonical authorities');
 $assert(str_contains($repository, 'canonical_continuation_slot_authorities'), 'the preparation must read the persisted slot authority');
 $assert(str_contains($preparation, 'assertSlotAvailable') && str_contains($preparation, "'teacher_unavailable'"), 'the committed slot must be covered by published Teacher availability');
+$resolvePos = strpos($preparation, 'CanonicalContinuationRule::resolveWallClock');
+$recordSlotPos = strpos($preparation, 'recordFirstRegularSlot');
+$availabilityPos = strpos($preparation, 'assertSlotAvailable');
+$assert($resolvePos !== false && $recordSlotPos !== false && $availabilityPos !== false && $resolvePos < $recordSlotPos && $availabilityPos < $recordSlotPos, 'availability must be proved before the slot authority and continuation hold are written');
 $assert(str_contains($preparation, 'ELIGIBLE_FROM') && str_contains($preparation, 'intro_outcome_outside_window'), 'historical intros must not enter the automation queue');
 $assert(str_contains($preparation, 'ManualAttendanceWindowRule::open') && str_contains($preparation, 'manual_attendance_window_expired'), 'a Teacher-owned intro outcome must be bounded by the seven-day manual window');
 $assert(str_contains($repository, 'ManualAttendanceWindowRule::DAYS') && str_contains($repository, 'recentRecordedOutcomesForTeacher'), 'the Teacher queue must respect the window and expose recently recorded outcomes');

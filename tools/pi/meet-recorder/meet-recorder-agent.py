@@ -12,7 +12,7 @@ Configuration (environment, normally /etc/dzn-meet-recorder.env):
   DZN_RECORDER_TOKEN    shared bearer token set by the platform operator
   DZN_CDP_URL           http://127.0.0.1:9222
   DZN_POLL_SECONDS      5
-  DZN_JOIN_TIMEOUT      30
+  DZN_JOIN_TIMEOUT      75
   DZN_LEAVE_AFTER       120   seconds to stay in the call before leaving
 """
 
@@ -36,7 +36,8 @@ BASE_URL = os.environ.get("DZN_BASE_URL", "https://delnavazan.com").rstrip("/")
 TOKEN = os.environ.get("DZN_RECORDER_TOKEN", "").strip()
 CDP_URL = os.environ.get("DZN_CDP_URL", "http://127.0.0.1:9222").rstrip("/")
 POLL_SECONDS = max(2, int(os.environ.get("DZN_POLL_SECONDS", "5")))
-JOIN_TIMEOUT = max(10, int(os.environ.get("DZN_JOIN_TIMEOUT", "30")))
+JOIN_TIMEOUT = max(10, int(os.environ.get("DZN_JOIN_TIMEOUT", "75")))
+RETRY_CLICK_AFTER = 10
 LEAVE_AFTER = max(30, int(os.environ.get("DZN_LEAVE_AFTER", "120")))
 API = f"{BASE_URL}/wp-json/delnavazan-platform/v1/meet/recorder"
 NEXT_URL = f"{BASE_URL}/wp-json/delnavazan-platform/v1/meet/recorder/next"
@@ -202,6 +203,23 @@ CONFIRM_LEAVE_JS = """(() => {
   return 'left';
 })()"""
 
+# Meet shows "no camera/microphone" and "join anyway" prompts on a headless Raspberry Pi.
+DISMISS_JS = """(() => {
+  const exact = ['ok', 'got it', 'dismiss', 'join anyway'];
+  const phrases = ['continue without', 'without a microphone', 'without a camera'];
+  const buttons = [...document.querySelectorAll('button, [role="button"]')];
+  let clicked = 0;
+  for (const b of buttons) {
+    const text = (b.textContent || '').trim().toLowerCase();
+    if (!text.length || text.length > 40) continue;
+    if (exact.includes(text) || phrases.some((w) => text.includes(w))) {
+      b.click();
+      clicked += 1;
+    }
+  }
+  return clicked;
+})()"""
+
 
 def open_target(join_uri: str) -> tuple[str, str]:
     control = Cdp(browser_socket())
@@ -216,15 +234,20 @@ def open_target(join_uri: str) -> tuple[str, str]:
 
 
 def join_call(page: Cdp) -> bool:
-    """Click Join once it appears and confirm the in-call UI, whichever comes first."""
+    """Click Join when it appears, retry a swallowed click, and confirm the in-call UI."""
     deadline = time.time() + JOIN_TIMEOUT
-    clicked = False
+    clicks = 0
+    clicked_at = 0.0
     while time.time() < deadline:
         try:
             if page.evaluate(IN_CALL_JS) == "incall":
                 return True
-            if not clicked and page.evaluate(JOIN_JS) == "clicked":
-                clicked = True
+            page.evaluate(DISMISS_JS)
+            if clicks < 3 and (clicks == 0 or time.time() - clicked_at > RETRY_CLICK_AFTER):
+                if page.evaluate(JOIN_JS) == "clicked":
+                    clicks += 1
+                    clicked_at = time.time()
+                    log(f"clicked join ({clicks})")
         except Exception:
             pass
         time.sleep(1.0)
@@ -278,6 +301,7 @@ def process(job: dict) -> None:
         return
     target_id = ""
     try:
+        close_stale_meet_tabs()
         target_id, socket_url = open_target(join_uri)
         page = Cdp(socket_url)
         try:
@@ -289,6 +313,7 @@ def process(job: dict) -> None:
             time.sleep(LEAVE_AFTER)
             leave_call(page)
             log(f"left classroom {classroom_id}")
+            report(job, "left", "recorder_left_call")
         finally:
             page.close()
     except Exception as error:

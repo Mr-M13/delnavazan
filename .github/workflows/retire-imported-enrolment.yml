@@ -1,0 +1,208 @@
+name: Retire imported enrolment
+
+# Guarded retirement of one imported legacy Enrolment.
+#
+# The historical-course import has no compensating action: its lessons are
+# created through the schedule authority and become `scheduled`, so the generic
+# archive path refuses them and no legacy cancel action exists. When an import
+# was made for a Student who should instead flow through the paid continuation
+# path, this command archives the imported lessons, Term and Enrolment and
+# records one audit event. It never deletes rows.
+#
+# It is deliberately narrow:
+#   - workflow_dispatch only, from main;
+#   - runs in the protected `production` environment;
+#   - serialized with the deploy workflow;
+#   - bound to a reviewed source SHA and the exact deployed build SHA;
+#   - reuses the protected attestation secret;
+#   - takes and verifies a full database export before archiving;
+#   - report mode is read-only and returns the fingerprint execute must match;
+#   - refuses anything that is not an import, a Term that recorded money, a
+#     lesson that already started or is linked to a booking, and any record
+#     that another platform table still references.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full 40-char SHA of the reviewed retirement tool on main
+        type: string
+        required: true
+      commit_sha:
+        description: Full 40-char SHA of the build currently deployed to production
+        type: string
+        required: true
+      enrolment_reference:
+        description: Enrolment reference from the import (for example ENR-000123)
+        type: string
+        required: true
+      student_reference:
+        description: Student record reference (for example DZN-STU-000017)
+        type: string
+        required: true
+      term_reference:
+        description: Term reference created by the import (for example DZN-TRM-000005)
+        type: string
+        required: true
+      mode:
+        description: report is read-only; execute archives after a fresh report
+        type: choice
+        options: [report, execute]
+        required: true
+        default: report
+      fingerprint:
+        description: Pre-state fingerprint printed by report mode (execute only)
+        type: string
+        required: false
+        default: ''
+      confirm:
+        description: Type RETIRE_IMPORTED_ENROLMENT to authorise execute mode
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: delnavazan-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  retire-enrolment:
+    name: Retire one imported enrolment
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - name: Require dispatch from main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this retirement from main only.' >&2; exit 1; }
+
+      - name: Check out the reviewed retirement source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate source, target, mode and confirmation
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          ENROLMENT_REFERENCE: ${{ inputs.enrolment_reference }}
+          STUDENT_REFERENCE: ${{ inputs.student_reference }}
+          TERM_REFERENCE: ${{ inputs.term_reference }}
+          MODE: ${{ inputs.mode }}
+          FINGERPRINT: ${{ inputs.fingerprint }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character reviewed source SHA.' >&2; exit 1; }
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character deployed SHA.' >&2; exit 1; }
+          [[ "$ENROLMENT_REFERENCE" =~ ^ENR-[A-Z0-9]+$ ]] || { echo 'Provide the enrolment reference (ENR-...).' >&2; exit 1; }
+          [[ "$STUDENT_REFERENCE" =~ ^DZN-STU-[A-Z0-9]+$ ]] || { echo 'Provide the student record reference (DZN-STU-...).' >&2; exit 1; }
+          [[ "$TERM_REFERENCE" =~ ^DZN-TRM-[A-Z0-9]+$ ]] || { echo 'Provide the imported Term reference (DZN-TRM-...).' >&2; exit 1; }
+          [[ "$MODE" == 'report' || "$MODE" == 'execute' ]] || { echo 'Mode must be report or execute.' >&2; exit 1; }
+          if [[ "$MODE" == 'execute' ]]; then
+            [[ "$FINGERPRINT" =~ ^[0-9a-f]{64}$ ]] || { echo 'Execute requires the 64-character report fingerprint.' >&2; exit 1; }
+            [[ "$CONFIRM" == 'RETIRE_IMPORTED_ENROLMENT' ]] || { echo 'Type RETIRE_IMPORTED_ENROLMENT to confirm.' >&2; exit 1; }
+          fi
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/main \
+            || { echo 'The reviewed source SHA must be a commit on main.' >&2; exit 1; }
+          git merge-base --is-ancestor "$COMMIT_SHA" origin/main \
+            || { echo 'The deployed SHA must be a commit on main.' >&2; exit 1; }
+          bash deployment/qa/retire-imported-enrolment-contract.sh
+
+      - name: Configure pinned production SSH access
+        shell: bash
+        env:
+          PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          PRODUCTION_KNOWN_HOSTS: ${{ secrets.PRODUCTION_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_PRIVATE_KEY" && -n "$PRODUCTION_KNOWN_HOSTS" ]] || { echo 'Production SSH secrets are not configured in the protected environment.' >&2; exit 1; }
+          grep -Eq '^cp119\.hosting-cloud\.net[[:space:]]+ssh-(ed25519|rsa|ecdsa)' <<<"$PRODUCTION_KNOWN_HOSTS" || { echo 'Known-hosts secret must pin cp119.hosting-cloud.net.' >&2; exit 1; }
+          install -m 700 -d "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_production" >/dev/null
+          cat >> "$HOME/.ssh/config" <<'EOF'
+          Host cp119.hosting-cloud.net
+            UserKnownHostsFile ~/.ssh/known_hosts
+            StrictHostKeyChecking yes
+            IdentityFile ~/.ssh/id_production
+            IdentitiesOnly yes
+            BatchMode yes
+          EOF
+          chmod 600 "$HOME/.ssh/config"
+
+      - name: Report the exact target (read-only)
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          ENROLMENT_REFERENCE: ${{ inputs.enrolment_reference }}
+          STUDENT_REFERENCE: ${{ inputs.student_reference }}
+          TERM_REFERENCE: ${{ inputs.term_reference }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
+          bash deployment/qa/retire-imported-enrolment.sh report "$COMMIT_SHA" "$ENROLMENT_REFERENCE" "$STUDENT_REFERENCE" "$TERM_REFERENCE" \
+            | tee "$RUNNER_TEMP/retire-enrolment-report.json"
+          jq -e '.ok == true and .retirement_performed == false and (.lessons | length) > 0' "$RUNNER_TEMP/retire-enrolment-report.json" >/dev/null
+
+      - name: Confirm the fresh report fingerprint
+        if: inputs.mode == 'execute'
+        shell: bash
+        env:
+          FINGERPRINT: ${{ inputs.fingerprint }}
+        run: |
+          set -Eeuo pipefail
+          observed="$(jq -r '.fingerprint // empty' "$RUNNER_TEMP/retire-enrolment-report.json")"
+          [[ "$observed" == "$FINGERPRINT" ]] || {
+            echo "Pre-state changed: report fingerprint $observed does not match the approved $FINGERPRINT. Re-run report and review again." >&2
+            exit 1
+          }
+
+      - name: Execute the guarded retirement
+        if: inputs.mode == 'execute'
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          DZN_RETIRE_ATTESTATION: ${{ secrets.PURGE_ATTESTATION_TOKEN }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          ENROLMENT_REFERENCE: ${{ inputs.enrolment_reference }}
+          STUDENT_REFERENCE: ${{ inputs.student_reference }}
+          TERM_REFERENCE: ${{ inputs.term_reference }}
+          FINGERPRINT: ${{ inputs.fingerprint }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$DZN_RETIRE_ATTESTATION" ]] || { echo 'The protected attestation secret is not configured.' >&2; exit 1; }
+          bash deployment/qa/retire-imported-enrolment.sh execute "$COMMIT_SHA" "$ENROLMENT_REFERENCE" "$STUDENT_REFERENCE" "$TERM_REFERENCE" "$FINGERPRINT" "$CONFIRM" \
+            | tee "$RUNNER_TEMP/retire-enrolment-execute.json"
+          jq -e '.ok == true and .retirement_performed == true' "$RUNNER_TEMP/retire-enrolment-execute.json" >/dev/null
+          jq -e '.post_verification.enrolment_archived == true' "$RUNNER_TEMP/retire-enrolment-execute.json" >/dev/null
+          jq -e '.post_verification.term_archived == true' "$RUNNER_TEMP/retire-enrolment-execute.json" >/dev/null
+          jq -e '.post_verification.lessons_visible_remaining == 0' "$RUNNER_TEMP/retire-enrolment-execute.json" >/dev/null
+          jq -e '.post_verification.teacher_slot_conflicts == 0' "$RUNNER_TEMP/retire-enrolment-execute.json" >/dev/null
+          jq -e '.post_verification.audit_recorded == true' "$RUNNER_TEMP/retire-enrolment-execute.json" >/dev/null
+          jq -e '.post_verification.student_intact == true' "$RUNNER_TEMP/retire-enrolment-execute.json" >/dev/null
+          jq -e '.post_verification.catalogue_unchanged == true' "$RUNNER_TEMP/retire-enrolment-execute.json" >/dev/null
+
+      - name: Preserve retirement evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-retire-imported-enrolment-${{ inputs.commit_sha }}
+          path: |
+            ${{ runner.temp }}/retire-enrolment-report.json
+            ${{ runner.temp }}/retire-enrolment-execute.json
+          if-no-files-found: warn
+          retention-days: 90

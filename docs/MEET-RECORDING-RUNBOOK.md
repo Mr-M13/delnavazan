@@ -85,6 +85,40 @@ auto-recording requirement; the Teacher stays a co-host on any device.
 - The unverified residual risk is Google's Terms of Use for automated interaction with Meet; the
   owner accepted it explicitly for this single organizer account.
 
+## Audio quality: Studio sound and noise cancellation
+
+Google ties Studio sound to noise cancellation: *"Google Workspace with Gemini users: Studio sound
+replaces noise cancellation"*, and *"Studio sound is automatically active for dial-in and web when
+noise cancellation is enabled."* Noise cancellation is **on by default** on Business Standard, so
+every eligible meeting starts with AI audio processing that is tuned for speech, not instruments.
+
+What can and cannot be done about it:
+
+- **There is no organisation-wide switch.** The Meet service pages in the Admin console (Meet video
+  settings, Meet safety settings, Gemini settings) have no noise-cancellation or Studio sound policy
+  on this edition, and Google's Meet Help documents only the per-user toggle. Do not promise an
+  admin-side fix.
+- **Per account** (survives for that Google account): Meet → **Settings → Audio** → turn **Studio
+  sound** / **Noise cancellation** off. It can be done before joining (More options → Settings →
+  Audio) or mid-call. Google's own guidance: *"If you need other sounds in your meeting, like music,
+  turn off noise cancellation."*
+- **Who it affects the recording:** each participant's processed microphone audio is what reaches
+  the meeting mix, so it is the **Teacher's** account that matters. The organizer companion joins
+  from the Pi with no microphone (`Mic not found`), so its setting never changes a recording.
+- **Teachers on personal Google accounts** are outside any Workspace policy, so this stays a
+  one-time device setting for them; the pre-class page should keep telling them to do it.
+
+## Recording layout
+
+- A viewer can stop the active-speaker switching in their own window: **More options → Change
+  layout → Tiled**. Meet remembers the layout per device/account.
+- The **cloud recording** is composited server-side and follows the active speaker plus any shared
+  content. There is no admin, space or API setting for a tiled/side-by-side recording, so a
+  participant's layout choice never changes the file.
+- If a fixed grid is a hard requirement, the only route is a client-side capture of a Tiled window
+  (for example the Pi recording its own browser window and system audio) instead of Google's
+  recorder — a different pipeline, not a Meet setting.
+
 ## Owner-side verification (Google admin)
 
 1. **Drive storage** — open Drive as the organizer account (`classroom@delnavazan.com`) and check

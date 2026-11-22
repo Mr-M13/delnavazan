@@ -195,13 +195,23 @@ namespace {
 
     // Jalali input remains the Teacher's chosen presentation calendar.
     if (class_exists('IntlCalendar')) {
+        // Derive the Jalali input from a future instant: a fixed Jalali date is a date bomb that
+        // starts failing the moment it passes (1405/09/01 = 2026-11-22 did). The offset must stay
+        // well inside LessonRescheduleService::MAX_HORIZON_DAYS (30); a seed at +30 days puts the
+        // 18:30 local start past the horizon on the same day and fails as reschedule_horizon_exceeded.
+        $jalaliSeedDate = new DateTimeImmutable('+7 days', new DateTimeZone('Asia/Tehran'));
+        $jalaliSeed = IntlCalendar::createInstance(new DateTimeZone('Asia/Tehran'), 'fa_IR@calendar=persian');
+        $jalaliSeed->setTime(((int) $jalaliSeedDate->format('U')) * 1000);
+        $jalaliYear = (int) $jalaliSeed->get(IntlCalendar::FIELD_YEAR);
+        $jalaliMonthIndex = (int) $jalaliSeed->get(IntlCalendar::FIELD_MONTH);
+        $jalaliDay = (int) $jalaliSeed->get(IntlCalendar::FIELD_DAY_OF_MONTH);
         $jalaliStore = new ReplacementFakeStore(); $jalaliStore->context = $context('completed');
         $jalaliService = new LessonRescheduleService($jalaliStore, static fn() => array(), $rescheduleCommit, static fn() => time(), static fn() => true, $replacementCommit, $exception);
-        $jalali = array('timezone' => 'Asia/Tehran', 'calendar' => 'persian', 'jalali_year' => 1405, 'jalali_month' => 9, 'jalali_day' => 1, 'local_time' => '18:30');
+        $jalali = array('timezone' => 'Asia/Tehran', 'calendar' => 'persian', 'jalali_year' => $jalaliYear, 'jalali_month' => $jalaliMonthIndex + 1, 'jalali_day' => $jalaliDay, 'local_time' => '18:30');
         $jalaliService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $jalali, 'request-key-replacement-0050');
         $expected = '';
         $cal = IntlCalendar::createInstance(new DateTimeZone('Asia/Tehran'), 'fa_IR@calendar=persian');
-        $cal->setLenient(false); $cal->set(1405, 8, 1, 0, 0, 0);
+        $cal->setLenient(false); $cal->set($jalaliYear, $jalaliMonthIndex, $jalaliDay, 0, 0, 0);
         $expected = (new DateTimeImmutable('@' . (int) floor($cal->getTime() / 1000)))->setTimezone(new DateTimeZone('Asia/Tehran'))->format('Y-m-d');
         $fail('Jalali input converts to the exact Gregorian wall date', (string) $jalaliStore->proposals[0]->local_wall_date === $expected);
     }

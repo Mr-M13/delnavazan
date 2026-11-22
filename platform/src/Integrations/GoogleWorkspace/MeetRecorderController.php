@@ -34,10 +34,13 @@ final class MeetRecorderController {
         if(!preg_match('/^Bearer\s+(.+)$/i',trim($header),$matches))return new \WP_Error('meet_recorder_unauthorized','Bearer token required',array('status'=>401));
         if(!hash_equals($token,trim((string)$matches[1])))return new \WP_Error('meet_recorder_unauthorized','Bearer token rejected',array('status'=>401));
         if(function_exists('get_transient')&&function_exists('set_transient')){
-            $key='dzn_meet_recorder_rate_'.substr(hash('sha256',$token),0,16);
+            // A fixed one-minute bucket: steady polling advances the window instead of refreshing a
+            // counter's expiry, so a long-lived companion is never locked out by its own traffic.
+            $fingerprint=substr(hash('sha256',$token),0,16);
+            $key='dzn_meet_recorder_rate_'.$fingerprint.'_'.(int)floor(time()/60);
             $count=(int)get_transient($key);
             if($count>=self::RATE_LIMIT)return new \WP_Error('meet_recorder_rate_limited','Too many requests',array('status'=>429));
-            set_transient($key,$count+1,60);
+            set_transient($key,$count+1,120);
         }
         return true;
     }
@@ -53,7 +56,7 @@ final class MeetRecorderController {
         $classroomId=absint($request->get_param('classroom_id'));
         $state=sanitize_key((string)$request->get_param('state'));
         $detail=sanitize_text_field((string)$request->get_param('detail'));
-        if($uid===''||$classroomId<1||!in_array($state,array('joined','failed'),true)){
+        if($uid===''||$classroomId<1||!in_array($state,array('joined','left','failed'),true)){
             return new \WP_Error('meet_recorder_result_invalid','Invalid companion result',array('status'=>400));
         }
         (new MeetRecorderQueue())->complete($uid,$classroomId,$state,$detail);

@@ -105,9 +105,17 @@ final class GoogleWorkspaceWorker {
                     $classroomService->detachCalendarAttendees((int)$classroom->id);
                 }catch(\Throwable $error){do_action('dzn_meet_configuration_failed',(int)$classroom->id,get_class($error));}
             }
-            // 3. Re-evaluate consent and artifact configuration for soon-upcoming classrooms at most hourly.
+            // 3. Re-evaluate consent, artifact configuration and the waiting-room policy for
+            //    soon-upcoming classrooms at most hourly. Booking classrooms have no Lesson to sync,
+            //    so they converge the join policy on their own hourly guard.
             foreach($repository->upcoming(25) as $classroom){
                 try{
+                    if((int)$classroom->lesson_id<1){
+                        if((string)($classroom->updated_at??'')<=gmdate('Y-m-d H:i:s',time()-3600)){
+                            (new GoogleWorkspaceClassroomService())->syncSpaceAccess((int)$classroom->id);
+                        }
+                        continue;
+                    }
                     $last=(string)($classroom->recording_consent_at??'');
                     if($last!==''&&strtotime($last.' UTC')>time()-3600)continue;
                     (new GoogleWorkspaceClassroomService())->syncRecordingConfiguration((int)$classroom->id);

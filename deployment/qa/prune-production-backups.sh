@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # Production backup retention for the deployment backup directory.
 #
-# Keep full application archives for:
-#   - the four newest full backups;
+# Host retention is deliberately small; the encrypted rclone remote is the
+# durable history. Keep full application archives for:
+#   - the three newest full backups;
 #   - the newest deployed full backup for each of the current and two previous
-#     release SHAs (current release plus known-good rollbacks);
-#   - the newest full backup for each of the last 14 days;
-#   - the newest full backup for each of the last 6 ISO weeks.
+#     release SHAs (current release plus known-good rollbacks).
 #
 # Older application-files.tar.gz archives are deleted only when a non-empty
 # database.sql exists beside them. database.sql, before.json and deployment.json
@@ -35,30 +34,12 @@ while IFS= read -r name; do
 done < "$tmp/all"
 
 full_count="$(wc -l < "$tmp/full" | tr -d ' ')"
-if (( full_count < 4 )); then
+if (( full_count < 3 )); then
   echo "refusing retention: only $full_count full backups" >&2
   exit 1
 fi
 
-head -n 4 "$tmp/full" > "$tmp/keep"
-cut -c1-8 "$tmp/full" | awk '!seen[$0]++' | head -n 14 > "$tmp/days"
-while IFS= read -r day; do
-  grep -m1 "^$day" "$tmp/full" >> "$tmp/keep" || true
-done < "$tmp/days"
-
-: > "$tmp/weeks"
-week_count=0
-while IFS= read -r name; do
-  day="${name:0:8}"
-  week="$(date -u -d "$day" +%G-%V 2>/dev/null || true)"
-  [[ -n "$week" ]] || continue
-  if ! grep -qxF "$week" "$tmp/weeks"; then
-    (( week_count < 6 )) || continue
-    printf '%s\n' "$week" >> "$tmp/weeks"
-    printf '%s\n' "$name" >> "$tmp/keep"
-    week_count=$((week_count + 1))
-  fi
-done < "$tmp/full"
+head -n 3 "$tmp/full" > "$tmp/keep"
 
 # Multiple deployments of the same release can otherwise push the previous
 # known-good backup out of the newest-four set. Keep the newest successfully

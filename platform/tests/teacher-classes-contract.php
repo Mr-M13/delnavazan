@@ -254,6 +254,13 @@ namespace {
 	$rescheduleService = (string) file_get_contents( ABSPATH . 'platform/src/Core/Application/LessonRescheduleService.php' );
 	$check( 'reschedule no longer hides proposals behind a notice window', ! str_contains( $rescheduleService, 'MIN_NOTICE_MINUTES' ) && ! str_contains( $rescheduleService, 'reschedule_notice_too_short' ) );
 
+	$attendanceSummary = (string) file_get_contents( ABSPATH . 'platform/src/Integrations/GoogleWorkspace/MeetAttendanceSummaryService.php' );
+	$classesTemplate = (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/classes.php' );
+	$bridgeSource = (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' );
+	$check( 'the class card shows recorded attendance evidence', str_contains( $classesTemplate, 'data-dzn-attendance-evidence' ) && str_contains( $bridgeSource, "'attendance_evidence' =>" ) );
+	$check( 'attendance evidence states the overlap minutes against the locked threshold', str_contains( $attendanceSummary, 'CanonicalAttendanceRule::assess' ) && str_contains( $attendanceSummary, "'threshold_minutes'" ) && str_contains( $attendanceSummary, "'identity_unmapped'" ) );
+	$check( 'attendance evidence is read-only, role-mapped and owner-scoped', str_contains( $attendanceSummary, 'participantSessionsForClassroom' ) && str_contains( $attendanceSummary, 'mappingsForAccount' ) && str_contains( $attendanceSummary, "!==\$viewerId)return \$empty;" ) && ! str_contains( $attendanceSummary, 'insert' ) && ! str_contains( $attendanceSummary, 'update' ) );
+
 	$routes = (string) file_get_contents( ABSPATH . 'theme/inc/routes.php' );
 	$check( 'classes is an allowlisted teacher screen', str_contains( $routes, "array( 'home', 'classes', 'finance', 'settings', 'onboarding', 'induction' )" ) );
 	$finance = (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/finance.php' );

@@ -144,6 +144,25 @@ $card_index = 0;
 						<?php else : ?>
 							<p class="dzn-tp-detail-help"><?php echo esc_html( (string) ( $item['completion_message'] ?? 'این کلاس در وضعیت قابل گزارش نیست.' ) ); ?></p>
 						<?php endif; ?>
+						<?php
+						$attendance_evidence = isset( $item['attendance_evidence'] ) && is_array( $item['attendance_evidence'] ) ? $item['attendance_evidence'] : array();
+						if ( ! empty( $attendance_evidence['state'] ) ) {
+							$evidence_minutes = (int) ( $attendance_evidence['minutes'] ?? 0 );
+							$evidence_threshold = (int) ( $attendance_evidence['threshold_minutes'] ?? 20 );
+							$evidence_reasons = array(
+								'overlap_confirmed'       => 'هم‌زمانی کافی مدرس و هنرجو ثبت شد.',
+								'overlap_below_threshold' => 'هم‌زمانی مدرس و هنرجو کمتر از حد لازم بود.',
+								'identity_unmapped'       => 'حساب Google هنوز به این کلاس نگاشته نشده است.',
+								'meet_evidence_missing'   => 'شواهد حضور در Meet پیدا نشد.',
+								'sessions_unavailable'    => 'شواهد حضور در دسترس نیست.',
+							);
+							$evidence_reason = (string) ( $evidence_reasons[ (string) ( $attendance_evidence['reason'] ?? '' ) ] ?? 'داده کافی برای تأیید حضور نیست.' );
+							$evidence_state = (string) $attendance_evidence['state'] === 'confirmed'
+								? 'تأیید شد'
+								: ( (string) $attendance_evidence['state'] === 'pending' ? 'تأیید نشد' : 'در دسترس نیست' );
+						?>
+							<p class="dzn-tp-detail-help" data-dzn-attendance-evidence><?php echo esc_html( 'حضور خودکار Meet: ' . $evidence_state . ' — ' . dzn_theme_platform_persian_digits( $evidence_minutes ) . ' از ' . dzn_theme_platform_persian_digits( $evidence_threshold ) . ' دقیقه هم‌زمانی. ' . $evidence_reason ); ?></p>
+						<?php } ?>
 						<?php if ( $demo ) : ?><button type="button" data-dzn-tp-presentation>درخواست بررسی زمان</button><?php endif; ?></section>
 				</div>
 				<?php if ( $is_today && true === ( $item['reschedule_available'] ?? false ) ) {

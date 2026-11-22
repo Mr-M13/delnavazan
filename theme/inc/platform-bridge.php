@@ -2704,6 +2704,20 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		);
 		$completion_outcome = $recorded_outcome ? ( $completion_outcome_labels[ $delivery_outcome ] ?? 'وضعیت برگزاری ثبت شده' ) : '';
 		if ( '' === $completion_outcome && $lifecycle_completed ) { $completion_outcome = 'پایان‌یافته — گزارش برگزاری ثبت نشده'; }
+		// Evidence behind the outcome: how much simultaneous Teacher/Student overlap Meet recorded,
+		// so "attendance confirmed?" answers without opening another tool. Read-only and best-effort.
+		$attendance_evidence = array();
+		if ( $ended && class_exists( '\Delnavazan\Platform\Integrations\GoogleWorkspace\MeetAttendanceSummaryService' ) ) {
+			try {
+				$attendance_service = new \Delnavazan\Platform\Integrations\GoogleWorkspace\MeetAttendanceSummaryService();
+				$attendance_viewer = (int) ( $onboarding['teacher_id'] ?? 0 );
+				$attendance_evidence = $is_booking
+					? $attendance_service->forBookingConfirmation( (int) ( $lesson['confirmation_id'] ?? 0 ), $attendance_viewer )
+					: $attendance_service->forLessonUid( (string) ( $lesson['lesson_uid'] ?? '' ), $attendance_viewer );
+			} catch ( Throwable $e ) {
+				$attendance_evidence = array();
+			}
+		}
 		$completion_tone = in_array( $delivery_outcome, array( 'completed', 'delivered' ), true ) ? 'success' : ( $recorded_outcome ? 'warning' : 'muted' );
 		$completion_message = trim( (string) ( $lesson['completion_message'] ?? '' ) );
 		if ( '' === $completion_message ) {
@@ -2805,6 +2819,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'completion_message' => $completion_message,
 			'completion_outcome' => $completion_outcome,
 			'completion_tone' => $completion_tone,
+			'attendance_evidence' => $attendance_evidence,
 			'completion_action_url' => (string) ( $lesson['completion_action_url'] ?? '' ) ?: admin_url( 'admin-post.php?action=dzn_teacher_report_delivery' ),
 			'completion_nonce' => (string) ( $lesson['completion_nonce'] ?? '' ) ?: wp_create_nonce( 'dzn_teacher_report_delivery' ),
 			'reschedule_available' => $can_reschedule,

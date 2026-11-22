@@ -238,6 +238,33 @@ The push copies the new point, lists it back and requires `manifest.json`,
 retention is the same newest two points; only directory names matching `YYYYMMDDTHHMMSSZ` are
 ever purged, so unrelated content on the remote is never deleted.
 
+### Host storage growth
+
+The host is not the archive. It keeps a small, bounded recovery set:
+
+- `~/backups/delnavazan-rollback-points/points` — the newest **2** complete points
+  (`DZN_BACKUP_KEEP=2`);
+- `~/backups/delnavazan-production-cutover` — the newest **3** deploy preflight application
+  archives. Older `application-files.tar.gz` files are removed by the deploy itself before and
+  after each release; `database.sql`, `before.json` and `deployment.json` stay for audit;
+- `~/softaculous_backups` — the newest **2** complete archives.
+
+The checked-in `deployment/qa/prune-production-backups.sh` now follows the same three-archive
+policy. Run it over SSH in report mode first, then confirm:
+
+```sh
+ssh "$PRODUCTION_SSH_USER@cp119.hosting-cloud.net" 'bash -s' < deployment/qa/prune-production-backups.sh
+ssh "$PRODUCTION_SSH_USER@cp119.hosting-cloud.net" 'bash -s -- --confirm' < deployment/qa/prune-production-backups.sh
+```
+
+`--confirm` deletes only `application-files.tar.gz` files whose sibling `database.sql` is
+non-empty; the database dump, manifest and deployment record are retained. The nightly host cron
+(`03:17 UTC`, `prune-production-backups.sh --confirm`) performs the same pass once the installed
+copy is updated.
+
+The durable copy is the encrypted rclone remote in §4. A local point that exists only under
+`~/backups` is not an off-site backup.
+
 ### Rotating an exposed rclone credential
 
 rclone authorises through a Google OAuth client that is separate from the `Delnavazan` client the

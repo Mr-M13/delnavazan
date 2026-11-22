@@ -155,6 +155,34 @@ export_database(){
   [[ -s "$target" ]] || { echo 'FAIL direct database export is empty' >&2; return 1; }
   echo 'WP-CLI db export was unavailable; the preflight backup used the direct dump fallback.' >&2
 }
+
+# Keep the host deployment-backup directory bounded. The encrypted rclone
+# remote is the durable history; locally, three complete preflight backups are
+# enough for the immediate current/previous releases. Only the large application
+# archive is removed, and only when a non-empty database dump remains beside it.
+prune_deploy_backups(){
+  local keep=3 count=0 name dir list
+  [[ -d "$backup_root" ]] || return 0
+  list="$backup_root/.deploy-prune.$$"
+  find "$backup_root" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | LC_ALL=C sort -r > "$list"
+  while IFS= read -r name; do
+    [[ -n "$name" ]] || continue
+    [[ -f "$backup_root/$name/application-files.tar.gz" ]] || continue
+    count=$((count + 1))
+    if (( count <= keep )); then continue; fi
+    dir="$backup_root/$name"
+    if [[ ! -s "$dir/database.sql" ]]; then
+      echo "WARN backup retention skipped $name: database.sql is missing or empty" >&2
+      continue
+    fi
+    if ! rm -f -- "$dir/application-files.tar.gz"; then
+      echo "WARN backup retention could not remove $name/application-files.tar.gz" >&2
+      continue
+    fi
+    echo "Backup retention removed $name/application-files.tar.gz"
+  done < "$list"
+  rm -f -- "$list"
+}
 root_real="$(realpath -m "$root")"; backup_real="$(realpath -m "$backup_root")"
 [[ "$backup_real" != "$root_real" && "$backup_real" != "$root_real"/* ]] || { echo 'FAIL backup path resolves inside production public_html' >&2; exit 1; }
 wp --path="$root" --skip-plugins --skip-themes core is-installed >/dev/null
@@ -190,6 +218,9 @@ theme_device="$(stat -c '%d' "$(dirname "$theme")")"
 stage_device="$(stat -c '%d' "$staged")"
 [[ "$plugin_device" == "$theme_device" && "$plugin_device" == "$stage_device" ]] || { rm -rf "$staged"; echo 'FAIL staged package and live app paths must share a filesystem for atomic installation' >&2; exit 1; }
 install -d -m 700 "$backup_root"
+# Free the oldest preflight application archive before creating this run's
+# backup, so a nearly-full disk does not turn a routine deploy into a failure.
+prune_deploy_backups || echo 'WARN pre-deploy backup retention pass failed; continuing' >&2
 stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"; backup="$backup_root/${stamp}-${sha}"
 umask 077; mkdir -m 700 "$backup"
 before="$(php -r '$s=json_decode($argv[1],true); $s["version"]=$argv[2]; $s["build"]=$argv[3]; echo json_encode($s, JSON_UNESCAPED_SLASHES);' "$before" "$live_version" "$live_build")"
@@ -282,6 +313,7 @@ if ! php -r '$s=json_decode($argv[1],true); exit(($s["schema"]??"")===$argv[2]&&
 fi
 printf '%s\n' "{\"target\":\"https://delnavazan.com\",\"sha\":\"$sha\",\"archive_sha256\":\"$expected_archive_sha\",\"theme_style_sha256\":\"$expected_theme_sha\",\"declared_source_build\":\"$declared_build\",\"before\":$before,\"after\":$after,\"backup\":\"$backup\",\"status\":\"deployed\"}" > "$backup/deployment.json"
 deployment_committed=1
+prune_deploy_backups || echo 'WARN post-deploy backup retention pass failed; inspect the backup directory' >&2
 wp --path="$root" maintenance-mode deactivate >/dev/null; maintenance=0
 rm -rf "$plugin_previous" "$theme_previous" || echo 'WARN prior app directories remain beside the live paths' >&2
 cat "$backup/deployment.json"

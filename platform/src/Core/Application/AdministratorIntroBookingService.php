@@ -204,7 +204,7 @@ final class AdministratorIntroBookingService {
         // occupancy. Preflight the same rules so the operator gets a clear conflict
         // instead of a generic persistence failure after the request is created.
         $requests = new BookingRequestRepository();
-        if ($requests->studentHasActiveInstrumentEnrollment($studentId, (int) $course->instrument_id)) throw new \InvalidArgumentException('student_instrument_already_enrolled');
+        if ($requests->studentHasActiveInstrumentEnrolment($studentId, (int) $course->instrument_id)) throw new \InvalidArgumentException('student_instrument_already_enrolled');
         if ($requests->studentOccupancyConflicts($studentId, array(array(
             'starts_at_utc' => $interval['starts_at_utc'],
             'occupied_ends_at_utc' => $interval['occupied_ends_at_utc'],

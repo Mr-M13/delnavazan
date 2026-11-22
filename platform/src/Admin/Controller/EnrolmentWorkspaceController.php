@@ -699,6 +699,13 @@ final class EnrolmentWorkspaceController {
 
     private static function safeMessage(\Throwable $exception, string $failureReference = ''): string {
         $message = $exception->getMessage();
+        // A PHP Error is an internal defect, never user input. Say so plainly instead of
+        // presenting an opaque reference for something the administrator cannot influence.
+        if ($exception instanceof \Error) {
+            return 'The platform failed internally while processing this action. Nothing was saved. '
+                . ($failureReference !== '' ? 'Give support this reference: ' . $failureReference : 'Contact support.');
+        }
+
         if (str_starts_with($message, 'Booking Request compensation failed')) {
             return 'The failed booking could not be fully cleaned up. Contact support with the reference.';
         }

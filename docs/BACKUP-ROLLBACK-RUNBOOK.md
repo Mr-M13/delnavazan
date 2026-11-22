@@ -25,7 +25,7 @@ an agent-side production write, and no agent restores a point or runs the drill 
 
 | File | Runs where | Purpose |
 | --- | --- | --- |
-| `deployment/qa/backup-point.sh` | production host (cron or SSH) | take one verified rollback point, prune to the newest two |
+| `deployment/qa/backup-point.sh` | production host (cron or SSH) | take one verified point, push it to the encrypted remote, keep two there and remove the verified local point |
 | `deployment/qa/restore-point.sh` | production host (operator) | restore the newest or a named point, fail closed |
 | `.github/workflows/install-production-host-tooling.yml` | GitHub Actions (`production`) | install both host scripts, install the nightly cron, take the first point |
 | `deployment/qa/backup-rollback-contract.sh` | CI and any workstation | source contract: no network, no real WP-CLI |
@@ -119,10 +119,12 @@ the host crontab as its own environment line when rclone is configured:
 DZN_BACKUP_REMOTE=rclone-crypt:delnavazan-rollback-points
 ```
 
-Leave that line out to stay local-only. With it set, a failed push prints `OFFSITE=failed`, exits
-non-zero and therefore mails cron, because a silent off-site gap defeats the copy. The local point is
-valid either way and is named in the output. Setting up rclone stays an **owner action**: neither
-the workflow nor an agent configures a remote or stores a crypt password.
+Leave that line out to stay local-only. With it set, the point is pushed, verified and pruned to
+the newest two on the remote, and then the verified local point is removed: the host keeps no
+nightly rollback points. A failed push prints `OFFSITE=failed`, keeps the local point and exits
+non-zero and therefore mails cron, because a silent off-site gap defeats the copy. Setting up rclone
+stays an **owner action**: neither the workflow nor an agent configures a remote or stores a crypt
+password.
 
 Prove the line actually reached cron — a missing or misspelled one fails **silently**:
 
@@ -137,7 +139,7 @@ only copy stays on the host. The first run after adding the line must report `OF
 
 Re-dispatching the workflow is safe by design: the script copies are rewritten from the pinned SHA,
 the cron line is left alone because its marker is present, and the run simply takes another point
-(retention keeps the newest two). Do not dispatch it while a deploy is running — both share the
+(the remote keeps the newest two; the local point is removed after the verified push). Do not dispatch it while a deploy is running — both share the
 `delnavazan-production-deploy` concurrency group, so GitHub serializes them, but a queued deploy is a
 reason to wait.
 
@@ -229,8 +231,8 @@ storage provider, with the rclone configuration **outside** the repository and o
    ```sh
    export DZN_BACKUP_REMOTE=rclone-crypt:delnavazan-rollback-points
    rclone lsd rclone-crypt:          # empty but reachable
-   rclone check "$HOME/backups/delnavazan-rollback-points/points/<UTC>" \
-     rclone-crypt:delnavazan-rollback-points/<UTC> --one-way
+   rclone lsf "rclone-crypt:delnavazan-rollback-points/<UTC>"
+   # must list manifest.json, database.sql.gz and public_html.tar.gz
    ```
 
 The push copies the new point, lists it back and requires `manifest.json`,
@@ -240,16 +242,19 @@ ever purged, so unrelated content on the remote is never deleted.
 
 ### Host storage growth
 
-The host is not the archive. It keeps a small, bounded recovery set:
+The host is not the archive. When `DZN_BACKUP_REMOTE` is configured it keeps **no** nightly
+rollback points; the two durable points live on the encrypted remote. It keeps only:
 
-- `~/backups/delnavazan-rollback-points/points` — the newest **2** complete points
-  (`DZN_BACKUP_KEEP=2`);
-- `~/backups/delnavazan-production-cutover` — the newest **3** deploy preflight application
-  archives. Older `application-files.tar.gz` files are removed by the deploy itself before and
-  after each release; `database.sql`, `before.json` and `deployment.json` stay for audit;
+- `~/backups/delnavazan-rollback-points/points` — empty after a verified push
+  (`LOCAL_POINT=removed`); two local points remain only when no remote is configured or a push
+  fails;
+- `~/backups/delnavazan-production-cutover` — the newest **1** deploy preflight application
+  archive for the immediate rollback of the current release. Older `application-files.tar.gz`
+  files are removed by the deploy itself before and after each release; `database.sql`,
+  `before.json` and `deployment.json` stay for audit;
 - `~/softaculous_backups` — the newest **2** complete archives.
 
-The checked-in `deployment/qa/prune-production-backups.sh` now follows the same three-archive
+The checked-in `deployment/qa/prune-production-backups.sh` now follows the same single-archive
 policy. Run it over SSH in report mode first, then confirm:
 
 ```sh
@@ -298,14 +303,14 @@ ssh "${PRODUCTION_SSH_USER}@cp119.hosting-cloud.net" 'bash -s' \
 Expected output:
 
 ```
-POINT=/home/<user>/backups/delnavazan-rollback-points/points/20261116T031700Z
+LOCAL_POINT=/home/<user>/backups/delnavazan-rollback-points/points/20261116T031700Z
 BUILD=main-<12 hex>
 SCHEMA=<n>
 DB_SHA256=<64 hex>
 FILES_SHA256=<64 hex>
 KB=<db>/<files>
-RETENTION kept=2 pruned=<n> limit=2
-OFFSITE=ok|skipped
+POINT=<remote>/20261116T031700Z   # with a configured remote; LOCAL_POINT=removed
+OFFSITE=ok
 ROLLBACK_POINT=ok
 ```
 
@@ -315,6 +320,19 @@ option is not numeric, or when either archive fails gzip, tar or SHA-256 verific
 run leaves no half-written point.
 
 ## 6. Restore procedure
+
+The durable points are on the encrypted remote. Fetch the chosen point to the host first; the
+restore tool reads a local point directory:
+
+```sh
+POINT_UTC=<UTC-of-the-chosen-point>
+rclone copy "rclone-crypt:delnavazan-rollback-points/$POINT_UTC" \
+  "$HOME/backups/delnavazan-rollback-points/points/$POINT_UTC"
+```
+
+Then run `restore-point.sh --point "$POINT_UTC" --confirm RESTORE`. The restore's pre-restore
+database safety copy is local and temporary; move it to the encrypted remote or remove it after a
+verified restore.
 
 Preconditions:
 

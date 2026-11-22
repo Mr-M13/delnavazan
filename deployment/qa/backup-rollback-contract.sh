@@ -73,12 +73,16 @@ prune_sh="$ROOT/deployment/qa/prune-production-backups.sh"
 deploy_sh="$ROOT/deployment/production-deploy.sh"
 bash -n "$prune_sh" || fail 'prune-production-backups.sh is not valid bash'
 bash -n "$deploy_sh" || fail 'production-deploy.sh is not valid bash'
-need "$prune_sh" 'head -n 3'
+need "$prune_sh" 'head -n 1'
 forbid "$prune_sh" 'head -n 14'
 forbid "$prune_sh" 'week_count'
 need "$deploy_sh" 'prune_deploy_backups'
-need "$deploy_sh" 'local keep=3'
+need "$deploy_sh" 'local keep=1'
 need "$deploy_sh" 'database.sql is missing or empty'
+need "$backup_sh" 'rm -rf "$point"'
+need "$backup_sh" 'LOCAL_POINT=removed'
+need "$backup_sh" 'dzn_prune_points "$DZN_BACKUP_ROOT/points" 0'
+need "$backup_sh" 'POINT=%s/%s'
 need "$deploy_sh" 'direct dump fallback'
 if grep -q '<(' "$deploy_sh"; then fail 'process substitution is not portable to the production host: production-deploy.sh'; fi
 pass 'host backup retention is bounded and the direct dump fallback is present'

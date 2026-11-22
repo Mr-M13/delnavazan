@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
 # Production backup retention for the deployment backup directory.
 #
-# Host retention is deliberately small; the encrypted rclone remote is the
-# durable history. Keep full application archives for:
-#   - the three newest full backups;
-#   - the newest deployed full backup for each of the current and two previous
-#     release SHAs (current release plus known-good rollbacks).
+# Host retention is deliberately minimal; the encrypted rclone remote is the
+# durable history. Keep only the newest full application archive for the
+# immediate rollback of the current release.
 #
 # Older application-files.tar.gz archives are deleted only when a non-empty
 # database.sql exists beside them. database.sql, before.json and deployment.json
@@ -34,31 +32,12 @@ while IFS= read -r name; do
 done < "$tmp/all"
 
 full_count="$(wc -l < "$tmp/full" | tr -d ' ')"
-if (( full_count < 3 )); then
+if (( full_count < 1 )); then
   echo "refusing retention: only $full_count full backups" >&2
   exit 1
 fi
 
-head -n 3 "$tmp/full" > "$tmp/keep"
-
-# Multiple deployments of the same release can otherwise push the previous
-# known-good backup out of the newest-four set. Keep the newest successfully
-# deployed backup for each of the current and two previous release SHAs.
-: > "$tmp/shas"
-known_good=0
-while IFS= read -r name; do
-  json="$BACKUP_ROOT/$name/deployment.json"
-  [[ -f "$json" ]] || continue
-  grep -q '"status":"deployed"' "$json" || continue
-  sha="$(grep -o '"sha":"[^"]*"' "$json" | head -1 | cut -d'"' -f4 || true)"
-  [[ -n "$sha" ]] || continue
-  if ! grep -qxF "$sha" "$tmp/shas"; then
-    (( known_good < 3 )) || continue
-    printf '%s\n' "$sha" >> "$tmp/shas"
-    printf '%s\n' "$name" >> "$tmp/keep"
-    known_good=$((known_good + 1))
-  fi
-done < "$tmp/full"
+head -n 1 "$tmp/full" > "$tmp/keep"
 
 head -n 1 "$tmp/full" >> "$tmp/keep"
 sort -u "$tmp/keep" -o "$tmp/keep"

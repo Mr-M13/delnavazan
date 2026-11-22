@@ -157,11 +157,11 @@ export_database(){
 }
 
 # Keep the host deployment-backup directory bounded. The encrypted rclone
-# remote is the durable history; locally, three complete preflight backups are
-# enough for the immediate current/previous releases. Only the large application
+# remote is the durable history; locally, one preflight archive is kept only for
+# the immediate rollback of this release. Only the large application
 # archive is removed, and only when a non-empty database dump remains beside it.
 prune_deploy_backups(){
-  local keep=3 count=0 name dir list
+  local keep=1 count=0 name dir list
   [[ -d "$backup_root" ]] || return 0
   list="$backup_root/.deploy-prune.$$"
   find "$backup_root" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | LC_ALL=C sort -r > "$list"

@@ -3,8 +3,11 @@
 # archive of the live WordPress tree, and a manifest that binds both to the
 # deployed build identity and the database schema version.
 #
-# Owner decision (2026-11-16): two rollback points are enough; older points are
-# deleted. Change DZN_BACKUP_KEEP below to keep more.
+# Owner decision (2026-11-22): the durable copies live on the encrypted rclone
+# remote, not on the host. Set DZN_BACKUP_REMOTE to keep the newest
+# DZN_BACKUP_KEEP (2) points there; after a verified push the local point and
+# older local points are removed. Without DZN_BACKUP_REMOTE the newest two local
+# points remain as the only fallback and the run prints OFFSITE=skipped.
 #
 # Runs on the production host as the restricted DirectAdmin account, from host
 # cron or piped over SSH:
@@ -14,13 +17,11 @@
 # WP-CLI, without a deployed main-<12 SHA> build identity, and whenever either
 # archive fails gzip/tar/SHA-256 verification. A failed run leaves no point.
 #
-# Off-site copy is optional. Set DZN_BACKUP_REMOTE to an rclone directory on an
-# encrypted `crypt` remote (see docs/BACKUP-ROLLBACK-RUNBOOK.md). Unset means the
-# point stays local and the run prints OFFSITE=skipped. Set means the new point
-# is pushed, verified remotely, and the remote is pruned to the same newest
-# DZN_BACKUP_KEEP points. A configured-but-failing push is reported as
-# OFFSITE=failed and exits non-zero, because a silent off-site gap defeats the
-# purpose of the copy; the local point is still valid and is named in the output.
+# Off-site copy: the new point is pushed and verified remotely and the remote is
+# pruned to the newest DZN_BACKUP_KEEP points. Only after that verification is
+# the local point removed. A configured-but-failing push is reported as
+# OFFSITE=failed, keeps the local point, and exits non-zero, because a silent
+# off-site gap defeats the purpose of the copy.
 #
 # The archives contain wp-config.php and therefore live database credentials and
 # salts. The backup root is created 0700 and every file 0600; never place it
@@ -154,7 +155,7 @@ push_offsite(){
   local point="$1" name="$2"
   local remote="${DZN_BACKUP_REMOTE%/}" listing tmp dir kept=0 pruned=0 entry
   if [[ -z "$remote" ]]; then
-    printf 'OFFSITE=skipped (DZN_BACKUP_REMOTE unset; the local point is the recovery copy)\n'
+    printf 'OFFSITE=skipped (DZN_BACKUP_REMOTE unset; the newest two local points remain the fallback)\n'
     return 0
   fi
   command -v rclone >/dev/null 2>&1 || { printf 'OFFSITE=failed (rclone is not installed)\n' >&2; return 1; }
@@ -357,19 +358,32 @@ JSON
   mv "$DZN_WORK" "$point" || fail 'could not publish the rollback point'
   chmod 700 "$point"
 
-  printf 'POINT=%s\n' "$point"
+  printf 'LOCAL_POINT=%s\n' "$point"
   printf 'BUILD=%s\n' "$build"
   printf 'SCHEMA=%s\n' "$schema"
   printf 'DB_SHA256=%s\n' "$db_sha"
   printf 'FILES_SHA256=%s\n' "$files_sha"
   printf 'KB=%s/%s\n' "$((db_bytes / 1024))" "$((files_bytes / 1024))"
 
-  dzn_prune_points "$DZN_BACKUP_ROOT/points" "$DZN_BACKUP_KEEP" || warn 'retention pass failed; inspect the points directory'
-
+  # The local point exists only until the remote copy is verified. With a
+  # configured remote, the host keeps no rollback points; without one, the
+  # newest two local points remain as the only fallback.
   if push_offsite "$point" "$stamp"; then
     if [[ -n "$DZN_BACKUP_REMOTE" ]]; then offsite='ok'; fi
   else
     offsite='failed'
+  fi
+  if [[ "$offsite" == 'ok' ]]; then
+    if rm -rf "$point"; then
+      printf 'LOCAL_POINT=removed\n'
+    else
+      warn "cannot remove the local point $point; the off-site copy is verified"
+    fi
+    dzn_prune_points "$DZN_BACKUP_ROOT/points" 0 || warn 'local retention pass failed; inspect the points directory'
+    printf 'POINT=%s/%s\n' "${DZN_BACKUP_REMOTE%/}" "$stamp"
+  else
+    dzn_prune_points "$DZN_BACKUP_ROOT/points" "$DZN_BACKUP_KEEP" || warn 'local retention pass failed; inspect the points directory'
+    printf 'POINT=%s\n' "$point"
   fi
   printf 'OFFSITE=%s\n' "$offsite" | tee -a "$DZN_BACKUP_ROOT/backup-point.log"
   printf '%s point=%s build=%s schema=%s db_sha=%s files_sha=%s keep=%s offsite=%s\n' \

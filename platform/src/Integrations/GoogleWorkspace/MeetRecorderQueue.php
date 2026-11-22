@@ -136,7 +136,7 @@ final class MeetRecorderQueue {
     /** Record the companion result for one claimed job and clear it from the queue. */
     public function complete(string $uid,int $classroomId,string $state,string $detail=''):bool{
         $uid=trim($uid);
-        $state=in_array($state,array('joined','failed'),true)?$state:'';
+        $state=in_array($state,array('joined','left','failed'),true)?$state:'';
         if($uid===''||$classroomId<1||$state==='')return false;
         $ok=$this->locked(function() use($uid,$classroomId,$state,$detail):bool{
             $jobs=$this->read();

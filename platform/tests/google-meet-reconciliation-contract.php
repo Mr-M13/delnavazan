@@ -142,6 +142,12 @@ $check('recorder endpoints are registered and token protected', str_contains($pl
 $recorderPlan = $read('src/Integrations/GoogleWorkspace/MeetRecorderPlan.php');
 $check('the recorder queue is locked, coalesced, recording-aware and expires', str_contains($recorderQueue, 'GET_LOCK') && str_contains($recorderQueue, 'recording_state') && str_contains($recorderQueue, 'join_uri_reference') && str_contains($recorderQueue, 'MeetRecorderPlan::prune') && str_contains($recorderPlan, 'const TTL') && str_contains($recorderPlan, 'const CLAIM_TTL') && str_contains($recorderQueue, 'DZN_MEET_RECORDER_TOKEN'));
 $check('the companion agent claims the job, joins over CDP and reports the result', str_contains($recorderAgent, '/meet/recorder/next') && str_contains($recorderAgent, '/meet/recorder/result') && str_contains($recorderAgent, 'Target.createTarget') && str_contains($recorderAgent, 'Join') && str_contains($recorderService, 'dzn-meet-recorder.env'));
+// A steady poller must never lock itself out: the limiter window advances on its own clock.
+$check('the recorder rate limiter uses a fixed window that traffic cannot extend', str_contains($recorderController, '(int)floor(time()/60)') && str_contains($recorderController, 'set_transient($key,$count+1,120)'));
+// The first live attempt reported recorder_call_not_started: a cold Pi needs longer and a retry.
+$check('the companion tolerates a slow Meet boot and retries a swallowed click', str_contains($recorderAgent, 'RETRY_CLICK_AFTER') && str_contains($recorderAgent, 'DZN_JOIN_TIMEOUT", "75"') && str_contains($recorderAgent, 'DISMISS_JS') && str_contains($recorderEnv, 'DZN_JOIN_TIMEOUT=75'));
+// Joining, leaving and failing are all auditable, and no stale tab survives a job.
+$check('the companion reports leaving and clears stale tabs before each job', str_contains($recorderAgent, 'recorder_left_call') && substr_count($recorderAgent, 'close_stale_meet_tabs()') >= 2 && str_contains($recorderQueue, "'joined','left','failed'") && str_contains($recorderController, "'joined','left','failed'"));
 $check('the companion runbook documents the token and the class-never-blocks rule', str_contains($recorderEnv, 'DZN_RECORDER_TOKEN') && str_contains($recorderRunbook, 'dzn_meet_recorder_token') && str_contains($recorderRunbook, 'never depends on it'));
 
 // The queue's decisions are pure, so they are also proven as behaviour, not only as source shape.

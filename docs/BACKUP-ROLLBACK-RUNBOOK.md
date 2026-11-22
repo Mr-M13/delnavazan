@@ -248,13 +248,13 @@ rollback points; the two durable points live on the encrypted remote. It keeps o
 - `~/backups/delnavazan-rollback-points/points` — empty after a verified push
   (`LOCAL_POINT=removed`); two local points remain only when no remote is configured or a push
   fails;
-- `~/backups/delnavazan-production-cutover` — the newest **1** deploy preflight application
-  archive for the immediate rollback of the current release. Older `application-files.tar.gz`
-  files are removed by the deploy itself before and after each release; `database.sql`,
-  `before.json` and `deployment.json` stay for audit;
+- `~/backups/delnavazan-production-cutover` — the newest **1** complete deploy preflight
+  directory for the immediate rollback of the current release. Older complete preflight
+  directories are removed whole, including their `database.sql`, `before.json` and
+  `deployment.json`; the deployment record is preserved in the workflow artifact and run log;
 - `~/softaculous_backups` — the newest **2** complete archives.
 
-The checked-in `deployment/qa/prune-production-backups.sh` now follows the same single-archive
+The checked-in `deployment/qa/prune-production-backups.sh` now follows the same single-preflight
 policy. Run it over SSH in report mode first, then confirm:
 
 ```sh
@@ -262,10 +262,9 @@ ssh "$PRODUCTION_SSH_USER@cp119.hosting-cloud.net" 'bash -s' < deployment/qa/pru
 ssh "$PRODUCTION_SSH_USER@cp119.hosting-cloud.net" 'bash -s -- --confirm' < deployment/qa/prune-production-backups.sh
 ```
 
-`--confirm` deletes only `application-files.tar.gz` files whose sibling `database.sql` is
-non-empty; the database dump, manifest and deployment record are retained. The nightly host cron
-(`03:17 UTC`, `prune-production-backups.sh --confirm`) performs the same pass once the installed
-copy is updated.
+`--confirm` deletes only complete preflight directories (non-empty `database.sql` plus a deploy
+manifest); incomplete directories are never removed. The nightly host cron (`03:17 UTC`,
+`prune-production-backups.sh --confirm`) performs the same pass once the installed copy is updated.
 
 The durable copy is the encrypted rclone remote in §4. A local point that exists only under
 `~/backups` is not an off-site backup.

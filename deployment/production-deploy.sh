@@ -167,19 +167,16 @@ prune_deploy_backups(){
   find "$backup_root" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | LC_ALL=C sort -r > "$list"
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
-    [[ -f "$backup_root/$name/application-files.tar.gz" ]] || continue
+    dir="$backup_root/$name"
+    [[ -s "$dir/database.sql" ]] || continue
+    [[ -f "$dir/deployment.json" || -f "$dir/before.json" ]] || continue
     count=$((count + 1))
     if (( count <= keep )); then continue; fi
-    dir="$backup_root/$name"
-    if [[ ! -s "$dir/database.sql" ]]; then
-      echo "WARN backup retention skipped $name: database.sql is missing or empty" >&2
+    if ! rm -rf -- "$dir"; then
+      echo "WARN backup retention could not remove $name" >&2
       continue
     fi
-    if ! rm -f -- "$dir/application-files.tar.gz"; then
-      echo "WARN backup retention could not remove $name/application-files.tar.gz" >&2
-      continue
-    fi
-    echo "Backup retention removed $name/application-files.tar.gz"
+    echo "Backup retention removed $name"
   done < "$list"
   rm -f -- "$list"
 }

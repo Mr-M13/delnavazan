@@ -67,8 +67,14 @@ $student = $wpdb->get_row( $wpdb->prepare(
 	"SELECT * FROM {$wpdb->prefix}dzn_students WHERE reference_code=%s",
 	$student_ref
 ) );
+// Read the teacher exactly as AdministratorBookingMatchService does: onboarding state lives in
+// dzn_teacher_onboarding_states, not in the legacy teachers columns.
 $teacher = $wpdb->get_row( $wpdb->prepare(
-	"SELECT * FROM {$wpdb->prefix}dzn_teachers WHERE id=%d",
+	"SELECT t.id,t.status,t.archived_at,t.display_name,t.email,t.timezone,
+	        o.state onboarding_state,o.readiness_state,o.profile_state,o.availability_state
+	   FROM {$wpdb->prefix}dzn_teachers t
+	   LEFT JOIN {$wpdb->prefix}dzn_teacher_onboarding_states o ON o.teacher_id=t.id
+	  WHERE t.id=%d",
 	$teacher_id
 ) );
 $course = $wpdb->get_row( $wpdb->prepare(
@@ -90,6 +96,7 @@ $report = array(
 			'has_whatsapp' => trim( (string) ( $student->whatsapp_phone ?? '' ) ) !== '',
 		) : null,
 		'teacher' => $teacher ? array(
+			'has_onboarding_state' => null !== ( $teacher->onboarding_state ?? null ),
 			'id' => (int) $teacher->id, 'name' => (string) $teacher->display_name,
 			'status' => (string) $teacher->status, 'archived' => null !== $teacher->archived_at,
 			'onboarding_state' => (string) ( $teacher->onboarding_state ?? '' ),
@@ -147,6 +154,9 @@ $report['checks'][] = dzn_diag_check( 'teacher_active', static function () use (
 } );
 
 $report['checks'][] = dzn_diag_check( 'teacher_ready', static function () use ( $teacher ): string {
+	if ( null === ( $teacher->onboarding_state ?? null ) ) {
+		throw new RuntimeException( 'No teacher_onboarding_states row exists for this Teacher' );
+	}
 	if ( (string) $teacher->onboarding_state !== 'active' || (string) $teacher->readiness_state !== 'ready' ) {
 		throw new RuntimeException( 'The Teacher is not ready to accept bookings' );
 	}

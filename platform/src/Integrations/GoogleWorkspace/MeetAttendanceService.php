@@ -42,6 +42,9 @@ final class MeetAttendanceService {
         if(!$record)return array('reconciled'=>false,'reason'=>'conference_record_required');
         $participants=$this->api->listParticipants((string)$record->conference_record_name);
         if($participants['status']<200||$participants['status']>=300)return array('reconciled'=>false,'reason'=>'participants_unavailable','response'=>$participants);
+        // Bind any portal join claim recorded before this run to the participant who arrived with it,
+        // so a class does not need an administrator to type an opaque Meet account id by hand.
+        $claimMapping=(new MeetAttendanceClaimService($this->repository,$this->identities))->autoMap($classroom);
         $sessions=0;$ingested=0;$deferred=0;$bookingMapped=0;
         foreach((array)($participants['body']['participants']??array()) as $participant){
             if(!is_array($participant))continue;
@@ -69,6 +72,10 @@ final class MeetAttendanceService {
         if($isBooking){
             $result['booking_mapped']=$bookingMapped;
             $result['booking_deferred']=$deferred;
+            $result['claim_mapping']=$claimMapping;
+            // Sessions written in this run are now available, so a fresh claim can be correlated
+            // before the introductory adapter assesses overlap.
+            $claimMapping=(new MeetAttendanceClaimService($this->repository,$this->identities))->autoMap($classroom);
             // The booking Lesson does not exist until the outcome is recorded, so the introductory
             // adapter re-assesses the durable participant sessions and records the delivered
             // outcome directly instead of entering Phase P.

@@ -9,6 +9,7 @@ final class StudentClassJoinController {
         check_admin_referer('dzn_student_join_class');
         try{
             $target=(new StudentClassJoinService())->target((string)($_POST['lesson_uid']??''),(string)($_POST['schedule_version_uid']??''));
+            try{GoogleWorkspace\MeetAttendanceClaimService::forLessonUid((string)($_POST['lesson_uid']??''),'student');}catch(\Throwable){}
             nocache_headers();header('Referrer-Policy: no-referrer');wp_redirect($target,302,'Delnavazan');exit;
         }catch(\Throwable){
             wp_safe_redirect(add_query_arg(array('join_status'=>'join_unavailable'),home_url('/student-portal/')));exit;

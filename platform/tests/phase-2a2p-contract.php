@@ -37,9 +37,9 @@ foreach(array('dzn_manage_canonical_attendance_identity','dzn_view_canonical_att
 if(!str_contains($migration,'remove_cap'))throw new RuntimeException('Phase P capability repair must withhold reserved authority from the Teacher role');
 
 // Locked temporal window and threshold.
-foreach(array("RULE_VERSION='canonical_attendance_overlap_v1'","THRESHOLD_SECONDS=1200","PRE_GRACE_SECONDS=0","POST_GRACE_SECONDS=900")as$n)if(!str_contains($rule,$n))throw new RuntimeException('Missing locked Phase P rule constant: '.$n);
+foreach(array("RULE_VERSION='canonical_attendance_overlap_v2'","THRESHOLD_SECONDS=1200","PRE_GRACE_SECONDS=3600","POST_GRACE_SECONDS=3600")as$n)if(!str_contains($rule,$n))throw new RuntimeException('Missing locked Phase P rule constant: '.$n);
 if(!str_contains($rule,'$end+self::POST_GRACE_SECONDS'))throw new RuntimeException('Qualifying window must end at scheduled end plus the post-class grace');
-if(!str_contains($rule,'$start+self::PRE_GRACE_SECONDS'))throw new RuntimeException('Qualifying window must start at the scheduled start with zero pre-class grace');
+if(!str_contains($rule,'$start-self::PRE_GRACE_SECONDS'))throw new RuntimeException('Qualifying window must start at the scheduled start minus the pre-class grace');
 if(!str_contains($rule,'$seconds>=self::THRESHOLD_SECONDS'))throw new RuntimeException('Automatic success must require at least the locked threshold');
 if(!str_contains($rule,'EXCLUDED_OPEN_INTERVAL')||!str_contains($rule,'EXCLUDED_IMPOSSIBLE_INTERVAL'))throw new RuntimeException('Open and impossible intervals must be explicitly excluded');
 if(!str_contains($rule,'private static function union')||!str_contains($rule,'private static function intersect'))throw new RuntimeException('Overlap must union per participant then intersect');

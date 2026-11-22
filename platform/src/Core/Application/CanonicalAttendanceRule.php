@@ -8,19 +8,19 @@ namespace Delnavazan\Platform\Core\Application;
  * settle automatically. Nothing here is canonical delivery truth: Phase O owns that.
  *
  * Owner locks encoded here:
- *  - pre-class grace is ZERO seconds: participation before the scheduled start contributes nothing;
- *  - post-class grace is exactly 900 seconds (15 minutes), measured from the scheduled end;
- *  - the qualifying window is therefore [scheduled_start, scheduled_end + 900s);
+ *  - v2 widens the window so a class that starts early or runs late still confirms: one hour of
+ *    pre-class grace and one hour of post-class grace;
+ *  - the qualifying window is therefore [scheduled_start - 3600s, scheduled_end + 3600s);
  *  - automatic success requires at least 1200 seconds (20 minutes) of simultaneous Teacher/Student
  *    qualifying overlap; exactly 1200 passes, 1199 does not;
  *  - multiple trusted intervals for one participant are unioned (devices/accounts are never
  *    double-counted), and open/missing leave times never qualify.
  */
 final class CanonicalAttendanceRule {
-    public const RULE_VERSION='canonical_attendance_overlap_v1';
+    public const RULE_VERSION='canonical_attendance_overlap_v2';
     public const THRESHOLD_SECONDS=1200;
-    public const PRE_GRACE_SECONDS=0;
-    public const POST_GRACE_SECONDS=900;
+    public const PRE_GRACE_SECONDS=3600;
+    public const POST_GRACE_SECONDS=3600;
     public const EXCLUDED_IMPOSSIBLE_INTERVAL='impossible_interval';
     public const EXCLUDED_OUTSIDE_WINDOW='outside_qualifying_window';
     public const EXCLUDED_OPEN_INTERVAL='open_interval';
@@ -30,9 +30,9 @@ final class CanonicalAttendanceRule {
         $start=(int)strtotime($occurrenceStartUtc.' UTC');
         $end=(int)strtotime($occurrenceEndUtc.' UTC');
         return array(
-            'window_start_utc'=>gmdate('Y-m-d H:i:s',$start+self::PRE_GRACE_SECONDS),
+            'window_start_utc'=>gmdate('Y-m-d H:i:s',$start-self::PRE_GRACE_SECONDS),
             'window_end_utc'=>gmdate('Y-m-d H:i:s',$end+self::POST_GRACE_SECONDS),
-            'window_start_ts'=>$start+self::PRE_GRACE_SECONDS,
+            'window_start_ts'=>$start-self::PRE_GRACE_SECONDS,
             'window_end_ts'=>$end+self::POST_GRACE_SECONDS,
         );
     }

@@ -9,6 +9,7 @@ final class TeacherClassJoinController {
         try{
             $target=(new TeacherClassJoinService())->target((string)($_POST['lesson_uid']??''),(string)($_POST['schedule_version_uid']??''));
             try{GoogleWorkspace\MeetRecorderQueue::enqueueForLessonUid((string)($_POST['lesson_uid']??''));}catch(\Throwable){}
+            try{GoogleWorkspace\MeetAttendanceClaimService::forLessonUid((string)($_POST['lesson_uid']??''),'teacher');}catch(\Throwable){}
             nocache_headers();header('Referrer-Policy: no-referrer');wp_redirect($target,302,'Delnavazan');exit;
         }catch(\Throwable){
             wp_safe_redirect(add_query_arg(array('teacher-view'=>'classes','class_status'=>'join_unavailable'),home_url('/teacher-portal/')));exit;

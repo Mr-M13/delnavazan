@@ -40,6 +40,8 @@ must_contain "$payload" "purge-test-data-tables.php" "shared table classificatio
 must_contain "$wrapper" "DELETE_TEST_STUDENT" "wrapper confirm token"
 must_contain "$wrapper" "sha256sum" "backup checksum"
 must_contain "$wrapper" "db export" "full database export"
+must_contain "$wrapper" "mariadb-dump" "hardened-host export fallback"
+must_contain "$wrapper" "MYSQL_PWD" "credential-safe dump invocation"
 must_contain "$wrapper" "gzip -t" "backup gzip integrity"
 must_contain "$wrapper" "main-\${sha:0:12}" "deployed build identity binding"
 must_contain "$wrapper" "DZN_DELETE_ATTESTATION" "workflow attestation"

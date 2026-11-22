@@ -95,6 +95,45 @@ if [[ "$mode" == 'report' ]]; then
   exit 0
 fi
 
+# WP-CLI's db export uses Symfony Process, which needs proc_open(). A hardened
+# PHP CLI can disable it while WP-CLI's other commands still work. Keep the
+# WP-CLI path first, then dump directly with the credentials WordPress already
+# stores; the password travels only through MYSQL_PWD, never argv or logs.
+export_database(){
+  local target="$1"
+  rm -f "$target"
+  if wp --path="$root" --skip-plugins --skip-themes db export "$target" --add-drop-table >/dev/null 2>&1 && [[ -s "$target" ]]; then
+    printf 'DB_EXPORT=wp-cli\n' >&2
+    return 0
+  fi
+  local dump=''
+  if command -v mariadb-dump >/dev/null 2>&1; then dump='mariadb-dump'
+  elif command -v mysqldump >/dev/null 2>&1; then dump='mysqldump'
+  fi
+  [[ -n "$dump" ]] || fail 'database export failed and neither mariadb-dump nor mysqldump is installed'
+  local db_name db_user db_pass db_host host port socket rest
+  db_name="$(wp --path="$root" --skip-plugins --skip-themes config get DB_NAME)" || fail 'database name is unavailable'
+  db_user="$(wp --path="$root" --skip-plugins --skip-themes config get DB_USER)" || fail 'database user is unavailable'
+  db_pass="$(wp --path="$root" --skip-plugins --skip-themes config get DB_PASSWORD)" || fail 'database password is unavailable'
+  db_host="$(wp --path="$root" --skip-plugins --skip-themes config get DB_HOST)" || fail 'database host is unavailable'
+  [[ -n "$db_name" && -n "$db_user" ]] || fail 'database credentials are incomplete'
+  host="$db_host"; port=''; socket=''
+  if [[ "$db_host" == *:* ]]; then
+    host="${db_host%%:*}"; rest="${db_host#*:}"
+    if [[ "$rest" =~ ^[0-9]+$ ]]; then port="$rest"; else socket="$rest"; fi
+  fi
+  if [[ -z "$socket" && "$host" == 'localhost' ]]; then
+    socket="$(php -r 'echo ini_get("mysqli.default_socket");' 2>/dev/null || true)"
+  fi
+  local args=(--add-drop-table --single-transaction --quick --default-character-set=utf8mb4)
+  [[ -n "$host" && "$host" != 'localhost' ]] && args+=(--host="$host")
+  [[ -n "$port" ]] && args+=(--port="$port")
+  [[ -n "$socket" ]] && args+=(--socket="$socket")
+  MYSQL_PWD="$db_pass" "$dump" "${args[@]}" --user="$db_user" "$db_name" > "$target" || fail 'direct database export failed'
+  [[ -s "$target" ]] || fail 'direct database export is empty'
+  printf 'DB_EXPORT=direct-fallback\n' >&2
+}
+
 backup_dir="$HOME/backups/retire-imported-enrolment"
 mkdir -p "$backup_dir"
 chmod 700 "$backup_dir"
@@ -102,7 +141,7 @@ stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 raw="$backup_dir/pre-retirement-$stamp.sql"
 [[ ! -e "$raw" && ! -e "$raw.gz" ]] || fail 'refusing to overwrite an existing backup'
 
-wp --path="$root" --skip-plugins --skip-themes db export "$raw" --add-drop-table >/dev/null
+export_database "$raw"
 [[ -s "$raw" ]] || fail 'database export is empty'
 gzip -9 "$raw"
 backup="$raw.gz"

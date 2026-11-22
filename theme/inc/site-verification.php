@@ -47,6 +47,8 @@ function dzn_theme_enamad_verification_meta() {
 		return;
 	}
 
-	printf( '<meta name="enamad" content="%s" />' . "\n", esc_attr( $code ) );
+	// Enamad matches the literal snippet it publishes, so this tag is printed
+	// byte-for-byte with no space before `/>`. Do not reformat this line.
+	printf( '<meta name="enamad" content="%s"/>' . "\n", esc_attr( $code ) );
 }
 add_action( 'wp_head', 'dzn_theme_enamad_verification_meta', 2 );

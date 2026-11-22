@@ -25,7 +25,10 @@ final class LessonScheduleService {
         $bookingRequestId=Normalizer::id($input['booking_request_id']??null);
         $start=(string)($input['starts_at_utc']??'');$end=(string)($input['ends_at_utc']??'');
         if(!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D',$start)||!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D',$end)||$end<=$start)throw new \InvalidArgumentException('Confirmed occurrence interval required');
-        if($end>gmdate('Y-m-d H:i:s'))throw new \InvalidArgumentException('Confirmed occurrence must have ended');
+        // A confirmed occurrence is normally historical. An administrator may record the
+        // introductory stage as completed before it happens (returning Student, agreed skip);
+        // that path passes the explicit flag and is audited by the caller.
+        if(empty($input['administrative_completion'])&&$end>gmdate('Y-m-d H:i:s'))throw new \InvalidArgumentException('Confirmed occurrence must have ended');
         $timezone=Normalizer::timezone($input['schedule_timezone']??null);$date=(string)($input['local_wall_date']??'');$time=(string)($input['local_wall_time']??'');
         if(!$timezone)throw new \InvalidArgumentException('Confirmed occurrence timezone required');
         if(!preg_match('/^\d{4}-\d{2}-\d{2}$/D',$date)||!preg_match('/^\d{2}:\d{2}:\d{2}$/D',$time))throw new \InvalidArgumentException('Confirmed occurrence wall clock required');

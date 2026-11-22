@@ -370,6 +370,34 @@ final class EnrolmentWorkspaceController {
                     absint($post['expected_confirmation_version'] ?? 0)
                 );
                 return (string) $result['message'];
+            case 'intro_administrative_completion':
+                // The introductory stage can be recorded as completed without holding the class:
+                // a returning Student, or an agreed skip, still needs the normal continuation,
+                // payment invitation and paid-term activation. The record is attributed to this
+                // administrator through the outcome source and the note.
+                self::requireCap('dzn_manage_post_intro_automation');
+                self::requireCap('dzn_manage_booking_request_coordination');
+                if ($requestId < 1) throw new \InvalidArgumentException('Choose a booking request first.');
+                if (empty($post['acknowledge'])) throw new \InvalidArgumentException('Confirm that the Teacher and the Student/guardian agreed to skip the introduction.');
+                $completionNote = trim(sanitize_textarea_field((string) ($post['note'] ?? '')));
+                if ($completionNote === '') throw new \InvalidArgumentException('Record who agreed, how and when.');
+                $completionConfirmation = (new \Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository())->confirmationByBooking($requestId);
+                if (!$completionConfirmation) throw new \InvalidArgumentException('intro_booking_confirmation_required');
+                if ((string) $completionConfirmation->state !== 'confirmed') throw new \InvalidArgumentException('intro_booking_not_confirmed');
+                // A future occurrence must not stay on the Teacher/Student calendars.
+                $providerState = 'not_required';
+                if ((string) $completionConfirmation->starts_at_utc > gmdate('Y-m-d H:i:s')) {
+                    try {
+                        $provider = (new \Delnavazan\Platform\Integrations\BookingCalendarProjectionService())->cancel((int) $completionConfirmation->id);
+                        $providerState = (string) ($provider['state'] ?? 'unknown');
+                    } catch (\Throwable $providerError) {
+                        $providerState = 'retraction_pending';
+                    }
+                }
+                $completion = (new PostIntroPreparationService())->recordAdministrativeCompletion($requestId, (int) get_current_user_id(), $completionNote);
+                $completionState = (string) ($completion['state'] ?? 'unknown');
+                return 'Introductory stage recorded as completed administratively (' . $completionState . '; provider event: ' . $providerState . '). '
+                    . 'The normal continuation now runs: the payment invitation is prepared and no class exists until the payment is verified.';
             case 'retry_booking_projection':
                 self::requireCap('dzn_manage_booking_request_coordination');
                 $confirmationId = absint($post['confirmation_id'] ?? 0);

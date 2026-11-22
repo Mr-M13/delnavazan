@@ -86,21 +86,6 @@ auto-recording requirement; the Teacher stays a co-host on any device.
 - The unverified residual risk is Google's Terms of Use for automated interaction with Meet; the
   owner accepted it explicitly for this single organizer account.
 
-## Waiting room and join policy
-
-Every space is created with **moderation OFF** (`GoogleWorkspaceClassroomRule::moderation()`), so a
-participant joins the room directly instead of waiting for somebody to admit them. That matters
-because the companion is the only organizer: with a waiting room, a class whose co-host had not
-arrived yet could strand everyone behind an admit button that nobody could press. The Meet link is
-obtainable only through the authenticated portal (`DZN_MEET_CALENDAR_ATTENDEES` off, attendees
-detached), so the portal is the boundary, not the waiting room.
-
-- `config.accessType` stays `OPEN` so the organizer's absence is supported; set
-  `DZN_MEET_ACCESS_TYPE` to `TRUSTED`/`RESTRICTED` to tighten it.
-- To restore the waiting room, define `DZN_MEET_SPACE_MODERATION` as `ON` in `wp-config.php`. New and
-  re-provisioned spaces pick it up immediately, and the five-minute worker converges booking spaces
-  at most hourly (audit `space_access_converged`).
-- Consequence to accept knowingly: anyone who has the Meet link can join without approval.
 
 ## Audio quality: Studio sound and noise cancellation
 
@@ -177,3 +162,42 @@ by the platform (`sendUpdates=none` and `reminders.useDefault=false`). Google st
 recording is ready" email to the meeting organizer and to the person who started the recording when
 a recording completes; that email is a Meet product behaviour and cannot be disabled through the
 API.
+
+## Waiting room and join policy
+
+Every space is created with **moderation OFF** (`GoogleWorkspaceClassroomRule::moderation()`), so a
+participant joins the room directly instead of waiting for somebody to admit them. That matters
+because the companion is the only organizer: with a waiting room, a class whose co-host had not
+arrived yet could strand everyone behind an admit button that nobody could press. The Meet link is
+obtainable only through the authenticated portal (`DZN_MEET_CALENDAR_ATTENDEES` off, attendees
+detached), so the portal is the boundary, not the waiting room.
+
+- `config.accessType` stays `OPEN` so the organizer's absence is supported; set
+  `DZN_MEET_ACCESS_TYPE` to `TRUSTED`/`RESTRICTED` to tighten it.
+- To restore the waiting room, define `DZN_MEET_SPACE_MODERATION` as `ON` in `wp-config.php`. New and
+  re-provisioned spaces pick it up immediately, and the five-minute worker converges booking spaces
+  at most hourly (audit `space_access_converged`).
+- Consequence to accept knowingly: anyone who has the Meet link can join without approval.
+
+## Attendance auto-confirmation
+
+Automatic attendance needs two things Google does not hand over directly: **who** a Meet participant is
+(Meet exposes only an opaque `users/…` id) and **how long** the Teacher and the Student overlapped.
+
+- **Identity comes from the portal claim.** Every Teacher/Student portal join records an
+  `attendance_claim` event with the classroom, the role and the instant. During reconciliation the
+  platform binds a claim to the one signed-in participant whose arrival falls inside
+  `MeetAttendanceClaimService::TOLERANCE_SECONDS` (180 s) of it. The binding is written to the
+  Phase-P registry as `verified` with `portal_claim_correlation` provenance, and it never overwrites a
+  binding that already belongs to another participant — an ambiguous correlation is skipped, not
+  guessed.
+- **The organizer can never become a mapped participant.** The companion joins through the recorder
+  queue, which writes no claim, and only `teacher`/`student` claims exist, so `classroom@` has nothing
+  to correlate with.
+- **The window is v2 (`canonical_attendance_overlap_v2`)**: one hour of pre-class grace and one hour
+  of post-class grace around the scheduled slot, with the unchanged **1200 s** simultaneous
+  Teacher∩Student threshold. A class that starts early or runs late now confirms; a class with a
+  short overlap still does not.
+- **A claim only helps once.** The first reconciliation after the class correlates and maps; the
+  overlap assessment then uses the durable sessions. If a participant joins from a second Google
+  account, that account gets its own claim-based mapping and the intervals are unioned.

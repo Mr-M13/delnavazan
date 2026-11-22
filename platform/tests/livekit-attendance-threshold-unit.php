@@ -28,14 +28,14 @@ dzn_lk_threshold_assert($below['eligible']===false,'1199 seconds must fail');
 
 // Time before the scheduled start contributes zero.
 $preStart=dzn_lk_threshold_assess(array($t('2026-10-31 09:50:00','2026-10-31 10:10:00')),array($t('2026-10-31 10:00:00','2026-10-31 10:20:00')));
-dzn_lk_threshold_assert($preStart['seconds']===600,'pre-start presence must be clipped to 600 seconds');
+dzn_lk_threshold_assert($preStart['seconds']===600,'an early arrival contributes only the shared minutes (600)');
 $fullyBefore=dzn_lk_threshold_assess(array($t('2026-10-31 09:00:00','2026-10-31 10:00:00')),array($t('2026-10-31 10:00:00','2026-10-31 10:20:00')));
 dzn_lk_threshold_assert($fullyBefore['seconds']===0,'an interval ending at the start must contribute zero');
 
-// The window ends exactly at scheduled end + 900 seconds and is exclusive.
-$grace=dzn_lk_threshold_assess(array($t('2026-10-31 10:19:59','2026-10-31 10:40:00')),array($t('2026-10-31 10:19:59','2026-10-31 10:40:00')));
+// The v2 window ends exactly at scheduled end + 3600 seconds and is exclusive.
+$grace=dzn_lk_threshold_assess(array($t('2026-10-31 11:04:59','2026-10-31 11:20:00')),array($t('2026-10-31 11:04:59','2026-10-31 11:20:00')));
 dzn_lk_threshold_assert($grace['seconds']===1,'only the single second before the grace boundary may count');
-$afterGrace=dzn_lk_threshold_assess(array($t('2026-10-31 10:20:00','2026-10-31 10:40:00')),array($t('2026-10-31 10:20:00','2026-10-31 10:40:00')));
+$afterGrace=dzn_lk_threshold_assess(array($t('2026-10-31 11:05:00','2026-10-31 11:20:00')),array($t('2026-10-31 11:05:00','2026-10-31 11:20:00')));
 dzn_lk_threshold_assert($afterGrace['seconds']===0,'the grace boundary is exclusive');
 
 // Separate participant totals cannot substitute for simultaneous overlap.
@@ -73,7 +73,7 @@ dzn_lk_threshold_assert(in_array(CanonicalAttendanceRule::EXCLUDED_IMPOSSIBLE_IN
 
 // The rule identity is locked.
 dzn_lk_threshold_assert(CanonicalAttendanceRule::THRESHOLD_SECONDS===1200,'the locked threshold must remain 1200');
-dzn_lk_threshold_assert(CanonicalAttendanceRule::PRE_GRACE_SECONDS===0,'pre-start grace must remain zero');
-dzn_lk_threshold_assert(CanonicalAttendanceRule::POST_GRACE_SECONDS===900,'post-end grace must remain 900');
+dzn_lk_threshold_assert(CanonicalAttendanceRule::PRE_GRACE_SECONDS===3600,'pre-start grace must remain one hour');
+dzn_lk_threshold_assert(CanonicalAttendanceRule::POST_GRACE_SECONDS===3600,'post-end grace must remain one hour');
 
 echo "LiveKit attendance threshold unit passed\n";

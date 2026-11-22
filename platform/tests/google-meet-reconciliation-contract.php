@@ -150,6 +150,17 @@ $check('the companion tolerates a slow Meet boot and retries a swallowed click',
 $check('the companion reports leaving and clears stale tabs before each job', str_contains($recorderAgent, 'recorder_left_call') && substr_count($recorderAgent, 'close_stale_meet_tabs()') >= 2 && str_contains($recorderQueue, "'joined','left','failed'") && str_contains($recorderController, "'joined','left','failed'"));
 $check('the companion runbook documents the token and the class-never-blocks rule', str_contains($recorderEnv, 'DZN_RECORDER_TOKEN') && str_contains($recorderRunbook, 'dzn_meet_recorder_token') && str_contains($recorderRunbook, 'never depends on it'));
 
+// Attendance auto-mapping: the portal claim is the only thing that binds an opaque Meet account.
+$claimService = $read('src/Integrations/GoogleWorkspace/MeetAttendanceClaimService.php');
+$attendanceService = $read('src/Integrations/GoogleWorkspace/MeetAttendanceService.php');
+$attendanceRule = $read('src/Core/Application/CanonicalAttendanceRule.php');
+$check('every portal join records an attendance claim', str_contains($teacherJoinController, 'MeetAttendanceClaimService::forLessonUid') && str_contains($studentJoinController, "forLessonUid((string)(\$_POST['lesson_uid']??''),'student')") && str_contains($bookingJoinController, 'MeetAttendanceClaimService::forBookingUid'));
+$check('claims bind only on a unique, clearly nearest participant arrival', str_contains($claimService, 'TOLERANCE_SECONDS=180') && str_contains($claimService, 'DISTINCT_SECONDS=30') && str_contains($claimService, "'signedin'"));
+$check('an account bound to another participant is never rebound', str_contains($claimService, 'participant_id===$participantId)return false;') && str_contains($claimService, "'provider_code'=>'google_meet'"));
+$check('the organizer has no portal claim, so it can never become a mapped participant', !str_contains($claimService, 'recorder') && str_contains($claimService, "array('teacher','student')"));
+$check('auto-mapping runs before attendance is assessed', str_contains($attendanceService, 'autoMap($classroom)'));
+$check('the attendance window allows early and late classes', str_contains($attendanceRule, "RULE_VERSION='canonical_attendance_overlap_v2'") && str_contains($attendanceRule, 'PRE_GRACE_SECONDS=3600') && str_contains($attendanceRule, 'POST_GRACE_SECONDS=3600') && str_contains($attendanceRule, 'THRESHOLD_SECONDS=1200'));
+
 // The queue's decisions are pure, so they are also proven as behaviour, not only as source shape.
 require_once $root . '/src/Integrations/GoogleWorkspace/MeetRecorderPlan.php';
 $planClass = 'Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\MeetRecorderPlan';

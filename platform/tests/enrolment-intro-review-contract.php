@@ -63,6 +63,15 @@ $contains($view, array(
     "self::timezoneSelect('schedule_timezone'",
 ), 'Create intro must use dropdowns for local start time and service-area timezone');
 $contains($view, array("intdiv(\$minute, 60), \$minute % 60"), 'Local start time options must be generated from fixed clock values');
+$contains($view, array(
+    "(string) (\$course->course_type ?? '') === 'introductory'",
+), 'Create intro must offer only introductory Courses so the wrong Course cannot be chosen');
+$contains($controller, array(
+    "'Choose an active introductory Course' =>",
+    "'The Teacher already has a class at that time. Choose another slot.' =>",
+    "'The Teacher has a reserved continuation slot at that time. Choose another slot.' =>",
+    "'Choose a future introductory time' =>",
+), 'Create-intro refusals must be shown to the administrator instead of a generic opaque reference');
 $contains($view, array('$minute += 15'), 'Local start time options must use quarter-hour steps so an agreed :45 slot is enterable');
 $notContains($view, array('$minute += 30'), 'Local start time options must not be restricted to half-hour steps');
 

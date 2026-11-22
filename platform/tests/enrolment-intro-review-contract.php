@@ -71,6 +71,10 @@ $contains($controller, array(
     "'The Teacher already has a class at that time. Choose another slot.' =>",
     "'The Teacher has a reserved continuation slot at that time. Choose another slot.' =>",
     "'Choose a future introductory time' =>",
+    "'The Teacher is not ready to accept bookings' =>",
+    "'Select the availability-preference override reason' =>",
+    "'The Teacher already has a reserved class or continuation slot at that time. Choose another slot.' =>",
+    "'The Teacher is not eligible for the introductory Course' =>",
 ), 'Create-intro refusals must be shown to the administrator instead of a generic opaque reference');
 $contains($view, array('$minute += 15'), 'Local start time options must use quarter-hour steps so an agreed :45 slot is enterable');
 $notContains($view, array('$minute += 30'), 'Local start time options must not be restricted to half-hour steps');

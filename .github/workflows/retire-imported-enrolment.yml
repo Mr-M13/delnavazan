@@ -37,7 +37,11 @@ on:
         type: string
         required: true
       student_reference:
-        description: Student reference the import belongs to (for example CCS000021)
+        description: Student record reference (for example DZN-STU-000017)
+        type: string
+        required: true
+      term_reference:
+        description: Term reference created by the import (for example DZN-TRM-000005)
         type: string
         required: true
       mode:
@@ -91,6 +95,7 @@ jobs:
           COMMIT_SHA: ${{ inputs.commit_sha }}
           ENROLMENT_REFERENCE: ${{ inputs.enrolment_reference }}
           STUDENT_REFERENCE: ${{ inputs.student_reference }}
+          TERM_REFERENCE: ${{ inputs.term_reference }}
           MODE: ${{ inputs.mode }}
           FINGERPRINT: ${{ inputs.fingerprint }}
           CONFIRM: ${{ inputs.confirm }}
@@ -99,7 +104,8 @@ jobs:
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character reviewed source SHA.' >&2; exit 1; }
           [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character deployed SHA.' >&2; exit 1; }
           [[ "$ENROLMENT_REFERENCE" =~ ^ENR-[A-Z0-9]+$ ]] || { echo 'Provide the enrolment reference (ENR-...).' >&2; exit 1; }
-          [[ "$STUDENT_REFERENCE" =~ ^CC[A-Z0-9]+$ ]] || { echo 'Provide the student reference (CC...).' >&2; exit 1; }
+          [[ "$STUDENT_REFERENCE" =~ ^DZN-STU-[A-Z0-9]+$ ]] || { echo 'Provide the student record reference (DZN-STU-...).' >&2; exit 1; }
+          [[ "$TERM_REFERENCE" =~ ^DZN-TRM-[A-Z0-9]+$ ]] || { echo 'Provide the imported Term reference (DZN-TRM-...).' >&2; exit 1; }
           [[ "$MODE" == 'report' || "$MODE" == 'execute' ]] || { echo 'Mode must be report or execute.' >&2; exit 1; }
           if [[ "$MODE" == 'execute' ]]; then
             [[ "$FINGERPRINT" =~ ^[0-9a-f]{64}$ ]] || { echo 'Execute requires the 64-character report fingerprint.' >&2; exit 1; }
@@ -143,10 +149,11 @@ jobs:
           COMMIT_SHA: ${{ inputs.commit_sha }}
           ENROLMENT_REFERENCE: ${{ inputs.enrolment_reference }}
           STUDENT_REFERENCE: ${{ inputs.student_reference }}
+          TERM_REFERENCE: ${{ inputs.term_reference }}
         run: |
           set -Eeuo pipefail
           [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
-          bash deployment/qa/retire-imported-enrolment.sh report "$COMMIT_SHA" "$ENROLMENT_REFERENCE" "$STUDENT_REFERENCE" \
+          bash deployment/qa/retire-imported-enrolment.sh report "$COMMIT_SHA" "$ENROLMENT_REFERENCE" "$STUDENT_REFERENCE" "$TERM_REFERENCE" \
             | tee "$RUNNER_TEMP/retire-enrolment-report.json"
           jq -e '.ok == true and .retirement_performed == false and (.lessons | length) > 0' "$RUNNER_TEMP/retire-enrolment-report.json" >/dev/null
 
@@ -172,12 +179,13 @@ jobs:
           COMMIT_SHA: ${{ inputs.commit_sha }}
           ENROLMENT_REFERENCE: ${{ inputs.enrolment_reference }}
           STUDENT_REFERENCE: ${{ inputs.student_reference }}
+          TERM_REFERENCE: ${{ inputs.term_reference }}
           FINGERPRINT: ${{ inputs.fingerprint }}
           CONFIRM: ${{ inputs.confirm }}
         run: |
           set -Eeuo pipefail
           [[ -n "$DZN_RETIRE_ATTESTATION" ]] || { echo 'The protected attestation secret is not configured.' >&2; exit 1; }
-          bash deployment/qa/retire-imported-enrolment.sh execute "$COMMIT_SHA" "$ENROLMENT_REFERENCE" "$STUDENT_REFERENCE" "$FINGERPRINT" "$CONFIRM" \
+          bash deployment/qa/retire-imported-enrolment.sh execute "$COMMIT_SHA" "$ENROLMENT_REFERENCE" "$STUDENT_REFERENCE" "$TERM_REFERENCE" "$FINGERPRINT" "$CONFIRM" \
             | tee "$RUNNER_TEMP/retire-enrolment-execute.json"
           jq -e '.ok == true and .retirement_performed == true' "$RUNNER_TEMP/retire-enrolment-execute.json" >/dev/null
           jq -e '.post_verification.enrolment_archived == true' "$RUNNER_TEMP/retire-enrolment-execute.json" >/dev/null

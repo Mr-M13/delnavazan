@@ -39,7 +39,8 @@ function dzn_retire_unit_expect(string $name, array $state, array $expected): vo
 /** @param array<string,mixed> $overrides */
 function dzn_retire_unit_state(array $overrides = array()): array {
     $state = array(
-        'expected_student_reference' => 'CCS000021',
+        'expected_student_reference' => 'DZN-STU-000017',
+        'expected_term_reference'    => 'DZN-TRM-000005',
         'now'                       => '2026-11-22 10:00:00',
         'enrolment'                 => array(
             'id'                  => 91,
@@ -55,14 +56,14 @@ function dzn_retire_unit_state(array $overrides = array()): array {
         ),
         'student'                   => array(
             'id'             => 21,
-            'reference_code' => 'CCS000021',
+            'reference_code' => 'DZN-STU-000017',
             'status'         => 'active',
             'available'      => true,
         ),
         'terms'                     => array(
             array(
                 'id'                  => 55,
-                'reference_code'      => 'TRM-000055',
+                'reference_code'      => 'DZN-TRM-000005',
                 'record_model'        => 'legacy_phase1',
                 'status'              => 'active',
                 'payment_state'       => 'unknown',
@@ -120,7 +121,9 @@ dzn_retire_unit_expect('canonical record model', dzn_retire_unit_state(array('en
 
 dzn_retire_unit_expect('already archived', dzn_retire_unit_state(array('enrolment' => array('archived_at_present' => 1))), array('enrolment_already_archived'));
 
-dzn_retire_unit_expect('student mismatch', dzn_retire_unit_state(array('expected_student_reference' => 'CCS000099')), array('student_reference_mismatch'));
+dzn_retire_unit_expect('student mismatch', dzn_retire_unit_state(array('expected_student_reference' => 'DZN-STU-000099')), array('student_reference_mismatch'));
+
+dzn_retire_unit_expect('term mismatch', dzn_retire_unit_state(array('expected_term_reference' => 'DZN-TRM-000099')), array('term_reference_mismatch'));
 
 dzn_retire_unit_expect('student unavailable', dzn_retire_unit_state(array('student' => array('available' => false))), array('student_unavailable'));
 

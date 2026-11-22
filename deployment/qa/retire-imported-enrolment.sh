@@ -16,7 +16,8 @@ readonly SHA_RE='^[0-9a-f]{40}$'
 readonly HASH_RE='^[0-9a-f]{64}$'
 readonly CONFIRM_VALUE='RETIRE_IMPORTED_ENROLMENT'
 readonly ENROLMENT_RE='^ENR-[A-Z0-9]+$'
-readonly STUDENT_RE='^CC[A-Z0-9]+$'
+readonly STUDENT_RE='^DZN-STU-[A-Z0-9]+$'
+readonly TERM_RE='^DZN-TRM-[A-Z0-9]+$'
 readonly QA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 fail(){ printf 'FAIL  %s\n' "$1" >&2; exit 1; }
@@ -24,8 +25,8 @@ fail(){ printf 'FAIL  %s\n' "$1" >&2; exit 1; }
 usage() {
   cat >&2 <<EOF
 usage:
-  bash deployment/qa/retire-imported-enrolment.sh report  <full-current-main-sha> <enrolment-reference> <student-reference>
-  bash deployment/qa/retire-imported-enrolment.sh execute <full-current-main-sha> <enrolment-reference> <student-reference> <prestate-fingerprint> $CONFIRM_VALUE
+  bash deployment/qa/retire-imported-enrolment.sh report  <full-current-main-sha> <enrolment-reference> <student-reference> <term-reference>
+  bash deployment/qa/retire-imported-enrolment.sh execute <full-current-main-sha> <enrolment-reference> <student-reference> <term-reference> <prestate-fingerprint> $CONFIRM_VALUE
 EOF
   exit 64
 }
@@ -35,12 +36,12 @@ EOF
 
 case "${1:-}" in
   report)
-    [[ $# == 4 ]] || usage
-    mode='report'; sha="$2"; enrolment_ref="$3"; student_ref="$4"; fingerprint=''; confirm=''
+    [[ $# == 5 ]] || usage
+    mode='report'; sha="$2"; enrolment_ref="$3"; student_ref="$4"; term_ref="$5"; fingerprint=''; confirm=''
     ;;
   execute)
-    [[ $# == 6 ]] || usage
-    mode='execute'; sha="$2"; enrolment_ref="$3"; student_ref="$4"; fingerprint="$5"; confirm="$6"
+    [[ $# == 7 ]] || usage
+    mode='execute'; sha="$2"; enrolment_ref="$3"; student_ref="$4"; term_ref="$5"; fingerprint="$6"; confirm="$7"
     [[ "$fingerprint" =~ $HASH_RE ]] || fail 'pre-state fingerprint must be a 64-character hex digest from report mode'
     [[ "$confirm" == "$CONFIRM_VALUE" ]] || fail "execute requires the exact confirm token $CONFIRM_VALUE"
     : "${DZN_RETIRE_ATTESTATION:?Set the protected workflow attestation token; direct execute is refused}"
@@ -50,7 +51,8 @@ esac
 
 [[ "$sha" =~ $SHA_RE ]] || fail 'first argument must be the full 40-character current main SHA'
 [[ "$enrolment_ref" =~ $ENROLMENT_RE ]] || fail 'enrolment reference must look like ENR-...'
-[[ "$student_ref" =~ $STUDENT_RE ]] || fail 'student reference must look like CC...'
+[[ "$student_ref" =~ $STUDENT_RE ]] || fail 'student reference must look like DZN-STU-...'
+[[ "$term_ref" =~ $TERM_RE ]] || fail 'term reference must look like DZN-TRM-...'
 : "${PRODUCTION_SSH_USER:?Set the protected production SSH user}"
 [[ "$PRODUCTION_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || fail 'SSH username contains unsupported characters'
 
@@ -64,16 +66,17 @@ bundle="$(tar -czf - -C "$QA_DIR" retire-imported-enrolment.php purge-test-data-
 attestation="${DZN_RETIRE_ATTESTATION:-none}"
 
 ssh -T "${PRODUCTION_SSH_USER}@${HOST}" bash -s -- \
-  "$ROOT_REL" "$bundle" "$mode" "$sha" "$enrolment_ref" "$student_ref" "$fingerprint" "$confirm" "$attestation" <<'REMOTE'
+  "$ROOT_REL" "$bundle" "$mode" "$sha" "$enrolment_ref" "$student_ref" "$term_ref" "$fingerprint" "$confirm" "$attestation" <<'REMOTE'
 set -Eeuo pipefail
-root_rel="$1"; bundle="$2"; mode="$3"; sha="$4"; enrolment_ref="$5"; student_ref="$6"; fingerprint="$7"; confirm="$8"; attestation="$9"
+root_rel="$1"; bundle="$2"; mode="$3"; sha="$4"; enrolment_ref="$5"; student_ref="$6"; term_ref="$7"; fingerprint="$8"; confirm="$9"; attestation="${10}"
 
 fail(){ printf 'FAIL  %s\n' "$1" >&2; exit 1; }
 
 [[ "$root_rel" == domains/delnavazan.com/public_html ]] || fail 'invalid retirement target'
 [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || fail 'invalid source SHA'
 [[ "$enrolment_ref" =~ ^ENR-[A-Z0-9]+$ ]] || fail 'invalid enrolment reference'
-[[ "$student_ref" =~ ^CC[A-Z0-9]+$ ]] || fail 'invalid student reference'
+[[ "$student_ref" =~ ^DZN-STU-[A-Z0-9]+$ ]] || fail 'invalid student reference'
+[[ "$term_ref" =~ ^DZN-TRM-[A-Z0-9]+$ ]] || fail 'invalid term reference'
 root="$HOME/$root_rel"
 [[ -f "$root/wp-load.php" && -f "$root/wp-config.php" ]] || fail 'expected WordPress root is unavailable'
 command -v wp >/dev/null || fail 'WP-CLI is required'
@@ -88,7 +91,7 @@ printf '%s' "$bundle" | base64 -d | tar -xzf - -C "$tmp"
 [[ -f "$tmp/retire-imported-enrolment.php" && -f "$tmp/purge-test-data-tables.php" ]] || fail 'payload extraction failed'
 
 if [[ "$mode" == 'report' ]]; then
-  wp --path="$root" eval-file "$tmp/retire-imported-enrolment.php" report "$enrolment_ref" "$student_ref" none none none none none "$tmp/purge-test-data-tables.php"
+  wp --path="$root" eval-file "$tmp/retire-imported-enrolment.php" report "$enrolment_ref" "$student_ref" "$term_ref" none none none none none "$tmp/purge-test-data-tables.php"
   exit 0
 fi
 
@@ -111,5 +114,5 @@ bytes="$(wc -c < "$backup" | tr -d ' ')"
 (( bytes > 65536 )) || fail "database export is implausibly small ($bytes bytes); stop and inspect"
 printf 'BACKUP ok  %s  sha256=%s  bytes=%s\n' "$backup" "$backup_sha" "$bytes" >&2
 
-wp --path="$root" eval-file "$tmp/retire-imported-enrolment.php" execute "$enrolment_ref" "$student_ref" "$confirm" "$fingerprint" "$backup" "$backup_sha" "$attestation" "$tmp/purge-test-data-tables.php"
+wp --path="$root" eval-file "$tmp/retire-imported-enrolment.php" execute "$enrolment_ref" "$student_ref" "$term_ref" "$confirm" "$fingerprint" "$backup" "$backup_sha" "$attestation" "$tmp/purge-test-data-tables.php"
 REMOTE

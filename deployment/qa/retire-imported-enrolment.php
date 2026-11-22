@@ -99,6 +99,9 @@ function dzn_retire_decision( array $state ): array {
 		if ( ! in_array( (string) ( $term['payment_state'] ?? '' ), array( 'unknown', 'not_required', 'pending' ), true ) ) {
 			$problems[] = 'term_payment_recorded';
 		}
+		if ( (string) ( $state['expected_term_reference'] ?? '' ) !== '' && (string) ( $term['reference_code'] ?? '' ) !== (string) $state['expected_term_reference'] ) {
+			$problems[] = 'term_reference_mismatch';
+		}
 	}
 	$lessons = (array) ( $state['lessons'] ?? array() );
 	if ( $lessons === array() ) {
@@ -219,7 +222,7 @@ function dzn_retire_reference_count( array $tables, string $column, int $id ): i
  *
  * @return array<string,mixed>
  */
-function dzn_retire_state( string $enrolment_reference, string $student_reference ): array {
+function dzn_retire_state( string $enrolment_reference, string $student_reference, string $term_reference ): array {
 	global $wpdb;
 	$enrolment_table = dzn_retire_table( 'enrolments' );
 	$matches = $wpdb->get_results( $wpdb->prepare(
@@ -228,6 +231,7 @@ function dzn_retire_state( string $enrolment_reference, string $student_referenc
 	) );
 	$state = array(
 		'expected_student_reference' => $student_reference,
+		'expected_term_reference'    => $term_reference,
 		'now'                        => gmdate( 'Y-m-d H:i:s' ),
 		'enrolment'                  => null,
 		'student'                    => array(),
@@ -376,7 +380,7 @@ function dzn_retire_fingerprint( array $state ): string {
 			'lessons' => count( (array) $state['lessons'] ),
 		),
 	);
-	return hash( 'sha256', wp_json_encode( $canonical ) . '|' . (string) ( $state['expected_student_reference'] ?? '' ) );
+	return hash( 'sha256', wp_json_encode( $canonical ) . '|' . (string) ( $state['expected_student_reference'] ?? '' ) . '|' . (string) ( $state['expected_term_reference'] ?? '' ) );
 }
 
 /** @return array<string,int> */
@@ -424,10 +428,10 @@ function dzn_retire_public_state( array $state, array $problems, string $fingerp
  *
  * @return array<string,mixed>
  */
-function dzn_retire_execute( string $enrolment_reference, string $student_reference, string $fingerprint ): array {
+function dzn_retire_execute( string $enrolment_reference, string $student_reference, string $term_reference, string $fingerprint ): array {
 	global $wpdb;
 	$now    = gmdate( 'Y-m-d H:i:s' );
-	$state  = dzn_retire_state( $enrolment_reference, $student_reference );
+	$state  = dzn_retire_state( $enrolment_reference, $student_reference, $term_reference );
 	$locked = dzn_retire_decision( $state );
 	if ( $locked !== array() ) {
 		throw new RuntimeException( 'preflight_refused:' . implode( ',', $locked ) );
@@ -591,12 +595,13 @@ $dzn_retire_arg  = static function ( int $index ) use ( $dzn_retire_args ): stri
 $dzn_retire_mode       = strtolower( '' !== $dzn_retire_arg( 0 ) ? $dzn_retire_arg( 0 ) : 'report' );
 $dzn_retire_reference  = strtoupper( trim( $dzn_retire_arg( 1 ) ) );
 $dzn_retire_student    = strtoupper( trim( $dzn_retire_arg( 2 ) ) );
-$dzn_retire_confirm    = $dzn_retire_arg( 3 );
-$dzn_retire_expected   = strtolower( trim( $dzn_retire_arg( 4 ) ) );
-$dzn_retire_backup     = $dzn_retire_arg( 5 );
-$dzn_retire_backup_sha = strtolower( trim( $dzn_retire_arg( 6 ) ) );
-$dzn_retire_attest     = $dzn_retire_arg( 7 );
-$dzn_retire_plan       = '' !== $dzn_retire_arg( 8 ) ? $dzn_retire_arg( 8 ) : __DIR__ . '/purge-test-data-tables.php';
+$dzn_retire_term       = strtoupper( trim( $dzn_retire_arg( 3 ) ) );
+$dzn_retire_confirm    = $dzn_retire_arg( 4 );
+$dzn_retire_expected   = strtolower( trim( $dzn_retire_arg( 5 ) ) );
+$dzn_retire_backup     = $dzn_retire_arg( 6 );
+$dzn_retire_backup_sha = strtolower( trim( $dzn_retire_arg( 7 ) ) );
+$dzn_retire_attest     = $dzn_retire_arg( 8 );
+$dzn_retire_plan       = '' !== $dzn_retire_arg( 9 ) ? $dzn_retire_arg( 9 ) : __DIR__ . '/purge-test-data-tables.php';
 
 if ( ! in_array( $dzn_retire_mode, array( 'report', 'execute' ), true ) ) {
 	dzn_retire_fail( 'mode_invalid', 'args' );
@@ -604,12 +609,15 @@ if ( ! in_array( $dzn_retire_mode, array( 'report', 'execute' ), true ) ) {
 if ( ! preg_match( '/\AENR-[A-Z0-9]+\z/', $dzn_retire_reference ) ) {
 	dzn_retire_fail( 'enrolment_reference_invalid', 'args' );
 }
-if ( ! preg_match( '/\ACC[A-Z0-9]+\z/', $dzn_retire_student ) ) {
+if ( ! preg_match( '/\ADZN-STU-[A-Z0-9]+\z/', $dzn_retire_student ) ) {
 	dzn_retire_fail( 'student_reference_invalid', 'args' );
+}
+if ( ! preg_match( '/\ADZN-TRM-[A-Z0-9]+\z/', $dzn_retire_term ) ) {
+	dzn_retire_fail( 'term_reference_invalid', 'args' );
 }
 
 try {
-	$dzn_retire_state = dzn_retire_state( $dzn_retire_reference, $dzn_retire_student );
+	$dzn_retire_state = dzn_retire_state( $dzn_retire_reference, $dzn_retire_student, $dzn_retire_term );
 } catch ( Throwable $error ) {
 	dzn_retire_fail( $error->getMessage(), 'prestate' );
 }
@@ -651,7 +659,7 @@ if ( $dzn_retire_problems !== array() ) {
 
 try {
 	$dzn_retire_preserve = dzn_retire_preserve_counts( $dzn_retire_plan );
-	$dzn_retire_result   = dzn_retire_execute( $dzn_retire_reference, $dzn_retire_student, $dzn_retire_fingerprint );
+	$dzn_retire_result   = dzn_retire_execute( $dzn_retire_reference, $dzn_retire_student, $dzn_retire_term, $dzn_retire_fingerprint );
 } catch ( Throwable $error ) {
 	dzn_retire_fail( $error->getMessage(), 'execute', $dzn_retire_public );
 }

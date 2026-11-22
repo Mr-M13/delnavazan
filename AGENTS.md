@@ -236,8 +236,9 @@ is optional strict parity. Docker is required only for the runtime suites.
   authority and become `scheduled`, so the generic archive path refuses them and no legacy cancel
   action exists. The one guarded reversal is `deployment/qa/retire-imported-enrolment.sh` (report,
   then execute with a pre-state fingerprint and a verified full database export). It targets one
-  Enrolment by its `ENR-…` reference plus the owning Student's `CC…` reference, and it **archives
-  in order**: the imported lessons, the Term, then the Enrolment. It never deletes rows. It refuses
+  Enrolment by its `ENR-…` reference, the owning Student's `DZN-STU-…` reference and that import's
+  `DZN-TRM-…` Term reference, and it **archives in order**: the imported lessons, the Term, then the
+  Enrolment. It never deletes rows. It refuses
   anything without `enrolment.historical_import` audit evidence, a Term whose `payment_state`
   recorded money, a lesson that already started, a lesson linked to a booking request, any row in
   another `dzn_` table that still references the Enrolment or its lessons, and any existing

@@ -1,0 +1,19 @@
+[Unit]
+Description=Delnavazan Meet recording companion
+Documentation=file:/home/hamed/bin/meet-recorder/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hamed
+Group=hamed
+EnvironmentFile=/etc/dzn-meet-recorder.env
+ExecStart=/home/hamed/.local/share/meet-recorder/venv/bin/python /home/hamed/bin/meet-recorder-agent.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -115,6 +115,53 @@ $check('retraction is not acknowledged while the organizer is unavailable', str_
 $check('join window is the shared 30/30 policy', str_contains($join, 'ParticipantJoinWindow::contains') && !str_contains($join, 'EARLY_SECONDS=3600') && !str_contains($join, 'LATE_SECONDS=7200'));
 $check('readiness has a controlled state and reason', str_contains($join, 'function readinessForRow') && str_contains($join, "'classroom_provisioning'") && str_contains($join, "'reference_missing'"));
 $check('blocked central rows cannot fall through to legacy links', str_contains($teacherJoin, 'hasActiveClassroomForLessonUid') && str_contains($studentJoin, 'hasActiveClassroomForLessonUid') && str_contains($bookingJoin, 'hasActiveClassroomForBookingUid') && str_contains($join, "classroom_state<>'cancelled'"));
+
+// Recording companion: every authenticated portal join requests exactly one organizer web join.
+$recorderQueue = $read('src/Integrations/GoogleWorkspace/MeetRecorderQueue.php');
+$recorderController = $read('src/Integrations/GoogleWorkspace/MeetRecorderController.php');
+$teacherJoinController = $read('src/Integrations/TeacherClassJoinController.php');
+$studentJoinController = $read('src/Integrations/StudentClassJoinController.php');
+$bookingJoinController = $read('src/Integrations/BookingClassJoinController.php');
+$adminJoinController = $read('src/Integrations/GoogleWorkspace/MeetAdministratorJoinController.php');
+$godModeController = $read('src/Admin/Controller/GodModeController.php');
+$godModeTeacherController = $read('src/Admin/Controller/GodModeTeacherController.php');
+$platformPlugin = $read('delnavazan-platform.php');
+$repoRoot = dirname($root);
+$readRepo = static function (string $relative) use ($repoRoot): string {
+    $path = $repoRoot . '/' . $relative;
+    if (!is_file($path)) throw new RuntimeException('Missing repository file: ' . $relative);
+    return (string) file_get_contents($path);
+};
+$recorderAgent = $readRepo('tools/pi/meet-recorder/meet-recorder-agent.py');
+$recorderService = $readRepo('tools/pi/meet-recorder/dzn-meet-recorder.service');
+$recorderEnv = $readRepo('tools/pi/meet-recorder/dzn-meet-recorder.env.example');
+$recorderRunbook = $readRepo('tools/pi/meet-recorder/README.md');
+$check('every teacher join requests one recorder companion join', str_contains($teacherJoinController, 'MeetRecorderQueue::enqueueForLessonUid') && str_contains($bookingJoinController, "=== 'teacher'") && str_contains($bookingJoinController, 'MeetRecorderQueue::enqueueForBookingUid') && !str_contains($studentJoinController, 'MeetRecorderQueue::'));
+$check('administrator and God Mode joins request the companion', str_contains($adminJoinController, 'enqueueForBookingUid') && str_contains($adminJoinController, 'enqueueForLessonId') && str_contains($godModeController, 'enqueueForTestSession') && str_contains($godModeTeacherController, 'enqueueForTestSession'));
+$check('recorder endpoints are registered and token protected', str_contains($platformPlugin, 'MeetRecorderController::register') && str_contains($recorderController, 'hash_equals') && str_contains($recorderController, '/meet/recorder/next') && str_contains($recorderController, '/meet/recorder/result') && str_contains($recorderController, "'status'=>503"));
+$recorderPlan = $read('src/Integrations/GoogleWorkspace/MeetRecorderPlan.php');
+$check('the recorder queue is locked, coalesced, recording-aware and expires', str_contains($recorderQueue, 'GET_LOCK') && str_contains($recorderQueue, 'recording_state') && str_contains($recorderQueue, 'join_uri_reference') && str_contains($recorderQueue, 'MeetRecorderPlan::prune') && str_contains($recorderPlan, 'const TTL') && str_contains($recorderPlan, 'const CLAIM_TTL') && str_contains($recorderQueue, 'DZN_MEET_RECORDER_TOKEN'));
+$check('the companion agent claims the job, joins over CDP and reports the result', str_contains($recorderAgent, '/meet/recorder/next') && str_contains($recorderAgent, '/meet/recorder/result') && str_contains($recorderAgent, 'Target.createTarget') && str_contains($recorderAgent, 'Join') && str_contains($recorderService, 'dzn-meet-recorder.env'));
+$check('the companion runbook documents the token and the class-never-blocks rule', str_contains($recorderEnv, 'DZN_RECORDER_TOKEN') && str_contains($recorderRunbook, 'dzn_meet_recorder_token') && str_contains($recorderRunbook, 'never depends on it'));
+
+// The queue's decisions are pure, so they are also proven as behaviour, not only as source shape.
+require_once $root . '/src/Integrations/GoogleWorkspace/MeetRecorderPlan.php';
+$planClass = 'Delnavazan\\Platform\\Integrations\\GoogleWorkspace\\MeetRecorderPlan';
+$now = 1_700_000_000;
+$first = $planClass::request(array(), 41, 'lesson', 'portal_join', $now - 30, 'job-a');
+$check('a new classroom creates exactly one pending request', count($first['jobs']) === 1 && ($first['jobs'][41]['state'] ?? '') === 'pending' && ($first['job']['uid'] ?? '') === 'job-a');
+$repeat = $planClass::request($first['jobs'], 41, 'lesson', 'portal_join', $now, 'job-b');
+$check('a repeated join refreshes the same request instead of adding one', count($repeat['jobs']) === 1 && ($repeat['jobs'][41]['uid'] ?? '') === 'job-a' && (int) ($repeat['jobs'][41]['requested_at'] ?? 0) === $now);
+$second = $planClass::request($repeat['jobs'], 42, 'booking', 'portal_join', $now + 5, 'job-c');
+$check('a second classroom is queued independently', count($second['jobs']) === 2);
+$check('the oldest pending request is claimed first', $planClass::next($second['jobs']) === 41);
+$claimed = $planClass::claim($second['jobs'], 41, $now);
+$check('a claim is recorded and skipped while it is fresh', ($claimed[41]['state'] ?? '') === 'claimed' && $planClass::next($claimed) === 42);
+$check('an expired request is dropped', !isset($planClass::prune($second['jobs'], $now + 5 + $planClass::TTL + 1)[42]));
+$check('a fresh claim is held', ($planClass::prune($claimed, $now + $planClass::CLAIM_TTL - 1)[41]['state'] ?? '') === 'claimed');
+$reclaimed = $planClass::prune($claimed, $now + $planClass::CLAIM_TTL);
+$check('a vanished companion is reclaimed as pending', ($reclaimed[41]['state'] ?? '') === 'pending' && $reclaimed[41]['claimed_at'] === null && $planClass::next($reclaimed) === 41);
+$check('a completed request leaves the queue', count($planClass::clear($reclaimed, 41)) === 1 && !isset($planClass::clear($reclaimed, 41)[41]));
 $check('portal shows localized recovery copy', str_contains($bridge, 'dzn_theme_platform_meet_readiness_message') && str_contains($bridge, 'دسترسی هم‌میزبان') && str_contains($bridge, 'کلاس Google Meet هنوز ساخته نشده است'));
 $check('teacher acceptance reports retryable provisioning honestly', str_contains($controller, 'در صف تلاش مجدد') && str_contains($controller, 'بدون پذیرش دوباره قابل بازیابی است'));
 

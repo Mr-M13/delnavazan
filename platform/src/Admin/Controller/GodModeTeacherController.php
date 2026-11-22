@@ -36,6 +36,7 @@ final class GodModeTeacherController {
             $end=$session?(int)strtotime((string)$session->ends_at_utc.' UTC'):false;
             if(!$start||!$end||!\Delnavazan\Platform\Portals\ParticipantJoinWindow::contains($start,$end,time()))throw new \RuntimeException('portal_action_outside_window');
             $target=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService())->joinUriForTestSession($sessionId);
+            try{\Delnavazan\Platform\Integrations\GoogleWorkspace\MeetRecorderQueue::enqueueForTestSession($sessionId);}catch(\Throwable){}
             GodModeAudit::record(get_current_user_id(),'teacher_test_join','test_session',$sessionId,'teacher_participant_join',(string)$teacherId);
             nocache_headers();header('Referrer-Policy: no-referrer');
             wp_redirect($target,302,'Delnavazan');exit;

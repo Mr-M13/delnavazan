@@ -13,6 +13,9 @@ final class BookingClassJoinController {
         check_admin_referer($action);
         try {
             $target = (new BookingClassJoinService())->target((string) ($_POST['confirmation_uid'] ?? ''), $role);
+            if ($role === 'teacher') {
+                try { GoogleWorkspace\MeetRecorderQueue::enqueueForBookingUid((string) ($_POST['confirmation_uid'] ?? '')); } catch (\Throwable) {}
+            }
             nocache_headers();
             header('Referrer-Policy: no-referrer');
             wp_redirect($target, 302, 'Delnavazan');

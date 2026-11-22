@@ -60,6 +60,31 @@ Operational guidance:
 - Do not turn off moderation/host management to "unlock" mobile recording: out-of-domain
   participants cannot record in non-moderated meetings, so that change makes it worse.
 
+## Automated organizer companion (Raspberry Pi)
+
+Recording no longer depends on the Teacher's device. An operator-owned Raspberry Pi keeps a signed-in
+`classroom@delnavazan.com` browser profile and joins the class as the organizer **on web** when the
+Teacher presses the portal **Start class** button. That organizer web join is what satisfies Google's
+auto-recording requirement; the Teacher stays a co-host on any device.
+
+- Platform side: the Teacher join action enqueues one coalesced companion request for that classroom
+  (a Student join never triggers it), the queue holds only the classroom identity, and the Meet URI
+  is unsealed at claim time and never stored. Token-protected endpoints under
+  `/wp-json/delnavazan-platform/v1/meet/recorder/` serve the companion; an empty
+  `dzn_meet_recorder_token` option disables them.
+- Device side: `tools/pi/meet-recorder/` holds the agent, its systemd unit and its runbook. The agent
+  drives the organizer profile over the **loopback** DevTools protocol (port 9222, never exposed),
+  clicks Join, confirms the in-call UI, reports the result, and leaves after `DZN_LEAVE_AFTER`
+  seconds. Google keeps recording while the Teacher and Student remain.
+- Governance exception: browser automation is forbidden **inside the platform plugin** for the Meet
+  integration, because a portal join must stay a pure redirect and never a scraping dependency. The
+  companion lives outside the plugin on the operator's own hardware, is best-effort, and holds no
+  production write access beyond that single signed-in organizer session. If it fails or is offline,
+  the Teacher and Student still join, and the platform's `recording_missing` /
+  `recording_ended_early` reconciliation still reports the gap.
+- The unverified residual risk is Google's Terms of Use for automated interaction with Meet; the
+  owner accepted it explicitly for this single organizer account.
+
 ## Owner-side verification (Google admin)
 
 1. **Drive storage** — open Drive as the organizer account (`classroom@delnavazan.com`) and check

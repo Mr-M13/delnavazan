@@ -1101,7 +1101,12 @@ final class EnrolmentWorkspaceView {
 
     private static function createIntroPanel(EnrolmentWorkspaceReadService $read): void {
         $students = $read->studentOptions('', 200);
-        $courses = $read->courseOptions('', 250);
+        // An introductory booking can only reference an introductory Course. Offering the
+        // standard Courses here made the wrong choice look valid and then failed server-side.
+        $courses = array_values(array_filter(
+            $read->courseOptions('', 250),
+            static fn(object $course): bool => (string) ($course->course_type ?? '') === 'introductory'
+        ));
         $state = self::introFormState();
         $values = (array) ($state['values'] ?? array());
         echo '<dialog class="dzn-workspace-dialog" id="dzn-create-intro" aria-labelledby="dzn-intro-title"' . (!empty($state['open']) ? ' data-open-on-load="1"' : '') . '><div class="dzn-dialog-head"><h2 id="dzn-intro-title">Create introductory class</h2><button type="button" class="button" onclick="this.closest(\'dialog\').close()">Close</button></div><p>Choose an existing Student and a Teacher who agreed. The slot and collisions are checked on save.</p><div class="dzn-create-intro__body">';

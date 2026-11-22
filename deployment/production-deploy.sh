@@ -117,6 +117,44 @@ sha="$1"; version="$2"; build="$3"; expected_schema="$4"; root_rel="$5"; backup_
 root="$HOME/$root_rel"; plugin="$root/wp-content/plugins/delnavazan-platform"; theme="$root/wp-content/themes/delnavazan-theme"
 [[ -f "$root/wp-load.php" && -f "$plugin/delnavazan-platform.php" && -f "$theme/style.css" ]] || { echo 'FAIL production WordPress/plugin/theme preflight failed' >&2; exit 1; }
 command -v wp >/dev/null && command -v tar >/dev/null && command -v realpath >/dev/null || { echo 'FAIL WP-CLI, tar, and realpath are required' >&2; exit 1; }
+
+# WP-CLI's `db export` runs mysqldump through Symfony Process, which needs
+# proc_open(). Some hardened PHP CLI builds disable it. Keep the WP-CLI path as
+# the primary export, then fall back to a direct dump using the credentials
+# WordPress already stores. The password travels through MYSQL_PWD, never argv.
+export_database(){
+  local target="$1"
+  rm -f "$target"
+  if wp --path="$root" --skip-plugins --skip-themes db export "$target" --add-drop-table >/dev/null 2>&1 && [[ -s "$target" ]]; then
+    return 0
+  fi
+  local dump=''
+  if command -v mariadb-dump >/dev/null 2>&1; then dump='mariadb-dump'
+  elif command -v mysqldump >/dev/null 2>&1; then dump='mysqldump'
+  fi
+  [[ -n "$dump" ]] || { echo 'FAIL database export failed and neither mariadb-dump nor mysqldump is installed' >&2; return 1; }
+  local db_name db_user db_pass db_host host port socket rest
+  db_name="$(wp --path="$root" --skip-plugins --skip-themes config get DB_NAME)" || return 1
+  db_user="$(wp --path="$root" --skip-plugins --skip-themes config get DB_USER)" || return 1
+  db_pass="$(wp --path="$root" --skip-plugins --skip-themes config get DB_PASSWORD)" || return 1
+  db_host="$(wp --path="$root" --skip-plugins --skip-themes config get DB_HOST)" || return 1
+  [[ -n "$db_name" && -n "$db_user" ]] || { echo 'FAIL database credentials are incomplete' >&2; return 1; }
+  host="$db_host"; port=''; socket=''
+  if [[ "$db_host" == *:* ]]; then
+    host="${db_host%%:*}"; rest="${db_host#*:}"
+    if [[ "$rest" =~ ^[0-9]+$ ]]; then port="$rest"; else socket="$rest"; fi
+  fi
+  if [[ -z "$socket" && "$host" == 'localhost' ]]; then
+    socket="$(php -r 'echo ini_get("mysqli.default_socket");' 2>/dev/null || true)"
+  fi
+  local args=(--add-drop-table --single-transaction --quick --default-character-set=utf8mb4)
+  [[ -n "$host" && "$host" != 'localhost' ]] && args+=(--host="$host")
+  [[ -n "$port" ]] && args+=(--port="$port")
+  [[ -n "$socket" ]] && args+=(--socket="$socket")
+  MYSQL_PWD="$db_pass" "$dump" "${args[@]}" --user="$db_user" "$db_name" > "$target" || { echo 'FAIL direct database export failed' >&2; return 1; }
+  [[ -s "$target" ]] || { echo 'FAIL direct database export is empty' >&2; return 1; }
+  echo 'WP-CLI db export was unavailable; the preflight backup used the direct dump fallback.' >&2
+}
 root_real="$(realpath -m "$root")"; backup_real="$(realpath -m "$backup_root")"
 [[ "$backup_real" != "$root_real" && "$backup_real" != "$root_real"/* ]] || { echo 'FAIL backup path resolves inside production public_html' >&2; exit 1; }
 wp --path="$root" --skip-plugins --skip-themes core is-installed >/dev/null
@@ -157,7 +195,7 @@ umask 077; mkdir -m 700 "$backup"
 before="$(php -r '$s=json_decode($argv[1],true); $s["version"]=$argv[2]; $s["build"]=$argv[3]; echo json_encode($s, JSON_UNESCAPED_SLASHES);' "$before" "$live_version" "$live_build")"
 printf '%s\n' "$before" > "$backup/before.json"
 tar -C "$root/wp-content" -czf "$backup/application-files.tar.gz" plugins/delnavazan-platform themes/delnavazan-theme
-wp --path="$root" --skip-plugins --skip-themes db export "$backup/database.sql" --add-drop-table >/dev/null
+export_database "$backup/database.sql" || { echo 'FAIL database backup could not be created; no production change was made' >&2; exit 1; }
 printf '%s\n' "{\"target\":\"https://delnavazan.com\",\"sha\":\"$sha\",\"platform_version\":\"$version\",\"platform_build\":\"$build\",\"declared_source_build\":\"$declared_build\",\"expected_schema\":\"$expected_schema\",\"archive_sha256\":\"$expected_archive_sha\",\"theme_style_sha256\":\"$expected_theme_sha\",\"backup\":\"$backup\",\"status\":\"preflight_complete\"}" > "$backup/deployment.json"
 
 maintenance=0

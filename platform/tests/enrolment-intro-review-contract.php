@@ -123,8 +123,17 @@ $contains($controller, array(
     "Reference: ' . \$failureReference",
 ), 'Manual-intro refusals must identify Student conflicts and persistence failures, and retain an opaque server-log reference');
 $contains($adminIntro, array(
-    'assertAvailableForPreview($studentId',
+    'studentHasActiveInstrumentEnrolment($studentId',
+), 'Create intro must call the repository method that actually exists (Enrolment spelling)');
+$notContains($adminIntro, array(
     'studentHasActiveInstrumentEnrollment($studentId',
+), 'The American-spelling call site must not return: it is a fatal undefined-method error');
+$contains($controller, array(
+    'if ($exception instanceof \\Error)',
+), 'An internal PHP Error must not be presented as an opaque reference');
+$contains($adminIntro, array(
+    'assertAvailableForPreview($studentId',
+    'studentHasActiveInstrumentEnrolment($studentId',
     'studentOccupancyConflicts($studentId',
     "'include_open_requests' => true",
 ), 'Manual intro must preflight the same Student occupancy that intake enforces');

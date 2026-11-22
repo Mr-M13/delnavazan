@@ -455,6 +455,9 @@ jobs:
           bash deployment/qa/purge-production-test-data-contract.sh
           bash -n deployment/qa/delete-test-student.sh
           bash deployment/qa/delete-test-student-contract.sh
+          bash -n deployment/qa/retire-imported-enrolment.sh
+          bash deployment/qa/retire-imported-enrolment-contract.sh
+          php deployment/qa/retire-imported-enrolment-unit.php
           bash deployment/qa/backup-rollback-contract.sh
           bash -n deployment/qa/install-host-tooling-contract.sh
           bash deployment/qa/install-host-tooling-contract.sh

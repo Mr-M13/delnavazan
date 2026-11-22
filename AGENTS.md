@@ -231,6 +231,26 @@ is optional strict parity. Docker is required only for the runtime suites.
   zero target rows remain. Its offline source contract,
   `bash deployment/qa/delete-test-student-contract.sh`, runs in the PR gate's production-tooling
   step. A session never runs the execute mode directly.
+- **Imported-enrolment retirement:** the historical-course import ("Import existing enrolment")
+  has no compensating action in the admin UI — its lessons are created through the schedule
+  authority and become `scheduled`, so the generic archive path refuses them and no legacy cancel
+  action exists. The one guarded reversal is `deployment/qa/retire-imported-enrolment.sh` (report,
+  then execute with a pre-state fingerprint and a verified full database export). It targets one
+  Enrolment by its `ENR-…` reference plus the owning Student's `CC…` reference, and it **archives
+  in order**: the imported lessons, the Term, then the Enrolment. It never deletes rows. It refuses
+  anything without `enrolment.historical_import` audit evidence, a Term whose `payment_state`
+  recorded money, a lesson that already started, a lesson linked to a booking request, any row in
+  another `dzn_` table that still references the Enrolment or its lessons, and any existing
+  canonical Enrolment for the same Student/Course/Teacher. Execute mode is dispatched only through
+  the protected, workflow-dispatch-only `retire-imported-enrolment.yml` from `main`, with the
+  pinned tool source SHA, the deployed build SHA, the report fingerprint and the
+  `RETIRE_IMPORTED_ENROLMENT` confirm token. It reuses the production-only
+  `PURGE_ATTESTATION_TOKEN` secret, is serialized with production deploys, and verifies afterwards
+  that the lessons are gone from the Student portal, the Teacher's slot is free again, the Student
+  and catalogue are intact, and one audit event exists. Its offline source contract,
+  `bash deployment/qa/retire-imported-enrolment-contract.sh`, and the pure decision unit harness,
+  `php deployment/qa/retire-imported-enrolment-unit.php`, run in the PR gate's production-tooling
+  step. A session never runs the execute mode directly.
 - **Backup and rollback tooling:** `deployment/qa/backup-point.sh` takes one verified production
   rollback point on the host — a gzip + SHA-256 database export, a `public_html` archive without
   `wp-content/cache`, and a manifest recording the `main-<12 SHA>` build identity and

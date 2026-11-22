@@ -453,6 +453,291 @@ final class PostIntroContinuationService {
         }
     }
 
+    /**
+     * Administrator executes the continuation on behalf of the Student after an offline agreement.
+     *
+     * The Student portal is not required: the administrator is the recorded acceptance authority
+     * (`administrator_attested`), while the offer, funding, activation and class creation remain
+     * the normal commercial/continuation authorities. Payment may stay pending (the Student can
+     * pay online later, or staff can settle it in Finance) or be recorded here from a verified
+     * offline receipt. No classes exist until verified payment activates the Term.
+     *
+     * @param array{plan_kind?:string,payment_mode?:string,note?:string,receipt_reference?:string,received_on?:string} $input
+     * @return array<string,mixed>
+     */
+    public function continueAsAdministrator(string $preparationUid, int $administratorUserId, array $input): array {
+        foreach (array('dzn_manage_booking_request_coordination', 'dzn_manage_post_intro_automation', 'dzn_finalize_service_arrangements', 'dzn_convert_service_arrangements_to_enrolments', 'dzn_issue_commercial_offers') as $capability) {
+            if (!current_user_can($capability)) throw new \RuntimeException('Unauthorized');
+        }
+        if ($administratorUserId < 1 || $administratorUserId !== (int) get_current_user_id()) throw new \RuntimeException('Administrator attestation actor is unavailable');
+        $note = trim((string) ($input['note'] ?? ''));
+        if ($note === '' || strlen($note) > 1000) throw new \InvalidArgumentException('Record the administrator agreement note');
+        $planKind = trim((string) ($input['plan_kind'] ?? 'full'));
+        if ($planKind === '') $planKind = 'full';
+        if (!in_array($planKind, CommercialRule::PLAN_KINDS, true)) throw new \InvalidArgumentException('plan_unavailable');
+        $paymentMode = (string) ($input['payment_mode'] ?? 'pending');
+        if (!in_array($paymentMode, array('pending', 'offline_paid'), true)) throw new \InvalidArgumentException('payment_mode_invalid');
+        if ($paymentMode === 'offline_paid' && !current_user_can('dzn_manage_payment_execution')) throw new \RuntimeException('Unauthorized');
+
+        $repository = $this->repository;
+        $preparation = $repository->preparationByUid($preparationUid);
+        if (!$preparation) throw new \InvalidArgumentException('post_intro_invitation_not_found');
+        if ($preparation->exception_code === 'continuation_reservation_expired' || $preparation->state === 'expired') throw new \InvalidArgumentException('post_intro_invitation_expired');
+        if ($preparation->state === 'activated') return array('state' => 'activated', 'message' => 'already_activated');
+        if ($preparation->state === 'payment_received') return array('state' => 'payment_received', 'message' => 'payment_received');
+        if (!in_array((string) $preparation->state, array('prepared', 'checkout_pending'), true)) throw new \InvalidArgumentException('post_intro_invitation_not_ready');
+        $confirmation = $repository->confirmationByBooking((int) $preparation->booking_request_id);
+        if (!$confirmation || $confirmation->privacy_erased_at !== null) throw new \InvalidArgumentException('post_intro_invitation_not_found');
+        $studentId = (int) $preparation->student_id;
+        if ($studentId < 1) throw new \InvalidArgumentException('student_identity_unresolved');
+        $anyPattern = $repository->activePatternForAnyTeacher($studentId, (int) $preparation->standard_course_id);
+        if ($anyPattern && (int) $anyPattern->teacher_id !== (int) $preparation->teacher_id) throw new \RuntimeException('commercial_pattern_teacher_conflict');
+
+        $existingOffer = null;
+        if ((int) ($preparation->offer_id ?? 0) > 0) {
+            $existingOffer = $repository->offer((int) $preparation->offer_id);
+            if ($existingOffer && (string) $existingOffer->state === 'superseded') $existingOffer = null;
+        }
+        if (!$existingOffer && (int) ($preparation->continuation_case_id ?? 0) > 0) {
+            $existingOffer = $repository->offerByContinuationCase((int) $preparation->continuation_case_id);
+        }
+        if ($existingOffer) {
+            if ((string) $existingOffer->plan_kind !== $planKind) throw new \InvalidArgumentException('plan_choice_conflict');
+        } else {
+            $quote = (new PostIntroPlanQuoteService())->forPreparation($preparation, $studentId);
+            $selectedOption = null;
+            foreach ((array) ($quote['options'] ?? array()) as $option) {
+                if ((string) ($option['plan_kind'] ?? '') === $planKind) { $selectedOption = $option; break; }
+            }
+            if ($selectedOption === null) throw new \InvalidArgumentException('plan_unavailable');
+            $now = gmdate('Y-m-d H:i:s');
+            $choice = $repository->activePlanChoice((int) $preparation->id);
+            if ($choice && (string) $choice->plan_kind !== $planKind) {
+                $repository->supersedeActivePlanChoice((int) $preparation->id);
+                $choice = null;
+            }
+            if ($choice) {
+                $repository->updatePlanChoice((int) $choice->id, array(
+                    'quote_digest' => (string) $quote['quote_token'],
+                    'quoted_amount_due_minor' => (int) $selectedOption['amount_minor'],
+                    'currency' => (string) $quote['currency'],
+                    'chosen_at' => $now,
+                    'chosen_by' => $administratorUserId,
+                ));
+            } else {
+                try {
+                    $repository->insertPlanChoice(array(
+                        'uid' => Identifier::uid(),
+                        'preparation_id' => (int) $preparation->id,
+                        'active_slot' => 1,
+                        'student_id' => $studentId,
+                        'plan_kind' => $planKind,
+                        'quote_digest' => (string) $quote['quote_token'],
+                        'quoted_amount_due_minor' => (int) $selectedOption['amount_minor'],
+                        'currency' => (string) $quote['currency'],
+                        'instalment_due_at' => null,
+                        'policy_version' => null,
+                        'offer_id' => null,
+                        'chosen_at' => $now,
+                        'chosen_by' => $administratorUserId,
+                        'created_at' => $now,
+                    ));
+                } catch (\Throwable $choiceError) {
+                    $winner = $repository->activePlanChoice((int) $preparation->id);
+                    if (!$winner || (string) $winner->plan_kind !== $planKind) throw $choiceError;
+                }
+            }
+        }
+
+        // The strict route requires a Student/guardian principal. The administrator route only
+        // needs a recorded adult/minor capacity; if the Student has none, the request's adult
+        // self-attestation is the only automatic basis. Anything else stays blocked.
+        $capacity = $repository->studentCapacity($studentId);
+        if (!$capacity || !in_array((string) $capacity->classification, array('adult', 'minor'), true)) {
+            if ((int) ($confirmation->adult_self_attested ?? 0) !== 1) throw new \InvalidArgumentException('student_acceptance_capacity_unresolved');
+            (new StudentAcceptanceAuthorityService())->classify(
+                $studentId,
+                'adult',
+                'human_review',
+                'reviewer_attestation',
+                gmdate('Y-m-d H:i:s'),
+                $administratorUserId
+            );
+        }
+
+        $evidenceAt = gmdate('Y-m-d H:i:s');
+        $proposalUids = $repository->proposalUids((int) $preparation->proposal_version_id);
+        if (!$proposalUids) throw new \RuntimeException('post_intro_proposal_missing');
+        $subjectRef = 'booking_request:' . (int) $preparation->booking_request_id;
+
+        if (!$preparation->provisional_event_id) {
+            $event = (new ProposalAcceptanceService())->record(
+                (string) $proposalUids->family_uid,
+                (string) $proposalUids->option_uid,
+                (int) $proposalUids->version_number,
+                $subjectRef,
+                'phone',
+                $evidenceAt,
+                'admin-continuation-provisional-' . (string) $preparation->uid
+            );
+            $preparation = $this->save((int) $preparation->id, array('provisional_event_id' => (int) $event['event_id']));
+        }
+
+        if (!$preparation->arrangement_id) {
+            $existing = $repository->arrangementForFamily((int) $preparation->proposal_family_id);
+            if ($existing) {
+                $preparation = $this->save((int) $preparation->id, array('arrangement_id' => (int) $existing->id));
+            } else {
+                $provisional = $repository->provisionalEvent((int) $preparation->provisional_event_id);
+                if (!$provisional) throw new \RuntimeException('post_intro_provisional_acceptance_missing');
+                $accepted = (new FinalAcceptanceService())->acceptAttested(
+                    (int) $preparation->booking_request_id,
+                    (int) $preparation->coordination_case_id,
+                    (string) $proposalUids->family_uid,
+                    (string) $proposalUids->option_uid,
+                    (int) $proposalUids->version_number,
+                    (string) $provisional->uid,
+                    $studentId,
+                    $administratorUserId,
+                    array('channel' => 'phone', 'confirmed_at' => $evidenceAt, 'note' => $note),
+                    'admin-continuation-final-' . (string) $preparation->uid
+                );
+                $preparation = $this->save((int) $preparation->id, array('arrangement_id' => (int) $accepted['arrangement_id']));
+            }
+        }
+
+        if (!$preparation->enrolment_id) {
+            $existing = $repository->enrolmentForArrangement((int) $preparation->arrangement_id);
+            if ($existing) {
+                $preparation = $this->save((int) $preparation->id, array('enrolment_id' => (int) $existing->id));
+            } else {
+                $converted = (new EnrolmentConversionService())->convert((int) $preparation->arrangement_id, 'admin-continuation-conversion-' . (string) $preparation->uid);
+                $preparation = $this->save((int) $preparation->id, array('enrolment_id' => (int) $converted['enrolment_id']));
+            }
+        }
+
+        if (!$preparation->continuation_case_id) {
+            $existing = $repository->continuationCaseForIntro((int) $preparation->intro_lesson_id);
+            if (!$existing) throw new \RuntimeException('continuation_case_missing');
+            $existingReservation = $repository->reservationForCase((int) $existing->id);
+            if (!$existingReservation) throw new \RuntimeException('continuation_reservation_required');
+            $preparation = $this->save((int) $preparation->id, array(
+                'continuation_case_id' => (int) $existing->id,
+                'reservation_id' => (int) $existingReservation->id,
+            ));
+        }
+        if (!$preparation->reservation_id) {
+            $existingReservation = $repository->reservationForCase((int) $preparation->continuation_case_id);
+            if (!$existingReservation) throw new \RuntimeException('continuation_reservation_required');
+            $preparation = $this->save((int) $preparation->id, array('reservation_id' => (int) $existingReservation->id));
+        }
+        $reservation = $repository->reservationForCase((int) $preparation->continuation_case_id);
+        if (!$reservation || !CanonicalContinuationRule::capacityEffective((string) $reservation->state, (string) $reservation->expires_at, gmdate('Y-m-d H:i:s'))) {
+            $this->expire($preparation);
+            throw new \InvalidArgumentException('post_intro_invitation_expired');
+        }
+
+        if (!$preparation->pattern_id) {
+            $existing = $repository->patternForSlotAuthority((int) $preparation->slot_authority_id);
+            if ($existing) {
+                $this->assertPatternIdentity($preparation, $existing);
+                $preparation = $this->save((int) $preparation->id, array('pattern_id' => (int) $existing->id));
+            } else {
+                $any = $repository->activePatternForAnyTeacher($studentId, (int) $preparation->standard_course_id);
+                if ($any) throw new \RuntimeException('commercial_pattern_exists');
+                $pattern = (new CommercialPatternService())->establish(array(
+                    'slot_authority_id' => (int) $preparation->slot_authority_id,
+                    'course_id' => (int) $preparation->standard_course_id,
+                    'evidence_channel' => 'staff_record',
+                    'evidence_reference' => 'admin-continuation:' . (string) $preparation->uid,
+                    'evidence_at' => $evidenceAt,
+                ), 'admin-continuation-pattern-' . (string) $preparation->uid);
+                $preparation = $this->save((int) $preparation->id, array('pattern_id' => (int) $pattern['pattern_id']));
+            }
+        } else {
+            $stored = $repository->pattern((int) $preparation->pattern_id);
+            if (!$stored) throw new \RuntimeException('commercial_pattern_conflict');
+            $this->assertPatternIdentity($preparation, $stored);
+        }
+
+        if (!$preparation->offer_id) {
+            $existing = $repository->offerByContinuationCase((int) $preparation->continuation_case_id);
+            if ($existing) {
+                if ((string) $existing->plan_kind !== $planKind) throw new \InvalidArgumentException('plan_choice_conflict');
+                $preparation = $this->save((int) $preparation->id, array('offer_id' => (int) $existing->id, 'offer_uid' => (string) $existing->uid));
+            } else {
+                $instalmentDueAt = null;
+                $instalmentPolicyVersion = null;
+                if ($planKind === 'two_instalments') {
+                    $pattern = $repository->pattern((int) $preparation->pattern_id);
+                    if (!$pattern) throw new \RuntimeException('commercial_pattern_conflict');
+                    $deadline = (new InstalmentDeadlinePolicy())->forPattern($pattern, $evidenceAt);
+                    $instalmentDueAt = $deadline['due_at'];
+                    $instalmentPolicyVersion = $deadline['policy_version'];
+                }
+                $offer = (new CommercialOfferService())->issue(array(
+                    'continuation_case_id' => (int) $preparation->continuation_case_id,
+                    'product_id' => (int) $preparation->product_id,
+                    'region_code' => (string) $preparation->region_code,
+                    'plan_kind' => $planKind,
+                    'instalment_due_at' => $instalmentDueAt,
+                    'instalment_due_date_policy_version' => $instalmentPolicyVersion,
+                    'quote_subject' => (string) $preparation->uid,
+                    'evidence_channel' => 'staff_record',
+                    'evidence_reference' => 'admin-continuation:' . (string) $preparation->uid,
+                    'evidence_at' => $evidenceAt,
+                ), 'admin-continuation-offer-' . (string) $preparation->uid . '-' . $planKind);
+                $preparation = $this->save((int) $preparation->id, array(
+                    'offer_id' => (int) $offer['offer_id'],
+                    'offer_uid' => (string) $offer['offer_uid'],
+                    'state' => 'checkout_pending',
+                ));
+            }
+        }
+
+        $choice = $repository->activePlanChoice((int) $preparation->id);
+        if ($choice && !(int) $choice->offer_id) {
+            $changes = array('offer_id' => (int) $preparation->offer_id);
+            if ($planKind === 'two_instalments') {
+                $deadline = $repository->instalmentDeadlineForOffer((int) $preparation->offer_id);
+                $changes['instalment_due_at'] = $deadline['due_at'];
+                $changes['policy_version'] = $deadline['policy_version'];
+            }
+            $repository->updatePlanChoice((int) $choice->id, $changes);
+        }
+        if (!in_array((string) $preparation->state, array('checkout_pending', 'payment_received', 'activated'), true)) {
+            $preparation = $this->save((int) $preparation->id, array('state' => 'checkout_pending', 'exception_code' => null, 'exception_detail' => null));
+        }
+
+        $offer = $repository->offer((int) $preparation->offer_id);
+        if (!$offer) throw new \RuntimeException('commercial_offer_required');
+        if ($paymentMode === 'offline_paid') {
+            $receipt = trim((string) ($input['receipt_reference'] ?? ''));
+            if ($receipt === '') throw new \InvalidArgumentException('manual_payment_evidence_reference_required');
+            $receivedOn = trim((string) ($input['received_on'] ?? ''));
+            if ($receivedOn === '') $receivedOn = gmdate('Y-m-d');
+            (new \Delnavazan\Platform\Core\Application\Finance\ManualPaymentSettlementService())->markStandardPaid(array(
+                'offer_uid' => (string) $offer->uid,
+                'obligation_sequence' => 1,
+                'evidence_reference' => $receipt,
+                'received_on' => $receivedOn,
+            ), 'admin-continuation-payment-' . (string) $preparation->uid);
+            return array(
+                'state' => 'payment_received',
+                'message' => 'Offline payment recorded. The activation job will create the Enrolment, Term and classes.',
+                'offer_uid' => (string) $offer->uid,
+                'enrolment_id' => (int) $preparation->enrolment_id,
+            );
+        }
+
+        return array(
+            'state' => 'checkout_pending',
+            'message' => 'Agreement recorded and payment created. No classes exist until verified payment.',
+            'offer_uid' => (string) $offer->uid,
+            'enrolment_id' => (int) $preparation->enrolment_id,
+        );
+    }
+
     private function concurrentReplay(\Throwable $error): bool {
         if ($error instanceof IdempotencyConflictException) return false;
         $message = strtolower(trim($error->getMessage()));

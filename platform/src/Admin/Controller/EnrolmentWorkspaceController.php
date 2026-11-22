@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Admin\View\EnrolmentWorkspaceView;
+use Delnavazan\Platform\Core\Application\AdministratorAgreementService;
 use Delnavazan\Platform\Core\Application\AdministratorBookingMatchService;
 use Delnavazan\Platform\Core\Application\AdministratorIntroBookingService;
 use Delnavazan\Platform\Core\Application\BookingNotificationRecoveryService;
@@ -170,6 +171,24 @@ final class EnrolmentWorkspaceController {
                 $assessment = (new BookingRequestMatchAssessmentService())->assess($requestId, get_current_user_id());
                 set_transient('dzn_match_assessment_' . get_current_user_id() . '_' . $requestId, $assessment, 300);
                 return 'Current Teacher match assessment completed. Review its coverage below.';
+            case 'execute_agreement':
+                self::requireCap('dzn_manage_booking_request_coordination');
+                self::requireCap('dzn_manage_teacher_availability_assent');
+                if ($requestId < 1) throw new \InvalidArgumentException('Choose a booking request first.');
+                $agreement = (new AdministratorAgreementService())->execute($requestId, array(
+                    'outcome' => sanitize_key((string) ($post['agreement_outcome'] ?? '')),
+                    'teacher_id' => absint($post['teacher_id'] ?? 0),
+                    'local_date' => sanitize_text_field((string) ($post['local_date'] ?? '')),
+                    'local_start_time' => sanitize_text_field((string) ($post['local_start_time'] ?? '')),
+                    'timezone' => sanitize_text_field((string) ($post['schedule_timezone'] ?? '')),
+                    'plan_kind' => sanitize_key((string) ($post['plan_kind'] ?? 'full')),
+                    'payment_mode' => sanitize_key((string) ($post['payment_mode'] ?? 'pending')),
+                    'receipt_reference' => sanitize_text_field((string) ($post['receipt_reference'] ?? '')),
+                    'received_on' => sanitize_text_field((string) ($post['received_on'] ?? '')),
+                    'note' => sanitize_textarea_field((string) ($post['note'] ?? '')),
+                    'attestation' => !empty($post['attestation']),
+                ), 'execute-agreement-' . $idempotency);
+                return (string) ($agreement['message'] ?? 'Administrator agreement executed.') . ((string) ($agreement['offer_uid'] ?? '') !== '' ? ' Offer ' . (string) $agreement['offer_uid'] . ' is ready.' : '');
             case 'recover_allocation':
                 self::requireCap('dzn_view_booking_requests');
                 self::requireCap('dzn_manage_booking_request_coordination');
@@ -716,6 +735,27 @@ final class EnrolmentWorkspaceController {
             'standard_allocation_exhausted' => 'This Term has no remaining standard class allocation. Use a replacement or start a new Term.',
             'standard_funding_exhausted' => 'The funded allocation for this Term is exhausted; a standard class cannot be added.',
             'intro_not_completed' => 'Record the introductory outcome (or an audited skip-intro decision) before converting this arrangement to an Enrolment.',
+            'intro_payment_pending' => 'The introductory payment is still pending. Settle or refund it in Finance, then run the agreement again. No Enrolment or classes were created.',
+            'intro_projection_pending' => 'The introductory classroom is not confirmed yet. Retry after the provider projection completes. No Enrolment or classes were created.',
+            'intro_booking_not_confirmed' => 'The introductory booking is not confirmed. Review its current state before running the agreement.',
+            'student_acceptance_capacity_unresolved' => 'The Student is not classified as an adult or a minor. Classify acceptance capacity first, then run the agreement again.',
+            'continuation_case_missing' => 'The post-intro continuation record is incomplete. Review the post-intro preparation, then retry.',
+            'continuation_reservation_required' => 'The first regular class slot has no active reservation. Review the post-intro preparation, then retry.',
+            'commercial_pattern_exists' => 'An active recurring pattern already exists for this Student and Course. Review the existing pattern before creating another.',
+            'post_intro_invitation_not_ready' => 'The post-intro preparation is not ready. Review its state, then retry.',
+            'post_intro_invitation_not_found' => 'The post-intro preparation could not be found for this request.',
+            'post_intro_preparation_unavailable' => 'The post-intro preparation is unavailable. Review the case and retry.',
+            'post_intro_preparation_failed' => 'The post-intro preparation failed. Open the protected Post-intro diagnostics for the exact reason.',
+            'manual_payment_evidence_reference_required' => 'Enter the receipt or verified reference for the offline payment.',
+            'teacher_not_eligible_for_standard_course' => 'This Teacher is not eligible for the Student’s standard Course. Choose an eligible Teacher or correct eligibility first.',
+            'standard_course_unresolved' => 'The standard Course for this instrument is not uniquely configured. Fix the Catalogue, then retry.',
+            'commercial_product_unresolved' => 'The commercial product for the standard Course is not uniquely configured. Fix the Catalogue, then retry.',
+            'commercial_price_unresolved' => 'No price is configured for this Student’s region and product. Fix the Catalogue, then retry.',
+            'plan_choice_conflict' => 'The Student already chose a different payment plan. Choose that plan or review the existing offer before retrying.',
+            'plan_unavailable' => 'The requested payment plan is not available for this offer. Choose another plan.',
+            'plan_quote_stale' => 'The commercial quote changed while you were working. Reload the case and retry.',
+            'commercial_offer_exists' => 'A live commercial offer already exists for this continuation. Review it instead of creating another.',
+            'commercial_obligation_missing' => 'The commercial offer has no payable obligation. Review the offer before recording a payment.',
             'replacement_allocation_exhausted' => 'This Term has no remaining replacement allowance.',
             'stale_teacher_assignment' => 'The Teacher assignment changed while you were working. Reload and review the current Enrolment.',
             'canonical_enrolment_required' => 'This Enrolment is not eligible for a canonical class.',

@@ -49,6 +49,64 @@ final class PostIntroPreparationService {
     }
 
     /**
+     * Administrator executes an offline agreement: the confirmed intro is recorded as
+     * administratively completed so the normal post-intro payment/continuation workflow starts.
+     *
+     * This is deliberately a distinct source (`administrator_completion`), not provider or
+     * Teacher attendance evidence. It is capability-gated, requires an explicit note, and never
+     * replaces an existing provider/Teacher/admin outcome. The confirmation must already be
+     * `confirmed`; a pending payment or classroom projection cannot be completed this way.
+     *
+     * @return array{outcome_id:int,created:bool,state:string}
+     */
+    public function recordAdministrativeCompletion(int $requestId, int $administratorUserId, string $note): array {
+        if (!current_user_can('dzn_manage_post_intro_automation') || !current_user_can('dzn_manage_booking_request_coordination')) throw new \RuntimeException('Unauthorized');
+        if ($requestId < 1 || $administratorUserId < 1) throw new \InvalidArgumentException('Booking request and administrator are required');
+        $note = trim($note);
+        if ($note === '' || strlen($note) > 500) throw new \InvalidArgumentException('Record the administrative completion note');
+        $confirmation = $this->repository->confirmationByBooking($requestId);
+        if (!$confirmation) throw new \InvalidArgumentException('intro_booking_not_found');
+        if ((string) $confirmation->state !== 'confirmed') throw new \InvalidArgumentException('intro_booking_not_confirmed');
+        if ($confirmation->privacy_erased_at !== null) throw new \InvalidArgumentException('intro_booking_unavailable');
+        if ((int) ($confirmation->student_id ?? 0) < 1) throw new \InvalidArgumentException('student_identity_unresolved');
+
+        $existing = $this->repository->outcomeByBooking($requestId);
+        if ($existing) {
+            if ((string) $existing->source !== 'administrator_completion') throw new \InvalidArgumentException('intro_outcome_already_recorded');
+            $prepared = $this->prepare((int) $existing->id);
+            return array('outcome_id' => (int) $existing->id, 'created' => false, 'state' => (string) $prepared['state']);
+        }
+
+        $now = gmdate('Y-m-d H:i:s');
+        $noteText = 'Administrative completion: ' . $note;
+        if (mb_strlen($noteText) > 500) $noteText = mb_substr($noteText, 0, 500);
+        $created = true;
+        try {
+            $id = $this->repository->insertOutcome(array(
+                'uid' => Identifier::uid(),
+                'booking_request_id' => $requestId,
+                'confirmation_id' => (int) $confirmation->id,
+                'teacher_id' => (int) $confirmation->teacher_id,
+                'student_id' => (int) $confirmation->student_id,
+                'outcome' => self::OUTCOME_DELIVERED,
+                'note' => $noteText,
+                'occurred_at' => $now,
+                'source' => 'administrator_completion',
+                'recorded_by' => $administratorUserId,
+                'recorded_at' => $now,
+                'created_at' => $now,
+            ));
+        } catch (\Throwable $error) {
+            $winner = $this->repository->outcomeByBooking($requestId);
+            if (!$winner || (string) $winner->source !== 'administrator_completion') throw $error;
+            $id = (int) $winner->id;
+            $created = false;
+        }
+        $prepared = $this->prepare($id);
+        return array('outcome_id' => (int) $id, 'created' => $created, 'state' => (string) $prepared['state']);
+    }
+
+    /**
      * Record a delivered introductory outcome from a server-recomputed provider assessment.
      *
      * This path is deliberately narrow: it only accepts the exact occurrence, the locked rule and

@@ -267,4 +267,36 @@ $contains($css, array('.dzn-offer-window', '.dzn-offer-window.is-expired'), 'The
 $contains($css, array('.dzn-enrolment__hero', '.dzn-booking-table', '.dzn-class-table', '.dzn-case-grid', '.dzn-timeline', '@media (max-width: 782px)'), 'The workspace needs responsive desktop/tablet/mobile styling.');
 $expect(!str_contains($readService, 'SELECT * FROM {$this->p}booking_request_contact_snapshots'), 'The read projection must not leak full contact snapshots into unrelated rows.');
 
+$agreement = $read('src/Core/Application/AdministratorAgreementService.php');
+$finalAcceptance = $read('src/Core/Application/FinalAcceptanceService.php');
+$preparationService = $read('src/Core/Application/PostIntroPreparationService.php');
+$continuationService = $read('src/Core/Application/PostIntroContinuationService.php');
+$overridePolicy = $read('src/Core/Application/IntroRecurringSlotOverridePolicy.php');
+$lifecycleService = $read('src/Core/Application/IntroLessonLifecycleService.php');
+$contains($agreement, array(
+    'public function execute(',
+    'OUTCOME_INTRO',
+    'OUTCOME_FULL_TERM',
+    'administratorTotalOverrideConfirmDelivery',
+    'recordAdministrativeCompletion',
+    'continueAsAdministrator',
+    'administrator_agreement_executed',
+    'original_requested_time',
+    'BookingTeacherOccupancyReadService',
+    'studentOccupancyConflicts',
+    "include_open_requests",
+    'attestation',
+    'administratorId',
+), 'The administrator agreement executor must sequence the existing authorities, preserve the original time and refuse real collisions.');
+$contains($agreement, array('Full term', 'Intro'), 'The administrator execution path must offer Intro and Full term only.');
+$expect(!str_contains($agreement, 'single_class'), 'The single-class option must not be introduced.');
+$contains($controller, array("case 'execute_agreement':", 'AdministratorAgreementService', 'agreement_outcome', 'attestation'), 'The Execute agreement command must be dispatched through the workspace controller.');
+$contains($view, array('executeAgreement(', 'id="dzn-execute-agreement"', "'execute_agreement'", 'agreement_outcome', 'value="intro"', 'value="full_term"', 'attestation', 'Agreement note'), 'The case page must expose the single Execute agreement card with Intro, Full term and one agreement note.');
+$expect(strpos($view, 'self::executeAgreement($case);') < strpos($view, 'self::caseActions($case);'), 'The Execute agreement card must render before the advanced action stack.');
+$contains($finalAcceptance, array('public function acceptAttested(', "'administrator_attested'", 'attestationNoteDigest', 'Attesting administrator does not exist'), 'The administrator-attested acceptance must record the administrator route while preserving the strict Student/guardian route.');
+$contains($preparationService, array('public function recordAdministrativeCompletion(', "'administrator_completion'", 'Administrative completion:', 'intro_booking_not_confirmed', 'intro_outcome_already_recorded'), 'Administrative completion must be a distinct, audited source that triggers the normal preparation.');
+$contains($continuationService, array('public function continueAsAdministrator(', 'acceptAttested', 'offline_paid', 'payment_received', 'student_acceptance_capacity_unresolved', 'ManualPaymentSettlementService'), 'The administrator continuation must record acceptance, create the normal offer/payment and leave classes gated on verified payment.');
+$contains($overridePolicy, array('ADMIN_BASIS', 'administrator_attested_outside_availability', "in_array(\$actorType, array('teacher', 'administrator')"), 'An administrator-rescheduled slot outside published availability must be recorded as an auditable recurring-slot override.');
+$contains($lifecycleService, array('bool $administratorOverride = false', 'IntroRecurringSlotOverridePolicy::ADMIN_BASIS', '$administratorOverride && $actorType === \'administrator\''), 'The reschedule authority must allow the administrator override without changing the Teacher route.');
+
 echo "Enrolment administration workspace contract passed\n";

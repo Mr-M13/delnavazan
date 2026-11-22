@@ -17,6 +17,10 @@ final class MeetAdministratorJoinController {
             $target=$kind==='booking'
                 ?$service->joinUriForBooking(sanitize_text_field((string)($_POST['confirmation_uid']??'')))
                 :$service->joinUriForLesson((int)($_POST['lesson_id']??0));
+            try{
+                if($kind==='booking')MeetRecorderQueue::enqueueForBookingUid((string)($_POST['confirmation_uid']??''));
+                else MeetRecorderQueue::enqueueForLessonId((int)($_POST['lesson_id']??0));
+            }catch(\Throwable){}
             nocache_headers();header('Referrer-Policy: no-referrer');
             wp_redirect($target,302,'Delnavazan');exit;
         }catch(\Throwable){

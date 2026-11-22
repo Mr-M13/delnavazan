@@ -150,6 +150,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomLifecycleListener::register();
 	Delnavazan\Platform\Integrations\GoogleWorkspace\MeetRecordingPlaybackController::register();
 	Delnavazan\Platform\Integrations\GoogleWorkspace\MeetAdministratorJoinController::register();
+	Delnavazan\Platform\Integrations\GoogleWorkspace\MeetRecorderController::register();
 	Delnavazan\Platform\Integrations\GoogleCalendarProjectionWorker::register();
 	Delnavazan\Platform\Integrations\PostIntroSettlementHook::register();
 	Delnavazan\Platform\Integrations\PostIntroActivationWorker::register();

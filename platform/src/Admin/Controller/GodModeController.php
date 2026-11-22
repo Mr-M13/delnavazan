@@ -236,6 +236,7 @@ final class GodModeController {
             $session=(new GodModeRepository())->session($sessionId);
             if(!$session||(string)$session->activity_type!=='test')throw new \RuntimeException('god_mode_test_session_required');
             $target=(new \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomService())->joinUriForTestSession($sessionId);
+            try{\Delnavazan\Platform\Integrations\GoogleWorkspace\MeetRecorderQueue::enqueueForTestSession($sessionId);}catch(\Throwable){}
             GodModeAudit::record(GodModeAuthority::require(),'test_session_join','test_session',$sessionId,'administrator_join');
             nocache_headers();header('Referrer-Policy: no-referrer');
             wp_redirect($target,302,'Delnavazan');exit;

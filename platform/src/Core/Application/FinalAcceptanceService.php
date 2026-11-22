@@ -85,7 +85,63 @@ final class FinalAcceptanceService {
         }
     }
 
-    private function acceptLocked(int $requestId, int $caseId, string $familyUid, string $optionUid, int $versionNumber, string $provisionalUid, int $studentId, int $principalId, string $channel, string $confirmedAt, int $actor, string $keyDigest, string $payloadDigest): array {
+    /**
+     * Create the same immutable arrangement through the administrator-attested route.
+     *
+     * The operator has already spoken to the Teacher and the Student/guardian and is
+     * recording that agreement. The strict Student-principal / guardian-grant route is
+     * deliberately untouched: this method records a different, explicitly audited
+     * authority (`administrator_attested`) and the administrator's WordPress ID.
+     *
+     * @param array{channel?:string,confirmed_at?:string,note?:string} $attestation
+     */
+    public function acceptAttested(int $bookingRequestId, int $coordinationCaseId, string $familyUid, string $optionUid, int $versionNumber, string $provisionalEventUid, int $studentId, int $administratorUserId, array $attestation, string $idempotencyKey): array {
+        if (!current_user_can(self::CAPABILITY) || !current_user_can('dzn_manage_booking_request_coordination')) throw new \RuntimeException('Unauthorized');
+        $actor = get_current_user_id();
+        if ($actor < 1 || $administratorUserId < 1 || $administratorUserId !== $actor) throw new \RuntimeException('Administrator attestation actor is unavailable');
+        foreach (array($familyUid, $optionUid, $provisionalEventUid) as $uid) $this->uid($uid);
+        foreach (array($bookingRequestId, $coordinationCaseId, $versionNumber, $studentId) as $id) if ($id < 1) throw new \InvalidArgumentException('Exact final-acceptance identifier required');
+        $channel = (string) ($attestation['channel'] ?? 'phone');
+        if (!in_array($channel, self::CHANNELS, true) || $channel === 'authenticated_platform') throw new \InvalidArgumentException('Closed administrator attestation channel required');
+        $confirmedAt = $this->utc((string) ($attestation['confirmed_at'] ?? gmdate('Y-m-d H:i:s')));
+        $note = trim((string) ($attestation['note'] ?? ''));
+        if ($note === '' || strlen($note) > 1000) throw new \InvalidArgumentException('Record the administrator agreement note');
+        $noteDigest = hash('sha256', 'administrator-attested-acceptance:' . $note);
+        $keyDigest = FinalAcceptanceIdempotency::keyDigest($idempotencyKey);
+        $payloadDigest = FinalAcceptanceIdempotency::payloadDigest(array(
+            'operation' => 'administrator_attested_final_acceptance',
+            'booking_request_id' => $bookingRequestId,
+            'coordination_case_id' => $coordinationCaseId,
+            'family_uid' => $familyUid,
+            'option_uid' => $optionUid,
+            'version_number' => $versionNumber,
+            'provisional_event_uid' => $provisionalEventUid,
+            'student_id' => $studentId,
+            'accepting_wordpress_user_id' => $administratorUserId,
+            'confirmation_channel' => $channel,
+            'confirmed_at' => $confirmedAt,
+            'attestation_note_digest' => $noteDigest,
+        ));
+        if ($replay = $this->arrangements->arrangementForCommand($keyDigest)) return $this->replay($replay, $payloadDigest);
+
+        $this->transactions->begin();
+        try {
+            $result = $this->acceptLocked($bookingRequestId, $coordinationCaseId, $familyUid, $optionUid, $versionNumber, $provisionalEventUid, $studentId, $administratorUserId, $channel, $confirmedAt, $actor, $keyDigest, $payloadDigest, true, $noteDigest);
+            $this->transactions->commit();
+            return $result;
+        } catch (\Throwable $e) {
+            $this->transactions->rollback();
+            if ($this->arrangements->isDuplicate($e)) {
+                $winner = $this->arrangements->arrangementForCommand($keyDigest);
+                if ($winner) return $this->replay($winner, $payloadDigest);
+                $version = $this->proposals->exact($familyUid, $optionUid, $versionNumber);
+                if ($version && $this->arrangements->arrangementForFamily((int) $version->proposal_family_id)) throw new ProposalFamilyAlreadyAcceptedException('Proposal Family already accepted');
+            }
+            throw $e;
+        }
+    }
+
+    private function acceptLocked(int $requestId, int $caseId, string $familyUid, string $optionUid, int $versionNumber, string $provisionalUid, int $studentId, int $principalId, string $channel, string $confirmedAt, int $actor, string $keyDigest, string $payloadDigest, bool $attested = false, ?string $attestationNoteDigest = null): array {
         $now = gmdate('Y-m-d H:i:s');
         $request = $this->cases->requestForUpdate($requestId);
         $requestStateAllowed = $request && ( ( $request->lifecycle_status === 'submitted' && $request->resolution_state === 'unresolved' ) || ( $request->lifecycle_status === 'closed' && $request->resolution_state === 'teacher_confirmed' ) );
@@ -121,22 +177,36 @@ final class FinalAcceptanceService {
         if (!$resolution || $resolution->outcome !== 'resolved' || (int) $resolution->booking_request_id !== $requestId || (int) $resolution->student_id !== $studentId) throw new \InvalidArgumentException('Student identity resolution is no longer current');
         $capacity = $this->authority->capacityByIdForUpdate((int) $student->current_acceptance_capacity_classification_id);
         if (!$capacity || (int) $capacity->student_id !== $studentId || !in_array($capacity->classification, array('adult', 'minor'), true)) throw new \InvalidArgumentException('Student acceptance capacity is unresolved');
-        if (!$this->authority->wordpressUserForUpdate($principalId)) throw new \InvalidArgumentException('Accepting WordPress principal does not exist');
-        $principals = $this->authority->lockPrincipalsForAuthority($studentId, array($principalId));
-        $grants = $this->authority->lockGrantsForAuthority($studentId, array($principalId));
-        do_action('dzn_phase_2a2g_authority_locks_held');
 
-        $principal = $this->activePrincipal($principals, $studentId, $principalId);
-        $grant = $this->activeGuardian($grants, $studentId, $principalId, $now);
-        if ($capacity->classification === 'adult') {
-            if (!$principal) throw new \InvalidArgumentException('Adult self authority is no longer current');
-            $route = 'adult_self'; $grant = null;
+        if ($attested) {
+            // The administrator is the recorded accepting authority. The Student/guardian
+            // principal checks stay mandatory on the strict route; this route records the
+            // administrator's identity and the offline evidence instead.
+            if (!$this->authority->wordpressUserForUpdate($principalId)) throw new \InvalidArgumentException('Attesting administrator does not exist');
+            $principals = array();
+            $grants = array();
+            $principal = null;
+            $grant = null;
+            $route = 'administrator_attested';
+            do_action('dzn_phase_2a2g_authority_locks_held');
         } else {
-            if (!$grant) throw new \InvalidArgumentException('Guardian representative authority is no longer current');
-            $route = 'guardian_representative'; $principal = null;
+            if (!$this->authority->wordpressUserForUpdate($principalId)) throw new \InvalidArgumentException('Accepting WordPress principal does not exist');
+            $principals = $this->authority->lockPrincipalsForAuthority($studentId, array($principalId));
+            $grants = $this->authority->lockGrantsForAuthority($studentId, array($principalId));
+            do_action('dzn_phase_2a2g_authority_locks_held');
+
+            $principal = $this->activePrincipal($principals, $studentId, $principalId);
+            $grant = $this->activeGuardian($grants, $studentId, $principalId, $now);
+            if ($capacity->classification === 'adult') {
+                if (!$principal) throw new \InvalidArgumentException('Adult self authority is no longer current');
+                $route = 'adult_self'; $grant = null;
+            } else {
+                if (!$grant) throw new \InvalidArgumentException('Guardian representative authority is no longer current');
+                $route = 'guardian_representative'; $principal = null;
+            }
         }
 
-        $data = $this->arrangementData($request, $case, $family, $selectedOption, $selectedVersion, $provisional, $student, $resolution, $capacity, $principal, $grant, $route, $principalId, $channel, $confirmedAt, $actor, $now, $keyDigest, $payloadDigest);
+        $data = $this->arrangementData($request, $case, $family, $selectedOption, $selectedVersion, $provisional, $student, $resolution, $capacity, $principal, $grant, $route, $principalId, $channel, $confirmedAt, $actor, $now, $keyDigest, $payloadDigest, $attestationNoteDigest);
         $id = $this->arrangements->insertArrangement($data);
         $this->arrangements->assignArrangementReference($id, Identifier::reference('ASA', $id));
         foreach ($options as $option) {
@@ -151,7 +221,7 @@ final class FinalAcceptanceService {
         return $this->response($stored, true, false);
     }
 
-    private function arrangementData(object $request, object $case, object $family, object $option, object $version, object $provisional, object $student, object $resolution, object $capacity, ?object $principal, ?object $grant, string $route, int $principalId, string $channel, string $confirmedAt, int $actor, string $now, string $keyDigest, string $payloadDigest): array {
+    private function arrangementData(object $request, object $case, object $family, object $option, object $version, object $provisional, object $student, object $resolution, object $capacity, ?object $principal, ?object $grant, string $route, int $principalId, string $channel, string $confirmedAt, int $actor, string $now, string $keyDigest, string $payloadDigest, ?string $attestationNoteDigest = null): array {
         return array(
             'uid' => Identifier::uid(), 'reference_code' => null,
             'booking_request_id' => (int) $request->id, 'coordination_case_id' => (int) $case->id,
@@ -177,7 +247,9 @@ final class FinalAcceptanceService {
             'principal_link_id' => $principal ? (int) $principal->id : null, 'principal_link_version' => $principal ? (int) $principal->version : null,
             'guardian_grant_id' => $grant ? (int) $grant->id : null, 'guardian_grant_version' => $grant ? (int) $grant->version : null,
             'confirmation_value' => 'affirmed', 'confirmation_channel' => $channel,
-            'confirmation_evidence_reference' => hash_hmac('sha256', 'final-confirmation:' . Identifier::uid(), wp_salt('dzn_final_acceptance_evidence')),
+            'confirmation_evidence_reference' => $attestationNoteDigest !== null
+                ? hash_hmac('sha256', 'administrator-attested-confirmation:' . $attestationNoteDigest, wp_salt('dzn_final_acceptance_evidence'))
+                : hash_hmac('sha256', 'final-confirmation:' . Identifier::uid(), wp_salt('dzn_final_acceptance_evidence')),
             'confirmed_at' => $confirmedAt, 'accepted_at' => $now, 'accepted_by' => $actor,
             'command_key_digest' => $keyDigest, 'command_payload_digest' => $payloadDigest,
             'created_at' => $now, 'created_by' => $actor,

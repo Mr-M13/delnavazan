@@ -11,6 +11,9 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 
 /** Accessible, responsive presentation for the consolidated Enrolment workspace. */
 final class EnrolmentWorkspaceView {
+    /** The owner execution card owns the primary action when it is rendered. */
+    private static bool $executeAgreementRendered = false;
+
     /** Catalogue-only staff see the offer without student or class projections. */
     public static function offerOnly(): void {
         echo '<div class="wrap dzn-enrolment"><h1>Enrolment · instruments</h1>';
@@ -496,6 +499,7 @@ final class EnrolmentWorkspaceView {
         self::caseDecision($case, $classroom);
         echo '</div>';
         echo '<div class="dzn-case-columns"><div>';
+        self::executeAgreement($case);
         self::caseActions($case);
         if ($intake) self::intakeTools($intake);
         if ($coordination) CoordinationWorkspaceView::embeddedDetail($coordination);
@@ -664,6 +668,7 @@ final class EnrolmentWorkspaceView {
                     'provider_evidence' => 'Automatic — Google Meet participant evidence',
                     'teacher_portal' => 'Teacher portal',
                     'admin' => 'Administrator',
+                    'administrator_completion' => 'Administrator — offline agreement executed',
                     default => ucfirst(str_replace('_', ' ', $outcomeSource)),
                 };
                 self::fact('Outcome source', $outcomeSourceLabel, 'Recorded at ' . (string) ($case['outcome']['recorded_at'] ?? ''));
@@ -715,6 +720,52 @@ final class EnrolmentWorkspaceView {
         echo '</section>';
     }
 
+    /**
+     * The owner-operated execution path: the offline agreement already happened, so the
+     * administrator records it once and the system fills every authority record behind it.
+     *
+     * @param array<string,mixed> $case
+     */
+    private static function executeAgreement(array $case): void {
+        $caps = array('dzn_manage_booking_request_coordination', 'dzn_manage_teacher_availability_assent', 'dzn_manage_post_intro_automation', 'dzn_finalize_service_arrangements', 'dzn_convert_service_arrangements_to_enrolments', 'dzn_issue_commercial_offers', 'dzn_manage_commercial_capacity', 'dzn_manage_student_acceptance_authority');
+        foreach ($caps as $cap) if (!current_user_can($cap)) return;
+        if ((string) ($case['identity_state']['key'] ?? '') !== 'verified') return;
+        $journey = (new BookingJourneyReadService())->status((int) $case['id']);
+        $journeyStatus = $journey !== null ? (string) $journey['status'] : '';
+        if (in_array($journeyStatus, array('enrolled', 'declined', 'closed'), true)) return;
+        $read = new EnrolmentWorkspaceReadService();
+        $teachers = $read->overrideTeacherOptions(200);
+        if (!$teachers) return;
+        $first = (array) ($case['requested_times'][0] ?? array());
+        $date = (string) ($first['local_date'] ?? gmdate('Y-m-d'));
+        $time = substr((string) ($first['local_time'] ?? '12:00'), 0, 5);
+        $timezone = (string) ($first['timezone'] ?? $case['timezone']);
+        $confirmationState = (string) ($case['confirmed']['state'] ?? '');
+        $confirmedTeacher = (string) ($case['confirmed']['teacher_name'] ?? '');
+        self::$executeAgreementRendered = true;
+        echo '<section class="dzn-enrolment__section dzn-administrator-agreement" id="dzn-execute-agreement"><div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Owner execution</p><h2>Execute agreement</h2><p>Use this when you have already spoken to the Teacher and the Student/guardian. The system records the agreement, the Teacher acceptance, the Student acceptance and the payment preparation behind the scenes; it does not ask them to approve again.</p></div></div>';
+        if ($confirmationState !== '') echo '<p class="dzn-inline-note"><strong>Current introductory booking:</strong> ' . esc_html(ucfirst(str_replace('_', ' ', $confirmationState))) . ($confirmedTeacher !== '' ? ' · ' . esc_html($confirmedTeacher) : '') . '. Choosing <strong>Full term</strong> records the confirmed intro as administratively completed and starts the normal post-intro payment workflow.</p>';
+        self::formStart('execute_agreement', array('request_id' => (int) $case['id']));
+        echo '<fieldset class="dzn-agreement-outcome"><legend><strong>What did you agree?</strong></legend>';
+        echo '<p><label><input type="radio" name="agreement_outcome" value="intro" checked> Introductory lesson</label> <label><input type="radio" name="agreement_outcome" value="full_term"> Full term</label></p>';
+        echo '<p class="description">Intro executes the introductory booking. Full term records the intro as administratively completed so the normal continuation payment and Enrolment/Term activation run; no classes exist until verified payment.</p></fieldset>';
+        echo '<p><label>Teacher<select name="teacher_id" required><option value="">Choose the Teacher who agreed</option>';
+        foreach ($teachers as $teacher) echo '<option value="' . esc_attr((string) $teacher->id) . '"' . selected((string) ($case['confirmed']['teacher_id'] ?? ''), (string) $teacher->id, false) . '>' . esc_html((string) $teacher->display_name . ' · ' . $teacher->email) . '</option>';
+        echo '</select></label></p>';
+        self::input('local_date', 'Local date', 'date', $date, true);
+        self::input('local_start_time', 'Local start time', 'time', $time, true, 'The introductory occurrence anchors the weekly regular slot. For a full term, the first regular class is the same weekday/time one week later.');
+        self::input('schedule_timezone', 'Local timezone', 'text', $timezone, true, 'IANA timezone for the local date/time, for example Europe/Amsterdam. The original requested time is retained in the audit history.');
+        echo '<div class="dzn-agreement-term-fields"><p><strong>Full term only</strong></p><p><label>Payment plan<select name="plan_kind"><option value="full">Full term</option><option value="two_instalments">Two instalments</option></select></label></p><p><label>Payment<select name="payment_mode"><option value="pending">Pending — no classes until paid</option><option value="offline_paid">Already received — record receipt</option></select></label></p>';
+        self::input('receipt_reference', 'Receipt or verified reference', 'text', '', false, 'Required only when the payment is already received.');
+        self::input('received_on', 'Payment received on', 'date', gmdate('Y-m-d'), false, 'Required only when the payment is already received.');
+        echo '</div>';
+        echo '<p><label>Agreement note<textarea name="note" rows="3" maxlength="1000" required placeholder="Who agreed, how, and when — for example: phone call with Teacher and Student on 22 Nov; both confirmed the Tuesday 18:45 slot."></textarea></label></p>';
+        echo '<p><label><input type="checkbox" name="attestation" value="1" required> I confirm the Teacher and the Student/guardian already agreed offline, and I am recording that agreement as the administrator.</label></p>';
+        echo '<p><button class="button button-primary" onclick="return confirm(\'Execute this agreement now? The system will record the Teacher and Student acceptance under your administrator ID. Real class collisions are still refused.\')">Execute agreement</button></p></form>';
+        echo '<p class="description">The existing formal coordination, proposal and acceptance path remains available below under More actions for exceptional cases. This execution path never bypasses identity, real teacher/student collisions, the introductory payment, or the payment-before-classes gate.</p>';
+        echo '</section>';
+    }
+
     /** @param array<string,mixed> $case */
     private static function caseActions(array $case): void {
         echo '<section class="dzn-enrolment__section dzn-case-actions"><div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Contextual actions</p><h2>Resolve the case</h2></div></div>';
@@ -763,11 +814,15 @@ final class EnrolmentWorkspaceView {
                 if ($case['identity_state']['key'] !== 'verified' && current_user_can('dzn_resolve_booking_request_student_identity')) self::identityActions($case);
                 break;
             case 'open_coordination':
-                if (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) self::coordinationActions($case);
+                if (self::$executeAgreementRendered) {
+                    echo '<p class="dzn-inline-note">Use <strong>Execute agreement</strong> above for the owner-operated path. The formal coordination workflow remains under More actions.</p>';
+                } elseif (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) self::coordinationActions($case);
                 break;
             case 'total_override_intro':
             case 'review':
-                if ($case['identity_state']['key'] === 'verified' && !$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent') && current_user_can('dzn_override_canonical_lesson_schedule_availability')) {
+                if (self::$executeAgreementRendered) {
+                    echo '<p class="dzn-inline-note">Use <strong>Execute agreement</strong> above for the agreed Teacher and slot. The formal override and coordination controls remain under More actions.</p>';
+                } elseif ($case['identity_state']['key'] === 'verified' && !$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination') && current_user_can('dzn_manage_teacher_availability_assent') && current_user_can('dzn_override_canonical_lesson_schedule_availability')) {
                     self::totalOverrideForm($case);
                 } elseif (!$case['confirmed'] && current_user_can('dzn_manage_booking_request_coordination')) {
                     self::coordinationActions($case);

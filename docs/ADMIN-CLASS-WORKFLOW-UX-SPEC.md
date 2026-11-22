@@ -87,6 +87,46 @@ Top to bottom:
    capability-checked and going through its own authority.
 6. **Timeline and notification evidence:** unchanged, appended with every journey command.
 
+### 3.3.1 Owner execution path (offline agreement already reached)
+
+When the owner has already spoken to the Teacher and the Student/guardian, the case page
+opens with a single **Execute agreement** card above the advanced action stack. The
+operator does not re-create the negotiation; the system records it.
+
+The card asks only for:
+
+- outcome: **Intro** or **Full term** (no single-class option),
+- Teacher,
+- local date, time and timezone,
+- for Full term: payment plan (full / two instalments) and payment state
+  (pending / already received with a receipt),
+- one agreement note,
+- one attestation that the Teacher and Student/guardian already agreed offline.
+
+Every technical record is then written by the existing authorities and hidden from the
+operator:
+
+- Teacher candidate and Teacher assent (`administrator_attestation`),
+- proposal, provisional acceptance and the immutable final arrangement with
+  `authority_route = administrator_attested` and the administrator's WordPress ID,
+- conversion to Enrolment, canonical Term and Teacher assignment,
+- the normal post-intro invitation, commercial offer and activation job.
+
+The original requested time is retained in the audit event
+`booking_request.administrator_agreement_executed`; the administrator's chosen slot is
+authoritative and is also written to the requested-time record. A real Teacher or Student
+collision is still refused. The card never invents a paid state: offline payment requires
+a receipt/reference.
+
+For Full term, the confirmed intro is recorded as **administratively completed**
+(`source = administrator_completion`) so the normal continuation payment and activation
+pipeline runs. The Enrolment and Term stay `authorised`; no class is created until verified
+payment activates them.
+
+The formal coordination, proposal and acceptance path remains available under More actions
+for exceptional cases. The owner execution path is the default for owner-operated work;
+the formal path remains the authority model for delegated or future scaled operation.
+
 ### 3.4 Teacher and Student portals
 
 - Teacher portal shows the intro request when it is actionable (offer) and the class when
@@ -98,7 +138,9 @@ Top to bottom:
 | Duty | Where |
 | --- | --- |
 | See every open journey in one list | Enrolment queue |
-| Match/confirm a teacher with a class time | Primary action: Confirm intro now (override) |
+| Match/confirm a teacher with a class time | Primary action: Execute agreement (Intro) |
+| Execute an offline full-term agreement on the Student’s behalf | Primary action: Execute agreement (Full term) |
+| Change the request time while keeping the original for audit | Execute agreement date/time, or More actions → Reschedule |
 | Use the constrained match when rules must hold | More actions → Manual Teacher match |
 | Reschedule/cancel an intro | More actions → Reschedule / Cancel |
 | Record intro outcome | Primary action: Record outcome |

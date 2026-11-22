@@ -155,7 +155,7 @@ final class IntroLessonLifecycleService {
     }
 
     /** @return array{confirmation_id:int,state:string,local_label:string,provider_sync:string} */
-    public function reschedule(int $requestId, string $actorRole, array $slot, string $reason, string $idempotencyKey, int $expectedId = 0, int $expectedVersion = 0): array {
+    public function reschedule(int $requestId, string $actorRole, array $slot, string $reason, string $idempotencyKey, int $expectedId = 0, int $expectedVersion = 0, bool $administratorOverride = false): array {
         if ($requestId < 1) throw new \InvalidArgumentException('Choose an introductory booking');
         if (!in_array($actorRole, array('admin', 'teacher'), true)) throw new \RuntimeException('Unauthorized');
         $reason = $this->reason($reason);
@@ -217,7 +217,7 @@ final class IntroLessonLifecycleService {
             $confirmationState = (string) $locked->state;
             $courseId = (int) ($locked->course_id ?? $request->selected_intro_course_id ?? 0);
             $coveredByPublishedAvailability = $this->coveredByPublishedAvailability($teacherId, $startsAtUtc, $occupiedEndsAtUtc, $courseId > 0 ? $courseId : null);
-            if (! $coveredByPublishedAvailability && $actorType !== 'teacher') {
+            if (! $coveredByPublishedAvailability && $actorType !== 'teacher' && !($administratorOverride && $actorType === 'administrator')) {
                 throw new \InvalidArgumentException('The Teacher must explicitly choose a time outside published availability.');
             }
             // Booking authority, not canonical-only occupancy: an intro confirmation or a
@@ -261,7 +261,7 @@ final class IntroLessonLifecycleService {
                 if ($requestedTimeUpdated !== 1) throw new \RuntimeException('Booking requested time changed concurrently');
             }
             if (IntroRecurringSlotOverridePolicy::requiresRecord($actorType, $coveredByPublishedAvailability)) {
-                $this->recordRecurringSlotOverride((int) $locked->id, (int) $locked->booking_request_id, (int) $locked->teacher_id, $actorId, $startsAtUtc, $endsAtUtc, $timezone, $date, $time, $now);
+                $this->recordRecurringSlotOverride((int) $locked->id, (int) $locked->booking_request_id, (int) $locked->teacher_id, $actorType, $actorId, $startsAtUtc, $endsAtUtc, $timezone, $date, $time, $now);
             }
             $this->queueNotification((int) $locked->delivery_id, (int) $locked->id, 'rescheduled', $now, true);
             $this->queueNotification((int) $locked->delivery_id, (int) $locked->id, 'rescheduled_teacher', $now, true);
@@ -336,13 +336,29 @@ final class IntroLessonLifecycleService {
         return false;
     }
 
-    private function recordRecurringSlotOverride(int $confirmationId, int $bookingRequestId, int $teacherId, int $actorId, string $startsAtUtc, string $endsAtUtc, string $timezone, string $date, string $time, string $now): void {
+    /**
+     * Record the administrator's attested authority for a confirmed intro outside the
+     * Teacher's published availability. The total-override path bypasses that preference,
+     * so the post-intro preparation needs the same explicit override record the Teacher
+     * reschedule path writes; otherwise the continuation would refuse the agreed slot.
+     */
+    public function recordAdministratorAgreementOverride(int $confirmationId, int $bookingRequestId, int $teacherId, int $actorId, string $startsAtUtc, string $endsAtUtc, string $timezone, string $date, string $time, ?string $courseId = null): void {
+        if (!current_user_can('dzn_manage_booking_request_coordination')) throw new \RuntimeException('Unauthorized');
+        if ($confirmationId < 1 || $bookingRequestId < 1 || $teacherId < 1 || $actorId < 1) throw new \InvalidArgumentException('Confirmed administrator agreement required');
+        $now = gmdate('Y-m-d H:i:s');
+        $covered = $this->coveredByPublishedAvailability($teacherId, $startsAtUtc, $endsAtUtc, $courseId !== null && $courseId !== '' ? (int) $courseId : null);
+        if ($covered) return;
+        $this->recordRecurringSlotOverride($confirmationId, $bookingRequestId, $teacherId, 'administrator', $actorId, $startsAtUtc, $endsAtUtc, $timezone, $date, $time, $now);
+    }
+
+    private function recordRecurringSlotOverride(int $confirmationId, int $bookingRequestId, int $teacherId, string $actorType, int $actorId, string $startsAtUtc, string $endsAtUtc, string $timezone, string $date, string $time, string $now): void {
         global $wpdb;
-        $digest = hash_hmac('sha256', implode('|', array('teacher-recurring-slot-override', $confirmationId, $teacherId, $startsAtUtc, $endsAtUtc, $timezone, $date, $time, $actorId)), wp_salt('dzn_intro_recurring_slot_override'));
+        $basis = $actorType === 'administrator' ? IntroRecurringSlotOverridePolicy::ADMIN_BASIS : IntroRecurringSlotOverridePolicy::BASIS;
+        $digest = hash_hmac('sha256', implode('|', array('recurring-slot-override', $actorType, $confirmationId, $teacherId, $startsAtUtc, $endsAtUtc, $timezone, $date, $time, $actorId)), wp_salt('dzn_intro_recurring_slot_override'));
         $inserted = $wpdb->query($wpdb->prepare(
             "INSERT INTO {$this->p}booking_request_recurring_slot_overrides (uid,confirmation_id,booking_request_id,teacher_id,actor_type,actor_id,authority_basis,schedule_timezone,local_wall_date,local_wall_time,starts_at_utc,ends_at_utc,evidence_reference_digest,recorded_at,created_at) VALUES (%s,%d,%d,%d,%s,%d,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE id=id",
-            \Delnavazan\Platform\Core\Support\Identifier::uid(), $confirmationId, $bookingRequestId, $teacherId, 'teacher', $actorId,
-            IntroRecurringSlotOverridePolicy::BASIS, $timezone, $date, $time, $startsAtUtc, $endsAtUtc, $digest, $now, $now
+            \Delnavazan\Platform\Core\Support\Identifier::uid(), $confirmationId, $bookingRequestId, $teacherId, $actorType, $actorId,
+            $basis, $timezone, $date, $time, $startsAtUtc, $endsAtUtc, $digest, $now, $now
         ));
         if ($inserted === false) throw new \RuntimeException('intro_recurring_slot_override_persistence_failed');
     }

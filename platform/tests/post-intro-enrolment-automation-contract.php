@@ -359,4 +359,32 @@ $contains($runtime, array(
     'cross_student',
 ), 'the runtime test must cover the required lifecycle and failure scenarios');
 
+// 14. Owner-executed agreements reuse the same preparation/payment/activation path.
+$finalAcceptance = $read('platform/src/Core/Application/FinalAcceptanceService.php');
+$agreement = $read('platform/src/Core/Application/AdministratorAgreementService.php');
+$contains($preparation, array(
+    'public function recordAdministrativeCompletion(',
+    "'administrator_completion'",
+    'Administrative completion:',
+    'intro_booking_not_confirmed',
+    'intro_outcome_already_recorded',
+), 'administrative completion must be explicit, distinct from provider/Teacher evidence and idempotent');
+$contains($finalAcceptance, array('public function acceptAttested(', "'administrator_attested'", 'accepting_wordpress_user_id', 'Attesting administrator does not exist'), 'the administrator-attested acceptance must record the administrator identity and keep the strict route intact');
+$contains($continuation, array(
+    'public function continueAsAdministrator(',
+    'acceptAttested',
+    'offline_paid',
+    'payment_received',
+    'ManualPaymentSettlementService',
+    'post_intro_invitation_not_ready',
+), 'the administrator continuation must reuse the normal offer, settlement and activation path');
+$contains($agreement, array(
+    'OUTCOME_INTRO',
+    'OUTCOME_FULL_TERM',
+    'recordAdministrativeCompletion',
+    'continueAsAdministrator',
+    'original_requested_time',
+    'administrator_agreement_executed',
+), 'the owner execution service must support Intro and Full term, preserve the original time and audit the administrator action');
+
 echo "Post-intro enrolment automation contract passed.\n";

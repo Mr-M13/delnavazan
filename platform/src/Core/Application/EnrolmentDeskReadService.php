@@ -54,12 +54,82 @@ final class EnrolmentDeskReadService {
      * @return array{rows:array<int,array<string,mixed>>,total:int}
      */
     public function people( int $limit = 60 ): array {
-        $page = $this->workspace->bookingCases( array( 'per_page' => max( 20, min( 60, $limit ) ) ), false );
+        $limit = max( 20, min( 60, $limit ) );
         $rows = array();
+        $seen = array();
+
+        // 1. The intake queue: requests that still need a Teacher, a slot or an identity.
+        $page = $this->workspace->bookingCases( array( 'per_page' => $limit ), false );
         foreach ( (array) ( $page['rows'] ?? array() ) as $row ) {
-            $rows[] = $this->decorate( (array) $row );
+            $row = (array) $row;
+            $id  = (int) ( $row['id'] ?? 0 );
+            if ( $id < 1 ) {
+                continue;
+            }
+            $seen[ $id ] = true;
+            $rows[] = $this->decorate( $row );
         }
-        return array( 'rows' => $rows, 'total' => (int) ( $page['total'] ?? count( $rows ) ) );
+
+        // 2. Confirmed and awaiting-payment introductions. Their request lifecycle is already
+        //    closed/teacher_confirmed, so the intake queue never lists them; without this the
+        //    Desk would be empty exactly when a person is booked and waiting.
+        foreach ( $this->confirmedIntros( $limit, $seen ) as $row ) {
+            $rows[] = $this->decorate( $row );
+        }
+
+        usort( $rows, static function ( array $a, array $b ): int {
+            $left  = (string) ( $a['sort_at'] ?? $a['created_at'] ?? '' );
+            $right = (string) ( $b['sort_at'] ?? $b['created_at'] ?? '' );
+            return strcmp( $right, $left );
+        } );
+
+        return array( 'rows' => array_slice( $rows, 0, $limit ), 'total' => count( $rows ) );
+    }
+
+    /**
+     * Requests whose latest confirmation is confirmed or awaiting payment, with the
+     * authoritative journey status so the Desk cannot invent its own vocabulary.
+     *
+     * @param array<int,bool> $exclude
+     * @return array<int,array<string,mixed>>
+     */
+    private function confirmedIntros( int $limit, array $exclude ): array {
+        global $wpdb;
+        $p   = $wpdb->prefix . 'dzn_';
+        $ids = $wpdb->get_col( $wpdb->prepare(
+            "SELECT r.id
+               FROM {$p}booking_requests r
+               INNER JOIN {$p}booking_request_confirmations c ON c.id=(
+                   SELECT MAX(cf.id) FROM {$p}booking_request_confirmations cf WHERE cf.booking_request_id=r.id
+               )
+              WHERE r.privacy_erased_at IS NULL
+                AND c.state IN ('confirmed','awaiting_payment')
+              ORDER BY c.starts_at_utc DESC
+              LIMIT %d",
+            $limit
+        ) );
+        if ( ! is_array( $ids ) ) {
+            return array();
+        }
+        $journey = new BookingJourneyReadService();
+        $rows    = array();
+        foreach ( $ids as $rawId ) {
+            $requestId = (int) $rawId;
+            if ( $requestId < 1 || isset( $exclude[ $requestId ] ) ) {
+                continue;
+            }
+            $case = $this->workspace->bookingCase( $requestId );
+            if ( ! $case ) {
+                continue;
+            }
+            $status    = $journey->status( $requestId );
+            $stageKey  = is_array( $status ) ? (string) ( $status['status'] ?? '' ) : '';
+            if ( $stageKey !== '' ) {
+                $case['stage_key'] = $stageKey;
+            }
+            $rows[] = (array) $case;
+        }
+        return $rows;
     }
 
     /**

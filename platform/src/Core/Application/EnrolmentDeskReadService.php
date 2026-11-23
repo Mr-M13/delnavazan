@@ -1,0 +1,197 @@
+<?php
+namespace Delnavazan\Platform\Core\Application;
+
+/**
+ * Read-only projection for the Enrolment Desk.
+ *
+ * One list, one detail page, one next action. The Desk deliberately reads through
+ * EnrolmentWorkspaceReadService so it can never diverge from the records the rest of the
+ * admin uses, and it performs no writes: every command stays with the existing services.
+ *
+ * See docs/ENROLMENT-DESK-SPEC-2026-11-23.md.
+ */
+final class EnrolmentDeskReadService {
+
+    /**
+     * Plain-language status for a journey stage. Kept as a pure lookup so the contract can
+     * pin the vocabulary and the next action rather than the SQL.
+     */
+    private const STATUSES = array(
+        'identity'         => array( 'label' => 'Identity not verified', 'next' => 'Verify the Student identity', 'tone' => 'warn', 'anchor' => '' ),
+        'new'              => array( 'label' => 'New request',           'next' => 'Match a Teacher',              'tone' => 'warn', 'anchor' => '' ),
+        'awaiting_teacher' => array( 'label' => 'Waiting for a Teacher', 'next' => 'Review the Teacher offer',     'tone' => 'warn', 'anchor' => '' ),
+        'trial_scheduled'  => array( 'label' => 'Intro booked',          'next' => 'Open the intro',               'tone' => 'ok',   'anchor' => '' ),
+        'provisioning'     => array( 'label' => 'Intro being prepared',  'next' => 'Review the classroom',         'tone' => 'warn', 'anchor' => '' ),
+        'outcome_due'      => array( 'label' => 'Outcome due',           'next' => 'Record the outcome',           'tone' => 'warn', 'anchor' => '' ),
+        'continuation'     => array( 'label' => 'Waiting for payment',   'next' => 'Open the payment step',        'tone' => 'warn', 'anchor' => '#dzn-execute-agreement' ),
+        'enrolled'         => array( 'label' => 'Active term',           'next' => 'Open the enrolment',           'tone' => 'ok',   'anchor' => '' ),
+        'declined'         => array( 'label' => 'Declined',              'next' => 'View history',                 'tone' => 'muted', 'anchor' => '' ),
+        'closed'           => array( 'label' => 'Closed',                'next' => 'View history',                 'tone' => 'muted', 'anchor' => '' ),
+        'needs_review'     => array( 'label' => 'Needs review',          'next' => 'Review the mixed records',     'tone' => 'warn', 'anchor' => '' ),
+    );
+
+    public function __construct( private ?EnrolmentWorkspaceReadService $workspace = null ) {
+        $this->workspace ??= new EnrolmentWorkspaceReadService();
+    }
+
+    /** @return array{label:string,next:string,tone:string,anchor:string} */
+    public static function status( string $stageKey ): array {
+        if ( isset( self::STATUSES[ $stageKey ] ) ) {
+            return self::STATUSES[ $stageKey ];
+        }
+        return array(
+            'label'  => ucfirst( str_replace( '_', ' ', $stageKey ) ),
+            'next'   => 'Open the case',
+            'tone'   => 'muted',
+            'anchor' => '',
+        );
+    }
+
+    /**
+     * One row per person. Rows are the composed booking summaries, decorated with the Desk
+     * status, so the list and the case page can never disagree about the underlying facts.
+     *
+     * @return array{rows:array<int,array<string,mixed>>,total:int}
+     */
+    public function people( int $limit = 60 ): array {
+        $page = $this->workspace->bookingCases( array( 'per_page' => max( 20, min( 60, $limit ) ) ), false );
+        $rows = array();
+        foreach ( (array) ( $page['rows'] ?? array() ) as $row ) {
+            $rows[] = $this->decorate( (array) $row );
+        }
+        return array( 'rows' => $rows, 'total' => (int) ( $page['total'] ?? count( $rows ) ) );
+    }
+
+    /**
+     * One person: the composed booking case plus the Desk status. The detail view renders the
+     * five steps from these facts; it does not query anything itself.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function person( int $requestId ): ?array {
+        if ( $requestId < 1 ) {
+            return null;
+        }
+        $case = $this->workspace->bookingCase( $requestId );
+        if ( ! $case ) {
+            return null;
+        }
+        return array(
+            'case'   => $case,
+            'desk'   => self::status( (string) ( $case['stage_key'] ?? '' ) ),
+            'steps'  => $this->steps( $case ),
+            'alerts' => $this->alerts( $case ),
+        );
+    }
+
+    /** @param array<string,mixed> $row */
+    private function decorate( array $row ): array {
+        $desk = self::status( (string) ( $row['stage_key'] ?? '' ) );
+        return $row + array(
+            'desk_status' => $desk['label'],
+            'desk_next'   => $desk['next'],
+            'desk_tone'   => $desk['tone'],
+            'desk_href'   => $this->caseUrl( (int) ( $row['id'] ?? 0 ), $desk['anchor'] ),
+        );
+    }
+
+    /**
+     * The five steps, each with a state and a human sentence. Read-only: the Desk shows what
+     * is true and points at the one control that changes it.
+     *
+     * @param array<string,mixed> $case
+     * @return array<int,array<string,mixed>>
+     */
+    private function steps( array $case ): array {
+        $identity = (array) ( $case['identity_state'] ?? array() );
+        $confirmed = $case['confirmed'] ?? null;
+        $outcome = $case['outcome'] ?? null;
+        $postIntro = $case['post_intro'] ?? null;
+        $teacher = trim( (string) ( $case['teacher_name'] ?? '' ) );
+        $slot = 'Not chosen yet';
+        if ( is_array( $confirmed ) && ! empty( $confirmed['starts_at_utc'] ) ) {
+            $slot = (string) ( $confirmed['local_label'] ?? $confirmed['starts_at_utc'] );
+        } elseif ( ! empty( $case['requested_times'][0] ) ) {
+            $first = (array) $case['requested_times'][0];
+            $slot = trim( (string) ( $first['local_date'] ?? '' ) . ' ' . substr( (string) ( $first['local_time'] ?? '' ), 0, 5 ) . ' ' . ( string ) ( $first['timezone'] ?? '' ) );
+        }
+
+        return array(
+            array(
+                'number' => 1,
+                'title'  => 'Contact & identity',
+                'state'  => (string) ( $identity['key'] ?? '' ) === 'verified' ? 'done' : 'current',
+                'detail' => (string) ( $identity['label'] ?? 'Unknown' ) . ' · ' . (string) ( $case['email'] ?? '' ) . ' · ' . (string) ( $case['phone'] ?? '' ),
+                'note'   => 'Collected by the intake form. Only verify when the identity is ambiguous.',
+            ),
+            array(
+                'number' => 2,
+                'title'  => 'Teacher & schedule',
+                'state'  => $teacher !== '' ? 'done' : 'current',
+                'detail' => $teacher !== '' ? $teacher . ' · ' . $slot : 'No Teacher booked yet',
+                'note'   => 'One picker: Teacher, weekly slot, and whether an intro is needed.',
+            ),
+            array(
+                'number' => 3,
+                'title'  => 'Price & plan',
+                'state'  => is_array( $postIntro ) && (string) ( $postIntro['state'] ?? '' ) !== '' ? 'done' : ( $teacher !== '' ? 'current' : 'pending' ),
+                'detail' => is_array( $postIntro ) && (string) ( $postIntro['state'] ?? '' ) !== ''
+                    ? 'Plan: ' . (string) ( $postIntro['plan_label'] ?? $postIntro['state'] )
+                    : 'Set when the continuation is prepared',
+                'note'   => 'From the catalogue and region. An override needs a recorded reason.',
+            ),
+            array(
+                'number' => 4,
+                'title'  => 'Payment',
+                'state'  => is_array( $outcome ) ? 'current' : 'pending',
+                'detail' => is_array( $outcome )
+                    ? 'Intro outcome recorded (' . (string) ( $outcome['label'] ?? $outcome['outcome'] ?? '' ) . '). The payment link is issued from the agreement step.'
+                    : 'Nothing is due until the introductory stage is completed.',
+                'note'   => 'No class exists before the payment is verified.',
+            ),
+            array(
+                'number' => 5,
+                'title'  => 'Term',
+                'state'  => (int) ( $case['enrolment_id'] ?? 0 ) > 0 ? 'done' : 'pending',
+                'detail' => (int) ( $case['enrolment_id'] ?? 0 ) > 0
+                    ? 'Enrolment #' . (int) $case['enrolment_id']
+                    : 'Created automatically when the payment settles, then classes are generated',
+                'note'   => 'The first regular class is the next weekly occurrence after the intro slot.',
+            ),
+        );
+    }
+
+    /**
+     * Exceptions as single cards: one sentence and one action, never a blocker count.
+     *
+     * @param array<string,mixed> $case
+     * @return array<int,array<string,string>>
+     */
+    private function alerts( array $case ): array {
+        $alerts = array();
+        $summary = (array) ( $case['notification_summary'] ?? array() );
+        if ( (int) ( $summary['failed'] ?? 0 ) > 0 ) {
+            $alerts[] = array(
+                'text'   => (int) $summary['failed'] . ' message(s) failed to hand off. A queued message is not delivery.',
+                'action' => 'Review notifications',
+                'href'   => $this->caseUrl( (int) ( $case['id'] ?? 0 ), '' ),
+            );
+        }
+        $identity = (array) ( $case['identity_state'] ?? array() );
+        if ( (string) ( $identity['key'] ?? '' ) !== 'verified' ) {
+            $alerts[] = array(
+                'text'   => 'The Student identity is not verified, so no agreement can be recorded.',
+                'action' => 'Verify the identity',
+                'href'   => $this->caseUrl( (int) ( $case['id'] ?? 0 ), '' ),
+            );
+        }
+        return $alerts;
+    }
+
+    private function caseUrl( int $requestId, string $anchor ): string {
+        if ( $requestId < 1 ) {
+            return admin_url( 'admin.php?page=dzn-enrolment-desk' );
+        }
+        return admin_url( 'admin.php?page=dzn-enrolment-workspace&request_id=' . $requestId ) . $anchor;
+    }
+}

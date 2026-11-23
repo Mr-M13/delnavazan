@@ -852,10 +852,10 @@ OPS-19, OPS-20, OPS-21, OPS-22, OPS-24, OPS-25, OPS-27, OPS-28, OPS-30, OPS-31`.
 
 Waiting on an owner decision: `OPS-10, OPS-12, OPS-13, OPS-21, OPS-24, OPS-25, OPS-27`.
 
-### New evidence for OPS-20 (clock-dependent suites)
+### New evidence: a runtime fixture asserts a state the service may not have reached
 
-While merging the batch, the `Interim attendance runtime` job failed twice with the same fatal and
-passed on re-run, and a `main` run failed the same way:
+While merging the batch, `Interim attendance runtime` failed twice and `Post-intro runtime lifecycle`
+once, all with the same fatal, and each passed on re-run. A `main` run failed the same way:
 
 ```text
 PHP Fatal error: Uncaught InvalidArgumentException: post_intro_invitation_not_ready
@@ -863,7 +863,15 @@ PHP Fatal error: Uncaught InvalidArgumentException: post_intro_invitation_not_re
   at platform/tests/post-intro-enrolment-automation-runtime.php:268
 ```
 
-The branch (`PostIntroContinuationService.php:55`) is reached only when the preparation state is not
-`prepared`/`checkout_pending`, so the fixture occasionally does not reach the state the next line
-assumes. It is the same class as #768/#769: a suite that depends on elapsed wall-clock time. It is not
-fixed here because it belongs to OPS-20 and needs the fixture clock decision.
+This is **not** the clock class. `PostIntroPreparationService::prepare()` sets
+`state='preparing'` and then takes an advisory lock with a **zero-second** timeout
+(`PostIntroPreparationService.php:221`). When the lock is held, it deliberately returns the durable
+state without preparing (`:223-226`). The fixture calls `prepare()` and then `continue()` in the same
+line, so under any concurrent attempt it sees `preparing` and the next call throws
+`post_intro_invitation_not_ready` (`PostIntroContinuationService.php:54-56`).
+
+It is a fixture that asserts an asynchronous post-condition synchronously — the same shape as
+"sent to transport is not delivered": the first step returning is not evidence the second step is
+ready. The test-only fix is to poll for `prepared` with a bounded wait (or to call `prepare()` again
+and assert the retry), which strengthens rather than weakens the assertion. It is left as a decision
+because it touches a required runtime suite.

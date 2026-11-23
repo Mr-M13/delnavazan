@@ -79,13 +79,26 @@ $expect(
     && str_contains($serviceClass::stageSql('intro_booked'), 'confirmed'),
     'A live confirmation must leave the acceptance stage and count as a booked introduction'
 );
+// A booked introduction is the current state of the journey, so it must not also count as a
+// missing negotiation, identity, acceptance, conversion or assignment step (OPS-08).
+foreach (array('needs_coordination', 'needs_identity', 'needs_acceptance', 'needs_enrolment', 'needs_assignment') as $stage) {
+    $expect(
+        str_contains($serviceClass::stageSql($stage), 'NOT EXISTS')
+        && str_contains($serviceClass::stageSql($stage), "ac.state IN ('confirmed','awaiting_payment')"),
+        'Every negotiation or conversion stage must exclude a booked introduction: ' . $stage
+    );
+}
+$expect(
+    !str_contains($serviceClass::stageSql('needs_action'), 'NOT EXISTS'),
+    'The action queue must still contain booked introductions; they are unfinished work'
+);
 $service = new $serviceClass();
 $counts = $service->stageCounts();
 $expect($counts === array('needs_coordination' => 4, 'needs_identity' => 3, 'needs_acceptance' => 2, 'intro_booked' => 6, 'needs_enrolment' => 1, 'needs_assignment' => 5, 'complete' => 7), 'stageCounts must return every pipeline stage');
 $pipelineSql = implode("\n", $GLOBALS['wpdb']->queries);
 $expect(substr_count($pipelineSql, 'COUNT(DISTINCT CASE WHEN') === 7, 'Pipeline must count distinct bookings for every stage');
 $expect(!str_contains($pipelineSql, 'SUM('), 'Pipeline must not use row-summing aggregates across joins');
-$expect(str_contains($pipelineSql, 'COUNT(DISTINCT CASE WHEN ta.id IS NULL AND cc.id IS NOT NULL AND br.student_id IS NULL THEN br.id END)'), 'Pipeline must use the shared identity predicate');
+$expect(str_contains($pipelineSql, 'COUNT(DISTINCT CASE WHEN ta.id IS NULL AND cc.id IS NOT NULL AND br.student_id IS NULL AND NOT EXISTS') || str_contains($pipelineSql, 'COUNT(DISTINCT CASE WHEN ta.id IS NULL AND cc.id IS NOT NULL AND br.student_id IS NULL AND NOT EXISTS (SELECT 1'), 'Pipeline must use the shared identity predicate, including the booked-introduction exclusion');
 $expect(str_contains($pipelineSql, "br.lifecycle_status='submitted' AND br.resolution_state='unresolved'"), 'Pipeline must retain the original submitted intake');
 $expect(str_contains($pipelineSql, "br.lifecycle_status='closed' AND br.resolution_state='teacher_confirmed'"), 'Pipeline must include the authorised closed/teacher_confirmed continuation');
 $expect(str_contains($pipelineSql, 'br.privacy_erased_at IS NULL'), 'Pipeline must exclude privacy-erased bookings');

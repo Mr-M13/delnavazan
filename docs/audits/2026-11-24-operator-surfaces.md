@@ -129,7 +129,7 @@ $ grep -n "'cancelled'\|'closed'\|'expired'\|'declined'\|'skipped'" \
 
 ```text
 $ grep -rn "strtotime('+\|strtotime(\"+\|gmdate('Y-m-d'.*20[0-9][0-9]" platform/tests platform/runtime | wc -l
-60+ (truncated at 60 by head); 742 files/lines carry an absolute date literal
+94 `strtotime('+…)` calls; 742 lines carry an absolute date literal
 ```
 
 Representative: `platform/tests/phase-2a2e-concurrency-fixture.php:9`,
@@ -613,7 +613,7 @@ or what to do. `cosmetic` — wrong word, no work lost.
 |---|---|
 | Surface / journey | CI suites (release risk) |
 | Symptom | Intermittent failures that a re-run hides; a release blocked by a red suite that is not about the change. |
-| Root cause | Fixtures derive absolute times from `now` (742 files/lines with a date literal; 60+ `strtotime('+…')`). #768 and #769 fixed two instances (`lesson-replacement-service-unit.php:202` now derives from a future instant, `phase-2a2o-concurrency-setup.php:116` from `+11 days`). There is no lint that forbids a wall-clock-derived assertion. |
+| Root cause | Fixtures derive absolute times from `now` (742 lines carrying a date literal; 94 `strtotime('+…')` calls). #768 and #769 fixed two instances (`lesson-replacement-service-unit.php:202` now derives from a future instant, `phase-2a2o-concurrency-setup.php:116` from `+11 days`). There is no lint that forbids a wall-clock-derived assertion. |
 | Class | CLOCK |
 | Severity | release risk |
 | Evidence | §2.5; `platform/tests/enrolment-workspace-runtime-test.php:36,69` (`+33 days` used as both fixture and assertion). |

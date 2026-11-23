@@ -30,4 +30,21 @@ if(!str_contains($booking,'god_mode_teacher_provisioning_forbidden')||!str_conta
 if(!str_contains($audit,'redacted-phone')||!str_contains($audit,'Bearer [redacted]'))throw new RuntimeException('Audit redaction must remove phone numbers and bearer credentials.');
 if(!str_contains($sessionService,'GodModeAuthority::require()')||!str_contains($sessionService,'mapParticipant'))throw new RuntimeException('Participant identity mapping must be a privileged, audited action.');
 if(str_contains($controller,'print_r(')||str_contains($controller,'var_dump('))throw new RuntimeException('God Mode endpoints must not dump sensitive request state.');
+$attendanceVerifier=file_get_contents($root.'/src/Core/Application/GodMode/GodModeAttendanceVerifier.php');
+$googleRepository=file_get_contents($root.'/src/Integrations/GoogleWorkspace/GoogleWorkspaceRepository.php');
+$godModeRepository=file_get_contents($root.'/src/Core/Application/GodMode/GodModeRepository.php');
+if(!is_string($attendanceVerifier)||$attendanceVerifier==='')throw new RuntimeException('Unable to read the attendance verifier.');
+$declaredMethods=static function(string $source):array{preg_match_all('/function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/',$source,$matches);return array_fill_keys($matches[1],true);};
+$repositoryCalls=0;
+foreach(array('repository'=>$googleRepository,'godMode'=>$godModeRepository) as $property=>$declaration){
+    $methods=$declaredMethods((string)$declaration);
+    preg_match_all('/\$this->'.$property.'->([A-Za-z_][A-Za-z0-9_]*)\s*\(/',(string)$attendanceVerifier,$calls);
+    foreach(array_unique($calls[1]) as $call){
+        $repositoryCalls++;
+        if(!isset($methods[$call]))throw new RuntimeException('GodModeAttendanceVerifier::$'.$property.'->'.$call.'() is not declared on its repository');
+    }
+}
+if($repositoryCalls<3)throw new RuntimeException('The attendance verifier repository call scan found nothing to check.');
+if(str_contains((string)$attendanceVerifier,'$this->repository->participantMappings('))throw new RuntimeException('Participant mappings belong to GodModeRepository, not GoogleWorkspaceRepository.');
+if(!str_contains((string)$attendanceVerifier,'$this->godMode->participantMappings('))throw new RuntimeException('The attendance verifier must read participant mappings through GodModeRepository.');
 echo "God Mode security contract passed\n";

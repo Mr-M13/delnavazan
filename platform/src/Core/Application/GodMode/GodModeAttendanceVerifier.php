@@ -14,11 +14,13 @@ final class GodModeAttendanceVerifier {
     public function __construct(
         private ?GoogleWorkspaceRepository $repository=null,
         private ?GoogleWorkspaceApiClient $api=null,
-        private ?ProviderReferenceVault $vault=null
+        private ?ProviderReferenceVault $vault=null,
+        private ?GodModeRepository $godMode=null
     ){
         $this->repository??=new GoogleWorkspaceRepository();
         $this->api??=new GoogleWorkspaceApiClient($this->repository);
         $this->vault??=new ProviderReferenceVault();
+        $this->godMode??=new GodModeRepository();
     }
 
     /** @return array{state:string,detail:string,evidence:array<string,mixed>} */
@@ -51,7 +53,7 @@ final class GodModeAttendanceVerifier {
         if($name==='')return array('state'=>'unknown','detail'=>'The conference record identity is unavailable','evidence'=>array());
         $participants=$this->api->listParticipants($name);
         if(($participants['status']??0)<200||($participants['status']??0)>=300)return array('state'=>'unknown','detail'=>'Participant evidence is unavailable','evidence'=>array('provider_status'=>(int)($participants['status']??0)));
-        $mapping=array();foreach($this->repository->participantMappings((int)$session->id) as $row)$mapping[(string)$row->participant_digest]=(string)$row->role;
+        $mapping=array();foreach($this->godMode->participantMappings((int)$session->id) as $row)$mapping[(string)$row->participant_digest]=(string)$row->role;
         $counts=array('signedin'=>0,'anonymous'=>0,'phone'=>0);
         $sessions=0;$entries=array();$verified=array('teacher'=>false,'student'=>false);
         foreach((array)($participants['body']['participants']??array()) as $participant){

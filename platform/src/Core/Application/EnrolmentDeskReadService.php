@@ -36,13 +36,17 @@ final class EnrolmentDeskReadService {
 
     /** @return array{label:string,next:string,tone:string,anchor:string} */
     public static function status( string $stageKey ): array {
-        if ( isset( self::STATUSES[ $stageKey ] ) ) {
-            return self::STATUSES[ $stageKey ];
+        // The Desk is fed the workspace stage keys (teacher_match, intro_outcome, post_intro, …),
+        // not this table's journey keys. Normalise through the shared mapping first, so one key
+        // vocabulary decides the label instead of falling back to the raw key. See OPS-01.
+        $key = BookingJourneyReadService::statusForStage( $stageKey )['key'];
+        if ( isset( self::STATUSES[ $key ] ) ) {
+            return self::STATUSES[ $key ];
         }
         return array(
-            'label'  => ucfirst( str_replace( '_', ' ', $stageKey ) ),
-            'next'   => 'Open the case',
-            'tone'   => 'muted',
+            'label'  => 'Needs review',
+            'next'   => 'Review the mixed records',
+            'tone'   => 'warn',
             'anchor' => '',
         );
     }
@@ -152,6 +156,9 @@ final class EnrolmentDeskReadService {
         if ( ! $case ) {
             return null;
         }
+        // Normalise once, exactly as the list does, so the list and the detail page cannot show
+        // different words for the same person. See OPS-02.
+        $case['stage_key'] = BookingJourneyReadService::statusForStage( (string) ( $case['stage_key'] ?? '' ) )['key'];
         return array(
             'case'    => $case,
             'desk'    => self::status( (string) ( $case['stage_key'] ?? '' ) ),

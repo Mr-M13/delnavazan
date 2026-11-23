@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Admin\View;
 
 use Delnavazan\Platform\Admin\Controller\EnrolmentDeskController;
+use Delnavazan\Platform\Core\Application\Finance\ManualPaymentSettlementService;
 
 /**
  * List and detail for the Enrolment Desk. Read-only by design: the one action on each step is
@@ -124,8 +125,8 @@ final class EnrolmentDeskView {
             echo '<p class="description">Every obligation on this offer is settled. The activation job creates the term and its classes.</p>';
             return;
         }
-        if ( ! current_user_can( 'dzn_manage_payment_execution' ) ) {
-            echo '<p class="description">Obligation ' . esc_html( (string) $next ) . ' is unpaid. Recording an offline payment needs the payment-execution authority.</p>';
+        if ( ! ManualPaymentSettlementService::canSettleStandard() ) {
+            echo '<p class="description">Obligation ' . esc_html( (string) $next ) . ' is unpaid. Recording an offline payment needs both the payment-execution and the payment-evidence ingestion authorities.</p>';
             return;
         }
         echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';

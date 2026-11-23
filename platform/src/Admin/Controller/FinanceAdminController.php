@@ -415,9 +415,15 @@ final class FinanceAdminController {
     /** Record an administrator-verified offline payment against one canonical obligation. */
     public static function handleManualPayment(): void {
         if (!current_user_can(ManualPaymentSettlementService::MANAGE_CAPABILITY)) wp_die('Forbidden', 403);
+        $kind = sanitize_key((string) ($_POST['payment_kind'] ?? ''));
+        // A standard settlement is ingested through CommercialPaymentService, which also requires
+        // the payment-evidence ingestion authority. Refuse by name instead of letting the service
+        // throw an opaque Unauthorized after the operator has filled the form. See OPS-26.
+        if ($kind === 'standard' && !current_user_can(ManualPaymentSettlementService::INGEST_CAPABILITY)) {
+            wp_die('Recording an offline standard payment requires both the payment-execution and the payment-evidence ingestion authorities.', 'Delnavazan', array('response' => 403));
+        }
         check_admin_referer('dzn_finance_manual_payment');
         $_POST = wp_unslash($_POST);
-        $kind = sanitize_key((string) ($_POST['payment_kind'] ?? ''));
         $commandKey = sanitize_text_field((string) ($_POST['command_key'] ?? ''));
         $args = array('page' => self::MENU_SLUG, 'tab' => self::TAB_PAYMENTS);
         try {
@@ -1008,7 +1014,7 @@ final class FinanceAdminController {
         );
         $page = max(1, absint($_GET['ob_paged'] ?? 1));
         $data = $read->outstandingObligations($filters, $page);
-        $canManage = current_user_can(ManualPaymentSettlementService::MANAGE_CAPABILITY);
+        $canManage = ManualPaymentSettlementService::canSettleStandard();
         echo '<h3 id="outstanding-payments">Outstanding payments</h3>';
         echo '<p>Every collectable obligation with a positive amount. Recording a payment here uses the same canonical settlement and funding authority as Stripe: it creates the purchase, entitlement and academic funding exactly once. The amount is read from the stored obligation and is never entered by the browser.</p>';
         echo '<form method="get" class="dzn-finance-filter"><input type="hidden" name="page" value="' . esc_attr(self::MENU_SLUG) . '"><input type="hidden" name="tab" value="' . esc_attr(self::TAB_PAYMENTS) . '">';
@@ -1057,7 +1063,7 @@ final class FinanceAdminController {
             echo '</p>';
         }
         echo '<p class="description">A manual payment is recorded as staff evidence with a required receipt/reference and the actual receipt date. It never rewrites a Stripe checkout, and an already-settled obligation cannot be settled again.</p>';
-        if (!$canManage) echo '<p class="description">Recording an offline payment requires payment-execution management authority.</p>';
+        if (!$canManage) echo '<p class="description">Recording an offline standard payment requires both the payment-execution and the payment-evidence ingestion authorities.</p>';
     }
 
     /** Authoritative recent settlements, including offline payments with no checkout attempt. */

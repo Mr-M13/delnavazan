@@ -297,22 +297,9 @@ final class ScreenController {
             echo '</tbody></table>';return;
         }
         if ($entity === 'teacher') {
-            $view = isset($_GET['view']) && is_scalar($_GET['view']) ? sanitize_key(wp_unslash((string) $_GET['view'])) : '';
-            // Generic onboarding links (Academy, dashboard widgets and the operations portal)
-            // predate the two-tab Teachers shell. Land onboarding-only staff on their own view.
-            if ($view === '' && !current_user_can('dzn_manage_teachers') && current_user_can(Menu::TEACHER_ONBOARDING_CAP)) {
-                $view = 'onboarding';
-            }
-            if ($view === 'onboarding') {
-                if (!current_user_can(Menu::TEACHER_ONBOARDING_CAP)) { self::forbidden(); return; }
-                self::teacherInvitationPanel();
-                return;
-            }
-            if (!current_user_can('dzn_manage_teachers')) {
-                echo '<p>Teacher overview requires teacher maintenance access. Use <strong>Onboarding &amp; Invitations</strong> for your permitted work.</p>';
-                return;
-            }
-            self::teacherDirectory();
+            // The legacy Teachers branch was replaced by TeacherWorkspaceController::screen(), which
+            // screen() dispatches before this method. Its handlers were removed with the consolidated
+            // workspace (3ca0bcea); keeping the calls here was a latent fatal. See OPS-07.
             return;
         }
         $studentFilter = $entity === 'enrolment' ? max(0, absint($_GET['student_id'] ?? 0)) : 0;

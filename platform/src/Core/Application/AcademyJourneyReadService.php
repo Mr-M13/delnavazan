@@ -34,9 +34,10 @@ final class AcademyJourneyReadService {
     private const ELIGIBLE_SQL = "(br.privacy_erased_at IS NULL AND ((br.lifecycle_status='submitted' AND br.resolution_state='unresolved') OR (br.lifecycle_status='closed' AND br.resolution_state='teacher_confirmed')))";
 
     /**
-     * Mutually exclusive stage predicates. Each stage names the earliest missing
-     * predecessor, so a booking with several missing links counts in exactly one
-     * stage. `complete` is the complement of `needs_action`.
+     * Stage predicates over the eligible journey population. A booked introduction is the current
+     * state of the journey, so it must not also count as a missing negotiation or conversion step;
+     * `stageSql()` enforces that for every stage except the two that describe the queue itself.
+     * `complete` is the complement of `needs_action`.
      */
     private const STAGE_SQL = array(
         'needs_action' => 'ta.id IS NULL',
@@ -49,22 +50,28 @@ final class AcademyJourneyReadService {
     );
 
     /**
-     * A confirmed (or awaiting-payment) introduction is booked work, not a missing acceptance:
-     * the term arrangement is created after the lesson. Without this, a booked intro surfaced as
-     * "Service arrangements awaiting acceptance" with "No Teacher candidate is recorded", which
-     * reads as a contradiction to the operator.
+     * A confirmed (or awaiting-payment) introduction is booked work, not a missing negotiation,
+     * acceptance or conversion: the term arrangement is created after the lesson. Without this a
+     * booked intro surfaced as "Service arrangements awaiting acceptance" and as "Coordination
+     * needed" with "No Teacher candidate is recorded", which reads as a contradiction.
+     *
+     * `needs_action` is the whole unfinished queue and must still include booked intros; `complete`
+     * is its complement. Every other stage excludes a booked intro, so no person is counted twice.
      */
     public static function stageSql(string $stage): string {
-        $sql = self::STAGE_SQL[$stage] ?? '';
-        if ($stage === 'intro_booked') {
-            global $wpdb;
+        global $wpdb;
+        $booked = " AND NOT EXISTS (SELECT 1 FROM {$wpdb->prefix}dzn_booking_request_confirmations ac WHERE ac.booking_request_id=br.id AND ac.state IN ('confirmed','awaiting_payment'))";
+        if ( $stage === 'intro_booked' ) {
             return "ta.id IS NULL AND EXISTS (SELECT 1 FROM {$wpdb->prefix}dzn_booking_request_confirmations ic WHERE ic.booking_request_id=br.id AND ic.state IN ('confirmed','awaiting_payment'))";
         }
-        if ($stage === 'needs_acceptance') {
-            global $wpdb;
-            $sql .= " AND NOT EXISTS (SELECT 1 FROM {$wpdb->prefix}dzn_booking_request_confirmations ac WHERE ac.booking_request_id=br.id AND ac.state IN ('confirmed','awaiting_payment'))";
+        if ( ! isset( self::STAGE_SQL[ $stage ] ) ) {
+            return '';
         }
-        return $sql;
+        $sql = self::STAGE_SQL[ $stage ];
+        if ( $stage === 'needs_action' || $stage === 'complete' ) {
+            return $sql;
+        }
+        return $sql . $booked;
     }
 
     /** Bounded, searchable operator queue. PII is limited to the current booking contact snapshot. */

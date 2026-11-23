@@ -988,7 +988,7 @@ final class EnrolmentWorkspaceView {
         if (!in_array($state, $cancellableStates, true)) return;
         $confirmedAt = strtotime((string) ($confirmation['starts_at_utc'] ?? '') . ' UTC');
         $future = $confirmedAt !== false && $confirmedAt > time();
-        echo '<details class="dzn-action-panel"><summary><strong>Reschedule introductory lesson</strong><br><small>Admin and Teacher action. The Student is notified and the provider event is updated when its projection authority is available.</small></summary><div class="dzn-action-panel__body">';
+        echo '<details class="dzn-action-panel" id="dzn-intro-reschedule"><summary><strong>Reschedule introductory lesson</strong><br><small>Admin and Teacher action. The Student is notified and the provider event is updated when its projection authority is available.</small></summary><div class="dzn-action-panel__body">';
         if ($future) {
             self::formStart('intro_reschedule', array('request_id' => (int) $case['id']));
             echo '<input type="hidden" name="expected_confirmation_id" value="' . esc_attr((string) ($confirmation['confirmation_id'] ?? 0)) . '"><input type="hidden" name="expected_confirmation_version" value="' . esc_attr((string) ($confirmation['version'] ?? 0)) . '">';
@@ -1001,13 +1001,13 @@ final class EnrolmentWorkspaceView {
             echo '<p class="dzn-inline-note">This introductory lesson has already started or ended. Its outcome is recorded instead of rescheduling it.</p>';
         }
         echo '</div></details>';
-        echo '<details class="dzn-action-panel dzn-action-panel--danger"><summary><strong>Cancel introductory lesson</strong><br><small>Admin, Teacher or Student action. This also covers failed classroom provisioning; the case and financial history remain, and the portals stop showing the cancelled class.</small></summary><div class="dzn-action-panel__body">';
+        echo '<details class="dzn-action-panel dzn-action-panel--danger" id="dzn-intro-cancel"><summary><strong>Cancel introductory lesson</strong><br><small>Admin, Teacher or Student action. This also covers failed classroom provisioning; the case and financial history remain, and the portals stop showing the cancelled class.</small></summary><div class="dzn-action-panel__body">';
         self::formStart('intro_cancel', array('request_id' => (int) $case['id']));
         echo '<input type="hidden" name="expected_confirmation_id" value="' . esc_attr((string) ($confirmation['confirmation_id'] ?? 0)) . '"><input type="hidden" name="expected_confirmation_version" value="' . esc_attr((string) ($confirmation['version'] ?? 0)) . '">';
         echo '<p><label>Reason<select name="reason_code"><option value="duplicate_request">Duplicate request</option><option value="student_requested">Student requested</option><option value="teacher_requested">Teacher requested</option><option value="operational_change">Operational change</option></select></label></p>';
         echo '<button class="button" onclick="return confirm(\'Cancel this introductory lesson? The case and its history remain.\')">Cancel introductory lesson</button></form>';
         echo '</div></details>';
-        echo '<details class="dzn-action-panel dzn-action-panel--danger"><summary><strong>Record the introductory stage as completed</strong><br><small>Administrator action. Starts the normal continuation and payment invitation without holding an introductory class.</small></summary><div class="dzn-action-panel__body">';
+        echo '<details class="dzn-action-panel dzn-action-panel--danger" id="dzn-intro-complete"><summary><strong>Record the introductory stage as completed</strong><br><small>Administrator action. Starts the normal continuation and payment invitation without holding an introductory class.</small></summary><div class="dzn-action-panel__body">';
         echo '<p class="dzn-inline-note"><strong>This records the introductory outcome as delivered, attributed to your administrator account.</strong> The class is not taught and no attendance is claimed. Use it only when the Teacher and the Student/guardian already agreed to start the term without an introduction, for example a returning Student after a term break. A future provider event is retracted. No class exists until the continuation payment is verified.</p>';
         self::formStart('intro_administrative_completion', array('request_id' => (int) $case['id']));
         echo '<p><label>Evidence note<textarea name="note" rows="3" maxlength="500" required placeholder="Who agreed, how, and when"></textarea></label></p>';
@@ -1018,7 +1018,7 @@ final class EnrolmentWorkspaceView {
 
     /** @param array<string,mixed> $case */
     private static function outcomeForm(array $case): void {
-        echo '<details class="dzn-action-panel"><summary><strong>Record introductory outcome</strong><br><small>Only a delivered outcome starts the continuation workflow.</small></summary><div class="dzn-action-panel__body">';
+        echo '<details class="dzn-action-panel" id="dzn-record-outcome"><summary><strong>Record introductory outcome</strong><br><small>Only a delivered outcome starts the continuation workflow.</small></summary><div class="dzn-action-panel__body">';
         self::formStart('record_outcome', array('request_id' => (int) $case['id']));
         echo '<p><label>What happened<select name="outcome" required><option value="delivered">Delivered</option><option value="student_no_show">Student no-show</option><option value="student_cancelled">Student cancelled</option><option value="teacher_cancelled">Teacher cancelled</option></select></label></p><p><label>Note<textarea name="note" rows="3"></textarea></label></p><button class="button button-primary">Record outcome</button></form>';
         echo '<p class="description">The introductory lesson must have finished. A no-show or cancellation is retained as an exception and never sends a payment invitation.</p></div></details>';

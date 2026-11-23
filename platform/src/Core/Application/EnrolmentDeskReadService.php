@@ -22,7 +22,7 @@ final class EnrolmentDeskReadService {
         'awaiting_teacher' => array( 'label' => 'Waiting for a Teacher', 'next' => 'Review the Teacher offer',     'tone' => 'warn', 'anchor' => '' ),
         'trial_scheduled'  => array( 'label' => 'Intro booked',          'next' => 'Open the intro',               'tone' => 'ok',   'anchor' => '' ),
         'provisioning'     => array( 'label' => 'Intro being prepared',  'next' => 'Review the classroom',         'tone' => 'warn', 'anchor' => '' ),
-        'outcome_due'      => array( 'label' => 'Outcome due',           'next' => 'Record the outcome',           'tone' => 'warn', 'anchor' => '' ),
+        'outcome_due'      => array( 'label' => 'Outcome due',           'next' => 'Record the outcome',           'tone' => 'warn', 'anchor' => '#dzn-record-outcome' ),
         'continuation'     => array( 'label' => 'Waiting for payment',   'next' => 'Open the payment step',        'tone' => 'warn', 'anchor' => '#dzn-execute-agreement' ),
         'enrolled'         => array( 'label' => 'Active term',           'next' => 'Open the enrolment',           'tone' => 'ok',   'anchor' => '' ),
         'declined'         => array( 'label' => 'Declined',              'next' => 'View history',                 'tone' => 'muted', 'anchor' => '' ),

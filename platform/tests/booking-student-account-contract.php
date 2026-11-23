@@ -45,7 +45,8 @@ foreach ( array( 'ensureAndLockStudentRoot', 'studentOccupancyConflicts', 'Booki
     $expect(strpos($submission . $bookingRepository, $needle) !== false, 'Missing Student slot-conflict intake contract: ' . $needle);
 }
 $expect(strpos($submission . $bookingRepository, 'studentHasActiveInstrumentEnrolment') !== false, 'Introductory intake must check existing instrument enrolments before creating a request.');
-$expect(strpos($submission, 'BookingRequestInstrumentEnrollmentException') !== false, 'Existing instrument enrolments must stop intake before persistence.');
+$expect(strpos($submission, 'BookingRequestInstrumentEnrolmentException') !== false, 'Existing instrument enrolments must stop intake before persistence.');
+$expect(strpos($submission, 'BookingRequestInstrumentEnrollmentException') === false, 'The exception name must use the platform spelling "Enrolment", not "Enrollment".');
 $expect(strpos($controller, 'student_instrument_already_enrolled') !== false && strpos($javascript, 'student_instrument_already_enrolled') !== false, 'Existing instrument enrolments must map to a specific public response.');
 foreach ( array( 'canonical_lesson_schedule_versions', 'lesson_schedule_versions', 'booking_request_confirmations', "r.lifecycle_status='submitted'", 'occupied_ends_at_utc', 'include_open_requests' ) as $needle ) {
     $expect(strpos($occupancyQuery, $needle) !== false, 'Missing Student occupancy source: ' . $needle);

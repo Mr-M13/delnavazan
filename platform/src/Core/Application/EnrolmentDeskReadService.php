@@ -18,7 +18,7 @@ final class EnrolmentDeskReadService {
      */
     private const STATUSES = array(
         'identity'         => array( 'label' => 'Identity not verified', 'next' => 'Verify the Student identity', 'tone' => 'warn', 'anchor' => '' ),
-        'new'              => array( 'label' => 'New request',           'next' => 'Match a Teacher',              'tone' => 'warn', 'anchor' => '' ),
+        'new'              => array( 'label' => 'New request',           'next' => 'Match a Teacher',              'tone' => 'warn', 'anchor' => '&dzn_open=intro#dzn-create-intro' ),
         'awaiting_teacher' => array( 'label' => 'Waiting for a Teacher', 'next' => 'Review the Teacher offer',     'tone' => 'warn', 'anchor' => '' ),
         'trial_scheduled'  => array( 'label' => 'Intro booked',          'next' => 'Open the intro',               'tone' => 'ok',   'anchor' => '' ),
         'provisioning'     => array( 'label' => 'Intro being prepared',  'next' => 'Review the classroom',         'tone' => 'warn', 'anchor' => '' ),

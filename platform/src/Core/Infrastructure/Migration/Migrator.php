@@ -1493,6 +1493,9 @@ final class Migrator {
 	private static function has_index_columns(string $table,string $index,bool $unique,array $columns):bool{global $wpdb;$rows=$wpdb->get_results($wpdb->prepare("SHOW INDEX FROM {$table} WHERE Key_name=%s",$index));if(!$rows)return false;usort($rows,static fn($a,$b)=>(int)$a->Seq_in_index<=>(int)$b->Seq_in_index);if($unique&&(int)$rows[0]->Non_unique!==0)return false;return array_map(static fn($row)=>$row->Column_name,$rows)===$columns;}
 	private static function ensure_capabilities():void{
 		$role=get_role('administrator');if(!$role)return;$teacher=get_role('dzn_teacher');
+		// Enrolment desk: one read-only surface for the enrolment journey (docs/ENROLMENT-DESK-SPEC-2026-11-23.md).
+		if(!$role->has_cap('dzn_use_enrolment_desk'))$role->add_cap('dzn_use_enrolment_desk');
+		foreach(array('dzn_teacher','dzn_student')as$deskRestricted){$deskRole=get_role($deskRestricted);if($deskRole&&$deskRole->has_cap('dzn_use_enrolment_desk'))$deskRole->remove_cap('dzn_use_enrolment_desk');}
 		// Bootstrap ordering: the base Teacher role must exist before Phase-P/Phase-Q Teacher-specific
 		// grant/repair logic runs, otherwise a brand-new installation skips the Teacher claim grants and
 		// final verification fails closed on a freshly created role without dzn_submit_own_delivery_claim.

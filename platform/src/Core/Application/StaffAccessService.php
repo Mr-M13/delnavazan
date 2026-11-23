@@ -52,7 +52,7 @@ final class StaffAccessService {
             'label' => 'Enrolment',
             'description' => 'Bookings, enrolments, terms, catalogue and post-intro work.',
             'view' => array('dzn_view_booking_requests'),
-            'manage' => array('dzn_manage_enrolments','dzn_manage_terms'),
+            'manage' => array('dzn_manage_enrolments','dzn_manage_terms','dzn_use_enrolment_desk'),
             'effect' => 'View: read the enrolment queues. Manage: use the existing booking, enrolment and term actions.',
         ),
         'finance' => array(

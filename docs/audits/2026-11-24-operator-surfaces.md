@@ -107,10 +107,10 @@ $ grep -rn "return;" platform/src/Admin/View platform/src/Admin/Controller | wc 
 ```
 
 Most are legitimate empty-state returns that print a sentence first. The dangerous subset is
-`catch (\Throwable) { … }` in a *control builder*: 20 occurrences in
+`catch (\Throwable) { … }` in a *control builder*: 21 occurrences in
 `platform/src/Admin/RecordAction/RecordActionRegistry.php` (`:798`, `:808`, `:815`, `:825`, `:832`,
 `:842`, `:849`, `:859`, `:866`, `:876`, `:883`, `:893`, `:918`, `:943`, `:949`, `:959`, `:966`,
-`:976`, `:983`). See `OPS-15`.
+`:976`, `:983`, `:997`, `:1003`). See `OPS-15`.
 
 ### 2.4 Irreversible transitions
 
@@ -365,7 +365,7 @@ or what to do. `cosmetic` — wrong word, no work lost.
 |---|---|
 | Surface / journey | Enrolment → Desk list (`?page=dzn-enrolment-desk`) |
 | Symptom | Rows read **"Teacher match"**, **"Intro outcome"**, **"Post intro"**, **"Converted"**, **"Expired"**, **"Provisioning failed"**, **"Intro payment pending"** instead of the spec's "Waiting for teacher / Outcome due / Waiting for payment / Active term". |
-| Root cause | `platform/src/Core/Application/EnrolmentDeskReadService.php:38-48` looks up `self::STATUSES[$stageKey]`; the table (`:19-31`) only has the *journey* keys (`identity,new,awaiting_teacher,trial_scheduled,provisioning,outcome_due,continuation,enrolled,declined,closed,needs_review`). But `decorate()` (`:279`) is fed the *workspace* keys produced by `EnrolmentWorkspaceReadService::bookingStage()` (`:1124-1173`: `archived,closed,converted,expired,post_intro,intro_outcome,intro_scheduled,provisioning_failed,provisioning_pending,intro_payment_pending,teacher_match,teacher_agreed,identity,new`). Ten of those keys are absent, so the fallback at `:42-47` renders `ucfirst(str_replace('_',' ',$stageKey))`. The wrong assumption: two different key vocabularies were assumed to be one. |
+| Root cause | `platform/src/Core/Application/EnrolmentDeskReadService.php:38-48` looks up `self::STATUSES[$stageKey]`; the table (`:19-31`) only has the *journey* keys (`identity,new,awaiting_teacher,trial_scheduled,provisioning,outcome_due,continuation,enrolled,declined,closed,needs_review`). But `decorate()` (`:279`) is fed the *workspace* keys produced by `EnrolmentWorkspaceReadService::bookingStage()` (`:1124-1173`: `archived,closed,converted,expired,post_intro,intro_outcome,intro_scheduled,provisioning_failed,provisioning_pending,intro_payment_pending,teacher_match,teacher_agreed,identity,new`). Eleven of those keys are absent, so the fallback at `:42-47` renders `ucfirst(str_replace('_',' ',$stageKey))`. The wrong assumption: two different key vocabularies were assumed to be one. |
 | Class | PROJECTION |
 | Severity | confusing, on every intake row, every day |
 | Evidence | `EnrolmentDeskReadService.php:38-48` + `:279`; `EnrolmentWorkspaceReadService.php:1055` (`'stage_key' => $stage['key']`) and `:1124-1173`. The workspace already computes the right answer and the Desk throws it away: `composeBookingRow()` also returns `stage_label`. |
@@ -496,7 +496,7 @@ or what to do. `cosmetic` — wrong word, no work lost.
 |---|---|
 | Surface / journey | Every admin command |
 | Symptom | The operator is told "The action could not be completed; no change was saved." (plus an `EWI-` reference) instead of which control refused and why. This is the class behind the incident's opaque `EWI-…`, one level up. |
-| Root cause | `platform/src/Admin/Controller/EnrolmentWorkspaceController.php:837-841`: the `match` has ~90 explicit arms, then a regex that passes through sentences beginning with `The/A/An/This/No/Choose/…`, then generic fallbacks. Refusal codes in the domain are machine keys (`occurrence_not_ended`, `commercial_obligation_required`, `schedule_version_conflict`, …); 912 of 1141 never appear as a literal anywhere in `platform/src/Admin`. |
+| Root cause | `platform/src/Admin/Controller/EnrolmentWorkspaceController.php:837-841`: the `match` has 97 explicit arms, then a regex that passes through sentences beginning with `The/A/An/This/No/Choose/…`, then generic fallbacks. Refusal codes in the domain are machine keys (`occurrence_not_ended`, `commercial_obligation_required`, `schedule_version_conflict`, …); 912 of 1141 never appear as a literal anywhere in `platform/src/Admin`. |
 | Class | SILENT |
 | Severity | confusing, on any unmapped refusal |
 | Evidence | §2.8 command and output. Spot check: `occurrence_not_ended` is thrown at `CanonicalLessonDeliveryService.php:296` and appears nowhere in `platform/src/Admin`. |
@@ -548,7 +548,7 @@ or what to do. `cosmetic` — wrong word, no work lost.
 |---|---|
 | Surface / journey | Students / Classes → record actions menu |
 | Symptom | An action appears with an empty dropdown ("Choose current enrolment" and nothing else) and no explanation. |
-| Root cause | `platform/src/Admin/RecordAction/RecordActionRegistry.php:798,808,815,825,832,842,849,859,866,876,883,893,918,943,949,959,966,976,983` wrap the option builders in `catch (\Throwable) { return false; }` / `{ return []; }`. A read failure therefore removes the options rather than reporting it. |
+| Root cause | `platform/src/Admin/RecordAction/RecordActionRegistry.php:798,808,815,825,832,842,849,859,866,876,883,893,918,943,949,959,966,976,983,997,1003` wrap the option builders in `catch (\Throwable) { return false; }` / `{ return []; }`. A read failure therefore removes the options rather than reporting it. |
 | Class | SILENT |
 | Severity | confusing |
 | Evidence | the lines above; `enrolmentActionOptions()` is the call being swallowed at `:799`. |

@@ -23,7 +23,9 @@ final class EnrolmentDeskView {
         echo '<p><strong>' . esc_html( (string) $total ) . '</strong> in the current queue.</p>';
         echo '<table class="widefat striped"><thead><tr><th>Learner</th><th>Instrument</th><th>Status</th><th>Next action</th><th>Updated</th></tr></thead><tbody>';
         foreach ( $rows as $row ) {
-            $url = admin_url( 'admin.php?page=' . EnrolmentDeskController::PAGE . '&request_id=' . (int) ( $row['id'] ?? 0 ) );
+            $url = (int) ( $row['id'] ?? 0 ) > 0
+                ? admin_url( 'admin.php?page=' . EnrolmentDeskController::PAGE . '&request_id=' . (int) $row['id'] )
+                : (string) ( $row['desk_href'] ?? admin_url( 'admin.php?page=' . EnrolmentDeskController::PAGE ) );
             echo '<tr>';
             echo '<td><a href="' . esc_url( $url ) . '"><strong>' . esc_html( (string) ( $row['learner_name'] ?? 'Learner' ) ) . '</strong></a><br><small>' . esc_html( (string) ( $row['reference'] ?? '' ) ) . '</small></td>';
             echo '<td>' . esc_html( (string) ( $row['instrument'] ?? '' ) ) . '</td>';

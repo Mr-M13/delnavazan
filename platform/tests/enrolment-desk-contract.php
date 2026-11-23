@@ -129,6 +129,11 @@ $notContains($controller, array(
 ), 'Identifiers must never come from the request body');
 $notContains($service, array('$wpdb->insert', '$wpdb->update', '$wpdb->delete'), 'The Desk read model must never write');
 $contains($service, array(
+    'function activeTerms(',
+    "t.lifecycle_state='current'",
+    "'Active term · '",
+), 'The Desk list must include current terms, so enrolled people do not disappear from the one list');
+$contains($service, array(
     'function confirmedIntros(',
     "c.state IN ('confirmed','awaiting_payment')",
     'new BookingJourneyReadService()',

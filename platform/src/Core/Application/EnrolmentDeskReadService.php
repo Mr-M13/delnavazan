@@ -77,11 +77,80 @@ final class EnrolmentDeskReadService {
             return null;
         }
         return array(
-            'case'   => $case,
-            'desk'   => self::status( (string) ( $case['stage_key'] ?? '' ) ),
-            'steps'  => $this->steps( $case ),
-            'alerts' => $this->alerts( $case ),
+            'case'    => $case,
+            'desk'    => self::status( (string) ( $case['stage_key'] ?? '' ) ),
+            'steps'   => $this->steps( $case ),
+            'alerts'  => $this->alerts( $case ),
+            'payment' => $this->paymentFacts( $requestId ),
         );
+    }
+
+    /**
+     * Payment facts for step 4. Read-only: the preparation and the offer are the records the
+     * continuation writes; the Desk only displays them and never computes an amount itself.
+     *
+     * @return array<string,mixed>
+     */
+    public function paymentFacts( int $requestId ): array {
+        global $wpdb;
+        $p = $wpdb->prefix . 'dzn_';
+        $facts = array(
+            'preparation_uid'   => '',
+            'preparation_state' => '',
+            'offer_uid'         => '',
+            'offer_state'       => '',
+            'amount_minor'      => 0,
+            'currency'          => '',
+            'next_sequence'     => 0,
+            'next_amount_minor' => 0,
+            'obligations'       => array(),
+        );
+        if ( $requestId < 1 ) {
+            return $facts;
+        }
+        $prep = $wpdb->get_row( $wpdb->prepare(
+            "SELECT uid,state,offer_id FROM {$p}post_intro_preparations WHERE booking_request_id=%d ORDER BY id DESC LIMIT 1",
+            $requestId
+        ) );
+        if ( ! $prep ) {
+            return $facts;
+        }
+        $facts['preparation_uid']   = (string) $prep->uid;
+        $facts['preparation_state'] = (string) $prep->state;
+        if ( (int) $prep->offer_id < 1 ) {
+            return $facts;
+        }
+        $offer = $wpdb->get_row( $wpdb->prepare(
+            "SELECT uid,state,amount_due_minor,currency FROM {$p}commercial_offers WHERE id=%d",
+            (int) $prep->offer_id
+        ) );
+        if ( $offer ) {
+            $facts['offer_uid']    = (string) $offer->uid;
+            $facts['offer_state']  = (string) $offer->state;
+            $facts['amount_minor'] = (int) $offer->amount_due_minor;
+            $facts['currency']     = (string) $offer->currency;
+        }
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT o.obligation_sequence,o.amount_minor,o.currency,CASE WHEN s.id IS NULL THEN 0 ELSE 1 END settled
+               FROM {$p}commercial_offer_obligations o
+               LEFT JOIN {$p}commercial_obligation_settlements s ON s.obligation_id=o.id
+              WHERE o.offer_id=%d ORDER BY o.obligation_sequence ASC",
+            (int) $prep->offer_id
+        ) );
+        foreach ( (array) $rows as $row ) {
+            $settled = (int) $row->settled === 1;
+            $facts['obligations'][] = array(
+                'sequence'     => (int) $row->obligation_sequence,
+                'amount_minor' => (int) $row->amount_minor,
+                'currency'     => (string) $row->currency,
+                'settled'      => $settled,
+            );
+            if ( ! $settled && $facts['next_sequence'] === 0 ) {
+                $facts['next_sequence']     = (int) $row->obligation_sequence;
+                $facts['next_amount_minor'] = (int) $row->amount_minor;
+            }
+        }
+        return $facts;
     }
 
     /** @param array<string,mixed> $row */

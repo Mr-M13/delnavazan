@@ -88,6 +88,7 @@ add_action( 'plugins_loaded', static function () {
 	// console. Do not duplicate a stale snapshot on WordPress's generic dashboard.
 	Delnavazan\Platform\Admin\Controller\AdminShellController::register();
 	Delnavazan\Platform\Admin\Controller\EnrolmentWorkspaceController::register();
+	Delnavazan\Platform\Admin\Controller\EnrolmentDeskController::register();
 	Delnavazan\Platform\Admin\RecordAction\RecordActionController::register();
 	Delnavazan\Platform\Admin\Controller\StaffAccessController::register();
 	Delnavazan\Platform\Admin\Controller\DelegatedAccessController::register();

@@ -65,6 +65,19 @@ final class EnrolmentDeskView {
 
         self::paymentActions( (array) ( $person['payment'] ?? array() ), (int) ( $case['id'] ?? 0 ) );
 
+        $timeline = (array) ( $case['timeline'] ?? array() );
+        if ( $timeline !== array() ) {
+            echo '<h2>Evidence</h2><ul class="dzn-desk-timeline">';
+            foreach ( array_slice( $timeline, 0, 12 ) as $event ) {
+                echo '<li><time>' . esc_html( (string) ( $event['at'] ?? '' ) ) . '</time> · <strong>' . esc_html( (string) ( $event['label'] ?? '' ) ) . '</strong>';
+                if ( (string) ( $event['detail'] ?? '' ) !== '' ) {
+                    echo ' — ' . esc_html( (string) $event['detail'] );
+                }
+                echo '</li>';
+            }
+            echo '</ul>';
+        }
+
         if ( $alerts !== array() ) {
             echo '<h2>Needs attention</h2>';
             foreach ( $alerts as $alert ) {

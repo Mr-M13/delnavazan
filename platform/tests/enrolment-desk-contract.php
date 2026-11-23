@@ -95,4 +95,37 @@ $contains($access, array(
     "'dzn_use_enrolment_desk'",
 ), 'The delegated enrolment bundle must be able to carry the Desk capability');
 
+// 6. Slice 2 commands: existing authorities, server-resolved identifiers, no direct writes.
+$contains($controller, array(
+    "public const ACTION = 'dzn_enrolment_desk';",
+    "add_action( 'admin_post_' . self::ACTION",
+    'check_admin_referer( self::ACTION )',
+    "self::requireCap( 'dzn_manage_post_intro_automation' )",
+    "self::requireCap( 'dzn_manage_payment_execution' )",
+    '->continueAsAdministrator(',
+    '->markStandardPaid(',
+    '$read->paymentFacts( $requestId )',
+), 'The Desk commands must be one nonce-checked endpoint using the existing authorities');
+$notContains($controller, array(
+    "\$_POST['offer_uid']",
+    "\$_POST['preparation_uid']",
+    "\$_POST['obligation_sequence']",
+), 'Identifiers must never come from the request body');
+$notContains($service, array('$wpdb->insert', '$wpdb->update', '$wpdb->delete'), 'The Desk read model must never write');
+$contains($service, array(
+    'function paymentFacts(',
+    'commercial_offer_obligations',
+    'commercial_obligation_settlements',
+), 'Step 4 must read the real preparation, offer and obligation records');
+$contains($view, array(
+    "value=\"send_payment_link\"",
+    "value=\"record_offline_payment\"",
+), 'The Desk must post only its two supported commands');
+
+// 7. Owner decision: coordination evidence is a timeline on the person page.
+$contains($view, array(
+    "(array) ( \$case['timeline'] ?? array() )",
+    'Evidence',
+), 'Coordination evidence must render as a timeline, not a case screen or drawer');
+
 echo "Enrolment desk contract passed\n";

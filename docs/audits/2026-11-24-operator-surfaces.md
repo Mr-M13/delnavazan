@@ -812,3 +812,23 @@ it to the PR gate's production-tooling step is a **governance change** (`.github
   "A transport hand-off is not recipient delivery"). `OPS-16`/`OPS-17` are the exceptions.
 - The payment gate itself holds: `ManualPaymentSettlementService` cannot settle an unknown offer, an
   already-settled obligation, or an amount below 1, and the Desk cannot bypass it.
+
+## 8. Issue index
+
+Each finding has one issue: `OPS-01` → #788 … `OPS-31` → #818, in order.
+
+| ID | Issue | ID | Issue | ID | Issue | ID | Issue |
+|---|---|---|---|---|---|---|---|
+| OPS-01 | #788 | OPS-09 | #796 | OPS-17 | #804 | OPS-25 | #812 |
+| OPS-02 | #789 | OPS-10 | #797 | OPS-18 | #805 | OPS-26 | #813 |
+| OPS-03 | #790 | OPS-11 | #798 | OPS-19 | #806 | OPS-27 | #814 |
+| OPS-04 | #791 | OPS-12 | #799 | OPS-20 | #807 | OPS-28 | #815 |
+| OPS-05 | #792 | OPS-13 | #800 | OPS-21 | #808 | OPS-29 | #816 |
+| OPS-06 | #793 | OPS-14 | #801 | OPS-22 | #809 | OPS-30 | #817 |
+| OPS-07 | #794 | OPS-15 | #802 | OPS-23 | #810 | OPS-31 | #818 |
+| OPS-08 | #795 | OPS-16 | #803 | OPS-24 | #811 | | |
+
+Files added by this audit:
+
+- `docs/audits/2026-11-24-operator-surfaces.md` (this document)
+- `docs/audits/tools/method-call-check.php` (read-only checker, §2.1)

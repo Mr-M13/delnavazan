@@ -44,6 +44,15 @@ $contains($controller, array(
     'check_admin_referer( self::ACTION )',
 ), 'The Desk must register exactly one nonce-checked command endpoint');
 $notContains($service, array('$wpdb->insert', '$wpdb->update', '$wpdb->delete', '$wpdb->query'), 'The Desk read model must never write');
+$contains($service, array(
+    "'anchor' => '#dzn-record-outcome'",
+    "'anchor' => '#dzn-execute-agreement'",
+), 'The next action must deep-link to the exact existing control');
+$contains($read('src/Admin/View/EnrolmentWorkspaceView.php'), array(
+    'id="dzn-record-outcome"',
+    'id="dzn-intro-complete"',
+    'id="dzn-execute-agreement"',
+), 'The existing panels must carry the ids the Desk links to');
 $contains($view, array(
     "value=\"send_payment_link\"",
     "value=\"record_offline_payment\"",

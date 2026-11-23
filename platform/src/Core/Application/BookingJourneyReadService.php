@@ -62,7 +62,7 @@ final class BookingJourneyReadService {
      * @return array<string,mixed>|null status + primary action + supporting facts
      */
     public function status(int $requestId): ?array {
-        $this->requireAny(array('dzn_view_booking_requests', 'dzn_manage_booking_request_coordination', 'dzn_manage_lessons', 'dzn_manage_canonical_lessons', 'dzn_manage_enrolments'));
+        $this->requireAny(array('dzn_view_booking_requests', 'dzn_manage_booking_request_coordination', 'dzn_manage_lessons', 'dzn_manage_canonical_lessons', 'dzn_manage_enrolments', 'dzn_use_enrolment_desk'));
         if ($requestId < 1) return null;
         global $wpdb;
         $p = $wpdb->prefix . 'dzn_';

@@ -476,11 +476,13 @@ final class GoogleWorkspaceClassroomService {
         $references=$this->openReferences($classroom);
         if($references===null)return array('updated'=>false,'reason'=>'reference_unavailable');
         $space=$this->spaceFor($references,$classroom);
+        // The explicit mask is not optional: without it Google accepted the PATCH and left
+        // config.moderation untouched, so converged spaces kept their waiting room.
         $response=$this->api->patchSpace($space,array('config'=>array(
             'accessType'=>GoogleWorkspaceClassroomRule::accessType(),
             'moderation'=>GoogleWorkspaceClassroomRule::moderation(),
             'artifactConfig'=>array('recordingConfig'=>array('autoRecordingGeneration'=>!empty($eligibility['eligible'])?'ON':'OFF')),
-        )));
+        )),'config.accessType,config.moderation,config.artifactConfig.recordingConfig.autoRecordingGeneration');
         $now=gmdate('Y-m-d H:i:s');
         if($response['status']<200||$response['status']>=300){
             $detail=$this->providerDetail($response);

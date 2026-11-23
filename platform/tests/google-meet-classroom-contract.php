@@ -69,6 +69,7 @@ $check('Teacher is assigned COHOST', str_contains($service, "createMember(\$spac
 $check('co-host refusal reports the exact provider response', str_contains($service, "'meet_cohost_assignment_refused'") && str_contains($service, "'response'=>\$response"));
 $check('co-host membership is explicitly verified', str_contains($service, 'verifyCoHostMember') && str_contains($service, "'cohost_verified'"));
 $check('failed co-host assignment blocks readiness', str_contains($service, "MeetCoHostRule::BLOCKED") && str_contains($service, "'classroom_state'=>\$retryable?'provisioning':'blocked'"));
+$check('every space config patch names its update mask', substr_count($service, "'config.accessType,config.moderation") >= 3);
 $check('moderation comes from the documented rule, never an inline literal', !str_contains($service, "'fallback_mode'=>'participant_with_moderation_off'") && !str_contains($service, "'moderation'=>'OFF'") && !str_contains($service, "'moderation'=>'ON'") && str_contains($service, 'GoogleWorkspaceClassroomRule::moderation()') && str_contains($service, 'syncSpaceAccess'));
 require_once dirname(__DIR__) . '/src/Integrations/GoogleWorkspace/GoogleWorkspaceClassroomRule.php';
 $check('spaces default to join-without-waiting-room', \Delnavazan\Platform\Integrations\GoogleWorkspace\GoogleWorkspaceClassroomRule::moderation() === 'OFF');

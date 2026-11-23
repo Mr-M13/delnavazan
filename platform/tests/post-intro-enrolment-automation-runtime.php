@@ -1316,13 +1316,18 @@ foreach (array(
     dzn_pia_assert($ok === 1, 'auto-attendance participant session persistence: ' . $participant['role']);
 }
 
-$autoSettlement = (new MeetIntroAttendanceService())->settleClassroom($autoClassroomId);
-dzn_pia_assert(($autoSettlement['state'] ?? '') === 'delivered', 'automatic introductory attendance must deliver on qualifying provider evidence');
+// Deterministic clock: settlement refuses to decide until the post-class window closes, so pass
+// an explicit instant well after it instead of depending on how long this fixture took to reach
+// this line. The failure message carries the settled state so a future refusal is diagnosable
+// instead of a bare boolean.
+$autoSettleNow = gmdate('Y-m-d H:i:s', strtotime($autoEnd . ' UTC +2 hours'));
+$autoSettlement = (new MeetIntroAttendanceService())->settleClassroom($autoClassroomId, $autoSettleNow);
+dzn_pia_assert(($autoSettlement['state'] ?? '') === 'delivered', 'automatic introductory attendance must deliver on qualifying provider evidence, got ' . wp_json_encode($autoSettlement));
 $autoOutcome = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$p}booking_request_intro_outcomes WHERE booking_request_id=%d", (int) $autoBooking['request']));
 dzn_pia_assert($autoOutcome !== null && (string) $autoOutcome->outcome === 'delivered' && (string) $autoOutcome->source === 'provider_evidence', 'automatic attendance must record the provider-evidence delivered outcome');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}platform_audit_events WHERE aggregate_type='booking_request' AND aggregate_id=%d AND event_type='intro_attendance.auto_delivered'", (int) $autoBooking['request'])) === 1, 'automatic attendance must leave exactly one audit event');
 
-$autoRepeat = (new MeetIntroAttendanceService())->settleClassroom($autoClassroomId);
+$autoRepeat = (new MeetIntroAttendanceService())->settleClassroom($autoClassroomId, $autoSettleNow);
 dzn_pia_assert(($autoRepeat['state'] ?? '') === 'already_recorded', 'a repeated automatic-attendance pass must not re-record the outcome');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}booking_request_intro_outcomes WHERE booking_request_id=%d", (int) $autoBooking['request'])) === 1, 'a repeated automatic-attendance pass must keep one outcome');
 

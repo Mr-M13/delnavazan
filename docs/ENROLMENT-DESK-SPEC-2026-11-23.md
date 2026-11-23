@@ -118,7 +118,8 @@ Step 2 when nothing is agreed yet:
    Teacher      [ ادیب رحمانی ▾ ]        eligibility and availability checked on save
    Weekly slot  [ Tue ▾ ] [ 18:45 ▾ ] [ Europe/Berlin ▾ ]
    ☐ Hold an introductory lesson first
-        (suggested off when the Student has any prior enrolment)
+        off by default when the Student has any prior enrolment (returning Student);
+        the operator can tick it, the Desk never adds an intro on its own
    [ Confirm booking ]   — one click; the refusal, if any, appears here in one line
 ```
 
@@ -127,7 +128,9 @@ Step 4:
 ```
 4  Payment
    Amount   EUR 360 · Full term
-   [ Send payment link ]    [ Record offline payment ] (finance capability)
+   [ Send payment link ]    [ Record offline payment ]
+                            (payment-execution capability; delegates with that
+                             authority included, every entry audited)
    Status   link sent 23 Nov 04:12 · opened? unknown · paid? no
 ```
 
@@ -204,8 +207,11 @@ direct URL keeps them reachable for one release.
 | Class admin (coordination) | `dzn-booking-request-coordination` | Desk timeline + exceptions | 3 |
 | Booking requests | `dzn-booking-requests` | Desk list | 3 |
 | Bookings and enrolments | `dzn-enrolment-workspace` | Desk | 3 |
-| Enrolments | `dzn-enrolment` | Desk list/detail | 3 |
 | Attendance and post-intro | `dzn-attendance-workspace` | Desk exceptions + Class admin | 3 |
+
+**Enrolments (`dzn-enrolment`) and Terms (`dzn-term`) stay in the menu**, visible
+to finance and reporting, even after the Desk ships. They are no longer part of
+the enrolment journey, but they remain the authoritative list views.
 
 Kept unchanged: Students, CRM, Teachers, Courses, Instruments, Terms (advanced
 views), Finance, Notifications, Integrations, Settings, Exceptions, Diagnostics.
@@ -236,18 +242,28 @@ Rollback: the flag stays a setting; flipping it restores the current menus. The
 - Contract coverage for: list status derivation, step gating, command mapping,
   exception cards, and the hidden-screen capability gate.
 
-## 11. Open decisions for the owner
+## 11. Decisions (owner, 2026-11-23)
 
-1. **Intro default**: suggest "skip" automatically when the Student has a prior
-   enrolment, or always ask? (spec assumes: suggested on, operator confirms)
-2. **Offline payment**: which role may record it — finance only, or the Desk
-   operator with a finance attestation?
-3. **Coordination evidence visibility**: timeline lines only, or a collapsed
-   "evidence" drawer with the proposal/acceptance records?
-4. **Who owns the Desk**: a new capability granted to the current coordination
-   role, or reuse `dzn_manage_booking_request_coordination`?
-5. **Terms/Enrolments advanced screens**: keep them menu-visible for finance and
-   reporting, or move them under "Advanced"?
+Resolved. These are binding for the implementation.
+
+1. **Returning Students get no intro by default.** For a Student with any prior
+   enrolment (any record, archived or not), the "Hold an introductory lesson
+   first" control is **off**. The operator can still tick it deliberately. The
+   Desk never creates an intro without that explicit tick, and never infers one.
+2. **Offline payment** may be recorded by an administrator or a delegate holding
+   the payment-execution authority. The Desk keeps the existing capability check
+   (no new bypass), attributes the entry to the acting user, and requires the
+   receipt reference and received date that `ManualPaymentSettlementService`
+   already demands.
+3. **Coordination evidence is a timeline.** No drawer, no case screen. Proposal,
+   acceptance and arrangement events appear as read-only timeline lines on the
+   person's page, with the audit detail available only through the existing
+   diagnostics surface.
+4. **The Desk gets its own capability**, `dzn_use_enrolment_desk`, granted to the
+   current coordination role and available to delegates. Step guards keep their
+   existing capabilities: offline payment still needs payment execution, and
+   lifecycle commands keep their own authorities.
+5. **Terms and Enrolments stay in the menu** for finance and reporting (see §8).
 
 ## 12. Effort
 

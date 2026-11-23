@@ -194,4 +194,34 @@ $assert(
     'An unknown stage must map to needs_review, not to new'
 );
 
+// 6. The Desk capability must be accepted by the read services the Desk calls and grantable by a role
+//    template. Otherwise the page opens and the read path refuses it, and the coordinator role the
+//    spec names cannot reach the surface at all. See OPS-03 / OPS-29.
+$workspaceRead = $read('src/Core/Application/EnrolmentWorkspaceReadService.php');
+$assert(
+    substr_count($workspaceRead, "'dzn_view_booking_requests', 'dzn_manage_booking_request_coordination', 'dzn_use_enrolment_desk'") >= 2,
+    'The booking read paths the Desk calls must accept the Desk capability'
+);
+$journeyRead = $read('src/Core/Application/BookingJourneyReadService.php');
+$assert(
+    str_contains($journeyRead, "'dzn_manage_enrolments', 'dzn_use_enrolment_desk'"),
+    'The journey status read must accept the Desk capability'
+);
+$permissionRegistry = $read('src/Core/Application/PermissionRegistry.php');
+$assert(
+    str_contains($permissionRegistry, "'desk' => self::action('Use the Enrolment desk'")
+    && str_contains($permissionRegistry, "array('dzn_use_enrolment_desk')"),
+    'A role template must be able to grant the Desk capability'
+);
+$accessRoles = $read('src/Core/Application/AccessRoleService.php');
+$assert(
+    str_contains($accessRoles, "'enrolment.trials.desk'"),
+    'The academy coordinator template must include the Desk permission'
+);
+// The detail page must normalise the stage key exactly as the list does (OPS-02).
+$contains($service, array(
+    "BookingJourneyReadService::statusForStage( (string) ( \$case['stage_key'] ?? '' ) )",
+), 'The Desk detail must normalise the stage key through the shared mapping');
+
+
 echo "Enrolment desk contract passed\n";

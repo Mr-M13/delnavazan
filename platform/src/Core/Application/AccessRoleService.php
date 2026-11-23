@@ -50,7 +50,7 @@ final class AccessRoleService {
                     'classes.regular.view', 'classes.regular.edit', 'classes.scheduling.assign',
                     'classes.scheduling.reschedule', 'classes.attendance.view', 'classes.attendance.review',
                     'classes.classroom.view', 'classes.exceptions.view', 'classes.exceptions.manage',
-                    'enrolment.trials.view', 'enrolment.enrolments.view', 'enrolment.enrolments.edit',
+                    'enrolment.trials.view', 'enrolment.trials.desk', 'enrolment.enrolments.view', 'enrolment.enrolments.edit',
                     'enrolment.terms.view', 'notifications.catalogue.view', 'policies.consent.view',
                 ),
                 'active' => true,

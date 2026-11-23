@@ -111,6 +111,7 @@ final class PermissionRegistry {
             'enrolment' => self::module('Enrolment', 'Trials, enrolments, terms and conversion.', array(
                 'trials' => self::area('Trials & conversion', 'Introductory trials and conversion to enrolment.', array(
                     'view' => self::action('View trials', 'Read trial and conversion queues.', array('dzn_view_booking_requests')),
+                    'desk' => self::action('Use the Enrolment desk', 'Run the one-list enrolment desk for one person and use its permitted commands.', array('dzn_use_enrolment_desk')),
                     'convert' => self::action('Convert to enrolment', 'Convert an accepted arrangement through canonical conversion.', array('dzn_convert_service_arrangements_to_enrolments'), true),
                 )),
                 'enrolments' => self::area('Enrolments', 'Enrolment lifecycle and evidence.', array(

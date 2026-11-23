@@ -44,16 +44,19 @@ final class BookingJourneyReadService {
      */
     public static function statusForStage(string $stageKey): array {
         $key = match ($stageKey) {
-            'identity' => 'identity',
-            'new' => 'new',
+            // Journey keys are accepted unchanged, so the mapping is idempotent when a caller
+            // (for example the Enrolment Desk) already holds a journey status.
+            'identity', 'new', 'awaiting_teacher', 'trial_scheduled', 'provisioning',
+            'outcome_due', 'continuation', 'enrolled', 'declined', 'closed', 'needs_review' => $stageKey,
             'teacher_match', 'teacher_agreed' => 'awaiting_teacher',
             'intro_scheduled' => 'trial_scheduled',
             'provisioning_pending', 'provisioning_failed', 'intro_payment_pending' => 'provisioning',
             'intro_outcome' => 'outcome_due',
             'post_intro' => 'continuation',
             'converted' => 'enrolled',
-            'expired', 'closed', 'archived' => 'closed',
-            default => 'new',
+            'expired', 'archived' => 'closed',
+            // An unmapped stage is a projection defect, not a new request. Say so.
+            default => 'needs_review',
         };
         return array('key' => $key, 'label' => self::label($key), 'tone' => self::tone($key));
     }

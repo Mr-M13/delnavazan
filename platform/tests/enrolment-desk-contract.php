@@ -154,4 +154,44 @@ $contains($view, array(
     'Evidence',
 ), 'Coordination evidence must render as a timeline, not a case screen or drawer');
 
+// 5. The Desk is fed the workspace stage keys, so every key bookingStage() can emit must map to an
+//    approved plain-language label. String asserts on the table alone cannot see a key that is not
+//    in it, which is how the raw "Teacher match" / "Post intro" labels shipped. See OPS-01/OPS-23.
+$workspace = $read('src/Core/Application/EnrolmentWorkspaceReadService.php');
+preg_match_all("/'key'\\s*=>\\s*'([a-z][a-z_]+)'/", $workspace, $keyMatches);
+$stageKeys = array_values(array_unique($keyMatches[1]));
+// The stage that depends on the clock names both of its keys inside a ternary.
+$stageKeys = array_values(array_unique(array_merge($stageKeys, array('intro_scheduled', 'intro_outcome'))));
+$assert(count($stageKeys) >= 12, 'The booking stage key scan found too few keys to be meaningful');
+require_once $root . '/src/Core/Application/BookingJourneyReadService.php';
+require_once $root . '/src/Core/Application/EnrolmentDeskReadService.php';
+$approvedLabels = array(
+    'Identity not verified', 'New request', 'Waiting for a Teacher', 'Intro booked',
+    'Intro being prepared', 'Outcome due', 'Waiting for payment', 'Active term',
+    'Declined', 'Closed', 'Needs review',
+);
+foreach ($stageKeys as $stageKey) {
+    $status = \Delnavazan\Platform\Core\Application\EnrolmentDeskReadService::status($stageKey);
+    $assert(
+        in_array($status['label'], $approvedLabels, true),
+        'Desk status for "' . $stageKey . '" must be plain language, got "' . $status['label'] . '"'
+    );
+    $assert(
+        ! str_contains( $stageKey, '_' ) || $status['label'] !== ucfirst( str_replace( '_', ' ', $stageKey ) ),
+        'Desk status for "' . $stageKey . '" must not echo the raw stage key'
+    );
+}
+// A journey key must be accepted unchanged, so the list (which writes journey keys) and the detail
+// page (which is fed workspace keys) render the same words.
+$assert(
+    \Delnavazan\Platform\Core\Application\EnrolmentDeskReadService::status('trial_scheduled') ===
+    \Delnavazan\Platform\Core\Application\EnrolmentDeskReadService::status('intro_scheduled'),
+    'A journey key and its workspace key must render the same Desk status'
+);
+// An unmapped stage is a projection defect, never a new request.
+$assert(
+    \Delnavazan\Platform\Core\Application\BookingJourneyReadService::statusForStage('not_a_stage')['key'] === 'needs_review',
+    'An unknown stage must map to needs_review, not to new'
+);
+
 echo "Enrolment desk contract passed\n";

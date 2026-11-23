@@ -8,6 +8,7 @@ final class AcademyJourneyReadService {
         'needs_coordination' => 'Coordination needed',
         'needs_identity' => 'Identity unresolved',
         'needs_acceptance' => 'Acceptance pending',
+        'intro_booked' => 'Introduction booked',
         'needs_enrolment' => 'Enrolment conversion',
         'needs_assignment' => 'Teacher assignment',
         'complete' => 'Assignment complete',
@@ -18,6 +19,7 @@ final class AcademyJourneyReadService {
         'needs_coordination' => 'Coordination needed',
         'needs_identity' => 'Identity unresolved',
         'needs_acceptance' => 'Acceptance pending',
+        'intro_booked' => 'Introduction booked',
         'needs_enrolment' => 'Enrolment conversion',
         'needs_assignment' => 'Teacher assignment',
         'complete' => 'Assignment complete',
@@ -46,8 +48,23 @@ final class AcademyJourneyReadService {
         'complete' => 'ta.id IS NOT NULL',
     );
 
+    /**
+     * A confirmed (or awaiting-payment) introduction is booked work, not a missing acceptance:
+     * the term arrangement is created after the lesson. Without this, a booked intro surfaced as
+     * "Service arrangements awaiting acceptance" with "No Teacher candidate is recorded", which
+     * reads as a contradiction to the operator.
+     */
     public static function stageSql(string $stage): string {
-        return self::STAGE_SQL[$stage] ?? '';
+        $sql = self::STAGE_SQL[$stage] ?? '';
+        if ($stage === 'intro_booked') {
+            global $wpdb;
+            return "ta.id IS NULL AND EXISTS (SELECT 1 FROM {$wpdb->prefix}dzn_booking_request_confirmations ic WHERE ic.booking_request_id=br.id AND ic.state IN ('confirmed','awaiting_payment'))";
+        }
+        if ($stage === 'needs_acceptance') {
+            global $wpdb;
+            $sql .= " AND NOT EXISTS (SELECT 1 FROM {$wpdb->prefix}dzn_booking_request_confirmations ac WHERE ac.booking_request_id=br.id AND ac.state IN ('confirmed','awaiting_payment'))";
+        }
+        return $sql;
     }
 
     /** Bounded, searchable operator queue. PII is limited to the current booking contact snapshot. */
@@ -121,7 +138,7 @@ final class AcademyJourneyReadService {
      */
     public function stageQueue(string $stage = 'needs_acceptance', int $limit = 5): array {
         if (!current_user_can('dzn_view_booking_requests')) throw new \RuntimeException('Unauthorized');
-        if (!in_array($stage, array('needs_coordination', 'needs_identity', 'needs_acceptance', 'needs_enrolment', 'needs_assignment'), true)) {
+        if (!in_array($stage, array('needs_coordination', 'needs_identity', 'needs_acceptance', 'intro_booked', 'needs_enrolment', 'needs_assignment'), true)) {
             throw new \InvalidArgumentException('Unknown pipeline stage');
         }
         $limit = max(1, min(10, $limit));
@@ -207,6 +224,7 @@ final class AcademyJourneyReadService {
         return match ($stage) {
             'needs_identity' => 'identity',
             'needs_acceptance' => $this->acceptanceAnchor($row),
+            'intro_booked' => '',
             'needs_enrolment', 'needs_assignment' => 'enrolment',
             default => '',
         };
@@ -225,6 +243,7 @@ final class AcademyJourneyReadService {
             'needs_coordination' => 'No coordination case is open',
             'needs_identity' => 'The Student identity is unresolved',
             'needs_acceptance' => $this->acceptanceReadiness($row),
+            'intro_booked' => 'The introduction is booked and awaiting delivery',
             'needs_enrolment' => 'The accepted arrangement has no Enrolment',
             'needs_assignment' => 'The Enrolment has no current Teacher assignment',
             default => '',
@@ -244,6 +263,7 @@ final class AcademyJourneyReadService {
             'needs_coordination' => 'Open a case, contact the learner and propose a Teacher',
             'needs_identity' => 'Resolve identity or record an identity outcome',
             'needs_acceptance' => 'Complete the missing acceptance prerequisite in Class admin',
+            'intro_booked' => 'Record the outcome after the lesson',
             'needs_enrolment' => 'Convert the accepted arrangement to an Enrolment',
             'needs_assignment' => 'Assign the accepted Teacher',
             default => 'Open the record',

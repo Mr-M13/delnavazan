@@ -256,6 +256,14 @@ final class AcademyOperationsController {
                     'urgent' => false,
                     'anchor' => 'acceptance',
                 ),
+                'intro_booked' => array(
+                    'label' => 'Introductions booked',
+                    'action' => 'Open the Enrolment desk',
+                    'description' => 'A confirmed introductory lesson is booked and waiting to be delivered. Record the outcome afterwards; the payment step and the term follow from it. Nothing is missing now.',
+                    'urgent' => false,
+                    'anchor' => '',
+                    'page' => 'dzn-enrolment-desk',
+                ),
                 'needs_enrolment' => array(
                     'label' => 'Accepted arrangements awaiting enrolment',
                     'action' => 'Convert to enrolment',
@@ -283,7 +291,11 @@ final class AcademyOperationsController {
                 $anchor = (string) $card['anchor'];
                 // A single record opens directly at the section that resolves it. A larger
                 // stage opens the command centre, and every detail row still deep-links.
-                if ($count === 1 && count($details) === 1) {
+                if ($stage === 'intro_booked') {
+                    $page   = 'dzn-enrolment-desk';
+                    $args   = array();
+                    $anchor = '';
+                } elseif ($count === 1 && count($details) === 1) {
                     if ($canCoordinate) {
                         $caseId = (int) ($details[0]['case_id'] ?? 0);
                         $args = $stage === 'needs_coordination' || $caseId < 1

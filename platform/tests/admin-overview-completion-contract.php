@@ -87,6 +87,7 @@ $contains($dashboard, array(
     'Bookings awaiting coordination',
     'Identities awaiting review',
     'Service arrangements awaiting acceptance',
+    'Introductions booked',
     'Accepted arrangements awaiting enrolment',
     'Enrolments awaiting a Teacher assignment',
     'Checkout payments awaiting an outcome',

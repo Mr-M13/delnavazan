@@ -77,6 +77,12 @@ final class EnrolmentDeskReadService {
             $rows[] = $this->decorate( $row );
         }
 
+        // 3. Live terms. The spec's one-list promise covers people who are already enrolled;
+        //    without them the Desk silently loses everyone past the payment step.
+        foreach ( $this->activeTerms( $limit ) as $row ) {
+            $rows[] = $row;
+        }
+
         usort( $rows, static function ( array $a, array $b ): int {
             $left  = (string) ( $a['sort_at'] ?? $a['created_at'] ?? '' );
             $right = (string) ( $b['sort_at'] ?? $b['created_at'] ?? '' );
@@ -221,6 +227,51 @@ final class EnrolmentDeskReadService {
             }
         }
         return $facts;
+    }
+
+    /**
+     * Current canonical terms, as list rows pointing at the existing enrolment screen.
+     * Read-only, and deliberately canonical only: legacy terms are historical records.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function activeTerms( int $limit ): array {
+        global $wpdb;
+        $p    = $wpdb->prefix . 'dzn_';
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT e.id,e.reference_code,t.id term_id,t.lesson_allocation,
+                    s.display_name learner,
+                    COALESCE(NULLIF(c.name_fa,''),c.name_en) instrument,
+                    COALESCE(NULLIF(tr.display_name,''),NULLIF(tr.english_name,''),tr.persian_name) teacher,
+                    (SELECT COUNT(*) FROM {$p}lessons l
+                      WHERE l.term_id=t.id AND l.lesson_type='standard'
+                        AND COALESCE(l.lifecycle_state,l.status)='completed') completed
+               FROM {$p}enrolments e
+               INNER JOIN {$p}students s ON s.id=e.student_id
+               INNER JOIN {$p}courses c ON c.id=e.course_id
+               INNER JOIN {$p}terms t ON t.enrolment_id=e.id AND t.applicable_slot=1 AND t.archived_at IS NULL AND t.lifecycle_state='current'
+               LEFT JOIN {$p}teachers tr ON tr.id=e.teacher_id
+              WHERE e.archived_at IS NULL AND e.lifecycle_state='current'
+              ORDER BY t.id DESC LIMIT %d",
+            $limit
+        ) );
+        $result = array();
+        foreach ( (array) $rows as $row ) {
+            $allocation = max( 0, (int) $row->lesson_allocation );
+            $completed  = max( 0, (int) $row->completed );
+            $result[] = array(
+                'id'          => 0,
+                'reference'   => (string) $row->reference_code,
+                'learner_name' => (string) $row->learner,
+                'instrument'  => (string) $row->instrument,
+                'desk_status' => 'Active term · ' . $completed . '/' . $allocation . ( (string) ( $row->teacher ?? '' ) !== '' ? ' · ' . (string) $row->teacher : '' ),
+                'desk_next'   => 'Open the enrolment',
+                'desk_tone'   => 'ok',
+                'desk_href'   => admin_url( 'admin.php?page=dzn-enrolment&id=' . (int) $row->id ),
+                'age_label'   => '',
+            );
+        }
+        return $result;
     }
 
     /** @param array<string,mixed> $row */

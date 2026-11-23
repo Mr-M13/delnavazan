@@ -1116,7 +1116,9 @@ final class EnrolmentWorkspaceView {
         ));
         $state = self::introFormState();
         $values = (array) ($state['values'] ?? array());
-        echo '<dialog class="dzn-workspace-dialog" id="dzn-create-intro" aria-labelledby="dzn-intro-title"' . (!empty($state['open']) ? ' data-open-on-load="1"' : '') . '><div class="dzn-dialog-head"><h2 id="dzn-intro-title">Create introductory class</h2><button type="button" class="button" onclick="this.closest(\'dialog\').close()">Close</button></div><p>Choose an existing Student and a Teacher who agreed. The slot and collisions are checked on save.</p><div class="dzn-create-intro__body">';
+        // The Enrolment desk deep-links here to open this one dialog; the command stays here.
+        $openFromUrl = (string) ( $_GET['dzn_open'] ?? '' ) === 'intro';
+        echo '<dialog class="dzn-workspace-dialog" id="dzn-create-intro" aria-labelledby="dzn-intro-title"' . ( ! empty( $state['open'] ) || $openFromUrl ? ' data-open-on-load="1"' : '' ) . '><div class="dzn-dialog-head"><h2 id="dzn-intro-title">Create introductory class</h2><button type="button" class="button" onclick="this.closest(\'dialog\').close()">Close</button></div><p>Choose an existing Student and a Teacher who agreed. The slot and collisions are checked on save.</p><div class="dzn-create-intro__body">';
         if ((string) ($state['message'] ?? '') !== '') {
             echo '<div class="notice notice-error inline dzn-intro-form-error" role="alert"><p><strong>Introductory lesson was not created.</strong> ' . esc_html((string) $state['message']) . '</p></div>';
         }

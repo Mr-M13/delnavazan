@@ -53,6 +53,13 @@ $contains($read('src/Admin/View/EnrolmentWorkspaceView.php'), array(
     'id="dzn-intro-complete"',
     'id="dzn-execute-agreement"',
 ), 'The existing panels must carry the ids the Desk links to');
+$contains($service, array(
+    "'anchor' => '&dzn_open=intro#dzn-create-intro'",
+), 'Step 2 must open the existing Create intro dialog in one click');
+$contains($read('src/Admin/View/EnrolmentWorkspaceView.php'), array(
+    "=== 'intro'",
+    '$openFromUrl',
+), 'The workspace must open the Create intro dialog from a URL parameter');
 $contains($view, array(
     "value=\"send_payment_link\"",
     "value=\"record_offline_payment\"",

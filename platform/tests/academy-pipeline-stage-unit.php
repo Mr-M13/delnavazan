@@ -24,6 +24,7 @@ final class DznStageFakeWpdb {
             'needs_coordination' => 4,
             'needs_identity' => 3,
             'needs_acceptance' => 2,
+            'intro_booked' => 6,
             'needs_enrolment' => 1,
             'needs_assignment' => 5,
             'complete' => 7,
@@ -60,7 +61,7 @@ require_once dirname(__DIR__) . '/src/Core/Application/AcademyJourneyReadService
 $serviceClass = 'Delnavazan\\Platform\\Core\\Application\\AcademyJourneyReadService';
 $expect = static function (bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); };
 
-foreach (array('needs_coordination', 'needs_identity', 'needs_acceptance', 'needs_enrolment', 'needs_assignment', 'complete') as $stage) {
+foreach (array('needs_coordination', 'needs_identity', 'needs_acceptance', 'intro_booked', 'needs_enrolment', 'needs_assignment', 'complete') as $stage) {
     $expect($serviceClass::stageSql($stage) !== '', 'Missing shared pipeline stage SQL: ' . $stage);
 }
 $expect($serviceClass::stageSql('needs_action') === 'ta.id IS NULL', 'Action queue must be the complement of complete');
@@ -69,15 +70,20 @@ $expect(str_contains($serviceClass::stageSql('needs_identity'), 'cc.id IS NOT NU
 $expect(str_contains($serviceClass::stageSql('needs_identity'), 'br.student_id IS NULL'), 'Identity stage must name the unresolved student');
 $expect(str_contains($serviceClass::stageSql('needs_enrolment'), 'asa.id IS NOT NULL') && str_contains($serviceClass::stageSql('needs_enrolment'), 'e.id IS NULL'), 'Enrolment stage must require the accepted arrangement and missing enrolment');
 $expect(str_contains($serviceClass::stageSql('needs_assignment'), 'e.id IS NOT NULL') && str_contains($serviceClass::stageSql('needs_assignment'), 'ta.id IS NULL'), 'Assignment stage must require the enrolment and missing assignment');
-foreach (array('needs_coordination', 'needs_identity', 'needs_acceptance', 'needs_enrolment', 'needs_assignment') as $stage) {
+foreach (array('needs_coordination', 'needs_identity', 'needs_acceptance', 'intro_booked', 'needs_enrolment', 'needs_assignment') as $stage) {
     $expect(str_contains($serviceClass::stageSql($stage), 'ta.id IS NULL'), 'Incomplete stages must not overlap the complete stage: ' . $stage);
 }
 
+$expect(
+    str_contains($serviceClass::stageSql('needs_acceptance'), 'NOT EXISTS')
+    && str_contains($serviceClass::stageSql('intro_booked'), 'confirmed'),
+    'A live confirmation must leave the acceptance stage and count as a booked introduction'
+);
 $service = new $serviceClass();
 $counts = $service->stageCounts();
-$expect($counts === array('needs_coordination' => 4, 'needs_identity' => 3, 'needs_acceptance' => 2, 'needs_enrolment' => 1, 'needs_assignment' => 5, 'complete' => 7), 'stageCounts must return every pipeline stage');
+$expect($counts === array('needs_coordination' => 4, 'needs_identity' => 3, 'needs_acceptance' => 2, 'intro_booked' => 6, 'needs_enrolment' => 1, 'needs_assignment' => 5, 'complete' => 7), 'stageCounts must return every pipeline stage');
 $pipelineSql = implode("\n", $GLOBALS['wpdb']->queries);
-$expect(substr_count($pipelineSql, 'COUNT(DISTINCT CASE WHEN') === 6, 'Pipeline must count distinct bookings for every stage');
+$expect(substr_count($pipelineSql, 'COUNT(DISTINCT CASE WHEN') === 7, 'Pipeline must count distinct bookings for every stage');
 $expect(!str_contains($pipelineSql, 'SUM('), 'Pipeline must not use row-summing aggregates across joins');
 $expect(str_contains($pipelineSql, 'COUNT(DISTINCT CASE WHEN ta.id IS NULL AND cc.id IS NOT NULL AND br.student_id IS NULL THEN br.id END)'), 'Pipeline must use the shared identity predicate');
 $expect(str_contains($pipelineSql, "br.lifecycle_status='submitted' AND br.resolution_state='unresolved'"), 'Pipeline must retain the original submitted intake');

@@ -34,7 +34,7 @@ final class EnrolmentWorkspaceReadService {
 
     /** @return array{rows:array<int,array<string,mixed>>,total:int,page:int,pages:int,per_page:int} */
     public function bookingCases(array $filters, bool $history = false): array {
-        $this->requireAny(array('dzn_view_booking_requests', 'dzn_manage_booking_request_coordination'));
+        $this->requireAny(array('dzn_view_booking_requests', 'dzn_manage_booking_request_coordination', 'dzn_use_enrolment_desk'));
         $rows = $this->bookingBaseRows($history);
         $this->primeOfferSummaries(array_map(static fn(object $row): int => (int) ($row->id ?? 0), $rows));
         $search = trim((string) ($filters['q'] ?? ''));
@@ -66,7 +66,7 @@ final class EnrolmentWorkspaceReadService {
 
     /** @return array<string,mixed>|null */
     public function bookingCase(int $requestId): ?array {
-        $this->requireAny(array('dzn_view_booking_requests', 'dzn_manage_booking_request_coordination'));
+        $this->requireAny(array('dzn_view_booking_requests', 'dzn_manage_booking_request_coordination', 'dzn_use_enrolment_desk'));
         if ($requestId < 1) return null;
         $row = $this->bookingRow($requestId);
         if (!$row) return null;

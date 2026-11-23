@@ -229,6 +229,7 @@ jobs:
           php platform/tests/homepage-instrument-belt-contract.php
           php platform/tests/enrolment-workspace-contract.php
           php platform/tests/enrolment-desk-contract.php
+          php platform/tests/operator-refusal-coverage-contract.php
           php platform/tests/finance-clarity-redesign-contract.php
           php platform/tests/notification-transport-routing-contract.php
           php platform/tests/sms-ir-adapter-unit.php
@@ -425,6 +426,9 @@ jobs:
 
       - name: Run portal nonce-id and text-resize contract
         run: php platform/tests/portal-nonce-id-contract.php
+
+      - name: Check every call site resolves to a declared method
+        run: php docs/audits/tools/method-call-check.php --root=platform/src
 
       - name: Run homepage footer/pricing background contract
         run: php platform/tests/homepage-footer-pricing-background-contract.php

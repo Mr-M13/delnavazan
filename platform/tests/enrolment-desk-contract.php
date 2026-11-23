@@ -38,9 +38,17 @@ $contains($controller, array(
     'current_user_can( self::CAP )',
     'wp_die(',
 ), 'The Desk must be a gated admin screen with its own capability');
-$notContains($controller, array('handlePost', 'admin_post'), 'Slice 1 must not register a command handler');
+$contains($controller, array(
+    "public const ACTION = 'dzn_enrolment_desk';",
+    "add_action( 'admin_post_' . self::ACTION",
+    'check_admin_referer( self::ACTION )',
+), 'The Desk must register exactly one nonce-checked command endpoint');
 $notContains($service, array('$wpdb->insert', '$wpdb->update', '$wpdb->delete', '$wpdb->query'), 'The Desk read model must never write');
-$notContains($view, array('<form', 'method="post"'), 'Slice 1 must not post: every action links to the existing authority');
+$contains($view, array(
+    "value=\"send_payment_link\"",
+    "value=\"record_offline_payment\"",
+    'admin-post.php',
+), 'The Desk must post only its two supported commands');
 
 // 2. Plain-language status, derived, with the payment gate stated.
 $contains($service, array(
@@ -71,7 +79,7 @@ $contains($service, array(
 
 // 4. Exceptions are single cards, not blocker counts.
 $contains($service, array(
-    "'alerts' => \$this->alerts( \$case )",
+    '$this->alerts( $case )',
     'A queued message is not delivery.',
 ), 'Exceptions must be single actionable cards');
 

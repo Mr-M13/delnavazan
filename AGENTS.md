@@ -196,6 +196,14 @@ is optional strict parity. Docker is required only for the runtime suites.
   `php platform/tests/people-directory-status-rules-unit.php`,
   `php platform/tests/people-directory-import-unit.php` and
   `php platform/tests/people-directory-read-service-contract.php`.
+  The operator-surface gate also runs
+  `php platform/tests/operator-refusal-coverage-contract.php`, a ratchet that fails when a new
+  snake_case domain refusal code has no operator sentence (its baseline is
+  `platform/tests/fixtures/operator-refusal-unmapped.txt`; regenerate it only after mapping the new
+  codes, with `DZN_REFUSAL_BASELINE_UPDATE=1`), and
+  `php docs/audits/tools/method-call-check.php --root=platform/src`, which fails when a typed call
+  site names a method its receiver class does not declare (the defect class behind the 2026-11-22
+  `Enrollment`/`Enrolment` fatal).
 - **Runtime suites:** `platform/runtime/bin/run-<suite>-runtime.sh`. These already drive Docker
   with the CI images `mariadb:11.4`, `wordpress:php8.3-apache` and `wordpress:cli-php8.3`.
   The booking slot conflict suite also proves that two valid reschedules send Calendar revisions

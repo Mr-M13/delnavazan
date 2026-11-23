@@ -171,8 +171,8 @@ set and they were checked by hand against `id="…"`: `dzn-record-outcome`,
 ```text
 $ # every snake_case refusal thrown in Core/Application + Integrations,
 $ # then whether the literal appears anywhere in platform/src/Admin
-distinct snake_case refusal codes thrown: 1141
-not present as a quoted string anywhere in platform/src/Admin: 912
+distinct snake_case refusal codes thrown: 1162
+not present as a quoted string anywhere in platform/src/Admin: 926
 ```
 
 The admin layer can therefore only explain 20% of the refusals the domain can produce. The rest fall
@@ -335,7 +335,7 @@ or what to do. `cosmetic` — wrong word, no work lost.
 | OPS-08 | Overview pipeline | "Coordination needed" still counts a booked intro | PROJECTION | confusing, daily | one PR |
 | OPS-09 | Overview / case page | unknown stage silently reads "New request" | PROJECTION | confusing | one PR |
 | OPS-10 | Enrolment → cancel intro | cancelled intro has no next action on the Desk | IRREVERSIBLE | confusing | decision |
-| OPS-11 | All admin commands | 912/1141 refusal codes have no sentence | SILENT | confusing, daily | one PR (systemic) |
+| OPS-11 | All admin commands | 926/1162 refusal codes have no sentence | SILENT | confusing, daily | ratchet + audit |
 | OPS-12 | Class admin → delivery | class that ended early cannot be recorded until its scheduled end | NO-PATH | confusing | decision |
 | OPS-13 | Enrolment → import | imported unpaid Term can never be paid | DEAD-END | blocks money | decision |
 | OPS-14 | Enrolment → reschedule/agreement | 15-minute grid cannot express an accepted minute | UI-NARROWER | confusing | one PR |
@@ -490,13 +490,13 @@ or what to do. `cosmetic` — wrong word, no work lost.
 | Proposed fix | **Decision required** (see §5). Options: (a) on cancel, offer "Create a replacement request for this Student" prefilled from the cancellation evidence; (b) add an audited `reinstate` command using the recorded `previous_*` values, which would need a new authority and a governance note; (c) document "new request is the rebooking path" in the Desk copy (cheapest, keeps the invariant). |
 | Test | A journey matrix asserting no terminal status has an empty action list, or that the empty list carries an explicit sentence. |
 
-### OPS-11 — 912 of 1141 domain refusals have no operator sentence
+### OPS-11 — 926 of 1162 domain refusals have no operator sentence
 
 | Field | Content |
 |---|---|
 | Surface / journey | Every admin command |
 | Symptom | The operator is told "The action could not be completed; no change was saved." (plus an `EWI-` reference) instead of which control refused and why. This is the class behind the incident's opaque `EWI-…`, one level up. |
-| Root cause | `platform/src/Admin/Controller/EnrolmentWorkspaceController.php:837-841`: the `match` has 97 explicit arms, then a regex that passes through sentences beginning with `The/A/An/This/No/Choose/…`, then generic fallbacks. Refusal codes in the domain are machine keys (`occurrence_not_ended`, `commercial_obligation_required`, `schedule_version_conflict`, …); 912 of 1141 never appear as a literal anywhere in `platform/src/Admin`. |
+| Root cause | `platform/src/Admin/Controller/EnrolmentWorkspaceController.php:837-841`: the `match` has 97 explicit arms, then a regex that passes through sentences beginning with `The/A/An/This/No/Choose/…`, then generic fallbacks. Refusal codes in the domain are machine keys (`occurrence_not_ended`, `commercial_obligation_required`, `schedule_version_conflict`, …); 926 of 1162 never appear as a literal anywhere in `platform/src/Admin` (counted by `platform/tests/operator-refusal-coverage-contract.php`, which is now the authority). |
 | Class | SILENT |
 | Severity | confusing, on any unmapped refusal |
 | Evidence | §2.8 command and output. Spot check: `occurrence_not_ended` is thrown at `CanonicalLessonDeliveryService.php:296` and appears nowhere in `platform/src/Admin`. |
@@ -832,3 +832,46 @@ Files added by this audit:
 
 - `docs/audits/2026-11-24-operator-surfaces.md` (this document)
 - `docs/audits/tools/method-call-check.php` (read-only checker, §2.1)
+
+## 9. Status after the first fix batch (2026-11-24)
+
+Merged fixes, one concern per PR:
+
+| Finding | PR | What changed |
+|---|---|---|
+| OPS-06 | #819 | God Mode verifier reads participant mappings from `GodModeRepository` |
+| OPS-07 | #820 | Dead teacher branch removed; exception spelling aligned |
+| OPS-01, OPS-02, OPS-09, OPS-23 | #821 | Desk status derived from the key vocabulary it is given; unknown stage → `needs_review`; contract evaluates every real key |
+| OPS-08 | #822 | One booked-intro exclusion for every negotiation/conversion stage |
+| OPS-26 | #823 | Offline standard payment asks for both authorities, and says so |
+| OPS-03, OPS-29 | #824 | Desk capability accepted by its read path and grantable by a role template |
+| OPS-11 | #825 | Refusal-coverage ratchet (926 of 1162 baselined, no new opaque refusal) |
+
+Still open and unambiguous (one PR each): `OPS-04, OPS-05, OPS-14, OPS-15, OPS-16, OPS-17, OPS-18,
+OPS-19, OPS-20, OPS-21, OPS-22, OPS-24, OPS-25, OPS-27, OPS-28, OPS-30, OPS-31`.
+
+Waiting on an owner decision: `OPS-10, OPS-12, OPS-13, OPS-21, OPS-24, OPS-25, OPS-27`.
+
+### New evidence: a runtime fixture asserts a state the service may not have reached
+
+While merging the batch, `Interim attendance runtime` failed twice and `Post-intro runtime lifecycle`
+once, all with the same fatal, and each passed on re-run. A `main` run failed the same way:
+
+```text
+PHP Fatal error: Uncaught InvalidArgumentException: post_intro_invitation_not_ready
+  in platform/src/Core/Application/PostIntroContinuationService.php:55
+  at platform/tests/post-intro-enrolment-automation-runtime.php:268
+```
+
+This is **not** the clock class. `PostIntroPreparationService::prepare()` sets
+`state='preparing'` and then takes an advisory lock with a **zero-second** timeout
+(`PostIntroPreparationService.php:221`). When the lock is held, it deliberately returns the durable
+state without preparing (`:223-226`). The fixture calls `prepare()` and then `continue()` in the same
+line, so under any concurrent attempt it sees `preparing` and the next call throws
+`post_intro_invitation_not_ready` (`PostIntroContinuationService.php:54-56`).
+
+It is a fixture that asserts an asynchronous post-condition synchronously — the same shape as
+"sent to transport is not delivered": the first step returning is not evidence the second step is
+ready. The test-only fix is to poll for `prepared` with a bounded wait (or to call `prepare()` again
+and assert the retry), which strengthens rather than weakens the assertion. It is left as a decision
+because it touches a required runtime suite.

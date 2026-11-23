@@ -113,6 +113,11 @@ $notContains($controller, array(
 ), 'Identifiers must never come from the request body');
 $notContains($service, array('$wpdb->insert', '$wpdb->update', '$wpdb->delete'), 'The Desk read model must never write');
 $contains($service, array(
+    'function confirmedIntros(',
+    "c.state IN ('confirmed','awaiting_payment')",
+    'new BookingJourneyReadService()',
+), 'The Desk list must include confirmed and awaiting-payment introductions, with the journey status as the authority');
+$contains($service, array(
     'function paymentFacts(',
     'commercial_offer_obligations',
     'commercial_obligation_settlements',

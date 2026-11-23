@@ -90,4 +90,24 @@ $contains($statement, array('public function draft(', 'public function issue(', 
 $staffService = $read('src/Core/Application/StaffAccessService.php');
 $contains($staffService, array('dzn_manage_payment_execution', 'dzn_ingest_commercial_payment_evidence', 'dzn_manage_finance_statements', 'dzn_manage_cash_ledger'), 'Finance execution and evidence ingestion must remain separately grantable narrow capabilities');
 
+// A standard settlement is ingested through CommercialPaymentService, which requires the evidence
+// ingestion authority as well as the execution authority. Both screens must ask that question, or a
+// delegate holding only "Execute payments" is offered a form the service refuses. See OPS-26.
+$contains($manual, array(
+    "INGEST_CAPABILITY = 'dzn_ingest_commercial_payment_evidence'",
+    'public static function canSettleStandard',
+), 'The settlement service must name every authority a standard settlement needs');
+$contains($finance, array(
+    'ManualPaymentSettlementService::canSettleStandard()',
+    'ManualPaymentSettlementService::INGEST_CAPABILITY',
+    'payment-evidence ingestion authorities',
+), 'The finance screen must gate the standard form on both authorities and refuse by name');
+$desk = $read('src/Admin/Controller/EnrolmentDeskController.php');
+$deskView = $read('src/Admin/View/EnrolmentDeskView.php');
+$contains($desk, array(
+    'ManualPaymentSettlementService::canSettleStandard()',
+    'manual_payment_ingest_authority_required',
+), 'The Desk must refuse an offline payment without the ingestion authority, by name');
+$contains($deskView, array('ManualPaymentSettlementService::canSettleStandard()'), 'The Desk must not render the offline-payment form without both authorities');
+
 echo "finance-payment-completion-contract: OK\n";

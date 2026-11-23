@@ -20,6 +20,18 @@ use Delnavazan\Platform\Core\Infrastructure\Repository\{CommercialAuthorityRepos
 final class ManualPaymentSettlementService {
     public const VIEW_CAPABILITY = 'dzn_view_payment_execution_authority';
     public const MANAGE_CAPABILITY = 'dzn_manage_payment_execution';
+
+    /**
+     * A standard settlement is ingested through CommercialPaymentService, which requires the
+     * payment-evidence ingestion authority as well as the execution authority. Screens must ask
+     * this question, not check MANAGE_CAPABILITY alone, or a delegate holding only
+     * "Execute payments" is offered a form that the service will refuse. See OPS-26.
+     */
+    public const INGEST_CAPABILITY = 'dzn_ingest_commercial_payment_evidence';
+
+    public static function canSettleStandard(): bool {
+        return current_user_can( self::MANAGE_CAPABILITY ) && current_user_can( self::INGEST_CAPABILITY );
+    }
     public const PROVIDER_KEY = 'manual';
 
     public function __construct(

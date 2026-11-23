@@ -94,6 +94,9 @@ final class EnrolmentDeskController {
 
             case 'record_offline_payment':
                 self::requireCap( 'dzn_manage_payment_execution' );
+                if ( ! ManualPaymentSettlementService::canSettleStandard() ) {
+                    throw new \RuntimeException( 'manual_payment_ingest_authority_required' );
+                }
                 $receipt = trim( sanitize_text_field( (string) ( $post['evidence_reference'] ?? '' ) ) );
                 if ( $receipt === '' ) {
                     throw new \InvalidArgumentException( 'Record the receipt or verified reference for an offline payment.' );
@@ -141,6 +144,7 @@ final class EnrolmentDeskController {
             'plan_unavailable'                       => 'No full-term plan is available for this person. Check the catalogue and region price.',
             'manual_payment_obligation_required'     => 'There is no unpaid obligation on this offer.',
             'manual_payment_offer_required'          => 'The offer could not be found. Send the payment link first.',
+            'manual_payment_ingest_authority_required' => 'Recording an offline payment needs both the payment-execution and the payment-evidence ingestion authorities.',
             default                                  => ucfirst( str_replace( '_', ' ', $error->getMessage() ) ) . '.',
         };
     }

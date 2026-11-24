@@ -90,7 +90,7 @@ final class EnrolmentDeskController {
                     )
                 );
                 $state = (string) ( $result['state'] ?? 'unknown' );
-                return 'Payment step opened (' . $state . '). The offer is issued and the payment link is queued; no class exists until the payment is verified.';
+                return 'Payment step opened (' . $state . '). The offer is issued and the payment link is queued; no class exists until the payment is verified. The Student chooses full payment or instalments in their account.';
 
             case 'record_offline_payment':
                 self::requireCap( 'dzn_manage_payment_execution' );

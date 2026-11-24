@@ -26,14 +26,14 @@ final class PermissionRegistry {
             )),
             'teachers' => self::module('Teachers', 'Teacher records, onboarding, invitations and availability.', array(
                 'profiles' => self::area('Teacher profiles', 'Teacher record maintenance and identity links.', array(
-                    'view' => self::action('View teachers', 'Read teacher records and profile history.', array('dzn_manage_teachers')),
+                    'view' => self::action('Read and edit teachers', 'Read and edit teacher records and profile history. This grant also includes creating and archiving, because WordPress exposes one capability for all of them.', array('dzn_manage_teachers')),
                     'create' => self::action('Create teachers', 'Create a teacher record through the existing service.', array('dzn_manage_teachers')),
                     'edit' => self::action('Edit teachers', 'Edit teacher profile details.', array('dzn_manage_teachers')),
                     'archive' => self::action('Archive teachers', 'Archive or restore a teacher record.', array('dzn_manage_teachers'), true),
                     'relink_identity' => self::action('Relink portal identity', 'Repair a teacher principal link with evidence.', array('dzn_relink_teacher_principal'), true),
                 )),
                 'onboarding' => self::area('Onboarding & invitations', 'Invitation delivery, onboarding review and eligibility.', array(
-                    'view' => self::action('View onboarding', 'Read onboarding and invitation state.', array('dzn_manage_onboarding')),
+                    'view' => self::action('Read and edit onboarding', 'Read and edit onboarding and invitation state. This grant also includes issuing and revoking invitations.', array('dzn_manage_onboarding')),
                     'invite' => self::action('Issue invitations', 'Issue a new teacher invitation.', array('dzn_issue_teacher_invitations'), true),
                     'revoke' => self::action('Revoke invitations', 'Revoke an outstanding teacher invitation.', array('dzn_revoke_teacher_invitations'), true),
                     'eligibility' => self::action('Manage teaching eligibility', 'Maintain instrument and course eligibility.', array('dzn_manage_teaching_eligibility')),
@@ -42,7 +42,7 @@ final class PermissionRegistry {
             )),
             'students' => self::module('Students', 'Student directory, identity and account authority.', array(
                 'directory' => self::area('Student directory', 'Student records and contact maintenance.', array(
-                    'view' => self::action('View students', 'Read student records and learning history.', array('dzn_manage_students')),
+                    'view' => self::action('Read and edit students', 'Read and edit student records and learning history. This grant also includes creating and archiving.', array('dzn_manage_students')),
                     'edit' => self::action('Edit students', 'Edit permitted student profile fields.', array('dzn_manage_students')),
                     'archive' => self::action('Archive students', 'Archive or restore a student record.', array('dzn_manage_students'), true),
                 )),
@@ -61,7 +61,7 @@ final class PermissionRegistry {
                     'complete' => self::action('Complete introductory classes', 'Record an introductory outcome.', array('dzn_manage_post_intro_automation'), true),
                 )),
                 'regular' => self::area('Regular classes', 'Scheduled classes and delivery evidence.', array(
-                    'view' => self::action('View classes', 'Read class schedules and delivery state.', array('dzn_manage_lessons')),
+                    'view' => self::action('Read and edit classes', 'Read and edit class schedules and delivery state. This grant also includes creating and changing classes.', array('dzn_manage_lessons')),
                     'create' => self::action('Create classes', 'Create a scheduled class through the canonical authority.', array('dzn_manage_canonical_lessons'), true),
                     'edit' => self::action('Edit classes', 'Edit permitted class details.', array('dzn_manage_canonical_lessons')),
                     'cancel' => self::action('Cancel classes', 'Cancel a class through the canonical delivery authority.', array('dzn_manage_canonical_lesson_delivery'), true),
@@ -74,7 +74,7 @@ final class PermissionRegistry {
                     'recurring' => self::action('Manage recurring schedules', 'Read and manage recurring lesson authorities.', array('dzn_view_recurring_authority')),
                 )),
                 'attendance' => self::area('Attendance', 'Attendance evidence, confirmation and review.', array(
-                    'view' => self::action('View attendance', 'Read attendance cases and evidence.', array('dzn_manage_canonical_attendance_review')),
+                    'view' => self::action('Read and decide attendance', 'Read attendance cases and evidence, and adjudicate them. This grant includes the review decision.', array('dzn_manage_canonical_attendance_review')),
                     'confirm' => self::action('Confirm attendance', 'Confirm attendance through the canonical authority.', array('dzn_ingest_canonical_attendance_evidence')),
                     'review' => self::action('Review attendance', 'Adjudicate attendance review cases.', array('dzn_manage_canonical_attendance_review'), true),
                 )),
@@ -115,13 +115,13 @@ final class PermissionRegistry {
                     'convert' => self::action('Convert to enrolment', 'Convert an accepted arrangement through canonical conversion.', array('dzn_convert_service_arrangements_to_enrolments'), true),
                 )),
                 'enrolments' => self::area('Enrolments', 'Enrolment lifecycle and evidence.', array(
-                    'view' => self::action('View enrolments', 'Read enrolments and lifecycle evidence.', array('dzn_manage_enrolments')),
+                    'view' => self::action('Read and edit enrolments', 'Read and edit enrolments and lifecycle evidence. This grant also includes creating and editing enrolments.', array('dzn_manage_enrolments')),
                     'create' => self::action('Create enrolments', 'Create an enrolment through the existing service.', array('dzn_manage_enrolments')),
                     'edit' => self::action('Edit enrolments', 'Edit permitted enrolment details.', array('dzn_manage_enrolments')),
                     'lifecycle' => self::action('Change enrolment lifecycle', 'Activate, pause, resume or close an enrolment.', array('dzn_manage_canonical_enrolment_lifecycle'), true),
                 )),
                 'terms' => self::area('Terms', 'Academic terms and canonical term lifecycle.', array(
-                    'view' => self::action('View terms', 'Read terms and lifecycle history.', array('dzn_manage_terms')),
+                    'view' => self::action('Read and edit terms', 'Read and edit terms and lifecycle history. This grant also includes creating terms.', array('dzn_manage_terms')),
                     'create' => self::action('Create terms', 'Create a term through the canonical authority.', array('dzn_manage_canonical_terms')),
                     'lifecycle' => self::action('Change term lifecycle', 'Activate, close or cancel a canonical term.', array('dzn_manage_canonical_terms'), true),
                 )),
@@ -170,7 +170,7 @@ final class PermissionRegistry {
                     'edit' => self::action('Edit operational policies', 'Record a new versioned policy value.', array('dzn_manage_commercial_policies'), true),
                 )),
                 'legal' => self::area('Legal pages', 'Legal page drafts and publication review.', array(
-                    'view' => self::action('View legal pages', 'Read legal page status and versions.', array('dzn_manage_consent_policies')),
+                    'view' => self::action('Read and edit legal pages', 'Read legal page status and versions. This grant also includes publishing legal page changes.', array('dzn_manage_consent_policies')),
                     'provision' => self::action('Create legal drafts', 'Create or refresh unpublished legal drafts.', array('dzn_manage_consent_policies'), true),
                 )),
                 'consent' => self::area('Consent management', 'Consent evidence, reminders and export.', array(

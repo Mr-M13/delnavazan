@@ -32,6 +32,15 @@ foreach (['classes.regular.view','classes.introductory.create','classes.introduc
 $fail($all['classes.regular.view']['caps'] !== $all['classes.regular.cancel']['caps'], 'View and cancel must not share one coarse capability');
 $fail($all['classes.attendance.confirm']['caps'] !== $all['classes.scheduling.reschedule']['caps'], 'Attendance and reschedule must be independently grantable');
 
+/* A permission labelled "View" must not grant a write capability (OPS-27). Where WordPress exposes
+   one capability for read and write, the label must say "Read and edit". */
+foreach ($all as $key => $action) {
+    if (!str_starts_with((string) $action['label'], 'View ')) continue;
+    foreach ($action['caps'] as $cap) {
+        $fail(!str_starts_with($cap, 'dzn_manage_'), 'Permission "' . $key . '" is labelled "' . $action['label'] . '" but grants the write capability ' . $cap);
+    }
+}
+
 /* Capability projection round-trips for a single-capability permission. */
 $permission = 'diagnostics.health.view';
 $caps = PermissionRegistry::capabilitiesFor([$permission]);

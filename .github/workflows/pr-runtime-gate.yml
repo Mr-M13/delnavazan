@@ -230,6 +230,9 @@ jobs:
           php platform/tests/enrolment-workspace-contract.php
           php platform/tests/enrolment-desk-contract.php
           php platform/tests/operator-refusal-coverage-contract.php
+          php platform/tests/operator-clock-fixture-contract.php
+          php platform/tests/permission-registry-unit.php
+          php platform/tests/delegated-access-unit.php
           php platform/tests/finance-clarity-redesign-contract.php
           php platform/tests/notification-transport-routing-contract.php
           php platform/tests/sms-ir-adapter-unit.php

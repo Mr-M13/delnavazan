@@ -203,7 +203,13 @@ is optional strict parity. Docker is required only for the runtime suites.
   codes, with `DZN_REFUSAL_BASELINE_UPDATE=1`), and
   `php docs/audits/tools/method-call-check.php --root=platform/src`, which fails when a typed call
   site names a method its receiver class does not declare (the defect class behind the 2026-11-22
-  `Enrollment`/`Enrolment` fatal).
+  `Enrollment`/`Enrolment` fatal). The same gate runs
+  `php platform/tests/operator-clock-fixture-contract.php` (a ratchet over wall-clock-derived fixture
+  lines; baseline `platform/tests/fixtures/operator-clock-fixtures.txt`, regenerate with
+  `DZN_CLOCK_BASELINE_UPDATE=1` only after the list genuinely shrinks),
+  `php platform/tests/permission-registry-unit.php` (a "View" permission may not grant a write
+  capability) and `php platform/tests/delegated-access-unit.php` (role templates, least privilege,
+  inheritance and denial overrides).
 - **Runtime suites:** `platform/runtime/bin/run-<suite>-runtime.sh`. These already drive Docker
   with the CI images `mariadb:11.4`, `wordpress:php8.3-apache` and `wordpress:cli-php8.3`.
   The booking slot conflict suite also proves that two valid reschedules send Calendar revisions

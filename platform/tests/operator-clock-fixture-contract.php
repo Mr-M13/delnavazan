@@ -39,16 +39,20 @@ foreach (array('tests', 'runtime') as $area) {
         $path = $file->getPathname();
         if ($path === $self) continue;
         $relative = ltrim(str_replace($root, '', $path), '/');
-        foreach (file($path) ?: array() as $index => $line) {
+        foreach (file($path) ?: array() as $line) {
             foreach ($needles as $needle) {
                 if (str_contains($line, $needle)) {
-                    $entries[] = $relative . ':' . ($index + 1);
+                    // Key by file and the matched line's content, not its number: an unrelated edit
+                    // elsewhere in the file must not churn the baseline. Changing the line itself is
+                    // a new entry, which is exactly the deliberate act this ratchet wants to see.
+                    $entries[] = $relative . ' | ' . trim($line);
                     break;
                 }
             }
         }
     }
 }
+$entries = array_values(array_unique($entries));
 sort($entries);
 if (count($entries) < 50) throw new RuntimeException('The clock-fixture scan found too few lines to be meaningful');
 

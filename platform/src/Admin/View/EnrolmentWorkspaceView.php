@@ -62,7 +62,6 @@ final class EnrolmentWorkspaceView {
         if ($canCreateIntro) self::createIntroPanel($read);
         if ($canCreateStandard) self::createStandardPanel($read);
         if (self::canManageOffer()) self::createInstrumentPanel();
-        if (current_user_can('dzn_manage_enrolments') && current_user_can('dzn_manage_terms') && current_user_can('dzn_manage_lessons')) self::importPanel($read, $query);
 
         echo '<section class="dzn-enrolment__section" aria-labelledby="dzn-classes-title"><div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Needs attention first</p><h2 id="dzn-classes-title">Intro requests and scheduled terms</h2><p>Open a request or class to coordinate its next step. Rows with pending work have a subtle highlight.</p></div><span class="dzn-count-chip">' . esc_html(number_format_i18n((int) $queue['total'])) . ' active</span></div>';
         echo '<div class="dzn-mini-stats dzn-queue-stats"><span><strong>' . esc_html((string) $queue['counts']['attention']) . '</strong> need attention</span><span><strong>' . esc_html((string) $queue['counts']['today']) . '</strong> today</span><span><strong>' . esc_html((string) $queue['counts']['intro']) . '</strong> intros</span><span><strong>' . esc_html((string) $queue['counts']['class']) . '</strong> classes</span>';
@@ -1186,70 +1185,6 @@ final class EnrolmentWorkspaceView {
         echo '</select></label><br><span class="description">The same handful of service areas used by the academy timetable, so the same civil time is never entered against a mismatched IANA timezone.</span></p>';
     }
 
-    private static function importPanel(EnrolmentWorkspaceReadService $read, array $query): void {
-        $students = $read->studentOptions('', 250);
-        $courses = $read->courseOptions('', 300);
-        $teachers = $read->teacherOptions('', 200);
-        $preview = null;
-        if (isset($query['preview_import'])) {
-            try { $preview = (new HistoricalEnrolmentImportService())->preview($query); }
-            catch (\Throwable $exception) { $preview = array('error' => $exception->getMessage()); }
-        }
-        echo '<details class="dzn-import dzn-enrolment__section" id="dzn-import-enrolment"><summary><span><strong>Import existing enrolment</strong><br><small>A course already running in the old system. It is never disguised as a new introductory lesson.</small></span></summary><div class="dzn-import__body">';
-        if (is_array($preview)) self::importPreview($preview);
-        echo '<form method="get" class="dzn-enrolment__filter-form"><input type="hidden" name="page" value="' . esc_attr(EnrolmentWorkspaceController::PAGE) . '"><input type="hidden" name="view" value="enrolled"><input type="hidden" name="preview_import" value="1">';
-        self::importFields($read, $students, $teachers, $courses, $query);
-        echo '<button class="button">Preview Term and future lessons</button></form>';
-        echo '<details class="dzn-action-panel"><summary><strong>Commit after previewing the Term and future classes</strong><br><small>Past attendance and payment are never invented.</small></summary><div class="dzn-action-panel__body">';
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="dzn-import__commit">';
-        wp_nonce_field(EnrolmentWorkspaceController::ACTION);
-        echo '<input type="hidden" name="action" value="' . esc_attr(EnrolmentWorkspaceController::ACTION) . '"><input type="hidden" name="operation" value="import_commit"><input type="hidden" name="idempotency_key" value="' . esc_attr(wp_generate_uuid4()) . '">';
-        self::importFields($read, $students, $teachers, $courses, $query);
-        echo '<button class="button button-primary" onclick="return confirm(\'Commit this historical import? It will create one Enrolment, one Term and the stated future classes. Past attendance and payments are not invented.\')">Commit import</button></form>';
-        echo '<p class="description">Requires evidence or an explicit “historical status unknown” for attendance and payments. Duplicate Student/Course/Teacher Enrolments and real schedule collisions are refused before commit.</p></div></details>';
-        echo '</div></details>';
-    }
-
-    private static function importFields(EnrolmentWorkspaceReadService $read, array $students, array $teachers, array $courses, array $query): void {
-        self::studentSelect('student_id', $students, (int) ($query['student_id'] ?? 0));
-        echo '<p><label>Teacher<select name="teacher_id" required><option value="">Choose Teacher</option>';
-        foreach ($teachers as $teacher) echo '<option value="' . esc_attr((string) $teacher->id) . '"' . selected((int) ($query['teacher_id'] ?? 0), (int) $teacher->id, false) . '>' . esc_html((string) $teacher->display_name . ' · ' . $teacher->email) . '</option>';
-        echo '</select></label></p>';
-        self::courseSelect('course_id', $courses, (int) ($query['course_id'] ?? 0));
-        self::input('original_start_date', 'Original start date', 'date', (string) ($query['original_start_date'] ?? ''));
-        self::input('completed_classes', 'Classes already completed', 'number', (string) ($query['completed_classes'] ?? '0'));
-        self::input('remaining_classes', 'Classes remaining', 'number', (string) ($query['remaining_classes'] ?? ''));
-        echo '<p><label>Weekly class day<select name="weekday">';
-        foreach (array(1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday') as $value => $label) echo '<option value="' . esc_attr((string) $value) . '"' . selected((int) ($query['weekday'] ?? 0), $value, false) . '>' . esc_html($label) . '</option>';
-        echo '</select></label></p>';
-        self::input('next_class_date', 'Next class local date', 'date', (string) ($query['next_class_date'] ?? ''));
-        self::input('local_time', 'Weekly local time', 'text', (string) ($query['local_time'] ?? ''));
-        self::input('timezone', 'Timezone', 'text', (string) ($query['timezone'] ?? ''));
-        self::input('replacement_allowance', 'Replacement allowance', 'number', (string) ($query['replacement_allowance'] ?? '0'));
-        echo '<p><label>Recorded payment status<select name="payment_status">';
-        foreach (array('unknown' => 'Historical status unknown', 'not_required' => 'Not required', 'pending' => 'Pending', 'paid' => 'Paid (evidence required)', 'failed' => 'Failed', 'refunded' => 'Refunded (evidence required)') as $value => $label) echo '<option value="' . esc_attr($value) . '"' . selected((string) ($query['payment_status'] ?? 'unknown'), $value, false) . '>' . esc_html($label) . '</option>';
-        echo '</select></label></p>';
-        self::input('payment_evidence_reference', 'Payment evidence reference', 'text', (string) ($query['payment_evidence_reference'] ?? ''));
-        echo '<p><label>Past attendance evidence<select name="attendance_evidence_state"><option value="historical_status_unknown"' . selected((string) ($query['attendance_evidence_state'] ?? 'historical_status_unknown'), 'historical_status_unknown', false) . '>Historical status unknown</option><option value="evidence_provided"' . selected((string) ($query['attendance_evidence_state'] ?? ''), 'evidence_provided', false) . '>Evidence provided</option></select></label></p>';
-        self::input('attendance_evidence_reference', 'Attendance evidence reference', 'text', (string) ($query['attendance_evidence_reference'] ?? ''));
-    }
-
-    private static function importPreview(array $preview): void {
-        if (isset($preview['error'])) {
-            echo '<div class="notice notice-error inline"><p><strong>Import preview refused.</strong> ' . esc_html(self::importMessage((string) $preview['error'])) . '</p></div>';
-            return;
-        }
-        echo '<div class="dzn-import-preview"><h3>Preview: Term and future lessons</h3><p><strong>Imported Term 1</strong> · ' . esc_html((string) $preview['completed_classes']) . ' already completed · ' . esc_html((string) $preview['remaining_classes']) . ' remaining · ' . esc_html((string) $preview['replacement_allowance']) . ' replacement allowance</p>';
-        if (!empty($preview['warnings'])) {
-            echo '<ul class="dzn-warning-list">';
-            foreach ($preview['warnings'] as $warning) echo '<li>' . esc_html((string) $warning) . '</li>';
-            echo '</ul>';
-        }
-        echo '<table class="widefat striped"><thead><tr><th>Future class</th><th>Local time</th><th>Timezone</th></tr></thead><tbody>';
-        foreach (array_slice((array) $preview['slots'], 0, 20) as $index => $slot) echo '<tr><td>' . esc_html((string) ($index + 1)) . '</td><td>' . esc_html((string) $slot['local_date'] . ' ' . substr((string) $slot['local_time'], 0, 5)) . '</td><td>' . esc_html((string) $slot['timezone']) . '</td></tr>';
-        if (count((array) $preview['slots']) > 20) echo '<tr><td colspan="3">… ' . esc_html((string) (count((array) $preview['slots']) - 20)) . ' more future classes</td></tr>';
-        echo '</tbody></table><p class="description">No past lesson is marked attended and no payment is claimed unless the evidence state above explicitly supports it.</p></div>';
-    }
 
     private static function classFacts(array $class): void {
         echo '<section class="dzn-enrolment__section"><div class="dzn-enrolment__section-head"><div><p class="dzn-eyebrow">Class context</p><h2>Class facts</h2></div></div><dl class="dzn-facts dzn-facts--columns">';

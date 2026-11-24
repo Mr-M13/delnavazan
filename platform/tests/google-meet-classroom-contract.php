@@ -215,4 +215,21 @@ foreach (array('LiveKitClassroomAuthorizer.php','LiveKitLaunchController.php','L
     $check('archived LiveKit source remains: ' . $archived, is_file($root . '/platform/src/Integrations/LiveKit/' . $archived));
 }
 
+// Studio sound / noise cancellation is a per-account, per-device Meet setting. The Meet API v2
+// SpaceConfig has no audio field and the Admin console has no policy, so the classroom page is the
+// only place the participant can act. Keep the pre-join card, in front of the join control.
+$classroom = $read('theme/template-parts/classroom/meet.php');
+$check('the classroom page carries the pre-join sound check', str_contains($classroom, 'dzn-meet-entry__sound-check'));
+$check('the sound check names Studio sound', str_contains($classroom, 'Studio sound'));
+$check('the sound check names noise cancellation', str_contains($classroom, 'Noise cancellation') || str_contains($classroom, 'حذف نویز'));
+$check('the sound check gives the Meet settings path', str_contains($classroom, 'Settings') && str_contains($classroom, 'Audio'));
+$check('the sound check says the academy cannot switch it off remotely', str_contains($classroom, 'نمی‌تواند آن را از راه دور'));
+$check('the sound check says the setting is per account and per device', str_contains($classroom, 'هر حساب و هر دستگاه'));
+$soundAt = strpos($classroom, 'dzn-meet-entry__sound-check');
+$joinAt = strpos($classroom, 'data-dzn-meet-join');
+$check('the sound check appears before the join control', $soundAt !== false && $joinAt !== false && $soundAt < $joinAt);
+$runbook = $read('docs/MEET-RECORDING-RUNBOOK.md');
+$check('the runbook records that the Meet API has no audio field', str_contains($runbook, 'SpaceConfig') && str_contains($runbook, 'no audio, noise-cancellation or Studio sound field'));
+$check('the runbook records the per-device caveat', str_contains($runbook, 'per account *and* per device'));
+
 echo "Google Meet classroom contract passed\n";

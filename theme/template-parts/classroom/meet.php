@@ -182,6 +182,19 @@ $timeline_state = static function ( array $row ) use ( $brief_format ): array {
 		<p class="dzn-meet-entry__badge"><span aria-hidden="true">●</span> کلاس با حساب سازمانی دلنوازان ساخته می‌شود</p>
 	</header>
 
+	<?php if ( $has_details && ! $show_finish ) : ?>
+		<section class="dzn-meet-entry__card dzn-meet-entry__sound-check" aria-labelledby="dzn-meet-sound-title">
+			<h2 id="dzn-meet-sound-title">قبل از ورود: صدای ساز را درست کنید</h2>
+			<p><strong>Studio sound و «حذف نویز» در Google Meet به‌طور پیش‌فرض روشن است و صدای ساز را نازک و قطع‌وصل می‌کند.</strong> دلنوازان نمی‌تواند آن را از راه دور برای شما خاموش کند؛ باید یک‌بار روی حساب و دستگاه خودتان خاموش شود. این تنظیم برای هر حساب و هر دستگاه جداگانه است.</p>
+			<ol>
+				<li>در Google Meet، پیش از ورود یا وسط کلاس: «More options» (سه‌نقطه) ← «Settings» ← «Audio».</li>
+				<li>«Studio sound» یا «Noise cancellation / حذف نویز» را <strong>خاموش</strong> کنید.</li>
+				<li>صدا را دوباره بررسی کنید. اگر دستگاه یا مرورگر را عوض کردید، همین تنظیم دوباره روشن می‌شود و باید تکرار شود.</li>
+			</ol>
+			<p class="dzn-meet-entry__help">اگر بعد از ورود صدای ساز شنیده نشد، کلاس را ادامه ندهید: ابتدا این تنظیم را خاموش کنید؛ اگر مشکل ادامه داشت با پشتیبانی دلنوازان تماس بگیرید.</p>
+		</section>
+	<?php endif; ?>
+
 	<?php if ( ! $has_details ) : ?>
 		<section class="dzn-meet-entry__card">
 			<h2>پیوند کلاس در دسترس نیست</h2>

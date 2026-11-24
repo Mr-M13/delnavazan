@@ -66,6 +66,8 @@ final class IntegrationSettingsService {
             }
             if($provider==='sms')return $v('api_key')!==''&&($v('messaging_profile_id')!==''||$v('sender_id')!=='');
             if($provider==='sms_ir')return $v('api_key')!==''&&$v('sender_id')!=='';
+            // The Meta pixel id is public configuration; enabling the browser pixel is the switch.
+            if($provider==='meta_pixel')return $v('enabled')==='1'&&preg_match('/^[0-9]{5,20}$/D',$v('pixel_id'))===1;
             if($provider==='google'){
                 $client=$v('client_id')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_ID'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_ID'):'');
                 $secret=$v('client_secret')?:((defined('DZN_GOOGLE_OAUTH_CLIENT_SECRET'))?(string)constant('DZN_GOOGLE_OAUTH_CLIENT_SECRET'):'');
@@ -94,6 +96,7 @@ final class IntegrationSettingsService {
         'sms_ir'=>array('endpoint'=>'url','sender_id'=>'text','template_endpoint'=>'url','template_account_referral_id'=>'text','template_intro_booking_id'=>'text','api_key'=>'secret'),
         'google'=>array('client_id'=>'text','client_secret'=>'secret','redirect_uri'=>'url','meet_redirect_uri'=>'url'),
         'chatgpt_ads'=>array('api_key'=>'secret','enabled'=>'text'),
+        'meta_pixel'=>array('pixel_id'=>'text','enabled'=>'text'),
     );}
     private function valueRaw(string $provider,string $field):string{$all=(array)get_option(self::OPTION,array());$row=(array)($all[$provider]??array());return (string)($row[$field]??'');}
     private function seal(string $provider,string $field,string $plain):string{

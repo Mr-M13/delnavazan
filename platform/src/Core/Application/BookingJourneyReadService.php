@@ -156,7 +156,7 @@ final class BookingJourneyReadService {
         if (!empty($facts['erased'])) return $this->make('closed', 'Privacy-erased history.', array('label' => 'View history', 'operation' => 'history'));
         if ($confirmation !== null) {
             $state = (string) $confirmation->state;
-            if ($state === 'cancelled') return $this->make('closed', 'The intro was cancelled.', array('label' => 'View history', 'operation' => 'history'));
+            if ($state === 'cancelled') return $this->make('closed', 'The intro was cancelled. Start a new request when the Student is ready to rebook.', array('label' => 'View history', 'operation' => 'history'));
             if ($state === 'confirmed') {
                 $ended = (string) $confirmation->ends_at_utc < $now;
                 if ($ended && $outcome === null) return $this->make('outcome_due', 'The intro has ended; record what happened.', array('label' => 'Record the outcome', 'operation' => 'record_outcome'), array('Reschedule / cancel', 'Classroom & actions'));

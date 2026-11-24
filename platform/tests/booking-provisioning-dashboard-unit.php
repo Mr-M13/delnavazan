@@ -52,7 +52,7 @@ namespace {
     $assert($paid['key'] === 'intro_payment_pending', 'A paid acceptance must show the payment gate rather than another Teacher request.');
 
     $cancelled = $stage(array('state' => 'cancelled', 'ends_at_utc' => gmdate('Y-m-d H:i:s', time() + 3600)));
-    $assert($cancelled['key'] === 'closed' && $cancelled['next_action'] === 'No further action; retraction and notice are recorded', 'A cancelled confirmation must never be presented as retryable.');
+    $assert($cancelled['key'] === 'closed' && $cancelled['next_action'] === 'Start a new request when the Student is ready to rebook; the cancellation, retraction and notice are recorded', 'A cancelled confirmation must never be presented as retryable.');
 
     $confirmed = $stage(array('state' => 'confirmed', 'ends_at_utc' => gmdate('Y-m-d H:i:s', time() + 3600)));
     $assert($confirmed['key'] === 'intro_scheduled' && $confirmed['label'] === 'Trial scheduled', 'A confirmed classroom must remain the confirmed state.');

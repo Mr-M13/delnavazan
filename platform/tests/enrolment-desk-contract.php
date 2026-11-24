@@ -224,4 +224,17 @@ $contains($service, array(
 ), 'The Desk detail must normalise the stage key through the shared mapping');
 
 
+// Owner decisions: a cancelled intro is not a dead end, and the Desk does not choose the payment
+// plan. See OPS-10 / OPS-21.
+$contains($view, array(
+    "The Student chooses full payment or instalments in their account",
+), 'The Desk must say the Student chooses the plan');
+$contains($journeyRead, array(
+    'Start a new request when the Student is ready to rebook',
+), 'A cancelled introductory request must name the rebooking path');
+$workspaceReadService = $read('src/Core/Application/EnrolmentWorkspaceReadService.php');
+$contains($workspaceReadService, array(
+    "Start a new request when the Student is ready to rebook",
+), 'The Enrolment queue must name the rebooking path for a cancelled intro');
+
 echo "Enrolment desk contract passed\n";

@@ -1139,7 +1139,7 @@ final class EnrolmentWorkspaceReadService {
             return array('key' => 'post_intro', 'label' => 'Preparing continuation', 'next_action' => 'Review the post-intro exception');
         }
         if ($confirmation !== null && (string) ($confirmation['state'] ?? '') === 'cancelled') {
-            return array('key' => 'closed', 'label' => 'Intro cancelled', 'next_action' => 'No further action; retraction and notice are recorded');
+            return array('key' => 'closed', 'label' => 'Intro cancelled', 'next_action' => 'Start a new request when the Student is ready to rebook; the cancellation, retraction and notice are recorded');
         }
         if ($confirmation !== null && (string) ($confirmation['state'] ?? '') === 'confirmed') {
             $ended = (string) ($confirmation['ends_at_utc'] ?? '') < gmdate('Y-m-d H:i:s');

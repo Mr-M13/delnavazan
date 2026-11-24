@@ -115,7 +115,7 @@ final class EnrolmentDeskView {
             echo '<input type="hidden" name="action" value="' . esc_attr( EnrolmentDeskController::ACTION ) . '">';
             echo '<input type="hidden" name="operation" value="send_payment_link"><input type="hidden" name="request_id" value="' . esc_attr( (string) $requestId ) . '">';
             echo '<p><label>What was agreed<textarea name="note" rows="2" maxlength="1000" required placeholder="Who confirmed the term and plan, how, and when"></textarea></label></p>';
-            echo '<p><button class="button button-primary">Send payment link</button> <span class="description">Issues the offer and queues the payment invitation. No class exists until the payment is verified.</span></p>';
+            echo '<p><button class="button button-primary">Send payment link</button> <span class="description">Issues the offer and queues the payment invitation. No class exists until the payment is verified. The Student chooses full payment or instalments in their account; the Desk does not choose the plan.</span></p>';
             echo '</form>';
             return;
         }

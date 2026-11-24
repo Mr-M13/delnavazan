@@ -260,10 +260,39 @@ $booking = function (string $label, int $hoursAgo, string $wallTime, ?string $fu
 $preparations = new PostIntroPreparationService();
 $continuations = new PostIntroContinuationService();
 $repository = new PostIntroRepository();
-$continuePrepared = function (string $uid, int $principal, string $plan = 'full') use ($repository, $continuations): array {
+/**
+ * PostIntroPreparationService::prepare() sets `state='preparing'` and takes an advisory lock with a
+ * zero-second timeout. When another attempt owns the lock it deliberately returns the durable state
+ * without preparing, so a caller that reads the row once can observe `preparing` and then be refused
+ * by continue() with post_intro_invitation_not_ready. That is correct service behaviour and a real
+ * asynchronous post-condition; the fixture must wait for it instead of asserting it synchronously.
+ *
+ * Retry prepare() (which is idempotent) until the preparation leaves `preparing`, bounded so a real
+ * failure still fails the suite.
+ */
+$awaitPreparation = function (callable $lookup) use ($preparations): object {
+    $deadline = microtime(true) + 15.0;
+    $last = null;
+    do {
+        $preparation = $lookup();
+        if (!$preparation) throw new RuntimeException('preparation required');
+        if ((string) $preparation->state !== 'preparing') return $preparation;
+        try {
+            $preparations->prepare((int) $preparation->outcome_id);
+        } catch (Throwable $error) {
+            $last = $error;   // lock unavailable or a transient write failure; retry within the bound
+        }
+        usleep(250000);
+    } while (microtime(true) < $deadline);
+    $preparation = $lookup();
+    if (!$preparation || (string) $preparation->state === 'preparing') {
+        throw new RuntimeException('preparation did not leave preparing within the bounded wait' . ($last !== null ? ': ' . $last->getMessage() : ''));
+    }
+    return $preparation;
+};
+$continuePrepared = function (string $uid, int $principal, string $plan = 'full') use ($repository, $continuations, $awaitPreparation): array {
     wp_set_current_user($principal);
-    $preparation = $repository->preparationByUid($uid);
-    if (!$preparation) throw new RuntimeException('preparation required');
+    $preparation = $awaitPreparation(static fn() => $repository->preparationByUid($uid));
     $quote = (new \Delnavazan\Platform\Core\Application\PostIntroPlanQuoteService())->forPreparation($preparation, (int) $preparation->student_id);
     return $continuations->continue($uid, true, $plan, (string) $quote['quote_token'], $plan === 'two_instalments');
 };
@@ -274,7 +303,7 @@ $main = $booking('main', 2, $mainWall);
 wp_set_current_user($teacherUser);
 $outcome = $preparations->recordTeacherOutcome($main['confirmation'], $teacherId, 'delivered', 'Synthetic delivered intro');
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT recorded_by FROM {$p}booking_request_intro_outcomes WHERE booking_request_id=%d", (int) $main['request'])) === $teacherUser, 'teacher outcome must record the authenticated WordPress actor');
-$prep = $repository->preparationByBooking($main['request']);
+$prep = $awaitPreparation(static fn() => $repository->preparationByBooking($main['request']));
 dzn_pia_assert($prep !== null, 'preparation row');
 dzn_pia_assert((string) $prep->state === 'prepared', 'delivered intro must prepare the continuation, got ' . (string) ($prep->state ?? 'missing'));
 $prepUid = (string) $prep->uid;

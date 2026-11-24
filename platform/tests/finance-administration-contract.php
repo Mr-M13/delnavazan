@@ -144,4 +144,17 @@ $readOnly = substr($financeRead, strpos($financeRead, 'public function instalmen
 $assert(preg_match('/\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i', $readOnly) !== 1, 'Instalment visibility must never write financial state');
 $assert(strpos($readOnly, 'FinanceSupport::requireCapability') !== false, 'Instalment visibility must retain the payment view capability');
 
+// An open Finance exception must be resolvable from the admin, through the audited service, and a
+// run must still repair nothing. See OPS-24.
+$reconciliation = $read('src/Admin/Controller/FinanceReconciliationController.php');
+$contains($reconciliation, array(
+    "add_action('admin_post_'.self::RESOLVE_ACTION",
+    'FinanceReconciliationService',
+    'resolveException',
+    "check_admin_referer(self::RESOLVE_ACTION)",
+    "current_user_can('dzn_manage_finance_statements')",
+    'resolution_note',
+), 'An open Finance exception must be resolvable through the audited reconciliation authority');
+$assert(!str_contains($reconciliation, '$wpdb->update') && !str_contains($reconciliation, '$wpdb->insert'), 'The reconciliation surface must not write exception rows directly');
+
 echo "finance-administration-contract: OK\n";

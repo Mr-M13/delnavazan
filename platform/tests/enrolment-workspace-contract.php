@@ -83,7 +83,6 @@ $contains($view, array(
     'Sent to transport',
     'Delivered',
     'click status unavailable',
-    'Import existing enrolment',
     'Manual Teacher match',
     'Shared class action component',
     'Open administrator classroom',
@@ -189,6 +188,19 @@ $contains($controller, array(
     'send_reminder',
     'import_commit',
 ), 'The contextual controller must implement the requested class, attendance and post-intro actions.');
+// The historical-import UI is retired: legacy students are resolved and an imported unpaid Term
+// could never be settled (OPS-13). The controller handler and the service stay in place as dormant
+// infrastructure, so a future reactivation does not need a rewrite; only the operator surface is gone.
+if (str_contains($view, 'Import existing enrolment')) throw new RuntimeException('The retired historical-import panel must not return to the operator surface');
+if (str_contains($view, 'dzn-import-enrolment')) throw new RuntimeException('The retired historical-import anchor must not return to the operator surface');
+if (!is_file($root . '/src/Core/Application/HistoricalEnrolmentImportService.php')) throw new RuntimeException('The historical import service must remain available as dormant infrastructure');
+if (!str_contains($controller, "case 'import_commit':")) throw new RuntimeException('The historical import handler must remain available for a future reactivation');
+// A legacy Term's payment_state is an operator-recorded claim, not verified money (OPS-25). It is
+// never summed by finance; the label must say so, and canonical Terms stay not_applicable.
+$screen = $read('src/Admin/Controller/ScreenController.php');
+if (!str_contains($screen, 'Claimed payment state (recorded claim, not verified by finance)')) throw new RuntimeException('The legacy payment state must be labelled as a claim, not verified money');
+$canonicalTerm = $read('src/Core/Application/CanonicalTermAuthorityService.php');
+if (!str_contains($canonicalTerm, "'payment_state'=>'not_applicable'")) throw new RuntimeException('Canonical Terms must never carry an operator payment state');
 $contains($readService, array(
     'public function enrolmentQueue(',
     'public function enrolmentSnapshot(',

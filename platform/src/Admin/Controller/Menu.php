@@ -210,6 +210,7 @@ final class Menu {
             ['SMS', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-sms', [IntegrationControlPlaneController::class, 'smsSettings'], null],
             ['Google Workspace & Meet', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-google', [IntegrationControlPlaneController::class, 'googleSettings'], null],
             ['ChatGPT Ads', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-chatgpt-ads', [IntegrationControlPlaneController::class, 'chatGptAdsSettings'], null],
+            ['Meta Pixel', self::INTEGRATION_SETTINGS_CAP, 'dzn-integration-meta-pixel', [IntegrationControlPlaneController::class, 'metaPixelSettings'], null],
             ['Diagnostics', self::SYSTEM_HEALTH_CAP, 'dzn-system-health', [DiagnosticsController::class, 'screen'], null],
             ['Exceptions', 'dzn_manage_exceptions', 'dzn-exception', static fn() => ScreenController::screen('exception'), static fn() => ScreenController::handlePost('exception')],
         ];

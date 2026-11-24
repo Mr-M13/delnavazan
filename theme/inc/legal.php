@@ -57,7 +57,7 @@ function dzn_theme_legal_pages() {
 			'legacy'         => array(),
 			'label'          => __( 'سیاست کوکی‌ها', 'delnavazan-theme' ),
 			'title'          => __( 'سیاست کوکی‌ها', 'delnavazan-theme' ),
-			'document_version' => '1.0-draft-2026-10-31',
+			'document_version' => '1.1-draft-2026-11-25',
 		),
 	);
 }

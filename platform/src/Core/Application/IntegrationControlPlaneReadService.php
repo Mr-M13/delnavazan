@@ -133,6 +133,7 @@ final class IntegrationControlPlaneReadService {
                     'sms_enabled_events'=>$enabledEvents('sms'),
                 ),
             ),
+            'meta_pixel'=>\Delnavazan\Platform\Integrations\MetaPixel::status(),
             'generated_at'=>current_time('mysql',true),
         );
     }

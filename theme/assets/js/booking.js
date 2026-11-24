@@ -827,6 +827,11 @@
             ? 'درخواست شما ثبت شد. رضایت اختیاری ضبط و پژوهش ثبت نشده است.'
             : 'درخواست شما ثبت شد، اما ذخیرهٔ کامل رضایت تأیید نشد. برای بررسی و ثبت دوبارهٔ رضایت به پرتال هنرجو بروید.';
       }
+      // Meta Pixel conversion only when the operator enabled it on the public site. The booking
+      // reference is the deduplication id; no name, email, phone or time is transmitted.
+      if (window.dznMetaPixel && typeof window.dznMetaPixel.track === 'function') {
+        window.dznMetaPixel.track('Lead', { content_name: 'intro_booking_request' }, result.request_reference);
+      }
       goTo('success');
       // Do not redirect automatically: the independent consent outcome must be visible.
 

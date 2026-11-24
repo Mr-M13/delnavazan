@@ -55,7 +55,8 @@ final class AdminShellController {
         // Notifications is a primary workspace. These routes remain protected aliases.
         'integrations' => ['Integrations', [
             'dzn-integrations', 'dzn-integration-email', 'dzn-integration-whatsapp',
-            'dzn-integration-sms', 'dzn-integration-google', 'dzn-integration-chatgpt-ads', 'dzn-stripe-settings',
+            'dzn-integration-sms', 'dzn-integration-google', 'dzn-integration-chatgpt-ads', 'dzn-integration-meta-pixel',
+            'dzn-stripe-settings',
         ]],
         'access' => ['Roles', ['dzn-delegated-access', 'dzn-staff-access']],
         'diagnostics' => ['Diagnostics', ['dzn-system-health', 'dzn-portal-capabilities', 'dzn-core-dataset-readiness']],
@@ -80,6 +81,7 @@ final class AdminShellController {
         'dzn-integration-sms' => 'dzn_access_provider_integration_settings',
         'dzn-integration-google' => 'dzn_access_provider_integration_settings',
         'dzn-integration-chatgpt-ads' => 'dzn_access_provider_integration_settings',
+        'dzn-integration-meta-pixel' => 'dzn_access_provider_integration_settings',
         'dzn-stripe-settings' => 'dzn_view_payment_execution_authority',
         'dzn-system-health' => 'dzn_access_system_health',
         'dzn-portal-capabilities' => 'dzn_view_portal_capabilities',
@@ -105,7 +107,8 @@ final class AdminShellController {
         'dzn-general' => 'settings', 'dzn-integration-email' => 'settings', 'dzn-integration-whatsapp' => 'settings',
         'dzn-policies' => 'settings', 'dzn-delegated-access' => 'settings',
         'dzn-integration-sms' => 'settings', 'dzn-notifications' => 'notifications', 'dzn-communications' => 'notifications', 'dzn-communications-templates' => 'notifications',
-        'dzn-integrations' => 'settings', 'dzn-integration-google' => 'settings', 'dzn-stripe-settings' => 'settings', 'dzn-staff-access' => 'settings',
+        'dzn-integrations' => 'settings', 'dzn-integration-google' => 'settings', 'dzn-integration-meta-pixel' => 'settings',
+        'dzn-stripe-settings' => 'settings', 'dzn-staff-access' => 'settings',
         'dzn-system-health' => 'settings', 'dzn-portal-capabilities' => 'settings', 'dzn-core-dataset-readiness' => 'settings',
         'dzn-recording-notices' => 'settings',
     ];

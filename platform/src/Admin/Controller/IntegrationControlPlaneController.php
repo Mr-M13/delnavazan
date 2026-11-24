@@ -16,7 +16,7 @@ use Delnavazan\Platform\Integrations\Notifications\TelnyxWebhookController;
 
 /** Workflow-first integration settings. Secret inputs are write-only and safe checks make no provider calls. */
 final class IntegrationControlPlaneController {
-    public static function register():void{add_action('admin_post_dzn_integration_settings_save',array(__CLASS__,'save'));add_action('admin_post_dzn_chatgpt_ads_save',array(__CLASS__,'saveChatGptAds'));add_action('admin_post_dzn_chatgpt_ads_test',array(__CLASS__,'testChatGptAds'));add_action('admin_post_dzn_integration_settings_test',array(__CLASS__,'test'));add_action('admin_post_dzn_telnyx_template_sync',array(__CLASS__,'syncTelnyxTemplates'));add_action('admin_post_dzn_telnyx_public_key_sync',array(__CLASS__,'syncTelnyxPublicKey'));add_action('admin_post_dzn_telnyx_webhook_sync',array(__CLASS__,'syncTelnyxWebhook'));add_action('admin_post_dzn_stripe_test_settings_save',array(__CLASS__,'saveStripeTestSettings'));add_action('admin_post_dzn_stripe_test_connection',array(__CLASS__,'testStripeConnection'));add_action('admin_post_dzn_stripe_test_activation',array(__CLASS__,'setStripeTestActivation'));add_action('admin_post_dzn_stripe_live_settings_save',array(__CLASS__,'saveStripeLiveSettings'));add_action('admin_post_dzn_stripe_live_connection',array(__CLASS__,'testStripeLiveConnection'));add_action('admin_post_dzn_stripe_live_webhook_verify',array(__CLASS__,'verifyStripeLiveWebhook'));add_action('admin_post_dzn_stripe_live_activation',array(__CLASS__,'setStripeLiveActivation'));}
+    public static function register():void{add_action('admin_post_dzn_integration_settings_save',array(__CLASS__,'save'));add_action('admin_post_dzn_chatgpt_ads_save',array(__CLASS__,'saveChatGptAds'));add_action('admin_post_dzn_chatgpt_ads_test',array(__CLASS__,'testChatGptAds'));add_action('admin_post_dzn_integration_settings_test',array(__CLASS__,'test'));add_action('admin_post_dzn_telnyx_template_sync',array(__CLASS__,'syncTelnyxTemplates'));add_action('admin_post_dzn_telnyx_public_key_sync',array(__CLASS__,'syncTelnyxPublicKey'));add_action('admin_post_dzn_telnyx_webhook_sync',array(__CLASS__,'syncTelnyxWebhook'));add_action('admin_post_dzn_stripe_test_settings_save',array(__CLASS__,'saveStripeTestSettings'));add_action('admin_post_dzn_stripe_test_connection',array(__CLASS__,'testStripeConnection'));add_action('admin_post_dzn_stripe_test_activation',array(__CLASS__,'setStripeTestActivation'));add_action('admin_post_dzn_stripe_live_settings_save',array(__CLASS__,'saveStripeLiveSettings'));add_action('admin_post_dzn_stripe_live_connection',array(__CLASS__,'testStripeLiveConnection'));add_action('admin_post_dzn_stripe_live_webhook_verify',array(__CLASS__,'verifyStripeLiveWebhook'));add_action('admin_post_dzn_stripe_live_activation',array(__CLASS__,'setStripeLiveActivation'));add_action('admin_post_dzn_meta_pixel_save',array(__CLASS__,'saveMetaPixel'));add_action('admin_post_dzn_meta_pixel_test',array(__CLASS__,'testMetaPixel'));}
     /** Explicit provider-template discovery. It reads templates and writes local mappings; it never sends. */
     public static function syncTelnyxTemplates():void{
         self::authorizeSettings();check_admin_referer('dzn_telnyx_template_sync');
@@ -113,6 +113,57 @@ final class IntegrationControlPlaneController {
         echo '<h2>Delivery diagnostics</h2><p>Accepted: '.(int)$summary['delivered'].' · Pending retry: '.(int)$summary['retry'].' · Other: '.(int)$summary['other'].'</p>';
         echo '<p>Counts are limited to the first 1,000 local delivery records and do not expose booking identities. A successful API response indicates acceptance, not attribution.</p>';
         echo '<p>Delivery and retry evidence is stored per confirmed booking in non-autoloaded options. See the integration runbook for reconciliation and retry procedures.</p>';
+        echo '<p><a href="'.esc_url(admin_url('admin.php?page=dzn-integrations')).'">Back to Integrations</a></p></div>';
+    }
+    public static function saveMetaPixel():void {
+        self::authorizeSettings();check_admin_referer('dzn_meta_pixel_save');
+        $enabled=isset($_POST['enabled'])&&$_POST['enabled']==='1'?'1':'0';
+        $pixel=isset($_POST['pixel_id'])&&is_string($_POST['pixel_id'])?trim(wp_unslash($_POST['pixel_id'])):'';
+        try {
+            if($pixel!==''&&preg_match('/^[0-9]{5,20}$/D',$pixel)!==1)throw new \InvalidArgumentException('meta_pixel_id_invalid');
+            if($enabled==='1'&&$pixel==='')throw new \InvalidArgumentException('meta_pixel_id_required');
+            (new IntegrationSettingsService())->save('meta_pixel',array('enabled'=>$enabled,'pixel_id'=>$pixel));
+            delete_option(\Delnavazan\Platform\Integrations\MetaPixel::RESULT_OPTION);$result='saved';
+        } catch (\Throwable $error) {
+            $result=in_array($error->getMessage(),array('meta_pixel_id_invalid','meta_pixel_id_required'),true)?$error->getMessage():'failed';
+        }
+        wp_safe_redirect(add_query_arg(array('page'=>'dzn-integration-meta-pixel','result'=>$result),admin_url('admin.php')));exit;
+    }
+    public static function testMetaPixel():void {
+        self::authorizeSettings();check_admin_referer('dzn_meta_pixel_test');
+        if(!isset($_POST['run_test']))wp_die('Explicit test action required',400);
+        try{$result=\Delnavazan\Platform\Integrations\MetaPixel::validateConfiguration();}
+        catch(\Throwable){$result=array('state'=>'failed','code'=>'local_error');}
+        update_option(\Delnavazan\Platform\Integrations\MetaPixel::RESULT_OPTION,array('state'=>$result['state'],'code'=>$result['code'],'at'=>current_time('mysql',true)),false);
+        wp_safe_redirect(add_query_arg(array('page'=>'dzn-integration-meta-pixel','result'=>'tested'),admin_url('admin.php')));exit;
+    }
+    /** Browser-side Meta Pixel. No access token, no customer data and no server-side delivery. */
+    public static function metaPixelSettings():void {
+        if(!current_user_can('manage_options')&&!current_user_can('dzn_manage_provider_integrations'))wp_die('Forbidden',403);
+        $pixel=\Delnavazan\Platform\Integrations\MetaPixel::class;
+        $settings=new IntegrationSettingsService();$enabled=$settings->value('meta_pixel','enabled')==='1';
+        $pixelId=$pixel::pixelId();$last=(array)get_option($pixel::RESULT_OPTION,array());
+        echo '<div class="wrap dzn-settings-page"><h1>Meta Pixel (Facebook &amp; Instagram ads)</h1>';
+        echo '<p>Browser-side measurement for the public marketing site. The pixel loads only when enabled here, only on the public host, and never for signed-in portal users. It sends PageView and explicit conversion events; it never performs advanced matching or sends a name, email, phone number or other personal data.</p>';
+        if(isset($_GET['result'])){$result=sanitize_key((string)$_GET['result']);$messages=array(
+            'saved'=>'Meta Pixel configuration saved.','tested'=>'Local configuration check completed.',
+            'meta_pixel_id_invalid'=>'The pixel id must be 5–20 digits. Nothing was saved.',
+            'meta_pixel_id_required'=>'A pixel id is required before the pixel can be enabled. Nothing was saved.',
+            'failed'=>'Meta Pixel configuration could not be saved. Check the storage settings and try again.',
+        );$noticeClass=in_array($result,array('meta_pixel_id_invalid','meta_pixel_id_required','failed'),true)?'notice-error':'notice-info';echo '<div class="notice '.$noticeClass.'"><p>'.esc_html($messages[$result]??'Operation completed.').'</p></div>';}
+        echo '<p><strong>Status:</strong> <span class="dzn-status-badge '.($pixel::configured()?'is-ok':'is-warn').'">'.esc_html($pixel::configured()?'Enabled and configured':($enabled?'Enabled but the pixel id is missing or invalid':'Disabled')).'</span></p>';
+        echo '<p><strong>Pixel id:</strong> '.($pixelId!==''?'<code dir="ltr">'.esc_html($pixelId).'</code>':'Not configured').'</p>';
+        echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_meta_pixel_save">';wp_nonce_field('dzn_meta_pixel_save');
+        echo '<table class="form-table"><tbody><tr><th><label for="meta-pixel-id">Pixel id</label></th><td><input class="regular-text" id="meta-pixel-id" name="pixel_id" value="'.esc_attr($pixelId).'" inputmode="numeric" autocomplete="off" placeholder="e.g. 123456789012345"><p class="description">The numeric Meta Pixel / dataset id. It is public configuration and appears in the page source.</p></td></tr>';
+        echo '<tr><th>Public pages</th><td><label><input type="checkbox" name="enabled" value="1" '.checked($enabled,true,false).'> Load the Meta Pixel on the public marketing site</label><p class="description">Off by default. Signed-in users, admin screens, previews, feeds and non-public hosts never receive the pixel.</p></td></tr></tbody></table>';
+        echo '<p><button class="button button-primary">Save configuration</button></p></form>';
+        echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_meta_pixel_test">';wp_nonce_field('dzn_meta_pixel_test');
+        echo '<p><button class="button" name="run_test" value="1">Validate configuration (local only)</button> <span class="description">Checks the id format and the enable switch. It never contacts Meta and cannot confirm delivery or attribution.</span></p></form>';
+        echo '<p><strong>Last validation:</strong> '.esc_html(($last['state']??'not run').' · '.($last['code']??'').' · '.($last['at']??'')).'</p>';
+        echo '<h2>Tracked events</h2><ul><li><code>PageView</code> — printed by the base snippet on every eligible page.</li><li><code>Lead</code> — sent with a stable event id after a successful public introductory booking request. The booking reference, not a person, is the id.</li></ul>';
+        echo '<p>No advanced matching, no customer information parameters and no server-side Conversions API delivery are implemented. Page source and Meta Events Manager Test Events are the verification surface.</p>';
+        echo '<h2>Before enabling</h2><div class="notice notice-warning inline"><p>Enabling this integration makes the site load Meta’s advertising pixel, which may set marketing cookies such as <code>_fbp</code>. An operator must confirm the published cookie and privacy notices describe that use and provide the opt-out the applicable law requires. A consent manager can deny marketing cookies by setting <code>dzn_marketing_consent=denied</code>.</p></div>';
+        echo '<p><a href="'.esc_url(home_url('/cookie-policy/')).'" target="_blank" rel="noopener">Cookie policy</a> · <a href="'.esc_url(home_url('/privacy-policy/')).'" target="_blank" rel="noopener">Privacy policy</a></p>';
         echo '<p><a href="'.esc_url(admin_url('admin.php?page=dzn-integrations')).'">Back to Integrations</a></p></div>';
     }
     public static function googleSettings():void{self::settingsForm('google');}
@@ -639,6 +690,11 @@ final class IntegrationControlPlaneController {
         self::renderStripeCard();
         $ads=\Delnavazan\Platform\Integrations\ChatGptAdsConversionWorker::class;
         echo '<section class="dzn-settings-card dzn-integration-card"><h2>ChatGPT Ads</h2><p>Server-side introductory booking conversion tracking.</p><p><strong>Status:</strong> '.esc_html($ads::configured()?'Enabled and configured':'Disabled or missing configuration').'</p><p><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page=dzn-integration-chatgpt-ads')).'">Configure</a></p></section>';
+        $meta=\Delnavazan\Platform\Integrations\MetaPixel::class;
+        $metaLast=(array)get_option($meta::RESULT_OPTION,array());
+        echo '<section class="dzn-settings-card dzn-integration-card"><h2>Meta Pixel</h2><p>Browser-side PageView and introductory booking-request conversions for Facebook and Instagram ads.</p><p><strong>Status:</strong> '.esc_html($meta::configured()?'Enabled on the public site':($meta::enabled()?'Enabled, pixel id missing or invalid':'Disabled')).'</p>';
+        if($metaLast!==array())echo '<p class="dzn-settings-meta">Last local validation: '.esc_html((string)($metaLast['state']??'unknown')).' · <code dir="ltr">'.esc_html((string)($metaLast['code']??'')).'</code> · '.esc_html((string)($metaLast['at']??'')).'</p>';
+        echo '<p><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page=dzn-integration-meta-pixel')).'">Configure</a></p></section>';
         echo '</div>';
         echo '</div>';
     }

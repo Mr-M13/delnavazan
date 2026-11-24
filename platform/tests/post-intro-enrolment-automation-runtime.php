@@ -292,9 +292,22 @@ $awaitPreparation = function (callable $lookup) use ($preparations): object {
 };
 $continuePrepared = function (string $uid, int $principal, string $plan = 'full') use ($repository, $continuations, $awaitPreparation): array {
     wp_set_current_user($principal);
-    $preparation = $awaitPreparation(static fn() => $repository->preparationByUid($uid));
-    $quote = (new \Delnavazan\Platform\Core\Application\PostIntroPlanQuoteService())->forPreparation($preparation, (int) $preparation->student_id);
-    return $continuations->continue($uid, true, $plan, (string) $quote['quote_token'], $plan === 'two_instalments');
+    // continue() reads the row again, so a concurrent prepare() attempt can move it back to
+    // `preparing` between our wait and the call. Retry the documented refusal for the same bounded
+    // window instead of failing on the race; any other refusal is rethrown unchanged.
+    $deadline = microtime(true) + 15.0;
+    do {
+        $preparation = $awaitPreparation(static fn() => $repository->preparationByUid($uid));
+        $quote = (new \Delnavazan\Platform\Core\Application\PostIntroPlanQuoteService())->forPreparation($preparation, (int) $preparation->student_id);
+        try {
+            return $continuations->continue($uid, true, $plan, (string) $quote['quote_token'], $plan === 'two_instalments');
+        } catch (\InvalidArgumentException $error) {
+            if ($error->getMessage() !== 'post_intro_invitation_not_ready') throw $error;
+            usleep(250000);
+        }
+    } while (microtime(true) < $deadline);
+    $final = $repository->preparationByUid($uid);
+    throw new RuntimeException('continue() kept refusing post_intro_invitation_not_ready; preparation state=' . (string) ($final->state ?? 'missing') . ' exception=' . (string) ($final->exception_code ?? ''));
 };
 
 // A. Delivered intro -> preparation, student payment action, verified settlement, activation.

@@ -489,14 +489,14 @@ final class NotificationCatalogue {
         ));
         $out[]=self::event('lesson.reminder.student','Class Reminder','lesson','student','LessonLifecycleNotificationService','queue',array('email','website','whatsapp','sms'),'operational',true,array('name','course','teacher','when','portal_url'),'lesson.reminder',array(
             self::PRIMARY_LOCALE=>array(
-                'email'=>array('subject'=>'دلنوازان · یادآوری کلاس','body'=>"درود {{name}}،\n\nیادآوری می‌کنیم که کلاس «{{course}}» شما با {{teacher}} در {{when}} برگزار می‌شود.\n\nبرای مشاهدهٔ جزئیات و ورود به کلاس به حساب کاربری بروید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
-                'website'=>array('subject'=>'یادآوری کلاس','body'=>'کلاس «{{course}}» شما با {{teacher}} در {{when}} برگزار می‌شود.'),
+                'email'=>array('subject'=>'دلنوازان · یادآوری کلاس','body'=>"درود {{name}}،\n\nیادآوری می‌کنیم که کلاس «{{course}}» شما با {{teacher}} در {{when}} برگزار می‌شود.\n\nپیش از ورود، در Google Meet ← Settings ← Audio گزینهٔ «Studio sound» یا «حذف نویز» را خاموش کنید تا صدای ساز درست شنیده شود. این تنظیم برای هر حساب و هر دستگاه جداگانه است.\n\nبرای مشاهدهٔ جزئیات و ورود به کلاس به حساب کاربری بروید:\n{{portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'یادآوری کلاس','body'=>'کلاس «{{course}}» شما با {{teacher}} در {{when}} برگزار می‌شود. پیش از ورود، «Studio sound» یا حذف نویز را در Google Meet ← Settings ← Audio خاموش کنید.'),
                 'whatsapp'=>array('body'=>'درود {{name}} عزیز، کلاس {{course}} شما با {{teacher}} در {{when}} برگزار می‌شود. برای ورود به کلاس به حساب کاربری بروید: {{portal_url}} — دلنوازان'),
                 'sms'=>array('body'=>'دلنوازان: یادآوری کلاس {{course}} با {{teacher}} در {{when}}. حساب: {{portal_url}}'),
             ),
             'en'=>array(
-                'email'=>array('subject'=>'Delnavazan · class reminder','body'=>"Hello {{name}},\n\nThis is a reminder that your {{course}} class with {{teacher}} takes place on {{when}}.\n\nOpen your account for the details and to join the class:\n{{portal_url}}\n\nDelnavazan"),
-                'website'=>array('subject'=>'Class reminder','body'=>'Your {{course}} class with {{teacher}} takes place on {{when}}.'),
+                'email'=>array('subject'=>'Delnavazan · class reminder','body'=>"Hello {{name}},\n\nThis is a reminder that your {{course}} class with {{teacher}} takes place on {{when}}.\n\nBefore you join, turn off Studio sound or noise cancellation in Google Meet → Settings → Audio so the instrument is heard correctly. The setting is per Google account and per device.\n\nOpen your account for the details and to join the class:\n{{portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Class reminder','body'=>'Your {{course}} class with {{teacher}} takes place on {{when}}. Before you join, turn off Studio sound or noise cancellation in Meet > Settings > Audio.'),
                 'whatsapp'=>array('body'=>'Hello {{name}}, your {{course}} class with {{teacher}} takes place on {{when}}. Join the class from your account: {{portal_url}} — Delnavazan'),
                 'sms'=>array('body'=>'Delnavazan: class reminder {{course}} with {{teacher}} on {{when}}. Account: {{portal_url}}'),
             ),
@@ -675,13 +675,13 @@ final class NotificationCatalogue {
         ),array('dedicated_authority'));
         $out[]=self::event('lesson.reminder.teacher','Class Reminder','lesson','teacher','LessonLifecycleNotificationService','dedicated',array('email','website','sms'),'operational',true,array('teacher','course','student','when','teacher_portal_url'),'lesson.reminder.teacher',array(
             self::PRIMARY_LOCALE=>array(
-                'email'=>array('subject'=>'دلنوازان · یادآوری کلاس','body'=>"درود {{teacher}}،\n\nیادآوری می‌کنیم که کلاس «{{course}}» شما با هنرجو {{student}} در {{when}} برگزار می‌شود.\n\nبرای مشاهدهٔ جزئیات و ورود به کلاس به پرتال مدرس بروید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
-                'website'=>array('subject'=>'یادآوری کلاس','body'=>'کلاس «{{course}}» شما با هنرجو {{student}} در {{when}} برگزار می‌شود.'),
+                'email'=>array('subject'=>'دلنوازان · یادآوری کلاس','body'=>"درود {{teacher}}،\n\nیادآوری می‌کنیم که کلاس «{{course}}» شما با هنرجو {{student}} در {{when}} برگزار می‌شود.\n\nپیش از ورود، در Google Meet ← Settings ← Audio گزینهٔ «Studio sound» یا «حذف نویز» را خاموش کنید تا صدای ساز درست شنیده شود. این تنظیم برای هر حساب و هر دستگاه جداگانه است.\n\nبرای مشاهدهٔ جزئیات و ورود به کلاس به پرتال مدرس بروید:\n{{teacher_portal_url}}\n\nبا احترام، دلنوازان"),
+                'website'=>array('subject'=>'یادآوری کلاس','body'=>'کلاس «{{course}}» شما با هنرجو {{student}} در {{when}} برگزار می‌شود. پیش از ورود، «Studio sound» یا حذف نویز را در Google Meet ← Settings ← Audio خاموش کنید.'),
                 'sms'=>array('body'=>'دلنوازان: یادآوری کلاس {{course}} با {{student}} در {{when}}. پرتال مدرس: {{teacher_portal_url}}'),
             ),
             'en'=>array(
-                'email'=>array('subject'=>'Delnavazan · class reminder','body'=>"Hello {{teacher}},\n\nThis is a reminder that your {{course}} class with the student {{student}} takes place on {{when}}.\n\nOpen the Teacher Portal for the details and to join the class:\n{{teacher_portal_url}}\n\nDelnavazan"),
-                'website'=>array('subject'=>'Class reminder','body'=>'Your {{course}} class with {{student}} takes place on {{when}}.'),
+                'email'=>array('subject'=>'Delnavazan · class reminder','body'=>"Hello {{teacher}},\n\nThis is a reminder that your {{course}} class with the student {{student}} takes place on {{when}}.\n\nBefore you join, turn off Studio sound or noise cancellation in Google Meet → Settings → Audio so the instrument is heard correctly. The setting is per Google account and per device.\n\nOpen the Teacher Portal for the details and to join the class:\n{{teacher_portal_url}}\n\nDelnavazan"),
+                'website'=>array('subject'=>'Class reminder','body'=>'Your {{course}} class with {{student}} takes place on {{when}}. Before you join, turn off Studio sound or noise cancellation in Meet > Settings > Audio.'),
                 'sms'=>array('body'=>'Delnavazan: class reminder {{course}} with {{student}} on {{when}}. Teacher Portal: {{teacher_portal_url}}'),
             ),
         ),array('dedicated_authority'));

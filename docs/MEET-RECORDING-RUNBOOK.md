@@ -100,6 +100,20 @@ What can and cannot be done about it:
   settings, Meet safety settings, Gemini settings) have no noise-cancellation or Studio sound policy
   on this edition, and Google's Meet Help documents only the per-user toggle. Do not promise an
   admin-side fix.
+- **There is no API switch either.** Verified against the live discovery document on 2026-11-25
+  (`https://meet.googleapis.com/$discovery/rest?version=v2`, revision `20261117`): the `SpaceConfig`
+  schema exposes only `accessType`, `moderation`, `moderationRestrictions`, `entryPointAccess`,
+  `artifactConfig` (recording, smart notes, transcription) and `attendanceReportGenerationType`.
+  There is no audio, noise-cancellation or Studio sound field, so
+  `GoogleWorkspaceClassroomService` cannot set it when it patches
+  `config.accessType,config.moderation,config.artifactConfig.recordingConfig.autoRecordingGeneration`.
+- **It is per account *and* per device/browser.** Meet remembers the choice for one account on one
+  device. A new laptop, a new browser profile or a switched Google account brings Studio sound back
+  on. This is the most common reason an operator believes "we turned it off and it came back".
+- **What the platform does instead:** the classroom page renders a prominent pre-join sound-check
+  card for both roles (`theme/template-parts/classroom/meet.php`, class
+  `dzn-meet-entry__sound-check`) that says the academy cannot switch it off remotely and gives the
+  three steps. Keep that card: it is the only moment the participant can act before the class.
 - **Per account** (survives for that Google account): Meet → **Settings → Audio** → turn **Studio
   sound** / **Noise cancellation** off. It can be done before joining (More options → Settings →
   Audio) or mid-call. Google's own guidance: *"If you need other sounds in your meeting, like music,

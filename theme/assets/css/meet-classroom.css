@@ -19,6 +19,10 @@
 .dzn-meet-entry__badge { margin: 0; padding: .55rem .8rem; border-radius: 999px; background: #edf6ee; color: #2f5d3a; font-size: .8rem; }
 .dzn-meet-entry__badge span { color: #3f8a51; }
 .dzn-meet-entry__card { background: var(--dzn-meet-paper); border: 1px solid var(--dzn-meet-line); border-radius: 1.2rem; padding: clamp(1.1rem, 3vw, 2rem); margin-bottom: 1.25rem; box-shadow: 0 18px 40px -32px rgba(42, 30, 18, .55); }
+.dzn-meet-entry__sound-check { border: 2px solid #b4552d; background: #fff6f1; }
+.dzn-meet-entry__sound-check h2 { color: #8a3d1f; }
+.dzn-meet-entry__sound-check ol { margin: .6rem 0 .4rem; padding-inline-start: 1.4rem; display: grid; gap: .45rem; line-height: 1.9; }
+.dzn-meet-entry__sound-check li strong { color: #8a3d1f; }
 .dzn-meet-entry__summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1.25rem; align-items: start; }
 .dzn-meet-entry h2 { margin: 0 0 .45rem; font-size: clamp(1.2rem, 2.6vw, 1.6rem); }
 .dzn-meet-entry h3 { margin: 0 0 .35rem; font-size: 1rem; }

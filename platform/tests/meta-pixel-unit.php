@@ -79,9 +79,11 @@ dzn_meta_pixel_configure('123456789012345', '1');
 dzn_meta_pixel_reset_request();
 dzn_meta_pixel_assert(MetaPixel::shouldRender(), 'public anonymous request should render');
 $html = dzn_meta_pixel_render();
-dzn_meta_pixel_assert(str_contains($html, "fbq('init','123456789012345')"), 'pixel init');
-dzn_meta_pixel_assert(str_contains($html, "fbq('track','PageView')"), 'PageView');
+dzn_meta_pixel_assert(str_contains($html, "fbq('init', '123456789012345')"), 'pixel init');
+dzn_meta_pixel_assert(str_contains($html, "fbq('track', 'PageView')"), 'PageView');
 dzn_meta_pixel_assert(str_contains($html, 'window.dznMetaPixel'), 'conversion helper');
+dzn_meta_pixel_assert(str_contains($html, 'facebook.com/tr?id=123456789012345&ev=PageView&noscript=1'), 'canonical noscript fallback with a literal ampersand');
+dzn_meta_pixel_assert(!str_contains($html, '&#038;'), 'no HTML-escaped ampersand in the fallback URL');
 dzn_meta_pixel_assert(!str_contains($html, 'em:'), 'no advanced-matching email field');
 dzn_meta_pixel_assert(!str_contains($html, 'access_token'), 'no credential in page source');
 

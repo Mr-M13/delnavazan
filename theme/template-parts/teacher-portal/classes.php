@@ -4,8 +4,10 @@
  *
  * Presentation only: every action below uses a backend-issued URL, nonce and identifier from the
  * view model. The second section starts tomorrow and ends after 30 local calendar days; farther
- * classes remain available in a collapsed section. The student filter below only hides already-
- * rendered future cards; it establishes no scheduling authority.
+ * classes remain available in a collapsed section. Both future sections stay collapsed and render
+ * one dense row per class, so the teacher can scan the programme quickly; every action, disclosure
+ * and filter stays available inside the rows. The student filter below only hides already-rendered
+ * future rows; it establishes no scheduling authority.
  */
 $model    = is_array( $args['model'] ?? null ) ? $args['model'] : array();
 $context  = dzn_theme_teacher_portal_context();
@@ -20,10 +22,10 @@ $sections = array(
 	array( 'key' => 'today', 'heading' => 'کلاس‌های امروز', 'visible_heading' => true, 'items' => $today_items, 'empty_title' => 'کلاسی برای امروز ثبت نشده است' ),
 );
 if ( $upcoming_items ) {
-	$sections[] = array( 'key' => 'upcoming', 'heading' => 'کلاس‌های آینده', 'visible_heading' => true, 'items' => $upcoming_items, 'empty_title' => 'کلاسی برای روزهای آینده ثبت نشده است' );
+	$sections[] = array( 'key' => 'upcoming', 'heading' => 'کلاس‌های آینده', 'visible_heading' => false, 'items' => $upcoming_items, 'empty_title' => 'کلاسی برای روزهای آینده ثبت نشده است', 'collapsed' => true, 'collapse_help' => 'کلاس‌های بعد از امروز تا ۳۰ روز آینده. برای دیدن فهرست باز کنید.' );
 }
 if ( $far_future_items ) {
-	$sections[] = array( 'key' => 'far-future', 'heading' => 'کلاس‌های بیش از ۳۰ روز آینده', 'visible_heading' => true, 'items' => $far_future_items, 'empty_title' => 'کلاس دوری ثبت نشده است', 'collapsed' => true );
+	$sections[] = array( 'key' => 'far-future', 'heading' => 'کلاس‌های بیش از ۳۰ روز آینده', 'visible_heading' => false, 'items' => $far_future_items, 'empty_title' => 'کلاس دوری ثبت نشده است', 'collapsed' => true, 'collapse_help' => 'این کلاس‌ها ثبت شده‌اند و برای خلوت‌تر شدن صفحه در بخش جمع‌شده نمایش داده می‌شوند.' );
 }
 $section_heading = $upcoming_items ? 'برنامهٔ کلاس‌ها' : 'کلاس‌های امروز';
 $upcoming_students = array();
@@ -45,7 +47,11 @@ $card_index = 0;
 	<?php if ( isset( $_GET['intro_notice'] ) ) : ?><p class="dzn-tp-action-status" role="<?php echo sanitize_key( (string) ( $_GET['intro_status'] ?? '' ) ) === 'failed' ? 'alert' : 'status'; ?>"><?php echo esc_html( sanitize_text_field( wp_unslash( (string) $_GET['intro_notice'] ) ) ); ?></p><?php endif; ?>
 	<?php dzn_theme_teacher_portal_component( 'test-classes', array( 'items' => (array) ( $model['god_mode_test_classes'] ?? array() ), 'timezone' => $timezone, 'calendar' => (string) ( $model['teacher_calendar'] ?? '' ), 'locale' => (string) ( $model['teacher_locale'] ?? '' ) ) ); ?>
 <?php foreach ( $sections as $section ) : ?>
-	<?php if ( ! empty( $section['collapsed'] ) ) : ?><details class="dzn-tp-class-horizon"><summary><?php echo esc_html( $section['heading'] ); ?> <span class="dzn-tp-class-history__count"><?php echo esc_html( (string) count( $section['items'] ) ); ?></span></summary><p class="dzn-tp-help">این کلاس‌ها ثبت شده‌اند و برای خلوت‌تر شدن صفحه در بخش جمع‌شده نمایش داده می‌شوند.</p><?php endif; ?>
+	<?php if ( ! empty( $section['collapsed'] ) ) : ?>
+	<details class="dzn-tp-class-horizon dzn-tp-class-horizon--<?php echo esc_attr( $section['key'] ); ?>">
+		<summary><?php echo esc_html( $section['heading'] ); ?> <span class="dzn-tp-class-history__count"><?php echo esc_html( (string) count( $section['items'] ) ); ?></span></summary>
+		<p class="dzn-tp-help"><?php echo esc_html( (string) ( $section['collapse_help'] ?? '' ) ); ?></p>
+	<?php endif; ?>
 	<section class="dzn-tp-class-section dzn-tp-class-section--<?php echo esc_attr( $section['key'] ); ?>" aria-labelledby="tp-classes-<?php echo esc_attr( $section['key'] ); ?>">
 		<h3 id="tp-classes-<?php echo esc_attr( $section['key'] ); ?>" class="<?php echo $section['visible_heading'] ? 'dzn-tp-class-section__title' : 'dzn-tp-sr'; ?>"><?php echo esc_html( $section['heading'] ); ?></h3>
 		<?php if ( 'upcoming' === $section['key'] && $show_student_filter ) : ?>
@@ -61,7 +67,8 @@ $card_index = 0;
 	<?php if ( ! $section['items'] ) : ?>
 		<div class="dzn-tp-empty-state dzn-tp-empty-state--compact" role="status"><h3><?php echo esc_html( $section['empty_title'] ); ?></h3><?php if ( '' !== $settings ) : ?><div class="dzn-tp-empty-state__actions"><a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( $settings ); ?>">بررسی زمان‌های در دسترس</a></div><?php endif; ?></div>
 	<?php else : ?>
-		<ol class="dzn-tp-class-list"<?php if ( 'upcoming' === $section['key'] ) : ?> data-dzn-tp-upcoming-list<?php endif; ?>>
+		<?php $list_class = 'today' === $section['key'] ? 'dzn-tp-class-list' : 'dzn-tp-class-list dzn-tp-class-list--rows'; ?>
+		<ol class="<?php echo esc_attr( $list_class ); ?>"<?php if ( 'upcoming' === $section['key'] ) : ?> data-dzn-tp-upcoming-list<?php endif; ?>>
 		<?php foreach ( $section['items'] as $item ) :
 			$index = $card_index++;
 			$valid = dzn_theme_teacher_portal_class_valid( $item );

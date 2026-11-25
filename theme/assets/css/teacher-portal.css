@@ -987,6 +987,128 @@
   font-weight: 800;
 }
 
+.dzn-tp-class-horizon > summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--dzn-color-action-primary) 35%, transparent);
+  outline-offset: 2px;
+}
+
+/* Future horizon rows: one dense line per class so a long programme stays scannable.
+   The row keeps every action, disclosure and filter that the card carried. */
+.dzn-tp-class-list--rows {
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: .75rem;
+  background: var(--dzn-tp-card);
+}
+
+.dzn-tp-class-list--rows > li + li {
+  border-block-start: 1px solid var(--dzn-tp-border);
+}
+
+/* The student filter hides the list by attribute; keep that authoritative over display. */
+.dzn-tp-class-list[hidden] {
+  display: none;
+}
+
+.dzn-tp-class-list--rows .dzn-tp-class {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .3rem .7rem;
+  border-width: 0;
+  border-inline-start-width: 4px;
+  border-inline-start-style: solid;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: .45rem .75rem;
+}
+
+.dzn-tp-class-list--rows .dzn-tp-class:hover,
+.dzn-tp-class-list--rows .dzn-tp-class:focus-within {
+  background: color-mix(in srgb, var(--dzn-color-surface-sunken) 70%, transparent);
+}
+
+.dzn-tp-class-list--rows .dzn-tp-class.is-unknown {
+  background: var(--dzn-color-error-surface);
+}
+
+.dzn-tp-class-list--rows .dzn-tp-class__time-col {
+  flex: 0 0 4.75rem;
+}
+
+.dzn-tp-class-list--rows .dzn-tp-class__info-col {
+  flex: 1 1 12rem;
+}
+
+.dzn-tp-class-list--rows .dzn-tp-actions {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+}
+
+.dzn-tp-class-list--rows .dzn-tp-time-clock {
+  font-size: 1rem;
+}
+
+.dzn-tp-class-list--rows .dzn-tp-class__student {
+  font-size: .92rem;
+}
+
+.dzn-tp-class-list--rows .dzn-tp-class__title-row {
+  gap: .4rem;
+}
+
+.dzn-tp-class-list--rows .dzn-tp-class__course-line {
+  font-size: .8rem;
+}
+
+/* The row already shows the local date, clock and the section timezone label. */
+.dzn-tp-class-list--rows .dzn-tp-class__schedule-summary {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The reschedule disclosure sits on the row line and expands to a full-width panel. */
+.dzn-tp-class-list--rows .dzn-tp-class__reschedule {
+  flex: 0 0 auto;
+  border-block-start: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.dzn-tp-class-list--rows .dzn-tp-class__reschedule > summary {
+  min-block-size: 1.75rem;
+  padding-block: .2rem;
+  font-size: .78rem;
+}
+
+.dzn-tp-class-list--rows .dzn-tp-class__reschedule[open] {
+  flex: 1 0 100%;
+  border-block-start: 1px dashed var(--dzn-color-border);
+  margin-block-start: .25rem;
+  padding-block-start: .5rem;
+}
+
+.dzn-tp-class-list--rows .dzn-tp-class-details,
+.dzn-tp-class-list--rows .dzn-tp-intro-actions {
+  flex: 1 0 100%;
+}
+
+.dzn-tp-class-list--rows .dzn-tp-class-details {
+  padding-block: .75rem;
+}
+
+.dzn-tp-class-list--rows .dzn-tp-class .dzn-button {
+  min-block-size: 2.1rem;
+  padding: .35rem .7rem;
+  font-size: .8rem;
+}
+
 .dzn-tp-class__time-col {
   display: flex;
   flex-direction: column;
@@ -2429,6 +2551,23 @@
     padding: .65rem .7rem;
   }
 
+  .dzn-tp-class-list--rows .dzn-tp-class {
+    gap: .3rem .5rem;
+    padding: .5rem .65rem;
+  }
+
+  .dzn-tp-class-list--rows .dzn-tp-class__time-col {
+    flex: 0 0 auto;
+  }
+
+  .dzn-tp-class-list--rows .dzn-tp-class__info-col {
+    flex: 1 1 8rem;
+  }
+
+  .dzn-tp-class-list--rows .dzn-tp-actions {
+    margin-inline-start: 0;
+  }
+
   .dzn-tp-class__time-col {
     flex-direction: row;
     align-items: baseline;
@@ -2493,6 +2632,8 @@
 
 @media (forced-colors:active) {
   .dzn-tp-class,
+  .dzn-tp-class-list--rows,
+  .dzn-tp-class-list--rows > li + li,
   .dzn-tp-attention-card,
   .dzn-tp-calendar li,
   .dzn-tp-chevron,
@@ -2500,6 +2641,10 @@
   .dzn-tp-instrument,
   .dzn-tp-instrument.is-selected {
     border: 1px solid CanvasText;
+  }
+
+  .dzn-tp-class-list--rows .dzn-tp-class {
+    border-inline-start: 4px solid CanvasText;
   }
 
   .dzn-tp-instrument.is-selected .dzn-tp-instrument__thumb img {

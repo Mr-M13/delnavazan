@@ -75,6 +75,7 @@ $bridge   = (string) file_get_contents( $theme . '/inc/platform-bridge.php' );
 $upcoming = (string) file_get_contents( $theme . '/template-parts/portal/upcoming-lesson.php' );
 $finance  = (string) file_get_contents( $theme . '/template-parts/teacher-portal/finance.php' );
 $classes  = (string) file_get_contents( $theme . '/template-parts/teacher-portal/classes.php' );
+$classRow = (string) file_get_contents( $theme . '/template-parts/teacher-portal/class-row.php' );
 $account  = (string) file_get_contents( $theme . '/page-templates/teacher-portal-account.php' );
 $portal   = (string) file_get_contents( $theme . '/inc/portal.php' );
 
@@ -87,7 +88,7 @@ $check( 'teacher navigation no longer exposes a Today tab', ! str_contains( $bri
 $check( 'teacher account page template uses settings', str_contains( $account, "dzn_theme_render_teacher_portal( 'settings'" ) && ! str_contains( $account, "'account'" ) );
 $check( 'fake teacher private-note sentence is gone', ! str_contains( $bridge, 'یادداشت خصوصی در این نمای خواندنی ارائه نشده است.' ) );
 $check( 'finance formats minor units with the currency exponent', str_contains( $finance, 'PricingMoney::format' ) && ! str_contains( $finance, 'واحد خرد ارز' ) );
-$check( 'teacher classes only show a sourced private note', str_contains( $classes, "isset( \$item['previous_private_note'] )" ) );
+$check( 'teacher classes only show a sourced private note', str_contains( $classRow, "isset( \$item['previous_private_note'] )" ) );
 $check( 'student payment block no longer claims a demo view', ! str_contains( (string) file_get_contents( $theme . '/template-parts/portal/payments.php' ), 'نمایش آزمایشی' ) );
 $check( 'student account reads notifications from the owned inbox', str_contains( $bridge, 'dzn_theme_platform_notification_model' ) && str_contains( $bridge, "\$model['notification_unread_count']" ) );
 $check( 'student account still distinguishes an unavailable source from no notifications', str_contains( (string) file_get_contents( $theme . '/template-parts/portal/notifications.php' ), 'منبع اعلان معتبر متصل نشده' ) );

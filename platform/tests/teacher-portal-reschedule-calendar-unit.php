@@ -111,7 +111,7 @@ namespace {
     $introTpl = (string) file_get_contents($theme . '/template-parts/teacher-portal/intro-actions.php');
     $regularTpl = (string) file_get_contents($theme . '/template-parts/teacher-portal/reschedule-form.php');
     $bridge = (string) file_get_contents($theme . '/inc/platform-bridge.php');
-    $classesTpl = (string) file_get_contents($theme . '/template-parts/teacher-portal/classes.php');
+    $classesTpl = (string) file_get_contents($theme . '/template-parts/teacher-portal/class-row.php');
     $controller = (string) file_get_contents($root . '/platform/src/Portals/IntroLessonLifecycleController.php');
     $service = (string) file_get_contents($root . '/platform/src/Core/Application/IntroLessonLifecycleService.php');
 

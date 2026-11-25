@@ -1,212 +1,86 @@
 <?php
 /**
- * Today, the next 30 local calendar days, farther future classes and completed history.
+ * The Teacher Classes screen: intro classes, today, the next three days, the month calendar and
+ * completed history.
  *
  * Presentation only: every action below uses a backend-issued URL, nonce and identifier from the
- * view model. The second section starts tomorrow and ends after 30 local calendar days; farther
- * classes remain available in a collapsed section. Both future sections stay collapsed and render
- * one dense row per class, so the teacher can scan the programme quickly; every action, disclosure
- * and filter stays available inside the rows. The student filter below only hides already-rendered
- * future rows; it establishes no scheduling authority.
+ * view model. Intro classes live in their own section regardless of the date and are never
+ * repeated in Today or the next days. Farther classes stay in the calendar projection only. The
+ * month calendar marks every day with a class and keeps the same row actions in its day list.
  */
 $model    = is_array( $args['model'] ?? null ) ? $args['model'] : array();
 $context  = dzn_theme_teacher_portal_context();
 $demo     = ! empty( $context['demo'] );
 $settings = (string) ( $context['settings_url'] ?? '' );
 $timezone = (string) ( $args['timezone'] ?? ( $model['teacher_timezone'] ?? $model['profile']['timezone'] ?? '' ) );
+$intro_items    = isset( $args['intro_items'] ) && is_array( $args['intro_items'] ) ? $args['intro_items'] : ( isset( $model['intro_classes'] ) && is_array( $model['intro_classes'] ) ? $model['intro_classes'] : array() );
 $today_items    = isset( $args['today_items'] ) && is_array( $args['today_items'] ) ? $args['today_items'] : ( isset( $model['today_classes'] ) && is_array( $model['today_classes'] ) ? $model['today_classes'] : array() );
-$upcoming_items = isset( $args['upcoming_items'] ) && is_array( $args['upcoming_items'] ) ? $args['upcoming_items'] : ( isset( $model['upcoming_classes'] ) && is_array( $model['upcoming_classes'] ) ? $model['upcoming_classes'] : array() );
-$far_future_items = isset( $args['far_future_items'] ) && is_array( $args['far_future_items'] ) ? $args['far_future_items'] : ( isset( $model['far_future_classes'] ) && is_array( $model['far_future_classes'] ) ? $model['far_future_classes'] : array() );
+$next_items     = isset( $args['next_items'] ) && is_array( $args['next_items'] ) ? $args['next_items'] : ( isset( $model['next_classes'] ) && is_array( $model['next_classes'] ) ? $model['next_classes'] : array() );
 $past_items     = isset( $args['past_items'] ) && is_array( $args['past_items'] ) ? $args['past_items'] : ( isset( $model['past_classes'] ) && is_array( $model['past_classes'] ) ? $model['past_classes'] : array() );
-$sections = array(
-	array( 'key' => 'today', 'heading' => 'کلاس‌های امروز', 'visible_heading' => true, 'items' => $today_items, 'empty_title' => 'کلاسی برای امروز ثبت نشده است' ),
-);
-if ( $upcoming_items ) {
-	$sections[] = array( 'key' => 'upcoming', 'heading' => 'کلاس‌های آینده', 'visible_heading' => false, 'items' => $upcoming_items, 'empty_title' => 'کلاسی برای روزهای آینده ثبت نشده است', 'collapsed' => true, 'collapse_help' => 'کلاس‌های بعد از امروز تا ۳۰ روز آینده. برای دیدن فهرست باز کنید.' );
+$all_items      = isset( $args['items'] ) && is_array( $args['items'] ) && $args['items'] ? $args['items'] : ( isset( $model['classes'] ) && is_array( $model['classes'] ) ? $model['classes'] : array() );
+$classes_url    = '';
+foreach ( (array) ( $model['navigation'] ?? array() ) as $nav_item ) {
+	if ( is_array( $nav_item ) && 'classes' === ( $nav_item['screen'] ?? null ) && is_string( $nav_item['url'] ?? null ) ) { $classes_url = (string) $nav_item['url']; }
 }
-if ( $far_future_items ) {
-	$sections[] = array( 'key' => 'far-future', 'heading' => 'کلاس‌های بیش از ۳۰ روز آینده', 'visible_heading' => false, 'items' => $far_future_items, 'empty_title' => 'کلاس دوری ثبت نشده است', 'collapsed' => true, 'collapse_help' => 'این کلاس‌ها ثبت شده‌اند و برای خلوت‌تر شدن صفحه در بخش جمع‌شده نمایش داده می‌شوند.' );
-}
-$section_heading = $upcoming_items ? 'برنامهٔ کلاس‌ها' : 'کلاس‌های امروز';
-$upcoming_students = array();
-foreach ( $upcoming_items as $upcoming_item ) {
-	if ( ! is_array( $upcoming_item ) || ! dzn_theme_teacher_portal_class_valid( $upcoming_item ) ) { continue; }
-	$student_name = trim( (string) ( $upcoming_item['student'] ?? '' ) );
-	if ( '' !== $student_name ) { $upcoming_students[ $student_name ] = $student_name; }
-}
-ksort( $upcoming_students, SORT_NATURAL | SORT_FLAG_CASE );
-$show_student_filter = ! empty( $upcoming_students );
-$card_index = 0;
+if ( '' === $classes_url ) { $classes_url = home_url( '/teacher-portal/?teacher-view=classes' ); }
+$row_index = 0;
+// The Today screen renders the current local day only; the full structure below is Classes.
+$show_more = ! array_key_exists( 'show_upcoming', $args ) || ! empty( $args['show_upcoming'] );
 ?>
 <section class="dzn-tp-section dzn-tp-classes" aria-labelledby="tp-classes">
-	<div class="dzn-tp-heading">
-		<h2 id="tp-classes"><?php echo esc_html( $section_heading ); ?></h2>
-		<?php if ( '' !== $timezone ) : ?><span class="dzn-timezone-label"><span aria-hidden="true">◷</span> <?php echo esc_html( $timezone ); ?></span><?php endif; ?>
-	</div>
-	<p class="dzn-tp-help dzn-tp-classes__guidance">برای جزئیات، کلاس را باز کنید.</p>
+	<h2 id="tp-classes" class="dzn-tp-sr">کلاس‌ها</h2>
 	<?php if ( isset( $_GET['intro_notice'] ) ) : ?><p class="dzn-tp-action-status" role="<?php echo sanitize_key( (string) ( $_GET['intro_status'] ?? '' ) ) === 'failed' ? 'alert' : 'status'; ?>"><?php echo esc_html( sanitize_text_field( wp_unslash( (string) $_GET['intro_notice'] ) ) ); ?></p><?php endif; ?>
 	<?php dzn_theme_teacher_portal_component( 'test-classes', array( 'items' => (array) ( $model['god_mode_test_classes'] ?? array() ), 'timezone' => $timezone, 'calendar' => (string) ( $model['teacher_calendar'] ?? '' ), 'locale' => (string) ( $model['teacher_locale'] ?? '' ) ) ); ?>
-<?php foreach ( $sections as $section ) : ?>
-	<?php if ( ! empty( $section['collapsed'] ) ) : ?>
-	<details class="dzn-tp-class-horizon dzn-tp-class-horizon--<?php echo esc_attr( $section['key'] ); ?>">
-		<summary><?php echo esc_html( $section['heading'] ); ?> <span class="dzn-tp-class-history__count"><?php echo esc_html( (string) count( $section['items'] ) ); ?></span></summary>
-		<p class="dzn-tp-help"><?php echo esc_html( (string) ( $section['collapse_help'] ?? '' ) ); ?></p>
-	<?php endif; ?>
-	<section class="dzn-tp-class-section dzn-tp-class-section--<?php echo esc_attr( $section['key'] ); ?>" aria-labelledby="tp-classes-<?php echo esc_attr( $section['key'] ); ?>">
-		<h3 id="tp-classes-<?php echo esc_attr( $section['key'] ); ?>" class="<?php echo $section['visible_heading'] ? 'dzn-tp-class-section__title' : 'dzn-tp-sr'; ?>"><?php echo esc_html( $section['heading'] ); ?></h3>
-		<?php if ( 'upcoming' === $section['key'] && $show_student_filter ) : ?>
-		<div class="dzn-tp-class-filter" data-dzn-tp-student-filter>
-			<label for="tp-student-filter">هنرجو</label>
-			<select id="tp-student-filter" data-dzn-tp-student-filter-select>
-				<option value="">همهٔ هنرجوها</option>
-				<?php foreach ( $upcoming_students as $student_name ) : ?><option value="<?php echo esc_attr( $student_name ); ?>"><?php echo esc_html( $student_name ); ?></option><?php endforeach; ?>
-			</select>
-			<span class="dzn-tp-class-filter__status" data-dzn-tp-student-filter-status role="status" aria-live="polite"></span>
+<?php if ( $show_more && $intro_items ) : ?>
+	<section class="dzn-tp-class-section dzn-tp-class-section--intro" aria-labelledby="tp-classes-intro">
+		<div class="dzn-tp-class-section__heading">
+			<h3 id="tp-classes-intro" class="dzn-tp-class-section__title">کلاس‌های آشنایی</h3>
+			<span class="dzn-tp-class-section__count"><?php echo esc_html( dzn_theme_teacher_portal_digits( count( $intro_items ) ) ); ?></span>
 		</div>
-		<?php endif; ?>
-	<?php if ( ! $section['items'] ) : ?>
-		<div class="dzn-tp-empty-state dzn-tp-empty-state--compact" role="status"><h3><?php echo esc_html( $section['empty_title'] ); ?></h3><?php if ( '' !== $settings ) : ?><div class="dzn-tp-empty-state__actions"><a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( $settings ); ?>">بررسی زمان‌های در دسترس</a></div><?php endif; ?></div>
-	<?php else : ?>
-		<?php $list_class = 'today' === $section['key'] ? 'dzn-tp-class-list' : 'dzn-tp-class-list dzn-tp-class-list--rows'; ?>
-		<ol class="<?php echo esc_attr( $list_class ); ?>"<?php if ( 'upcoming' === $section['key'] ) : ?> data-dzn-tp-upcoming-list<?php endif; ?>>
-		<?php foreach ( $section['items'] as $item ) :
-			$index = $card_index++;
-			$valid = dzn_theme_teacher_portal_class_valid( $item );
-			$is_today = ! empty( $item['is_today'] );
-			$state = $valid ? $item['state'] : 'unknown';
-			$title = 'tp-class-title-' . $index;
-			$help  = 'tp-join-' . $index;
-			$details_id = 'tp-details-' . $index;
-			$date  = $valid && ! empty( $item['date'] ) ? (string) $item['date'] : '';
-			$starts_at = $valid ? (string) ( $item['starts_at_iso'] ?? '' ) : '';
-			$join_reason = ! empty( $item['confirmation_uid'] ) && ! empty( $item['join_message'] ) ? (string) $item['join_message'] : 'زمان ورود نرسیده یا دسترسی امن برای این کلاس تأیید نشده است.';
-			?>
-		<?php $student_name = $valid ? trim( (string) ( $item['student'] ?? '' ) ) : ''; $student_tone = '' !== $student_name ? ( abs( crc32( $student_name ) ) % 6 ) + 1 : 0; ?>
-		<li data-dzn-tp-student="<?php echo esc_attr( $student_name ); ?>"><article class="dzn-tp-class is-<?php echo esc_attr( $state ); ?><?php echo $is_today ? '' : ' is-compact'; ?><?php echo $student_tone ? ' is-student-' . (int) $student_tone : ''; ?>" aria-labelledby="<?php echo esc_attr( $title ); ?>">
-			<div class="dzn-tp-class__time-col">
-				<time class="dzn-tp-class__time"<?php if ( '' !== $starts_at ) : ?> datetime="<?php echo esc_attr( $starts_at ); ?>"<?php endif; ?>>
-					<span class="dzn-tp-time-clock"><span class="dzn-tp-sr">ساعت </span><?php echo esc_html( $valid ? $item['time'] : '—' ); ?></span>
-					<?php if ( '' !== $date ) : ?><span class="dzn-tp-time-date"><?php echo esc_html( $date ); ?></span><?php endif; ?>
-				</time>
-			</div>
-			<div class="dzn-tp-class__info-col">
-				<div class="dzn-tp-class__title-row">
-					<h3 id="<?php echo esc_attr( $title ); ?>" class="dzn-tp-class__student"><?php echo esc_html( $valid ? $item['student'] : 'کلاس در دسترس نیست' ); ?></h3>
-					<?php if ( $valid ) : ?><p class="dzn-tp-state dzn-tp-state--<?php echo esc_attr( $state ); ?>"><span class="dzn-tp-state__bullet" aria-hidden="true">●</span> <span class="dzn-tp-sr">وضعیت: </span><?php echo esc_html( $item['status'] ); ?></p><?php endif; ?>
-					<?php
-					$golden_label = (string) ( $item['golden_hour_badge'] ?? $item['golden_hour_label'] ?? '' );
-					$golden_review = (string) ( $item['golden_hour_review_text'] ?? '' );
-					?>
-					<?php if ( $valid && '' !== $golden_label ) : ?><span class="dzn-tp-golden-badge" title="<?php echo esc_attr( (string) ( $item['golden_hour_estimate_label'] ?? '' ) === 'estimated' ? 'برآورد تا پیش از قطعی‌شدن پرداخت' : 'ثبت‌شده در محاسبهٔ نهایی' ); ?>"><?php echo esc_html( $golden_label ); ?></span><?php endif; ?>
-					<?php if ( $valid && '' !== $golden_review ) : ?><span class="dzn-tp-golden-review"><?php echo esc_html( $golden_review ); ?></span><?php endif; ?>
-				</div>
-				<?php if ( $valid ) : ?>
-					<p class="dzn-tp-class__course-line"><span class="dzn-tp-class__course"><?php echo esc_html( $item['course'] ); ?></span><?php if ( $is_today ) : ?> <span class="dzn-tp-class__dot" aria-hidden="true">·</span> <span class="dzn-tp-class__progress"><?php echo esc_html( $item['progress'] ); ?></span><?php endif; ?></p>
-					<p class="dzn-tp-class__schedule-summary"><span aria-hidden="true">◷</span> <span class="dzn-tp-sr">زمان کلاس: </span><?php echo esc_html( $item['schedule_summary'] ); ?></p>
-				<?php else : ?>
-					<p class="dzn-tp-state">اطلاعات این کلاس کامل یا معتبر نیست؛ اقدام‌ها غیرفعال شدند. صفحه را دوباره بارگذاری کنید و اگر ادامه داشت به مدیر آموزشگاه خبر دهید.</p>
-				<?php endif; ?>
-			</div>
-			<?php if ( $valid ) : ?>
-			<div class="dzn-tp-actions"<?php echo $is_today ? ' data-dzn-highlight="join"' : ''; ?>>
-				<?php if ( $is_today ) : ?>
-					<?php
-					get_template_part(
-						'template-parts/components/classroom-actions',
-						null,
-						array(
-							'item' => $item,
-							'role' => 'teacher',
-							'primary_class' => 'dzn-button dzn-tp-btn-join',
-							'meet_label' => 'ورود با گوگل میت (پشتیبان)',
-						)
-					);
-					?>
-				<?php endif; ?>
-				<?php if ( function_exists( 'dzn_theme_recording_playback_button' ) ) { echo dzn_theme_recording_playback_button( $item, 'teacher' ); } ?>
-				<?php if ( ! empty( $item['lesson_uid'] ) && ! empty( $item['schedule_version_uid'] ) && ( 'ended' === ( $item['temporal_state'] ?? '' ) || ! empty( $item['completion_available'] ) ) ) : ?>
-					<?php $finish_url = add_query_arg( array( 'lesson_uid' => (string) $item['lesson_uid'], 'schedule_version_uid' => (string) $item['schedule_version_uid'], 'view' => 'finish' ), home_url( '/music-classroom/' ) ); ?>
-					<a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( $finish_url ); ?>">ثبت یادداشت و پایان کلاس</a>
-				<?php endif; ?>
-				<?php if ( true === $item['details_available'] ) : ?><button class="dzn-tp-chevron" type="button" aria-expanded="false" aria-controls="<?php echo esc_attr( $details_id ); ?>" aria-label="نمایش جزئیات کلاس" data-dzn-tp-toggle="<?php echo esc_attr( $details_id ); ?>" data-dzn-tp-label-open="بستن جزئیات کلاس" data-dzn-tp-label-closed="نمایش جزئیات کلاس"><span class="dzn-tp-chevron__icon" aria-hidden="true">⌄</span></button><?php endif; ?>
-			</div>
-			<?php if ( true === $item['details_available'] ) : ?>
-			<div id="<?php echo esc_attr( $details_id ); ?>" class="dzn-tp-class-details" hidden>
-				<div class="dzn-tp-detail-grid">
-					<section class="dzn-tp-detail-card"><h4>تماس با هنرجو</h4>
-						<?php $whatsapp = preg_replace( '/[^0-9]/', '', (string) ( $item['student_whatsapp'] ?? '' ) ); ?>
-						<p class="dzn-tp-student-contact"><span>واتس‌اپ:</span> <?php if ( '' !== $whatsapp ) : ?><a dir="ltr" href="<?php echo esc_url( 'https://wa.me/' . $whatsapp ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html( (string) $item['student_whatsapp'] ); ?></a><?php else : ?><span class="dzn-tp-muted">ثبت نشده</span><?php endif; ?></p>
-						<?php if ( '' !== (string) ( $item['golden_hour_label'] ?? '' ) ) : ?>
-							<p class="dzn-tp-class__golden"><?php echo esc_html( (string) $item['golden_hour_label'] ); ?></p>
-							<?php if ( '' !== (string) ( $item['golden_hour_window_display'] ?? '' ) ) : ?><p class="dzn-tp-help">بازهٔ محلی: <?php echo esc_html( (string) $item['golden_hour_window_display'] ); ?></p><?php endif; ?>
-						<?php elseif ( '' !== (string) ( $item['golden_hour_review_text'] ?? '' ) ) : ?>
-							<p class="dzn-tp-help"><?php echo esc_html( (string) $item['golden_hour_review_text'] ); ?></p>
-						<?php endif; ?>
-						<?php if ( '' !== (string) ( $item['term_progress_label'] ?? '' ) ) : ?><p><strong>پیشرفت ترم:</strong> <?php echo esc_html( (string) $item['term_progress_label'] ); ?><?php if ( '' !== (string) ( $item['replacement_label'] ?? '' ) ) : ?> · <?php echo esc_html( (string) $item['replacement_label'] ); ?><?php endif; ?></p><?php endif; ?>
-						<?php if ( isset( $item['previous_private_note'] ) && '' !== trim( (string) $item['previous_private_note'] ) ) : ?><h4>یادداشت خصوصی پیشین</h4><p><?php echo esc_html( (string) $item['previous_private_note'] ); ?></p><?php endif; ?></section>
-					<section class="dzn-tp-detail-card" data-dzn-highlight="attendance"><h4>تأیید برگزاری و حضور</h4>
-						<?php if ( true === ( $item['completion_available'] ?? false ) ) : ?>
-							<p class="dzn-tp-detail-help">پس از پایان کلاس، اگر جلسه برگزار شد برگزاری و حضور را تأیید کنید.</p>
-							<form method="post" action="<?php echo esc_url( (string) ( $item['completion_action_url'] ?? $item['delivery_recorded_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit><input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['completion_nonce'] ?? $item['delivery_recorded_nonce'] ?? '' ) ); ?>"><input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>"><input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $item['schedule_version_uid'] ?? '' ) ); ?>"><button class="dzn-button" type="submit" data-dzn-tp-busy-label="در حال ثبت گزارش…">تأیید برگزاری و حضور</button></form>
-						<?php else : ?>
-							<p class="dzn-tp-detail-help"><?php echo esc_html( (string) ( $item['completion_message'] ?? 'این کلاس در وضعیت قابل گزارش نیست.' ) ); ?></p>
-						<?php endif; ?>
-						<?php
-						$attendance_evidence = isset( $item['attendance_evidence'] ) && is_array( $item['attendance_evidence'] ) ? $item['attendance_evidence'] : array();
-						if ( ! empty( $attendance_evidence['state'] ) ) {
-							$evidence_minutes = (int) ( $attendance_evidence['minutes'] ?? 0 );
-							$evidence_threshold = (int) ( $attendance_evidence['threshold_minutes'] ?? 20 );
-							$evidence_reasons = array(
-								'overlap_confirmed'       => 'هم‌زمانی کافی مدرس و هنرجو ثبت شد.',
-								'overlap_below_threshold' => 'هم‌زمانی مدرس و هنرجو کمتر از حد لازم بود.',
-								'identity_unmapped'       => 'حساب Google هنوز به این کلاس نگاشته نشده است.',
-								'meet_evidence_missing'   => 'شواهد حضور در Meet پیدا نشد.',
-								'sessions_unavailable'    => 'شواهد حضور در دسترس نیست.',
-							);
-							$evidence_reason = (string) ( $evidence_reasons[ (string) ( $attendance_evidence['reason'] ?? '' ) ] ?? 'داده کافی برای تأیید حضور نیست.' );
-							$evidence_state = (string) $attendance_evidence['state'] === 'confirmed'
-								? 'تأیید شد'
-								: ( (string) $attendance_evidence['state'] === 'pending' ? 'تأیید نشد' : 'در دسترس نیست' );
-						?>
-							<p class="dzn-tp-detail-help" data-dzn-attendance-evidence><?php echo esc_html( 'حضور خودکار Meet: ' . $evidence_state . ' — ' . dzn_theme_platform_persian_digits( $evidence_minutes ) . ' از ' . dzn_theme_platform_persian_digits( $evidence_threshold ) . ' دقیقه هم‌زمانی. ' . $evidence_reason ); ?></p>
-						<?php } ?>
-						<?php if ( $demo ) : ?><button type="button" data-dzn-tp-presentation>درخواست بررسی زمان</button><?php endif; ?></section>
-				</div>
-				<?php if ( $is_today && true === ( $item['reschedule_available'] ?? false ) ) {
-					dzn_theme_teacher_portal_component(
-						'reschedule-form',
-						array( 'item' => $item, 'timezone' => $timezone, 'index' => $index, 'demo' => $demo, 'calendar' => (string) ( $model['teacher_calendar'] ?? $item['reschedule_calendar'] ?? '' ), 'locale' => (string) ( $model['teacher_locale'] ?? $item['reschedule_locale'] ?? '' ) )
-					);
-				} ?>
-				<?php if ( $demo ) : ?>
-				<section class="dzn-tp-private-note"><h4>یادداشت خصوصی مدرس</h4><p>فقط برای مدرس و تیم مجاز؛ برای هنرجو نمایش داده نمی‌شود.</p><textarea rows="3" aria-label="یادداشت خصوصی مدرس"></textarea></section>
-				<section class="dzn-tp-practice"><h4>تمرین و تکلیف برای هنرجو</h4><p>پس از اتصال امن، این متن برای هنرجو قابل مشاهده خواهد بود.</p><textarea rows="3" aria-label="تمرین و تکلیف قابل مشاهده برای هنرجو"></textarea></section>
-				<?php if ( 'replacement' === $item['state'] ) : ?><p class="dzn-tp-context">این جلسه در مدل نمایشی به‌عنوان جایگزین مجاز آمده است؛ پوسته استحقاق را ایجاد یا تعیین نمی‌کند.</p><?php endif; ?>
-				<p class="dzn-tp-action-status" role="status" aria-live="polite"></p>
-				<?php endif; ?>
-			</div>
-			<?php endif; ?>
-			<?php if ( ! empty( $item['intro_change_available'] ) ) : ?>
-				<?php dzn_theme_teacher_portal_component( 'intro-actions', array( 'item' => $item, 'timezone' => $timezone, 'calendar' => (string) ( $model['teacher_calendar'] ?? $item['intro_calendar'] ?? $item['reschedule_calendar'] ?? '' ), 'locale' => (string) ( $model['teacher_locale'] ?? $item['intro_locale'] ?? $item['reschedule_locale'] ?? '' ) ) ); ?>
-			<?php endif; ?>
-			<?php if ( ! $is_today && true === ( $item['reschedule_available'] ?? false ) ) : ?>
-			<details class="dzn-tp-class__reschedule" data-dzn-highlight="reschedule">
-				<summary>تغییر زمان کلاس</summary>
-				<?php dzn_theme_teacher_portal_component( 'reschedule-form', array( 'item' => $item, 'timezone' => $timezone, 'index' => $index, 'demo' => $demo, 'calendar' => (string) ( $model['teacher_calendar'] ?? $item['reschedule_calendar'] ?? '' ), 'locale' => (string) ( $model['teacher_locale'] ?? $item['reschedule_locale'] ?? '' ) ) ); ?>
-			</details>
-			<?php endif; ?>
-			<?php endif; ?>
-		</article></li>
-		<?php endforeach; ?>
+		<p class="dzn-tp-help dzn-tp-class-section__help">همهٔ کلاس‌های آشنایی شما، مستقل از تاریخشان.</p>
+		<ol class="dzn-tp-class-list dzn-tp-class-list--rows dzn-tp-class-list--intro">
+			<?php foreach ( $intro_items as $item ) : ?>
+				<?php dzn_theme_teacher_portal_component( 'class-row', array( 'item' => $item, 'index' => $row_index++, 'id_prefix' => 'tp', 'timezone' => $timezone, 'model' => $model, 'demo' => $demo ) ); ?>
+			<?php endforeach; ?>
 		</ol>
-		<?php if ( 'upcoming' === $section['key'] && $show_student_filter ) : ?><p class="dzn-tp-help dzn-tp-class-filter__empty" data-dzn-tp-student-filter-empty hidden>برای این هنرجو کلاسی در آینده ثبت نشده است.</p><?php endif; ?>
+	</section>
+<?php endif; ?>
+	<section class="dzn-tp-class-section dzn-tp-class-section--today" aria-labelledby="tp-classes-today">
+		<div class="dzn-tp-class-section__heading">
+			<h3 id="tp-classes-today" class="dzn-tp-class-section__title">کلاس‌های امروز</h3>
+			<?php if ( ! $show_more && '' !== $timezone ) : ?><span class="dzn-timezone-label"><span aria-hidden="true">◷</span> <?php echo esc_html( $timezone ); ?></span><?php endif; ?>
+		</div>
+		<p class="dzn-tp-help dzn-tp-class-section__help">برای جزئیات، کلاس را باز کنید.</p>
+	<?php if ( ! $today_items ) : ?>
+		<div class="dzn-tp-empty-state dzn-tp-empty-state--compact" role="status"><h3>کلاسی برای امروز ثبت نشده است</h3><?php if ( '' !== $settings ) : ?><div class="dzn-tp-empty-state__actions"><a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( $settings ); ?>">بررسی زمان‌های در دسترس</a></div><?php endif; ?></div>
+	<?php else : ?>
+		<ol class="dzn-tp-class-list">
+			<?php foreach ( $today_items as $item ) : ?>
+				<?php dzn_theme_teacher_portal_component( 'class-row', array( 'item' => $item, 'index' => $row_index++, 'id_prefix' => 'tp', 'timezone' => $timezone, 'model' => $model, 'demo' => $demo ) ); ?>
+			<?php endforeach; ?>
+		</ol>
 	<?php endif; ?>
 	</section>
-	<?php if ( ! empty( $section['collapsed'] ) ) : ?></details><?php endif; ?>
-<?php endforeach; ?>
+	<?php if ( $show_more ) : ?>
+	<section class="dzn-tp-class-section dzn-tp-class-section--next" aria-labelledby="tp-classes-next">
+		<h3 id="tp-classes-next" class="dzn-tp-class-section__title">۳ روز آینده</h3>
+	<?php if ( ! $next_items ) : ?>
+		<p class="dzn-tp-help dzn-tp-class-section__help">در سه روز آینده کلاسی ثبت نشده است.</p>
+	<?php else : ?>
+		<ol class="dzn-tp-class-list dzn-tp-class-list--rows">
+			<?php foreach ( $next_items as $item ) : ?>
+				<?php dzn_theme_teacher_portal_component( 'class-row', array( 'item' => $item, 'index' => $row_index++, 'id_prefix' => 'tp', 'timezone' => $timezone, 'model' => $model, 'demo' => $demo ) ); ?>
+			<?php endforeach; ?>
+		</ol>
+	<?php endif; ?>
+	</section>
+	<?php endif; ?>
+	<?php if ( $show_more ) : ?>
+	<?php dzn_theme_teacher_portal_component( 'classes-calendar', array( 'all_items' => $all_items, 'timezone' => $timezone, 'calendar' => (string) ( $model['teacher_calendar'] ?? '' ), 'locale' => (string) ( $model['teacher_locale'] ?? '' ), 'base_url' => $classes_url, 'start_index' => $row_index, 'model' => $model, 'demo' => $demo ) ); ?>
+	<?php endif; ?>
 	<?php if ( $past_items ) : ?>
 	<details class="dzn-tp-class-history">
-		<summary>کلاس‌های گذشته <span class="dzn-tp-class-history__count"><?php echo esc_html( (string) count( $past_items ) ); ?></span></summary>
+		<summary>کلاس‌های گذشته <span class="dzn-tp-class-history__count"><?php echo esc_html( dzn_theme_teacher_portal_digits( count( $past_items ) ) ); ?></span></summary>
 		<ol class="dzn-tp-class-history__list">
 			<?php foreach ( $past_items as $past ) : ?>
 				<?php

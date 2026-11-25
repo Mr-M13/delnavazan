@@ -132,16 +132,17 @@
     const status = scope.querySelector('.dzn-tp-action-status');
     if (status) status.textContent = 'این کنترل نمایشی است؛ هیچ اطلاعات یا حقیقتی ثبت نشد.';
   }));
-  // Future-class student filter is presentation-only: it hides already-rendered cards and
+  // Student filter is presentation-only: it hides already-rendered rows and
   // never changes the model, schedule authority or backend action fields.
   document.querySelectorAll('[data-dzn-tp-student-filter]').forEach((filter) => {
     const select = filter.querySelector('[data-dzn-tp-student-filter-select]');
-    const section = filter.closest('.dzn-tp-class-section');
-    const list = section ? section.querySelector('[data-dzn-tp-upcoming-list]') : null;
+    const section = filter.closest('.dzn-tp-calendar-section') || filter.closest('.dzn-tp-class-section');
+    const list = section ? (section.querySelector('[data-dzn-tp-filter-list]') || section.querySelector('[data-dzn-tp-upcoming-list]')) : null;
     const empty = section ? section.querySelector('[data-dzn-tp-student-filter-empty]') : null;
     const status = filter.querySelector('[data-dzn-tp-student-filter-status]');
     if (!select || !list) return;
     const cards = Array.from(list.querySelectorAll('li[data-dzn-tp-student]'));
+    const groups = Array.from(list.querySelectorAll('[data-dzn-tp-day]'));
     const apply = () => {
       const value = select.value;
       let visible = 0;
@@ -149,6 +150,9 @@
         const show = value === '' || card.dataset.dznTpStudent === value;
         card.hidden = !show;
         if (show) visible++;
+      });
+      groups.forEach((group) => {
+        group.hidden = value !== '' && !Array.from(group.querySelectorAll('li[data-dzn-tp-student]')).some((card) => !card.hidden);
       });
       list.hidden = visible === 0;
       if (empty) empty.hidden = visible !== 0;

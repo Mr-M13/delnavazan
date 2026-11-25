@@ -909,3 +909,14 @@ Residual question for the next pass, not a defect: when neither the automatic as
 Teacher acts inside the manual window, does the administrator get an explicit work item? The case is
 visible in Attendance review, but no document here proves an operator is *prompted*. That belongs
 with the reconciliation decision, not with the attendance rule.
+
+### Owner decisions (2026-11-25, second review)
+
+- **Midnight availability:** adjoining availability days are contiguous. Per-weekday rules end at
+  `23:59:59` and start at `00:00:00`, so a one-second boundary gap must not refuse a class that
+  crosses midnight. Implemented as a pure `segmentsCover()` walk with a one-second tolerance, tested
+  behaviourally.
+- **Attendance escalation:** when an ended occurrence has neither automatic settlement nor a Teacher
+  confirmation, the Teacher is reminded after 24 hours and the case is referred to the administrator
+  after 48 hours. `AttendanceEscalationWorker` runs hourly, only over `open`/`ready_for_review` cases,
+  writes one audit marker per stage so it cannot repeat, and never records a delivery outcome.

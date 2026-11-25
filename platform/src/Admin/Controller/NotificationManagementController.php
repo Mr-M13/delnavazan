@@ -402,7 +402,7 @@ final class NotificationManagementController {
             // received it; a changed message or audience is a new batch.
             $commandKey='manual-send:'.get_current_user_id().':'.hash('sha256',wp_json_encode($input));
             $result=(new NotificationManualSendService())->send($input,$commandKey);
-            self::flash('success',sprintf('Manual send complete: %d sent, %d failed, %d skipped, %d uncertain. Uncertain deliveries are held for reconciliation and are never resent automatically. Batch %s.',(int)$result['sent'],(int)$result['failed'],(int)$result['skipped'],(int)$result['uncertain'],(string)$result['batch_id']));
+            self::flash('success',sprintf('Manual send complete: %d handed to the provider (delivery not confirmed), %d failed, %d skipped, %d uncertain. Uncertain deliveries are held for reconciliation and are never resent automatically. Batch %s.',(int)$result['sent'],(int)$result['failed'],(int)$result['skipped'],(int)$result['uncertain'],(string)$result['batch_id']));
         }catch(\Throwable $error){
             self::flash('error','Manual send did not run: '.$error->getMessage());
         }
@@ -572,7 +572,7 @@ final class NotificationManagementController {
                 };
                 if($channel==='whatsapp'&&$stateLabel!=='')$label.=' · '.$stateLabel;
                 if($provider!==null)$label.=' · '.($provider?'Provider configured':'Provider not configured');
-                $warn=($channel==='whatsapp'&&in_array($state,array('not_mapped','approval_required','not_approved','ambiguous','contract_mismatch','restricted_fallback'),true))||$provider===false;
+                $warn=($channel==='whatsapp'&&in_array($state,array('not_mapped','mapped_unverified','approval_required','not_approved','ambiguous','contract_mismatch','restricted_fallback'),true))||$provider===false;
                 echo '<div><span class="dzn-badge '.esc_attr($warn?'is-warn':'is-ok').'">'.esc_html($label).'</span>';
                 if($channel==='whatsapp'){
                     $linked=(string)($row['provider_name']??'');
@@ -1385,7 +1385,7 @@ CSS;
             if(str_contains($text,'No default copy')||str_contains($text,'No active version')||str_contains($text,'body is unavailable')||str_contains($text,'cannot be dispatched without a published version'))return array('state'=>'missing_template','label'=>'Missing template','reason'=>'Missing or invalid copy.');
             if(str_contains($text,'approved')||str_contains($text,'provider')||str_contains($text,'Meta'))return array('state'=>'missing_provider','label'=>'Missing or unapproved template','reason'=>self::providerBlockerReason($text,$status));
         }
-        if(in_array((string)($status['provider_state']??''),array('not_mapped','approval_required','not_approved','contract_mismatch','restricted_fallback'),true))return array('state'=>'missing_provider','label'=>'Missing or unapproved template','reason'=>self::providerBlockerReason('',$status));
+        if(in_array((string)($status['provider_state']??''),array('not_mapped','mapped_unverified','approval_required','not_approved','contract_mismatch','restricted_fallback'),true))return array('state'=>'missing_provider','label'=>'Missing or unapproved template','reason'=>self::providerBlockerReason('',$status));
         if($channel==='sms'){
             $routes=self::smsRouteStatus();$ready=0;foreach($routes as $route)if(($route['ready']??false)===true)$ready++;
             if($ready===0)return array('state'=>'missing_provider','label'=>'Missing provider','reason'=>self::smsRouteReason($routes)?:'No selected SMS route is available.');

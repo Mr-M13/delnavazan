@@ -130,6 +130,13 @@ final class NotificationOutboxRepository {
     public function markDelivered(int $rowId,string $now):void{
         $this->guardedUpdate($rowId,array('status'=>'leased'),array('status'=>'delivered','leased_at'=>null,'lease_token_digest'=>null,'processed_at'=>$now));
     }
+    /**
+     * The transport acknowledged the hand-off. This is not delivery: `delivered` is written only
+     * from a verified provider receipt. See OPS-16.
+     */
+    public function markAcknowledged(int $rowId,string $now):void{
+        $this->guardedUpdate($rowId,array('status'=>'leased'),array('status'=>'dispatched','leased_at'=>null,'lease_token_digest'=>null,'processed_at'=>$now));
+    }
     /** Close an S-owned row from any non-terminal state when the notification closes by command. */
     public function closeAny(int $rowId,string $status,?string $reasonCode):void{
         global $wpdb;

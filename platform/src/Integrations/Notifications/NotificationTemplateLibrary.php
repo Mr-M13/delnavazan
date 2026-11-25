@@ -190,6 +190,11 @@ final class NotificationTemplateLibrary {
             }elseif($mapping['source']==='manual'&&$activeBody!==null&&!hash_equals((string)$mapping['body_digest'],$this->copyDigest((string)$activeBody['body']))){
                 $providerState='approval_required';
                 $issues[]='Local copy changed after the last mapping; the template must be reviewed and approved again in Meta.';
+            }elseif($mapping['source']==='manual'){
+                // A locally typed mapping plus a matching local digest is not provider approval. Keep
+                // sending blocked until the provider authority reports the template. See OPS-18.
+                $providerState='mapped_unverified';
+                $issues[]='This mapping was recorded locally; Meta has not confirmed the template. Sending stays blocked until it is verified.';
             }else{$providerState='mapped';}
         }elseif($channel==='sms'){
             $providerState='not_configured';
@@ -349,6 +354,7 @@ final class NotificationTemplateLibrary {
             TelnyxTemplateAuthority::AMBIGUOUS=>'More than one approved provider template claims this route; resolve the ambiguity first.',
             TelnyxTemplateAuthority::CONTRACT_MISMATCH=>'The provider template does not match this event’s variable contract.',
             'approval_required'=>'The local copy changed after the last provider mapping; Meta must approve the new copy.',
+            'mapped_unverified'=>'This mapping was recorded locally; Meta has not verified the template, so publication is refused.',
             'restricted_fallback'=>'The provider template is only a restricted fallback and cannot be published against.',
             'not_configured'=>'The provider is not configured for this route.',
             'not_applicable'=>'This route has no provider template.',

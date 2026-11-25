@@ -40,7 +40,7 @@ $owner = $read('OwnerFollowupController.php');
 $ownerView = (string) file_get_contents($root . '/src/Admin/View/OwnerFollowupView.php');
 $ownerRead = (string) file_get_contents($root . '/src/Core/Application/OwnerFollowupReadService.php');
 $require(str_contains($shell, "'owner' => ['پیگیری‌های نیما'") && str_contains($shell, "'dzn-owner-followups' => 'owner'"), 'Owner follow-up tab must be registered in the shell');
-$require(str_contains($menu, 'OwnerFollowupAuthority::CAPABILITY') && str_contains($menu, 'isOperator($userId)') && str_contains($menu, 'do_not_allow'), 'Owner tab must map its capability only for the operator identity');
+$require(str_contains($menu, 'OwnerFollowupAuthority') && str_contains($menu, '$ownerAuthority::CAPABILITY') && str_contains($menu, 'isOperator($userId)') && str_contains($menu, 'do_not_allow'), 'Owner tab must map its capability only for the operator identity');
 $require(str_contains($owner, 'OwnerFollowupAuthority::CAPABILITY') && str_contains($owner, 'check_admin_referer') && str_contains($owner, 'TeacherStatementPaymentService') && str_contains($owner, 'wp_safe_redirect'), 'Owner payment action must be guarded, nonced and use the audited settlement');
 $require(str_contains($owner, 'add_submenu_page(Menu::ROOT_SLUG') && str_contains($owner, 'OwnerFollowupAuthority::CAPABILITY, self::PAGE'), 'Owner page must be registered with the identity-gated capability');
 $require(!str_contains((string) file_get_contents($root . '/src/Core/Infrastructure/Migration/Migrator.php'), 'dzn_access_owner_followups'), 'The owner capability must never be granted to a role');

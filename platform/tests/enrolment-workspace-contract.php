@@ -199,6 +199,9 @@ if (!str_contains($controller, "case 'import_commit':")) throw new RuntimeExcept
 // never summed by finance; the label must say so, and canonical Terms stay not_applicable.
 $screen = $read('src/Admin/Controller/ScreenController.php');
 if (!str_contains($screen, 'Claimed payment state (recorded claim, not verified by finance)')) throw new RuntimeException('The legacy payment state must be labelled as a claim, not verified money');
+// The admin time control must accept any minute the domain accepts (OPS-14).
+if (!str_contains($view, "input type=\"time\" name=\"")) throw new RuntimeException('The admin time control must be a native time input');
+if (str_contains($view, 'for ($minute = 0; $minute < 24 * 60; $minute += 15)')) throw new RuntimeException('The admin time control must not narrow the domain to a 15-minute list');
 $canonicalTerm = $read('src/Core/Application/CanonicalTermAuthorityService.php');
 if (!str_contains($canonicalTerm, "'payment_state'=>'not_applicable'")) throw new RuntimeException('Canonical Terms must never carry an operator payment state');
 $contains($readService, array(

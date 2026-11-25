@@ -1,96 +1,95 @@
-tests/booking-engine-stress-fixture.php:265
-tests/booking-notification-independence-runtime.php:18
-tests/booking-notification-independence-runtime.php:19
-tests/booking-notification-recovery-runtime.php:15
-tests/booking-notification-recovery-runtime.php:16
-tests/booking-release-integration-runtime.php:51
-tests/confirmed-intro-cancellation-runtime.php:13
-tests/confirmed-intro-cancellation-runtime.php:14
-tests/enrolment-workspace-actions-runtime-test.php:26
-tests/enrolment-workspace-canonical-fixture.php:46
-tests/enrolment-workspace-canonical-fixture.php:65
-tests/enrolment-workspace-canonical-fixture.php:66
-tests/enrolment-workspace-canonical-fixture.php:86
-tests/enrolment-workspace-runtime-fixture.php:104
-tests/enrolment-workspace-runtime-fixture.php:75
-tests/enrolment-workspace-runtime-fixture.php:85
-tests/enrolment-workspace-runtime-fixture.php:96
-tests/enrolment-workspace-runtime-test.php:36
-tests/enrolment-workspace-runtime-test.php:69
-tests/enrolment-workspace-runtime-test.php:83
-tests/god-mode-runtime.php:23
-tests/interim-attendance-completion-runtime.php:52
-tests/interim-attendance-completion-runtime.php:78
-tests/interim-attendance-completion-runtime.php:80
-tests/interim-attendance-completion-runtime.php:81
-tests/lesson-replacement-runtime.php:198
-tests/lesson-replacement-runtime.php:99
-tests/lesson-replacement-service-unit.php:202
-tests/phase-2a2e-concurrency-fixture.php:10
-tests/phase-2a2e-concurrency-fixture.php:9
-tests/phase-2a2f-concurrency-setup.php:128
-tests/phase-2a2f-concurrency-setup.php:72
-tests/phase-2a2f-concurrency-worker.php:121
-tests/phase-2a2f-concurrency-worker.php:135
-tests/phase-2a2f-isolated-runtime.php:148
-tests/phase-2a2f-isolated-runtime.php:216
-tests/phase-2a2g-concurrency-setup.php:111
-tests/phase-2a2g-concurrency-setup.php:112
-tests/phase-2a2g-concurrency-setup.php:38
-tests/phase-2a2g-concurrency-setup.php:39
-tests/phase-2a2g-concurrency-setup.php:40
-tests/phase-2a2g-concurrency-setup.php:52
-tests/phase-2a2g-concurrency-setup.php:94
-tests/phase-2a2i-isolated-runtime.php:13
-tests/phase-2a2i-isolated-runtime.php:34
-tests/phase-2a2i-isolated-runtime.php:36
-tests/phase-2a2i-isolated-runtime.php:37
-tests/phase-2a2i-isolated-runtime.php:38
-tests/phase-2a2i-isolated-runtime.php:48
-tests/phase-2a2i-isolated-runtime.php:55
-tests/phase-2a2i-schema14-fixture.php:20
-tests/phase-2a2i-schema14-fixture.php:22
-tests/phase-2a2j-fixture.php:27
-tests/phase-2a2j-fixture.php:30
-tests/phase-2a2n-concurrency-setup.php:47
-tests/phase-2a2n-corruption-runtime.php:54
-tests/phase-2a2n-corruption-runtime.php:55
-tests/phase-2a2n-failure-runtime.php:50
-tests/phase-2a2n-migration-runtime.php:45
-tests/phase-2a2n-runtime.php:54
-tests/phase-2a2o-concurrency-setup.php:116
-tests/phase-2a2o-runtime.php:211
-tests/phase-2a2p-concurrency-setup.php:33
-tests/phase-2a2p-concurrency-setup.php:43
-tests/phase-2a2p-corruption-runtime.php:37
-tests/phase-2a2p-corruption-runtime.php:44
-tests/phase-2a2p-failure-runtime.php:29
-tests/phase-2a2p-failure-runtime.php:32
-tests/phase-2a2p-runtime.php:226
-tests/phase-2a2p-runtime.php:44
-tests/phase-2a2p-runtime.php:451
-tests/phase-2a2p-runtime.php:454
-tests/phase-2a2p-runtime.php:461
-tests/phase-2a2p-runtime.php:538
-tests/phase-2a2p-runtime.php:552
-tests/phase-2a2p-runtime.php:585
-tests/phase-2a2p-runtime.php:588
-tests/phase-2a2p-runtime.php:598
-tests/phase-2a2p-runtime.php:607
-tests/phase-2a2p-runtime.php:88
-tests/phase-2a2p-runtime.php:91
-tests/phase-2a2s-binding-matrix-runtime.php:46
-tests/phase-2a2s-concurrency-setup.php:167
-tests/phase-2a2s-concurrency-setup.php:168
-tests/phase-2a2s-concurrency-setup.php:58
-tests/phase-2a2s-fixture.php:68
-tests/phase-2a2s-outbox-compatibility-runtime.php:33
-tests/phase-2a2s-schedule-derivation-runtime.php:115
-tests/phase-2a2s-schedule-derivation-runtime.php:119
-tests/phase-2a2s-tier-f-instant-runtime.php:28
-tests/post-intro-enrolment-automation-runtime.php:1285
-tests/post-intro-enrolment-automation-runtime.php:179
-tests/post-intro-enrolment-automation-runtime.php:794
-tests/student-workspace-runtime.php:237
-tests/teacher-delivery-confirmation-runtime.php:61
-tests/teacher-statement-payment-runtime.php:74
+tests/booking-engine-stress-fixture.php | 'retention_due_at' => gmdate('Y-m-d H:i:s', strtotime('+24 months', strtotime($now . ' UTC'))),
+tests/booking-notification-independence-runtime.php | $start=gmdate('Y-m-d H:i:s',strtotime('+10 days 10:00:00 UTC'));$end=gmdate('Y-m-d H:i:s',strtotime($start.' UTC +30 minutes'));$occupied=gmdate('Y-m-d H:i:s',strtotime($start.' UTC +45 minutes'));
+tests/booking-notification-independence-runtime.php | $wpdb->insert($p.'booking_requests',array('uid'=>Identifier::uid(),'reference_code'=>'REQ-NOTIF-'.strtoupper($suffix),'student_id'=>$student,'requested_instrument_id'=>$instrument,'selected_intro_course_id'=>$course,'lifecycle_status'=>'submitted','resolution_state'=>'unresolved','retention_due_at'=>gmdate('Y-m-d H:i:s',strtotime('+24 months',strtotime($now.' UTC'))),'version'=>1,'created_at'=>$now,'updated_at'=>$now));$request=(int)$wpdb->insert_id;
+tests/booking-notification-recovery-runtime.php | $start=gmdate('Y-m-d H:i:s',strtotime('+10 days 10:00:00 UTC'));$end=gmdate('Y-m-d H:i:s',strtotime($start.' UTC +30 minutes'));$occupied=gmdate('Y-m-d H:i:s',strtotime($start.' UTC +45 minutes'));
+tests/booking-notification-recovery-runtime.php | $wpdb->insert($p.'booking_requests',array('uid'=>Identifier::uid(),'reference_code'=>'REQ-REC-'.strtoupper($suffix),'student_id'=>$student,'requested_instrument_id'=>$instrument,'selected_intro_course_id'=>$course,'lifecycle_status'=>'submitted','resolution_state'=>'unresolved','retention_due_at'=>gmdate('Y-m-d H:i:s',strtotime('+24 months',strtotime($now.' UTC'))),'version'=>1,'created_at'=>$now,'updated_at'=>$now));$request=(int)$wpdb->insert_id;
+tests/booking-release-integration-runtime.php | $wpdb->insert($p.'booking_requests',array('uid'=>Identifier::uid(),'reference_code'=>$code.'-'.strtoupper($suffix),'student_id'=>$student,'requested_instrument_id'=>$instrument,'selected_intro_course_id'=>$course,'lifecycle_status'=>$lifecycle,'resolution_state'=>$resolution,'retention_due_at'=>gmdate('Y-m-d H:i:s',strtotime('+24 months',strtotime($now.' UTC'))),'version'=>1,'created_at'=>$now,'updated_at'=>$now));
+tests/confirmed-intro-cancellation-runtime.php | $start=gmdate('Y-m-d H:i:s',strtotime('+10 days 10:00:00 UTC'));$end=gmdate('Y-m-d H:i:s',strtotime($start.' UTC +30 minutes'));$occupied=gmdate('Y-m-d H:i:s',strtotime($start.' UTC +45 minutes'));
+tests/confirmed-intro-cancellation-runtime.php | $wpdb->insert($p.'booking_requests',array('uid'=>Identifier::uid(),'reference_code'=>'REQ-CANCEL-'.strtoupper($suffix),'student_id'=>$student,'requested_instrument_id'=>$instrument,'selected_intro_course_id'=>$course,'lifecycle_status'=>'closed','resolution_state'=>'teacher_confirmed','retention_due_at'=>gmdate('Y-m-d H:i:s',strtotime('+24 months',strtotime($now.' UTC'))),'version'=>1,'created_at'=>$now,'updated_at'=>$now));$request=(int)$wpdb->insert_id;
+tests/enrolment-workspace-actions-runtime-test.php | $next = gmdate('Y-m-d H:i:s', strtotime('+8 days'));
+tests/enrolment-workspace-canonical-fixture.php | $date = gmdate('Y-m-d', strtotime('+5 days'));
+tests/enrolment-workspace-canonical-fixture.php | 'commencement_window_start' => gmdate('Y-m-d H:i:s', strtotime('+20 days')), 'commencement_window_end' => gmdate('Y-m-d H:i:s', strtotime('+27 days')),
+tests/enrolment-workspace-canonical-fixture.php | 'requested_times' => array(array('local_date' => gmdate('Y-m-d', strtotime('+20 days')), 'local_start_time' => '18:00', 'timezone' => 'Australia/Brisbane')),
+tests/enrolment-workspace-canonical-fixture.php | 'valid_until' => gmdate('Y-m-d H:i:s', strtotime('+60 days')), 'timezone' => 'UTC', 'conditions_code' => 'none',
+tests/enrolment-workspace-runtime-fixture.php | 'requested_times' => array(array('local_date' => gmdate('Y-m-d', strtotime('+14 days')), 'local_start_time' => '18:00', 'timezone' => 'Australia/Brisbane')),
+tests/enrolment-workspace-runtime-fixture.php | 'weekday' => 2, 'next_class_date' => gmdate('Y-m-d', strtotime('+3 days')), 'local_time' => '14:00', 'timezone' => 'Australia/Brisbane',
+tests/enrolment-workspace-runtime-fixture.php | 'weekday' => 4, 'next_class_date' => gmdate('Y-m-d', strtotime('+4 days')), 'local_time' => '16:00', 'timezone' => 'Australia/Brisbane',
+tests/enrolment-workspace-runtime-fixture.php | array('local_date' => gmdate('Y-m-d', strtotime('+16 days')), 'local_start_time' => '19:00', 'timezone' => 'Australia/Brisbane'),
+tests/enrolment-workspace-runtime-test.php | $newDate = gmdate('Y-m-d', strtotime('+33 days'));
+tests/enrolment-workspace-runtime-test.php | $slot = array('local_date' => gmdate('Y-m-d', strtotime('+33 days')), 'local_start_time' => '14:00', 'timezone' => 'Australia/Brisbane');
+tests/enrolment-workspace-runtime-test.php | 'weekday' => 3, 'next_class_date' => gmdate('Y-m-d', strtotime('+10 days')), 'local_time' => '18:00', 'timezone' => 'Australia/Brisbane',
+tests/god-mode-runtime.php | $start=(new DateTimeImmutable('+2 days 10:00',new DateTimeZone('UTC')));
+tests/interim-attendance-completion-runtime.php | $futureWall=gmdate('Y-m-d H:i:s',strtotime('+1 hour'));
+tests/interim-attendance-completion-runtime.php | $intake->recordCutoverPolicy(gmdate('Y-m-d H:i:s',strtotime('+2 seconds')),dzn_ic_key('cutover'));
+tests/interim-attendance-completion-runtime.php | $startWall=gmdate('Y-m-d H:i:s',strtotime('+6 seconds'));
+tests/interim-attendance-completion-runtime.php | $wall??=gmdate('Y-m-d H:i:s',strtotime('+6 seconds'));
+tests/lesson-replacement-runtime.php | $timestamp=strtotime('+'.$offset.' days 04:00:00 UTC');
+tests/lesson-replacement-runtime.php | $timestamp=strtotime('+'.$offset.' days 05:00:00 UTC');
+tests/lesson-replacement-service-unit.php | $jalaliSeedDate = new DateTimeImmutable('+7 days', new DateTimeZone('Asia/Tehran'));
+tests/phase-2a2e-concurrency-fixture.php | function dzn_2a2e_fixture_assent(int $candidate,int $candidateVersion,int $teacher,int $course,?array $prior=null):array{$input=array('candidate_id'=>$candidate,'candidate_version'=>$candidateVersion,'teacher_id'=>$teacher,'course_id'=>$course,'delivery_mode'=>'online','location_scope'=>'not_applicable','frequency_per_week'=>1,'expected_duration_minutes'=>$prior?45:30,'commencement_window_start'=>gmdate('Y-m-d H:i:s',strtotime('+14 days')),'commencement_window_end'=>gmdate('Y-m-d H:i:s',strtotime('+21 days')),'valid_until'=>gmdate('Y-m-d H:i:s',strtotime('+60 days')),'timezone'=>'UTC','conditions_code'=>'none','evidence_channel'=>'message_reference','evidence_at'=>gmdate('Y-m-d H:i:s',strtotime('-1 minute')),'attribution_basis'=>'direct_teacher_statement');if($prior){$input['supersede_assent_id']=$prior['assent_id'];$input['supersede_assent_version']=$prior['version'];}return(new TeacherAvailabilityAssentService())->recordAdministratorAttestation($input);}
+tests/phase-2a2e-concurrency-fixture.php | function dzn_2a2e_fixture_request(int $instrument,int $course,string $suffix):int{global $wpdb;$result=(new BookingRequestSubmissionService())->submitPublic(array('requested_instrument_id'=>$instrument,'selected_intro_course_id'=>$course,'full_name'=>'DZN Phase 2A2E '.$suffix,'email'=>'dzn-phase-2a2e-'.$suffix.'@phase-2a2e.invalid','mobile'=>'+61400123456','country'=>'AU','city'=>'Brisbane','timezone'=>'UTC','communication_language'=>'en','whatsapp_same_as_mobile'=>true,'whatsapp_number'=>'','privacy_notice_accepted'=>true,'privacy_notice_version'=>'2026-09-05','requested_times'=>array(array('local_date'=>gmdate('Y-m-d',strtotime('+14 days')),'local_start_time'=>'09:00','timezone'=>'UTC'))),'dzn-phase-2a2e-request-'.$suffix);$id=(int)$wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}dzn_booking_requests WHERE reference_code=%s",$result['request_reference']));if($id<1)throw new RuntimeException('Synthetic Booking Request fixture failed');return$id;}
+tests/phase-2a2f-concurrency-setup.php | 'retention_due_at' => gmdate('Y-m-d H:i:s', strtotime('+90 days')),
+tests/phase-2a2f-concurrency-setup.php | gmdate('Y-m-d H:i:s', strtotime('+30 days')),
+tests/phase-2a2f-concurrency-worker.php | gmdate('Y-m-d H:i:s', strtotime('+30 days')),
+tests/phase-2a2f-isolated-runtime.php | gmdate('Y-m-d H:i:s', strtotime('+2 days')),
+tests/phase-2a2f-isolated-runtime.php | gmdate('Y-m-d H:i:s', strtotime('+3 days')),
+tests/phase-2a2g-concurrency-setup.php | 'commencement_window_end' => gmdate('Y-m-d H:i:s', strtotime('+21 days')),
+tests/phase-2a2g-concurrency-setup.php | 'commencement_window_end' => gmdate('Y-m-d H:i:s', strtotime('+22 days')),
+tests/phase-2a2g-concurrency-setup.php | 'commencement_window_start' => gmdate('Y-m-d H:i:s', strtotime('+14 days')),
+tests/phase-2a2g-concurrency-setup.php | 'commencement_window_start' => gmdate('Y-m-d H:i:s', strtotime('+15 days')),
+tests/phase-2a2g-concurrency-setup.php | 'requested_times' => array(array('local_date' => gmdate('Y-m-d', strtotime('+14 days')), 'local_start_time' => '09:00', 'timezone' => 'UTC')),
+tests/phase-2a2g-concurrency-setup.php | 'valid_until' => gmdate('Y-m-d H:i:s', strtotime('+60 days')), 'timezone' => 'UTC',
+tests/phase-2a2g-concurrency-setup.php | else $guardian = $authority->grantGuardian($student, $accepting, 'human_review', 'synthetic_fixture', $at, gmdate('Y-m-d H:i:s', strtotime('+30 days')), $actor);
+tests/phase-2a2i-isolated-runtime.php | $closedAt=gmdate('Y-m-d H:i:s',strtotime('+4 seconds'));dzn_2a2i_assert($wpdb->update($p.'enrolments',array('lifecycle_state'=>'closed','applicable_slot'=>null),array('id'=>$progressId))===1,'Closed-state update failed');dzn_2a2i_event($progressId,5,'current','closed',$closedAt,$closedAt);dzn_2a2i_assert($ready->assess((int)$f['main']['arrangement_id'])==='already_converted','Progressed closed source lost already-converted readiness');$closedReplay=$service->convert((int)$f['main']['arrangement_id'],$key);$closedOther=$service->convert((int)$f['main']['arrangement_id'],dzn_2a2i_key('main-closed'));dzn_2a2i_assert($closedReplay['idempotent']&&!$closedReplay['created']&&$closedReplay['enrolment_id']===$progressId,'Closed-state same-key replay failed');dzn_2a2i_assert($closedOther['already_converted']&&!$closedOther['idempotent']&&!$closedOther['created']&&$closedOther['enrolment_id']===$progressId,'Closed-state already-converted result failed');dzn_2a2i_assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}enrolments WHERE accepted_service_arrangement_id=%d",$f['main']['arrangement_id']))===$progressEnrolments&&(int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}enrolment_conversion_commands WHERE accepted_service_arrangement_id=%d",$f['main']['arrangement_id']))===$progressCommands,'Lifecycle replay created duplicate conversion evidence');
+tests/phase-2a2i-isolated-runtime.php | $currentAt=gmdate('Y-m-d H:i:s',strtotime('+1 second'));dzn_2a2i_assert($wpdb->update($p.'enrolments',array('lifecycle_state'=>'current','applicable_slot'=>1),array('id'=>$progressId))===1,'Current-state update failed');dzn_2a2i_event($progressId,2,'authorised','current',$currentAt,$currentAt);dzn_2a2i_assert($ready->assess((int)$f['main']['arrangement_id'])==='already_converted','Progressed current source lost already-converted readiness');$currentReplay=$service->convert((int)$f['main']['arrangement_id'],$key);$currentOther=$service->convert((int)$f['main']['arrangement_id'],dzn_2a2i_key('main-current'));dzn_2a2i_assert($currentReplay['idempotent']&&!$currentReplay['created']&&$currentReplay['enrolment_id']===$progressId,'Current-state same-key replay failed');dzn_2a2i_assert($currentOther['already_converted']&&!$currentOther['idempotent']&&!$currentOther['created']&&$currentOther['enrolment_id']===$progressId,'Current-state already-converted result failed');
+tests/phase-2a2i-isolated-runtime.php | $pausedAt=gmdate('Y-m-d H:i:s',strtotime('+2 seconds'));dzn_2a2i_assert($wpdb->update($p.'enrolments',array('lifecycle_state'=>'paused','applicable_slot'=>1),array('id'=>$progressId))===1,'Paused-state update failed');dzn_2a2i_event($progressId,3,'current','paused',$pausedAt,$pausedAt);dzn_2a2i_assert($ready->assess((int)$f['main']['arrangement_id'])==='already_converted','Progressed paused source lost already-converted readiness');$pausedReplay=$service->convert((int)$f['main']['arrangement_id'],$key);$pausedOther=$service->convert((int)$f['main']['arrangement_id'],dzn_2a2i_key('main-paused'));dzn_2a2i_assert($pausedReplay['idempotent']&&!$pausedReplay['created']&&$pausedReplay['enrolment_id']===$progressId,'Paused-state same-key replay failed');dzn_2a2i_assert($pausedOther['already_converted']&&!$pausedOther['idempotent']&&!$pausedOther['created']&&$pausedOther['enrolment_id']===$progressId,'Paused-state already-converted result failed');
+tests/phase-2a2i-isolated-runtime.php | $progressionKey=dzn_2a2i_key('replay-progression');$progressionResult=$service->convert((int)$f['replay_progression_contaminated']['arrangement_id'],$progressionKey);$badProgressAt=gmdate('Y-m-d H:i:s',strtotime('+1 second'));$wpdb->update($p.'enrolments',array('lifecycle_state'=>'current','applicable_slot'=>1),array('id'=>$progressionResult['enrolment_id']));dzn_2a2i_event((int)$progressionResult['enrolment_id'],2,'paused','current',$badProgressAt,$badProgressAt);dzn_2a2i_assert($ready->assess((int)$f['replay_progression_contaminated']['arrangement_id'])==='data_integrity_conflict','Malformed post-conversion lifecycle remained ready');dzn_2a2i_rejected(static fn()=>$service->convert((int)$f['replay_progression_contaminated']['arrangement_id'],$progressionKey),'Malformed post-conversion lifecycle replayed');
+tests/phase-2a2i-isolated-runtime.php | $resumedAt=gmdate('Y-m-d H:i:s',strtotime('+3 seconds'));dzn_2a2i_assert($wpdb->update($p.'enrolments',array('lifecycle_state'=>'current','applicable_slot'=>1),array('id'=>$progressId))===1,'Resumed-current update failed');dzn_2a2i_event($progressId,4,'paused','current',$resumedAt,$resumedAt);dzn_2a2i_assert($ready->assess((int)$f['main']['arrangement_id'])==='already_converted','Resumed current source lost already-converted readiness');
+tests/phase-2a2i-isolated-runtime.php | $tieAt=gmdate('Y-m-d H:i:s',strtotime('+20 seconds'));$tieOne=$service->convert((int)$f['tie_predecessor_one']['arrangement_id'],dzn_2a2i_key('tie-one'));$wpdb->update($p.'enrolments',array('lifecycle_state'=>'closed','applicable_slot'=>null),array('id'=>$tieOne['enrolment_id']));dzn_2a2i_close((int)$tieOne['enrolment_id'],2,'authorised','closed',$tieAt,$tieAt);$tieTwo=$service->convert((int)$f['tie_predecessor_two']['arrangement_id'],dzn_2a2i_key('tie-two'));$wpdb->update($p.'enrolments',array('lifecycle_state'=>'closed','applicable_slot'=>null),array('id'=>$tieTwo['enrolment_id']));dzn_2a2i_close((int)$tieTwo['enrolment_id'],2,'authorised','closed',$tieAt,$tieAt);dzn_2a2i_assert($ready->assess((int)$f['tie_target']['arrangement_id'])==='data_integrity_conflict','Equal closure ambiguity accepted');
+tests/phase-2a2i-isolated-runtime.php | function dzn_2a2i_convert_close(array$source,string$case,EnrolmentConversionService$service):int{global$wpdb;$prefix=$wpdb->prefix.'dzn_';$result=$service->convert((int)$source['arrangement_id'],dzn_2a2i_key('history-'.$case));$id=(int)$result['enrolment_id'];$at=gmdate('Y-m-d H:i:s',strtotime('+10 seconds'));dzn_2a2i_assert($wpdb->update($prefix.'enrolments',array('lifecycle_state'=>'closed','applicable_slot'=>null),array('id'=>$id))===1,'History row close failed');switch($case){case'start':$wpdb->delete($prefix.'enrolment_lifecycle_events',array('enrolment_id'=>$id));dzn_2a2i_close($id,2,'authorised','closed',$at,$at);break;case'gap':dzn_2a2i_close($id,3,'authorised','closed',$at,$at);break;case'chain':dzn_2a2i_close($id,2,'paused','closed',$at,$at);break;case'invalid':dzn_2a2i_close($id,2,'authorised','invalid_state',$at,$at);break;case'state':dzn_2a2i_close($id,2,'authorised','paused',$at,$at);break;case'timestamp':dzn_2a2i_close($id,2,'authorised','closed',$at,gmdate('Y-m-d H:i:s',strtotime('+9 seconds')));break;default:dzn_2a2i_close($id,2,'authorised','closed',$at,$at);}return$id;}
+tests/phase-2a2i-schema14-fixture.php | $assent=(new TeacherAvailabilityAssentService())->recordAdministratorAttestation(array('candidate_id'=>$candidate['candidate_id'],'candidate_version'=>$candidate['version'],'teacher_id'=>$teacher,'course_id'=>$course,'delivery_mode'=>'online','location_scope'=>'not_applicable','frequency_per_week'=>1,'expected_duration_minutes'=>30,'commencement_window_start'=>gmdate('Y-m-d H:i:s',strtotime('+14 days')),'commencement_window_end'=>gmdate('Y-m-d H:i:s',strtotime('+21 days')),'valid_until'=>gmdate('Y-m-d H:i:s',strtotime('+60 days')),'timezone'=>'UTC','conditions_code'=>'none','evidence_channel'=>'message_reference','evidence_at'=>gmdate('Y-m-d H:i:s',strtotime('-1 minute')),'attribution_basis'=>'direct_teacher_statement'));
+tests/phase-2a2i-schema14-fixture.php | $requestResult=(new BookingRequestSubmissionService())->submitPublic(array('requested_instrument_id'=>$instrument,'selected_intro_course_id'=>$course,'full_name'=>'Synthetic I '.$label,'email'=>$label.'-'.$suffix.'@phase-2a2i.invalid','mobile'=>'+61400000000','country'=>'AU','city'=>'Brisbane','timezone'=>'UTC','communication_language'=>'en','whatsapp_same_as_mobile'=>true,'whatsapp_number'=>'','privacy_notice_accepted'=>true,'privacy_notice_version'=>'2026-09-05','requested_times'=>array(array('local_date'=>gmdate('Y-m-d',strtotime('+14 days')),'local_start_time'=>'09:00','timezone'=>'UTC'))),'dzn-2a2i-request-'.$label.'-'.$suffix);
+tests/phase-2a2j-fixture.php | $assent = (new TeacherAvailabilityAssentService())->recordAdministratorAttestation(array('candidate_id' => $candidate['candidate_id'], 'candidate_version' => $candidate['version'], 'teacher_id' => $teachers[0], 'course_id' => $course, 'delivery_mode' => 'online', 'location_scope' => 'not_applicable', 'frequency_per_week' => 1, 'expected_duration_minutes' => 30, 'commencement_window_start' => gmdate('Y-m-d H:i:s', strtotime('+14 days')), 'commencement_window_end' => gmdate('Y-m-d H:i:s', strtotime('+21 days')), 'valid_until' => gmdate('Y-m-d H:i:s', strtotime('+60 days')), 'timezone' => 'UTC', 'conditions_code' => 'none', 'evidence_channel' => 'message_reference', 'evidence_at' => gmdate('Y-m-d H:i:s', strtotime('-1 minute')), 'attribution_basis' => 'direct_teacher_statement'));
+tests/phase-2a2j-fixture.php | $requestResult = (new BookingRequestSubmissionService())->submitPublic(array('requested_instrument_id' => $instrument, 'selected_intro_course_id' => $course, 'full_name' => 'Synthetic J ' . $label, 'email' => $label . '-' . $suffix . '@phase-2a2j.invalid', 'mobile' => '+61400000000', 'country' => 'AU', 'city' => 'Brisbane', 'timezone' => 'UTC', 'communication_language' => 'en', 'whatsapp_same_as_mobile' => true, 'whatsapp_number' => '', 'privacy_notice_accepted' => true, 'privacy_notice_version' => '2026-09-05', 'requested_times' => array(array('local_date' => gmdate('Y-m-d', strtotime('+14 days')), 'local_start_time' => '09:00', 'timezone' => 'UTC'))), dzn_2a2j_f_key('request-' . $label));
+tests/phase-2a2n-concurrency-setup.php | $date = gmdate('Y-m-d', strtotime('+' . (7 + ($offset === false ? 0 : (int) $offset)) . ' days'));
+tests/phase-2a2n-corruption-runtime.php | $date = gmdate('Y-m-d', strtotime('+9 days'));
+tests/phase-2a2n-corruption-runtime.php | $input = static fn(string $time): array => array('schedule_timezone' => 'UTC', 'local_wall_date' => gmdate('Y-m-d', strtotime('+9 days')), 'local_wall_time' => $time, 'reason_code' => 'synthetic_corruption') + dzn_nc_evidence('corruption');
+tests/phase-2a2n-failure-runtime.php | $day = static fn(int $offset): string => gmdate('Y-m-d', strtotime('+' . $offset . ' days'));
+tests/phase-2a2n-migration-runtime.php | $legacyVersion = (new LessonScheduleService())->initial($legacyLesson, array('schedule_timezone' => 'UTC', 'local_wall_date' => gmdate('Y-m-d', strtotime('+20 days')), 'local_wall_time' => '10:00:00', 'reason' => 'legacy coexistence'));
+tests/phase-2a2n-runtime.php | $future = static fn(int $days): string => gmdate('Y-m-d', strtotime('+' . $days . ' days'));
+tests/phase-2a2o-concurrency-setup.php | $state['revise_wall'] = gmdate('Y-m-d H:i:s', strtotime('+11 days 10:00:00'));
+tests/phase-2a2o-runtime.php | dzn_o_rejected(fn() => $scheduleService->schedule((int) $owed['lesson_id'], $academyChain['assignment_id'], array('schedule_timezone' => 'UTC', 'local_wall_date' => gmdate('Y-m-d', strtotime('+9 days')), 'local_wall_time' => '10:00:00', 'reason_code' => 'synthetic_schedule') + dzn_o_evidence('reschedule-recorded'), dzn_o_key('reschedule-recorded')), 'lesson_not_schedulable', 'rescheduling a terminal Lesson');
+tests/phase-2a2p-concurrency-setup.php | $wall=gmdate('Y-m-d H:i:s',strtotime('+2 hours'));
+tests/phase-2a2p-concurrency-setup.php | if(!$policy)$intake->recordCutoverPolicy(gmdate('Y-m-d H:i:s',strtotime('+2 seconds')),$key('cutover'));
+tests/phase-2a2p-corruption-runtime.php | $intake->recordCutoverPolicy(gmdate('Y-m-d H:i:s',strtotime('+2 seconds')),dzn_pc_key('cutover'));
+tests/phase-2a2p-corruption-runtime.php | $wall=gmdate('Y-m-d H:i:s',strtotime('+8 seconds'));
+tests/phase-2a2p-failure-runtime.php | $intake->recordCutoverPolicy(gmdate('Y-m-d H:i:s',strtotime('+2 seconds')),dzn_pf_key('cutover'));
+tests/phase-2a2p-failure-runtime.php | $wall=gmdate('Y-m-d H:i:s',strtotime('+30 minutes'));
+tests/phase-2a2p-runtime.php | $boundaryInstant=gmdate('Y-m-d H:i:s',strtotime('+2 seconds'));
+tests/phase-2a2p-runtime.php | $deferred=$intake->recordCutoverPolicy(gmdate('Y-m-d H:i:s',strtotime('+40 seconds')),dzn_p_key('deferred-cutover'));
+tests/phase-2a2p-runtime.php | $duplicateInstant=gmdate('Y-m-d H:i:s',strtotime('+10 seconds'));
+tests/phase-2a2p-runtime.php | $laterPolicy=$intake->recordCutoverPolicy(gmdate('Y-m-d H:i:s',strtotime('+3 seconds')),dzn_p_key('later-cutover'));
+tests/phase-2a2p-runtime.php | $policy=$intake->recordCutoverPolicy(gmdate('Y-m-d H:i:s',strtotime('+2 seconds')),dzn_p_key('cutover'));
+tests/phase-2a2p-runtime.php | $prospective=$intake->recordCutoverPolicy(gmdate('Y-m-d H:i:s',strtotime('+2 seconds')),dzn_p_key('prospective-cutover'));
+tests/phase-2a2p-runtime.php | $rescheduled=$schedules->schedule((int)$staleOccurrence['lesson_id'],(int)$staleOccurrence['assignment_id'],array('schedule_timezone'=>'UTC','local_wall_date'=>substr(gmdate('Y-m-d H:i:s',strtotime('+2 days')),0,10),'local_wall_time'=>'09:00:00','duration_minutes'=>30,'reason_code'=>'synthetic_reschedule')+dzn_p_evidence('reschedule'),dzn_p_key('reschedule'));
+tests/phase-2a2p-runtime.php | $restored=$intake->recordCutoverPolicy(gmdate('Y-m-d H:i:s',strtotime('+1 second')),dzn_p_key('restore-cutover'));
+tests/phase-2a2p-runtime.php | $settleWall=gmdate('Y-m-d H:i:s',strtotime('+3 seconds'));
+tests/phase-2a2p-runtime.php | $txnInstant=gmdate('Y-m-d H:i:s',strtotime('+5 seconds'));
+tests/phase-2a2p-runtime.php | $wall??=gmdate('Y-m-d H:i:s',strtotime('+3 seconds'));
+tests/phase-2a2p-runtime.php | dzn_p_rejected(fn()=>$intake->recordCutoverPolicy(gmdate('Y-m-d H:i:s',strtotime('+1 hour')),dzn_p_key('sub-cutover')),'Unauthorized','non-administrator cutover policy');
+tests/phase-2a2p-runtime.php | try{$intake->recordCutoverPolicy(gmdate('Y-m-d H:i:s',strtotime('+9 seconds')),$boundaryKey);}catch(\Throwable$e){$changedBoundary=$e->getMessage()==='Idempotency conflict';}
+tests/phase-2a2s-binding-matrix-runtime.php | $instant=gmdate('Y-m-d H:i:s',strtotime('+3 days'));
+tests/phase-2a2s-concurrency-setup.php | $cycle=dzn_s_fix_cycle(gmdate('Y-m-d H:i:s',strtotime('+2 days')),null,'conc-'.$label);
+tests/phase-2a2s-concurrency-setup.php | 'anchor_local_wall_date'=>gmdate('Y-m-d',strtotime('+1 day')),'pattern_version'=>1,'rule_version'=>'r2',
+tests/phase-2a2s-concurrency-setup.php | 'duration_minutes'=>60,'buffer_minutes'=>0,'anchor_starts_at_utc'=>gmdate('Y-m-d H:i:s',strtotime('+1 day')),
+tests/phase-2a2s-fixture.php | 'boundary_derived_at'=>gmdate('Y-m-d H:i:s',strtotime('+30 days')),'automatic_charge_at'=>$automaticChargeAt,
+tests/phase-2a2s-outbox-compatibility-runtime.php | $claimable=(new NotificationOutboxRepository())->claimable(gmdate('Y-m-d H:i:s',strtotime('+1 day')),50);
+tests/phase-2a2s-schedule-derivation-runtime.php | $deadline=gmdate('Y-m-d H:i:s',strtotime('+2 minutes'));
+tests/phase-2a2s-schedule-derivation-runtime.php | $late=$ready['service']->observeIntent($intent,array_merge(dzn_s_fix_evidence('sched-tier-f-strict'),array('observed_at'=>gmdate('Y-m-d H:i:s',strtotime('+1 minute')))),dzn_s_fix_key('obs-tier-f-strict'));
+tests/phase-2a2s-tier-f-instant-runtime.php | $instant=gmdate('Y-m-d H:i:s',strtotime('+3 days'));
+tests/post-intro-enrolment-automation-runtime.php | $autoBooking = $booking('auto-attendance', 3, '03:10:00', gmdate('Y-m-d', strtotime('+15 days')));
+tests/post-intro-enrolment-automation-runtime.php | $futureDate ??= gmdate('Y-m-d', strtotime('+' . (14 + $bookingSequence) . ' days'));
+tests/post-intro-enrolment-automation-runtime.php | 'requested_times' => array(array('local_date' => gmdate('Y-m-d', strtotime('+40 days')), 'local_start_time' => '04:17', 'timezone' => 'UTC')),
+tests/student-workspace-runtime.php | 'requested_times' => array(array('local_date' => gmdate('Y-m-d', strtotime('+14 days')), 'local_start_time' => '09:00', 'timezone' => 'UTC')),
+tests/teacher-delivery-confirmation-runtime.php | $start = gmdate('Y-m-d H:i:s', strtotime('+3 seconds'));
+tests/teacher-statement-payment-runtime.php | $start = gmdate('Y-m-d H:i:s', strtotime('+3 seconds'));

@@ -875,3 +875,37 @@ It is a fixture that asserts an asynchronous post-condition synchronously — th
 ready. The test-only fix is to poll for `prepared` with a bounded wait (or to call `prepare()` again
 and assert the retry), which strengthens rather than weakens the assertion. It is left as a decision
 because it touches a required runtime suite.
+
+## 10. Owner decisions implemented (2026-11-25)
+
+| Finding | Decision | Where |
+|---|---|---|
+| OPS-10 | Copy only: a cancelled intro names the rebooking path | #828 |
+| OPS-13 | Retire the historical-import **UI**; keep the service, handler and guarded retirement workflow dormant | #830 |
+| OPS-20 | Adopt the fixture-clock ratchet (95 lines baselined, new ones fail) | #832 |
+| OPS-21 | The Student chooses the plan in their account; the Desk says so | #828 |
+| OPS-24 | Wire `resolveException` behind the statement-management authority, with a note and the existing lock/audit | #834 |
+| OPS-25 | The legacy Term field is labelled a **claim**, never finance truth | #830 |
+| OPS-27 | "View" permissions relabelled "Read and edit" where the grant includes write; ratcheted | #831 |
+| #10 | `permission-registry-unit`, `delegated-access-unit` and the clock ratchet are in the PR gate | governance PR |
+| #8 | The post-intro runtime fixture waits for the asynchronous preparation instead of racing it | #829 |
+| God Mode | Stays bound to one account; no change | — |
+
+### OPS-12 — verified, no code change
+
+The owner's rule is already the shipped rule, so there is nothing to patch:
+
+- Automatic delivery requires **at least 1200 seconds (20 minutes)** of simultaneous Teacher/Student
+  presence inside `[start − 1h, end + 1h)`: `CanonicalAttendanceRule::THRESHOLD_SECONDS = 1200`,
+  `RULE_VERSION = canonical_attendance_overlap_v2`, assessed by `CanonicalAttendanceRule::assess()`.
+- Everything else falls back to **manual attendance**: `TeacherAttendanceFallbackRule` allows the
+  owning Teacher to confirm when the evidence is missing, incomplete, unverified or below the
+  threshold (`overlap_below_threshold`, `provider_evidence_missing`, …), and refuses only a
+  contradictory or integrity-sensitive case, which stays with administrator review.
+- Both paths require the occurrence to have ended, and the Teacher path is bounded by
+  `ManualAttendanceWindowRule`.
+
+Residual question for the next pass, not a defect: when neither the automatic assessment nor the
+Teacher acts inside the manual window, does the administrator get an explicit work item? The case is
+visible in Attendance review, but no document here proves an operator is *prompted*. That belongs
+with the reconciliation decision, not with the attendance rule.

@@ -5,6 +5,16 @@ namespace Delnavazan\Platform\Core\Infrastructure\Repository;
 final class FinanceStatementRepository extends FinanceRepository {
     public function __construct(){parent::__construct();}
 
+    /**
+     * Issued (unpaid) statements of active Teachers, oldest period first.
+     * Read-only: the settlement itself stays in TeacherStatementPaymentService.
+     *
+     * @return list<object>
+     */
+    public function issuedWithTeacher(int $limit=40):array{
+        $limit=max(1,min(200,$limit));
+        return $this->many("SELECT statement.id statement_id,statement.teacher_id,statement.period_label,statement.period_start_utc,statement.period_end_utc,statement.currency,statement.payable_amount_minor,statement.issued_at,teacher.display_name teacher_name,teacher.reference_code teacher_reference FROM {$this->p}finance_statements statement INNER JOIN {$this->p}teachers teacher ON teacher.id=statement.teacher_id WHERE statement.state='issued' AND teacher.status='active' AND teacher.archived_at IS NULL ORDER BY statement.period_end_utc ASC,teacher.display_name ASC,statement.id ASC LIMIT %d",$limit);
+    }
     public function byId(int $id,bool $lock=false):?object{
         return $this->one("SELECT * FROM {$this->p}finance_statements WHERE id=%d".($lock?' FOR UPDATE':''),$id);
     }

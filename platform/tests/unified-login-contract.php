@@ -32,6 +32,19 @@ if ( 1 !== substr_count( $fallback, "array( 'ورود', home_url( '/login/' )" )
 	throw new RuntimeException( 'Primary navigation must render one unified login CTA, no duplicate enrolment action, without changing stored menu data.' );
 }
 
+$header = (string) file_get_contents( $root . '/theme/header.php' );
+if ( ! str_contains( $setup, "is_user_logged_in()" )
+	|| ! str_contains( $setup, "dzn_view_own_portal_schedule" )
+	|| ! str_contains( $setup, "'/teacher-portal/'" )
+	|| ! str_contains( $setup, "'/dashboard/'" ) ) {
+	throw new RuntimeException( 'A signed-in visitor must land on their own portal, not the login page.' );
+}
+if ( ! str_contains( $setup, 'function dzn_theme_login_cta()' )
+	|| ! str_contains( $header, 'dzn_theme_login_cta()' )
+	|| str_contains( $header, "home_url( '/login/' )" ) ) {
+	throw new RuntimeException( 'The header login action must render from the shared CTA helper, not a second hardcoded URL.' );
+}
+
 foreach ( array( 'dzn-acceptance-student', 'dzn-acceptance-teacher@example.invalid', "'/dashboard/'", "'/admin-operations/'", "'/wp-login.php'", 'student-cross-role', 'wrong-password', 'invalid-nonce', 'dzn-nav-portal' ) as $coverage ) {
 	if ( ! str_contains( $smoke, $coverage ) ) { throw new RuntimeException( 'Login runtime smoke lacks coverage: ' . $coverage ); }
 }

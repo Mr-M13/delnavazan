@@ -45,7 +45,8 @@
 			</div>
 		</div>
 		<div class="site-header__actions">
-			<a class="site-header__login" href="<?php echo esc_url( home_url( '/login/' ) ); ?>"><?php esc_html_e( 'ورود', 'delnavazan-theme' ); ?></a>
+			<?php $dzn_login_cta = dzn_theme_login_cta(); ?>
+			<a class="site-header__login" href="<?php echo esc_url( $dzn_login_cta['url'] ); ?>"><?php echo esc_html( $dzn_login_cta['label'] ); ?></a>
 			<button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation" hidden>
 				<span class="menu-toggle__label"><?php esc_html_e( 'فهرست اصلی', 'delnavazan-theme' ); ?></span>
 				<svg class="menu-toggle__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">

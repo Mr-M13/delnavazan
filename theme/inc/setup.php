@@ -157,9 +157,35 @@ function dzn_theme_remove_primary_auth_menu_items( $items, $args ) {
 }
 add_filter( 'wp_nav_menu_objects', 'dzn_theme_remove_primary_auth_menu_items', 10, 2 );
 
+/**
+ * The one login call-to-action: the URL and the label shared by the primary
+ * navigation and the mobile header action. Two render sites, one source, so the
+ * header and the menu can never point a visitor at different places.
+ *
+ * @return array{url:string,label:string}
+ */
+function dzn_theme_login_cta() {
+	// A signed-in visitor is not a prospect: send them to their own portal instead
+	// of a login page that would only bounce them back. Teachers are recognised by
+	// the portal capability the teacher role carries; everyone else lands on the
+	// dashboard, which is the established post-login destination.
+	if ( is_user_logged_in() ) {
+		$is_teacher = current_user_can( 'dzn_view_own_portal_schedule' );
+		return array(
+			'url'   => home_url( $is_teacher ? '/teacher-portal/' : '/dashboard/' ),
+			'label' => __( 'حساب من', 'delnavazan-theme' ),
+		);
+	}
+	return array(
+		'url'   => home_url( '/login/' ),
+		'label' => __( 'ورود', 'delnavazan-theme' ),
+	);
+}
+
 function dzn_theme_append_primary_login_cta( $items, $args ) {
 	if ( empty( $args->theme_location ) || 'primary' !== $args->theme_location ) { return $items; }
-	return $items . '<li class="menu-item dzn-nav-portal"><a class="dzn-nav-portal dzn-nav-action" href="' . esc_url( home_url( '/login/' ) ) . '">ورود</a></li>';
+	$cta = dzn_theme_login_cta();
+	return $items . '<li class="menu-item dzn-nav-portal"><a class="dzn-nav-portal dzn-nav-action" href="' . esc_url( $cta['url'] ) . '">' . esc_html( $cta['label'] ) . '</a></li>';
 }
 add_filter( 'wp_nav_menu_items', 'dzn_theme_append_primary_login_cta', 20, 2 );
 

@@ -124,6 +124,12 @@ final class Menu {
             'dzn_manage_payment_providers',
         ]);
         if ($cap === self::SYSTEM_HEALTH_CAP) return self::mappedIntegrationCaps($userId, 'dzn_view_diagnostics');
+        if ($cap === \Delnavazan\Platform\Core\Application\OwnerFollowupAuthority::CAPABILITY) {
+            $owner = get_userdata($userId);
+            return \Delnavazan\Platform\Core\Application\OwnerFollowupAuthority::isOperator($userId) && $owner && $owner->has_cap('manage_options')
+                ? ['manage_options']
+                : ['do_not_allow'];
+        }
         return $caps;
     }
 

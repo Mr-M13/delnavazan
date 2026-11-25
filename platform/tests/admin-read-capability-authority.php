@@ -1,12 +1,18 @@
 <?php
 /** Regression coverage for administrator and delegated read-only settings access. */
 
+require_once __DIR__ . '/../src/Core/Application/OwnerFollowupAuthority.php';
+
 final class DznAdminAuthorityTestUser {
     public array $allcaps;
+    public string $user_login = '';
+    public string $user_email = '';
     private array $effectiveCaps;
-    public function __construct(array $allcaps, array $effectiveCaps) {
+    public function __construct(array $allcaps, array $effectiveCaps, string $login = '', string $email = '') {
         $this->allcaps = $allcaps;
         $this->effectiveCaps = $effectiveCaps;
+        $this->user_login = $login;
+        $this->user_email = $email;
     }
     public function has_cap(string $capability): bool { return !empty($this->effectiveCaps[$capability]); }
 }
@@ -16,6 +22,7 @@ $GLOBALS['dzn_test_users'] = array(
     2 => new DznAdminAuthorityTestUser(array('dzn_view_diagnostics' => true), array('dzn_view_diagnostics' => true)),
     3 => new DznAdminAuthorityTestUser(array('dzn_manage_provider_integrations' => true), array('dzn_manage_provider_integrations' => true)),
     4 => new DznAdminAuthorityTestUser(array(), array()),
+    5 => new DznAdminAuthorityTestUser(array(), array('manage_options' => true), 'nima', \Delnavazan\Platform\Core\Application\OwnerFollowupAuthority::operator()),
 );
 
 function get_userdata(int $userId): ?DznAdminAuthorityTestUser {
@@ -32,6 +39,11 @@ function dzn_assert_meta_cap(array $expected, string $capability, int $userId): 
         throw new RuntimeException("Unexpected mapped authority for {$capability} and user {$userId}");
     }
 }
+
+// The owner follow-up screen is identity-gated: a WordPress administrator without the
+// configured identity is denied, and only the named account reaches manage_options.
+dzn_assert_meta_cap(array('do_not_allow'), \Delnavazan\Platform\Core\Application\OwnerFollowupAuthority::CAPABILITY, 1);
+dzn_assert_meta_cap(array('manage_options'), \Delnavazan\Platform\Core\Application\OwnerFollowupAuthority::CAPABILITY, 5);
 
 foreach (array('dzn_access_system_health') as $capability) {
     dzn_assert_meta_cap(array('manage_options'), $capability, 1);

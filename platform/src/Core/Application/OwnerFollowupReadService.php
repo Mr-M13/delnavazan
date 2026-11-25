@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Application\Finance\Read\TeacherStatementReadService;
+use Delnavazan\Platform\Core\Support\PersianCalendar;
 use Delnavazan\Platform\Core\Infrastructure\Repository\FinanceStatementRepository;
 
 /**
@@ -41,9 +42,9 @@ final class OwnerFollowupReadService {
                 'learner' => (string) ($case['learner_name'] ?? ''),
                 'instrument' => (string) ($case['instrument'] ?? ''),
                 'course' => (string) ($case['course'] ?? ''),
-                'when' => (string) ($first['label'] ?? ($case['deadline_label'] ?? '')),
+                'when' => $this->persianInstant((string) ($first['starts_at_utc'] ?? ''), (string) ($first['timezone'] ?? 'Asia/Tehran')),
                 'stage_key' => (string) ($case['stage_key'] ?? ''),
-                'age' => (string) ($case['age_label'] ?? ''),
+                'age' => $this->persianAge((int) ($case['age_seconds'] ?? 0)),
                 'contact' => trim((string) ($case['phone'] ?? '')),
                 'request_id' => (int) ($case['id'] ?? 0),
             );
@@ -104,7 +105,7 @@ final class OwnerFollowupReadService {
                 'statement_id' => (int) ($row->statement_id ?? 0),
                 'teacher' => trim((string) ($row->teacher_name ?? '')) ?: 'مدرس',
                 'teacher_reference' => (string) ($row->teacher_reference ?? ''),
-                'period' => trim((string) ($row->period_label ?? '')),
+                'period' => $this->persianMonth((string) ($row->period_start_utc ?? ''), (string) ($row->period_timezone ?? 'Asia/Tehran')),
                 'amount_minor' => (int) ($row->payable_amount_minor ?? 0),
                 'currency' => (string) ($row->currency ?? ''),
                 'issued_at' => (string) ($row->issued_at ?? ''),
@@ -118,6 +119,57 @@ final class OwnerFollowupReadService {
         $this->guard();
         if ($statementId < 1) { return null; }
         try { return (new TeacherStatementReadService())->statement($statementId); } catch (\Throwable $error) { return null; }
+    }
+
+    private function digits(string $value): string {
+        return strtr($value, array('0' => '۰', '1' => '۱', '2' => '۲', '3' => '۳', '4' => '۴', '5' => '۵', '6' => '۶', '7' => '۷', '8' => '۸', '9' => '۹'));
+    }
+
+    /** Persian weekday, Jalali date and 24h time in the instant's own timezone. */
+    private function persianInstant(string $utc, string $timezone): string {
+        if ('' === trim($utc)) { return ''; }
+        try {
+            $zone = new \DateTimeZone('' !== trim($timezone) ? $timezone : 'Asia/Tehran');
+            $instant = (new \DateTimeImmutable($utc, new \DateTimeZone('UTC')))->setTimezone($zone);
+        } catch (\Throwable $error) {
+            return '';
+        }
+        if (!class_exists(PersianCalendar::class)) {
+            return $this->digits($instant->format('Y-m-d H:i'));
+        }
+        $jalali = PersianCalendar::toJalali((int) $instant->format('Y'), (int) $instant->format('n'), (int) $instant->format('j'));
+        $year = $jalali[0];
+        $month = $jalali[1];
+        $day = $jalali[2];
+        $months = array(1 => 'فروردین', 2 => 'اردیبهشت', 3 => 'خرداد', 4 => 'تیر', 5 => 'مرداد', 6 => 'شهریور', 7 => 'مهر', 8 => 'آبان', 9 => 'آذر', 10 => 'دی', 11 => 'بهمن', 12 => 'اسفند');
+        $weekdays = array(0 => 'یکشنبه', 1 => 'دوشنبه', 2 => 'سه‌شنبه', 3 => 'چهارشنبه', 4 => 'پنجشنبه', 5 => 'جمعه', 6 => 'شنبه');
+        return trim(
+            ($weekdays[(int) $instant->format('w')] ?? '') . ' ' .
+            $this->digits((string) $day) . ' ' . ($months[$month] ?? '') . ' ' .
+            $this->digits((string) $year) . '، ' . $this->digits($instant->format('H:i'))
+        );
+    }
+
+    private function persianMonth(string $utc, string $timezone): string {
+        if ('' === trim($utc)) { return ''; }
+        try {
+            $zone = new \DateTimeZone('' !== trim($timezone) ? $timezone : 'Asia/Tehran');
+            $instant = (new \DateTimeImmutable($utc, new \DateTimeZone('UTC')))->setTimezone($zone);
+        } catch (\Throwable $error) {
+            return '';
+        }
+        if (!class_exists(PersianCalendar::class)) {
+            return $this->digits($instant->format('Y-m'));
+        }
+        [$year, $month] = PersianCalendar::toJalali((int) $instant->format('Y'), (int) $instant->format('n'), (int) $instant->format('j'));
+        return $this->digits(PersianCalendar::monthLabel($year, $month, true));
+    }
+
+    private function persianAge(int $seconds): string {
+        $seconds = max(0, $seconds);
+        if ($seconds < 3600) { return $this->digits((string) max(1, (int) floor($seconds / 60))) . ' دقیقه پیش'; }
+        if ($seconds < 172800) { return $this->digits((string) max(1, (int) floor($seconds / 3600))) . ' ساعت پیش'; }
+        return $this->digits((string) max(1, (int) floor($seconds / 86400))) . ' روز پیش';
     }
 
     private function guard(): void {

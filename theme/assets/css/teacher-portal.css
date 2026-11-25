@@ -1759,6 +1759,18 @@
   color: var(--dzn-color-text-secondary);
 }
 
+/* Meet already confirmed this class: one honest line, no manual confirmation card. */
+.dzn-tp-auto-confirmed {
+  margin: 0 0 .5rem;
+  padding: .5rem .7rem;
+  border-inline-start: 3px solid var(--dzn-color-success);
+  border-radius: .5rem;
+  background: var(--dzn-color-success-surface);
+  color: var(--dzn-color-text-primary);
+  font-size: .82rem;
+  line-height: 1.7;
+}
+
 .dzn-tp-student-contact a {
   font-weight: 700;
   text-decoration: underline;

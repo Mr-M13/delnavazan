@@ -73,8 +73,23 @@ $student_tone = '' !== $student_name ? ( abs( crc32( $student_name ) ) % 6 ) + 1
 		<?php endif; ?>
 		<?php if ( true === $item['details_available'] ) : ?><button class="dzn-tp-chevron" type="button" aria-expanded="false" aria-controls="<?php echo esc_attr( $details_id ); ?>" aria-label="نمایش جزئیات کلاس" data-dzn-tp-toggle="<?php echo esc_attr( $details_id ); ?>" data-dzn-tp-label-open="بستن جزئیات کلاس" data-dzn-tp-label-closed="نمایش جزئیات کلاس"><span class="dzn-tp-chevron__icon" aria-hidden="true">⌄</span></button><?php endif; ?>
 	</div>
+	<?php
+	$attendance_evidence = isset( $item['attendance_evidence'] ) && is_array( $item['attendance_evidence'] ) ? $item['attendance_evidence'] : array();
+	$evidence_state = (string) ( $attendance_evidence['state'] ?? '' );
+	$needs_manual_confirmation = true === ( $item['completion_available'] ?? false );
+	$confirmation_window_expired = ! empty( $item['completion_window_expired'] );
+	// Meet can confirm attendance on its own. The manual block is a fallback: it is rendered only
+	// when the Teacher still has to confirm, or when the manual window has already closed.
+	$auto_confirmed = 'confirmed' === $evidence_state
+		&& ! $needs_manual_confirmation
+		&& ! $confirmation_window_expired
+		&& 'ended' === ( $item['temporal_state'] ?? '' )
+		&& empty( $item['completion_completed'] )
+		&& empty( $item['completion_claimed'] );
+	?>
 	<?php if ( true === $item['details_available'] ) : ?>
 	<div id="<?php echo esc_attr( $details_id ); ?>" class="dzn-tp-class-details" hidden>
+		<?php if ( $auto_confirmed ) : ?><p class="dzn-tp-detail-help dzn-tp-auto-confirmed" data-dzn-auto-confirmed>حضور این کلاس به‌صورت خودکار از شواهد Google Meet تأیید شده است؛ نیازی به تأیید دستی نیست.</p><?php endif; ?>
 		<div class="dzn-tp-detail-grid">
 			<section class="dzn-tp-detail-card"><h4>تماس با هنرجو</h4>
 				<?php $whatsapp = preg_replace( '/[^0-9]/', '', (string) ( $item['student_whatsapp'] ?? '' ) ); ?>
@@ -87,15 +102,15 @@ $student_tone = '' !== $student_name ? ( abs( crc32( $student_name ) ) % 6 ) + 1
 				<?php endif; ?>
 				<?php if ( '' !== (string) ( $item['term_progress_label'] ?? '' ) ) : ?><p><strong>پیشرفت ترم:</strong> <?php echo esc_html( (string) $item['term_progress_label'] ); ?><?php if ( '' !== (string) ( $item['replacement_label'] ?? '' ) ) : ?> · <?php echo esc_html( (string) $item['replacement_label'] ); ?><?php endif; ?></p><?php endif; ?>
 				<?php if ( isset( $item['previous_private_note'] ) && '' !== trim( (string) $item['previous_private_note'] ) ) : ?><h4>یادداشت خصوصی پیشین</h4><p><?php echo esc_html( (string) $item['previous_private_note'] ); ?></p><?php endif; ?></section>
+			<?php if ( $needs_manual_confirmation || $confirmation_window_expired ) : ?>
 			<section class="dzn-tp-detail-card" data-dzn-highlight="attendance"><h4>تأیید برگزاری و حضور</h4>
-				<?php if ( true === ( $item['completion_available'] ?? false ) ) : ?>
+				<?php if ( $needs_manual_confirmation ) : ?>
 					<p class="dzn-tp-detail-help">پس از پایان کلاس، اگر جلسه برگزار شد برگزاری و حضور را تأیید کنید.</p>
 					<form method="post" action="<?php echo esc_url( (string) ( $item['completion_action_url'] ?? $item['delivery_recorded_action_url'] ?? '' ) ); ?>" data-dzn-tp-submit><input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['completion_nonce'] ?? $item['delivery_recorded_nonce'] ?? '' ) ); ?>"><input type="hidden" name="lesson_uid" value="<?php echo esc_attr( (string) ( $item['lesson_uid'] ?? '' ) ); ?>"><input type="hidden" name="schedule_version_uid" value="<?php echo esc_attr( (string) ( $item['schedule_version_uid'] ?? '' ) ); ?>"><button class="dzn-button" type="submit" data-dzn-tp-busy-label="در حال ثبت گزارش…">تأیید برگزاری و حضور</button></form>
 				<?php else : ?>
 					<p class="dzn-tp-detail-help"><?php echo esc_html( (string) ( $item['completion_message'] ?? 'این کلاس در وضعیت قابل گزارش نیست.' ) ); ?></p>
 				<?php endif; ?>
 				<?php
-				$attendance_evidence = isset( $item['attendance_evidence'] ) && is_array( $item['attendance_evidence'] ) ? $item['attendance_evidence'] : array();
 				if ( ! empty( $attendance_evidence['state'] ) ) {
 					$evidence_minutes = (int) ( $attendance_evidence['minutes'] ?? 0 );
 					$evidence_threshold = (int) ( $attendance_evidence['threshold_minutes'] ?? 20 );
@@ -111,9 +126,10 @@ $student_tone = '' !== $student_name ? ( abs( crc32( $student_name ) ) % 6 ) + 1
 						? 'تأیید شد'
 						: ( (string) $attendance_evidence['state'] === 'pending' ? 'تأیید نشد' : 'در دسترس نیست' );
 				?>
-					<p class="dzn-tp-detail-help" data-dzn-attendance-evidence><?php echo esc_html( 'حضور خودکار Meet: ' . $evidence_state . ' — ' . dzn_theme_platform_persian_digits( $evidence_minutes ) . ' از ' . dzn_theme_platform_persian_digits( $evidence_threshold ) . ' دقیقه هم‌زمانی. ' . $evidence_reason ); ?></p>
+					<p class="dzn-tp-detail-help" data-dzn-attendance-evidence><?php echo esc_html( 'حضور خودکار Meet: ' . $evidence_state . ' — ' . dzn_theme_teacher_portal_digits( $evidence_minutes ) . ' از ' . dzn_theme_teacher_portal_digits( $evidence_threshold ) . ' دقیقه هم‌زمانی. ' . $evidence_reason ); ?></p>
 				<?php } ?>
 				<?php if ( $demo ) : ?><button type="button" data-dzn-tp-presentation>درخواست بررسی زمان</button><?php endif; ?></section>
+			<?php endif; ?>
 		</div>
 		<?php if ( $is_today && true === ( $item['reschedule_available'] ?? false ) ) {
 			dzn_theme_teacher_portal_component(

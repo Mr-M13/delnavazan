@@ -46,7 +46,15 @@ class NotificationProviderRepository {
     public function messageForReference(string $digest):?object{
         return $this->one("SELECT * FROM {$this->p}telnyx_messages WHERE message_reference_digest=%s LIMIT 1",$digest);
     }
-    public function messageForAttempt(int $notificationId,int $attemptId):?object{
+    /**
+     * A provider hand-off is idempotent per notification + attempt + channel.
+     *
+     * WhatsApp and SMS are independent delivery methods and may share the same notification row
+     * (the lesson-lifecycle and canonical mobile routes do). Without the channel predicate the
+     * first provider reference makes the other channel look already delivered and it never sends.
+     */
+    public function messageForAttempt(int $notificationId,int $attemptId,?string $channel=null):?object{
+        if($channel!==null)return $this->one("SELECT * FROM {$this->p}telnyx_messages WHERE notification_id=%d AND attempt_id=%d AND channel=%s ORDER BY id DESC LIMIT 1",$notificationId,$attemptId,$channel);
         return $this->one("SELECT * FROM {$this->p}telnyx_messages WHERE notification_id=%d AND attempt_id=%d ORDER BY id DESC LIMIT 1",$notificationId,$attemptId);
     }
     public function insertMessage(array $data):int{return $this->insert('telnyx_messages',$data);}

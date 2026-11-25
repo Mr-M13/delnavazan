@@ -21,8 +21,7 @@ final class PermissionRegistry {
             'overview' => self::module('Overview', 'Academy-wide overview, pipeline and attention queues.', array(
                 'academy' => self::area('Academy overview', 'Read pipeline health, upcoming classes and attention items.', array(
                     'view' => self::action('View overview', 'Read the academy dashboard and booking pipeline.', array('dzn_view_booking_requests')),
-                    'export' => self::action('Export overview', 'Export the current overview projection.', array('dzn_finance_export'), true),
-                )),
+                                    )),
             )),
             'teachers' => self::module('Teachers', 'Teacher records, onboarding, invitations and availability.', array(
                 'profiles' => self::area('Teacher profiles', 'Teacher record maintenance and identity links.', array(

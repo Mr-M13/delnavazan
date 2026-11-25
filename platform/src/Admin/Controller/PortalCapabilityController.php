@@ -7,7 +7,7 @@ final class PortalCapabilityController {
     public const CAPABILITY='dzn_view_portal_capabilities';
     public const MENU_SLUG='dzn-portal-capabilities';
     public static function register():void { add_action('admin_menu',array(__CLASS__,'menu')); add_action('admin_post_dzn_portal_capability_command',array(__CLASS__,'command')); }
-    public static function menu():void { if(function_exists('add_submenu_page'))add_submenu_page(Menu::ROOT_SLUG,'Portal capabilities','Portal capabilities',self::CAPABILITY,self::MENU_SLUG,array(__CLASS__,'render')); }
+    public static function menu():void { if(function_exists('add_submenu_page'))add_submenu_page(Menu::ROOT_SLUG,'Portal capabilities','Portal capabilities',Menu::PORTAL_CAPABILITIES_CAP,self::MENU_SLUG,array(__CLASS__,'render')); }
 
     public static function command():void {
         if(!current_user_can('dzn_manage_portal_capabilities'))wp_die(esc_html__('Unauthorized','delnavazan-platform'),'',array('response'=>403));
@@ -45,7 +45,7 @@ final class PortalCapabilityController {
     }
 
     public static function render():void {
-        if(!current_user_can(self::CAPABILITY))return; global $wpdb; $table=$wpdb->prefix.'dzn_portal_public_capabilities';
+        if(!current_user_can(self::CAPABILITY))wp_die('Forbidden','Delnavazan',array('response'=>403)); global $wpdb; $table=$wpdb->prefix.'dzn_portal_public_capabilities';
         $rows=$wpdb->get_results("SELECT c.id,c.lesson_id,c.purpose,c.generation,c.state,c.expires_at,c.revocation_reason_code,(SELECT COUNT(*) FROM {$wpdb->prefix}dzn_portal_public_action_events a WHERE a.capability_id=c.id) redemption_count,(SELECT a2.action_state FROM {$wpdb->prefix}dzn_portal_public_action_events a2 WHERE a2.capability_id=c.id ORDER BY a2.id DESC LIMIT 1) last_outcome FROM {$table} c ORDER BY c.id DESC LIMIT 100"); $diagnostics=(new PortalDiagnosticsService())->summary();
         echo '<div class="wrap"><h1>Portal capabilities</h1><p>Bounded capability state, redemption outcomes and durable refusals. Public actions remain disabled by default.</p>';
         if(current_user_can('dzn_manage_portal_capabilities')){self::form('mint','Mint');self::form('rotate','Rotate');self::form('revoke','Revoke');}

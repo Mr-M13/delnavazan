@@ -47,7 +47,7 @@ final class PaymentExecutionController {
         add_submenu_page(self::PARENT_SLUG,'Payment Execution','Payment Execution',self::CAPABILITY,self::MENU_SLUG,array(__CLASS__,'render'));
     }
     public static function render():void{
-        if(!current_user_can(self::CAPABILITY))return;
+        if(!current_user_can(self::CAPABILITY))wp_die('Forbidden','Delnavazan',array('response'=>403));
         $execution=(new PaymentExecutionReadService())->commandStates();
         $dispatches=(new PaymentExecutionReadService())->outstandingDispatches();
         $outcomes=(new PaymentExecutionReadService())->attemptOutcomes();

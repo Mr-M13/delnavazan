@@ -327,7 +327,7 @@ final class NotificationDispatchService {
                 $this->attempts->insertEvent($this->attemptEvent($attemptId,'acknowledged',(string)$attempt->state,'acknowledged','acknowledged',$now,$actor));
                 $this->repository->transition((int)$notification->id,(string)$notification->state,array('state'=>'dispatched','updated_at'=>$now,'updated_by'=>$actor));
                 $this->repository->insertEvent($this->eventRow((int)$notification->id,'dispatched',(string)$notification->state,'dispatched','acknowledged',$evidence,$now,$actor));
-                $this->outbox->markDelivered((int)$row->id,$now);
+                $this->outbox->markAcknowledged((int)$row->id,$now);
                 $this->recordDispatchCommand($digest,$operation,(int)$notification->id,'dispatched',$now,$actor);
                 $this->repository->commit();
                 return array('attempt_id'=>$attemptId,'notification_id'=>(int)$notification->id,'state'=>'dispatched','created'=>true);

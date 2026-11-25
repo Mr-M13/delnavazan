@@ -103,7 +103,8 @@ final class EnrolmentDeskController {
                 }
                 $receivedOn = trim( sanitize_text_field( (string) ( $post['received_on'] ?? '' ) ) );
                 if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/D', $receivedOn ) ) {
-                    $receivedOn = gmdate( 'Y-m-d' );
+                    // Never substitute today: a wrong date is a wrong audit fact. See OPS-05.
+                    throw new \InvalidArgumentException( 'manual_payment_received_on_required' );
                 }
                 $read  = new EnrolmentDeskReadService();
                 $facts = $read->paymentFacts( $requestId );
@@ -145,6 +146,7 @@ final class EnrolmentDeskController {
             'manual_payment_obligation_required'     => 'There is no unpaid obligation on this offer.',
             'manual_payment_offer_required'          => 'The offer could not be found. Send the payment link first.',
             'manual_payment_ingest_authority_required' => 'Recording an offline payment needs both the payment-execution and the payment-evidence ingestion authorities.',
+            'manual_payment_received_on_required'       => 'Record the date the payment was received, as YYYY-MM-DD.',
             default                                  => ucfirst( str_replace( '_', ' ', $error->getMessage() ) ) . '.',
         };
     }

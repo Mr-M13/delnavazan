@@ -110,6 +110,12 @@ final class EnrolmentDeskView {
         echo '</p>';
 
         if ( $offerUid === '' ) {
+            // The handler requires this authority; do not offer a form that will be refused after
+            // it is filled in. See OPS-04.
+            if ( ! current_user_can( 'dzn_manage_post_intro_automation' ) ) {
+                echo '<p class="description">Issuing the offer and sending the payment link needs the post-intro automation authority. Ask the owner for it, or record the agreement on the full case.</p>';
+                return;
+            }
             echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
             wp_nonce_field( EnrolmentDeskController::ACTION );
             echo '<input type="hidden" name="action" value="' . esc_attr( EnrolmentDeskController::ACTION ) . '">';

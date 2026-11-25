@@ -1131,6 +1131,98 @@
   margin-block-start: .55rem;
 }
 
+.dzn-tp-class--test {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+@media (max-width:35rem) {
+  .dzn-tp-class--test {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.dzn-tp-outcome-list {
+  display: grid;
+  gap: .55rem;
+}
+
+/* Post-intro outcome cards: one consistent two-part row for the pending form and the
+   recorded receipt, instead of borrowing the class-card grid. */
+.dzn-tp-outcome-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .75rem;
+  padding: .7rem .85rem;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: .8rem;
+  background: var(--dzn-tp-card);
+}
+
+.dzn-tp-outcome-card > div {
+  min-inline-size: 0;
+}
+
+.dzn-tp-outcome-card strong {
+  font-size: .95rem;
+}
+
+.dzn-tp-outcome-card p {
+  margin: .15rem 0 0;
+  color: var(--dzn-color-text-secondary);
+  font-size: .82rem;
+  line-height: 1.7;
+}
+
+.dzn-tp-outcome-card form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .45rem;
+  margin: 0;
+}
+
+.dzn-tp-outcome-card select {
+  min-block-size: 2.3rem;
+  border: 1px solid var(--dzn-color-border);
+  border-radius: var(--dzn-radius-sm);
+  background: var(--dzn-color-surface-elevated);
+  color: var(--dzn-color-text-primary);
+  padding: .35rem .55rem;
+  font: inherit;
+}
+
+.dzn-tp-outcome-history {
+  margin-block-start: .75rem;
+  padding: .55rem .75rem;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: .8rem;
+  background: var(--dzn-tp-surface);
+}
+
+.dzn-tp-outcome-history > summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.dzn-tp-outcome-history > .dzn-tp-outcome-card {
+  margin-block-start: .55rem;
+}
+
+@media (max-width:35rem) {
+  .dzn-tp-outcome-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dzn-tp-outcome-card form {
+    width: 100%;
+  }
+
+  .dzn-tp-outcome-card select {
+    flex: 1 1 8rem;
+  }
+}
+
 .dzn-tp-class-filter {
   display: flex;
   flex-wrap: wrap;

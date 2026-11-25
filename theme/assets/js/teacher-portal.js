@@ -132,17 +132,15 @@
     const status = scope.querySelector('.dzn-tp-action-status');
     if (status) status.textContent = 'این کنترل نمایشی است؛ هیچ اطلاعات یا حقیقتی ثبت نشد.';
   }));
-  // Student filter is presentation-only: it hides already-rendered rows and
-  // never changes the model, schedule authority or backend action fields.
-  document.querySelectorAll('[data-dzn-tp-student-filter]').forEach((filter) => {
+  // Student filter is presentation-only: it hides already-rendered rows inside the
+  // nearest filter scope and never changes the model or backend action fields.
+  const applyStudentFilter = (filter) => {
     const select = filter.querySelector('[data-dzn-tp-student-filter-select]');
-    const section = filter.closest('.dzn-tp-calendar-section') || filter.closest('.dzn-tp-class-section');
-    const list = section ? (section.querySelector('[data-dzn-tp-filter-list]') || section.querySelector('[data-dzn-tp-upcoming-list]')) : null;
-    const empty = section ? section.querySelector('[data-dzn-tp-student-filter-empty]') : null;
+    const scope = filter.closest('[data-dzn-tp-filter-scope]') || filter.closest('.dzn-tp-class-section') || filter.closest('.dzn-tp-calendar-section');
     const status = filter.querySelector('[data-dzn-tp-student-filter-status]');
-    if (!select || !list) return;
-    const cards = Array.from(list.querySelectorAll('li[data-dzn-tp-student]'));
-    const groups = Array.from(list.querySelectorAll('[data-dzn-tp-day]'));
+    if (!select || !scope) return null;
+    const cards = Array.from(scope.querySelectorAll('li[data-dzn-tp-student]'));
+    const empty = scope.querySelector('[data-dzn-tp-student-filter-empty]');
     const apply = () => {
       const value = select.value;
       let visible = 0;
@@ -151,16 +149,61 @@
         card.hidden = !show;
         if (show) visible++;
       });
-      groups.forEach((group) => {
-        group.hidden = value !== '' && !Array.from(group.querySelectorAll('li[data-dzn-tp-student]')).some((card) => !card.hidden);
-      });
-      list.hidden = visible === 0;
-      if (empty) empty.hidden = visible !== 0;
+      if (empty) empty.hidden = value === '' || visible !== 0;
       if (status) status.textContent = value === '' ? '' : visible.toLocaleString('fa-IR') + ' کلاس';
     };
     select.addEventListener('change', apply);
     apply();
+    return apply;
+  };
+  document.querySelectorAll('[data-dzn-tp-student-filter]').forEach(applyStudentFilter);
+
+  // Calendar day switching stays in the page: the month's day groups are already rendered, and a
+  // click only reveals one of them. The links keep working as normal navigation without JavaScript.
+  document.querySelectorAll('.dzn-tp-calendar-section').forEach((calendar) => {
+    const links = Array.from(calendar.querySelectorAll('[data-dzn-tp-day-link]'));
+    const groups = Array.from(calendar.querySelectorAll('[data-dzn-tp-day]'));
+    const hint = calendar.querySelector('[data-dzn-tp-calendar-hint]');
+    if (!links.length || !groups.length) return;
+    const show = (day, href, updateUrl) => {
+      let found = false;
+      groups.forEach((group) => {
+        const on = day !== '' && group.dataset.dznTpDay === day;
+        group.hidden = !on;
+        if (on) found = true;
+      });
+      links.forEach((link) => {
+        const on = day !== '' && link.dataset.dznTpDayLink === day;
+        link.classList.toggle('is-selected', on);
+        if (on) link.setAttribute('aria-current', 'date');
+        else link.removeAttribute('aria-current');
+      });
+      if (hint) hint.hidden = day !== '' && found;
+      if (updateUrl && href) {
+        try { window.history.pushState({ dznCalendarDay: day }, '', href); } catch (error) {}
+      }
+    };
+    links.forEach((link) => {
+      link.addEventListener('click', (event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+        event.preventDefault();
+        show(link.dataset.dznTpDayLink || '', link.href, true);
+      });
+    });
+    calendar.querySelectorAll('[data-dzn-tp-day-clear]').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        show('', link.href, true);
+      });
+    });
+    window.addEventListener('popstate', () => {
+      try {
+        const day = new URL(window.location.href).searchParams.get('tp-day') || '';
+        show(day, null, false);
+      } catch (error) {}
+    });
   });
+
   // The compact dashboard card is optional after the first days. The full induction screen stays
   // reachable from Settings and from the card's own links.
   document.querySelectorAll('[data-dzn-tp-induction-skip]').forEach((button) => {

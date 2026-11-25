@@ -1,8 +1,9 @@
 <?php
 /**
- * Teacher month calendar: a month grid that marks every day with a class. Selecting a day in the
- * grid reveals only that day's classes underneath, so the calendar stays a choice instead of a
- * second full programme. Presentation only; every row keeps the actions from class-row.
+ * Teacher month calendar: a month grid that marks every day with a class. Selecting a day shows
+ * only that day's classes underneath. The day list is rendered for the month and switched in place
+ * by the portal script, so choosing a day never reloads the page; the links still work as normal
+ * navigation when JavaScript is unavailable.
  *
  * The month (`tp-month`) and the selected day (`tp-day`) are query arguments and are validated
  * here; both are rendered in the Teacher's own calendar (Persian or Gregorian).
@@ -30,6 +31,10 @@ $requested_month = preg_match( '/^\d{4}-\d{2}$/', $requested_month ) ? $requeste
 $requested_day   = preg_match( '/^\d{4}-\d{2}-\d{2}$/', $requested_day ) ? $requested_day : '';
 $grid           = dzn_theme_teacher_portal_month_grid( $requested_month, $calendar, $timezone, $locale );
 $date_counts    = array();
+$day_labels     = array();
+foreach ( $grid['cells'] as $cell ) {
+	if ( is_array( $cell ) ) { $day_labels[ (string) $cell['date'] ] = (string) $cell['label']; }
+}
 $month_items    = array();
 foreach ( $all_items as $class_item ) {
 	if ( ! is_array( $class_item ) ) { continue; }
@@ -48,18 +53,7 @@ foreach ( $month_items as $class_item ) {
 	$day_groups[ $local_date ][] = $class_item;
 	if ( ! empty( $class_item['is_intro'] ) ) { $has_intro_days = true; }
 }
-$selected_day   = $requested_day !== '' && isset( $day_groups[ $requested_day ] ) ? $requested_day : '';
-$selected_items = $selected_day !== '' ? $day_groups[ $selected_day ] : array();
-$selected_label = '';
-foreach ( $grid['cells'] as $cell ) {
-	if ( is_array( $cell ) && $cell['date'] === $selected_day ) { $selected_label = (string) $cell['label']; }
-}
-$students = array();
-foreach ( $selected_items as $class_item ) {
-	$name = trim( (string) ( $class_item['student'] ?? '' ) );
-	if ( '' !== $name ) { $students[ $name ] = $name; }
-}
-ksort( $students, SORT_NATURAL | SORT_FLAG_CASE );
+$selected_day = $requested_day !== '' && isset( $day_groups[ $requested_day ] ) ? $requested_day : '';
 ?>
 <section id="tp-classes-calendar" class="dzn-tp-section dzn-tp-class-section dzn-tp-calendar-section" aria-labelledby="tp-classes-calendar-title">
 	<div class="dzn-tp-heading">
@@ -85,7 +79,7 @@ ksort( $students, SORT_NATURAL | SORT_FLAG_CASE );
 				<?php else : ?>
 					<?php $marks = $date_counts[ (string) $cell['date'] ] ?? array( 'count' => 0, 'intro' => 0 ); ?>
 					<?php if ( $marks['count'] > 0 ) : ?>
-						<a class="dzn-tp-month__cell has-classes<?php echo $cell['today'] ? ' is-today' : ''; ?><?php echo $marks['intro'] > 0 ? ' has-intro' : ''; ?><?php echo $cell['date'] === $selected_day ? ' is-selected' : ''; ?>" href="<?php echo esc_url( add_query_arg( array( 'tp-month' => (string) $grid['key'], 'tp-day' => (string) $cell['date'] ), $base_url ) . '#tp-calendar-day' ); ?>"<?php echo $cell['date'] === $selected_day ? ' aria-current="date"' : ''; ?> aria-label="<?php echo esc_attr( (string) $cell['label'] . '، ' . dzn_theme_teacher_portal_digits( (int) $marks['count'] ) . ' کلاس' ); ?>">
+						<a class="dzn-tp-month__cell has-classes<?php echo $cell['today'] ? ' is-today' : ''; ?><?php echo $marks['intro'] > 0 ? ' has-intro' : ''; ?><?php echo $cell['date'] === $selected_day ? ' is-selected' : ''; ?>" href="<?php echo esc_url( add_query_arg( array( 'tp-month' => (string) $grid['key'], 'tp-day' => (string) $cell['date'] ), $base_url ) . '#tp-calendar-day' ); ?>" data-dzn-tp-day-link="<?php echo esc_attr( (string) $cell['date'] ); ?>"<?php echo $cell['date'] === $selected_day ? ' aria-current="date"' : ''; ?> aria-label="<?php echo esc_attr( (string) $cell['label'] . '، ' . dzn_theme_teacher_portal_digits( (int) $marks['count'] ) . ' کلاس' ); ?>">
 							<span class="dzn-tp-month__day"><?php echo esc_html( (string) $cell['day'] ); ?></span>
 							<span class="dzn-tp-month__mark" aria-hidden="true"><?php echo esc_html( dzn_theme_teacher_portal_digits( (int) $marks['count'] ) ); ?></span>
 						</a>
@@ -100,33 +94,42 @@ ksort( $students, SORT_NATURAL | SORT_FLAG_CASE );
 			<?php if ( $has_intro_days ) : ?><span class="dzn-tp-month__legend-dot has-intro" aria-hidden="true"></span> روز دارای کلاس آشنایی<?php endif; ?>
 		</p>
 	</div>
-<?php if ( '' === $selected_day ) : ?>
-	<p id="tp-calendar-day" class="dzn-tp-help dzn-tp-calendar-empty">برای دیدن کلاس‌های یک روز، آن روز را در تقویم انتخاب کنید.</p>
-<?php else : ?>
-	<div class="dzn-tp-calendar-days" data-dzn-tp-filter-list>
-		<section class="dzn-tp-day" id="tp-calendar-day" data-dzn-tp-day>
-			<div class="dzn-tp-day__head">
-				<h4 class="dzn-tp-day__title"><?php echo esc_html( $selected_label ); ?></h4>
-				<a class="dzn-tp-day__clear" href="<?php echo esc_url( add_query_arg( 'tp-month', (string) $grid['key'], $base_url ) . '#tp-classes-calendar' ); ?>">بستن</a>
-			</div>
-			<?php if ( $students ) : ?>
-			<div class="dzn-tp-class-filter" data-dzn-tp-student-filter>
-				<label for="tp-calendar-student-filter">هنرجو</label>
-				<select id="tp-calendar-student-filter" data-dzn-tp-student-filter-select>
-					<option value="">همهٔ هنرجوها</option>
-					<?php foreach ( $students as $student_name ) : ?><option value="<?php echo esc_attr( $student_name ); ?>"><?php echo esc_html( $student_name ); ?></option><?php endforeach; ?>
-				</select>
-				<span class="dzn-tp-class-filter__status" data-dzn-tp-student-filter-status role="status" aria-live="polite"></span>
-			</div>
-			<?php endif; ?>
-			<ol class="dzn-tp-class-list dzn-tp-class-list--rows">
-				<?php $row_index = $start_index; ?>
-				<?php foreach ( $selected_items as $class_item ) : ?>
-					<?php dzn_theme_teacher_portal_component( 'class-row', array( 'item' => $class_item, 'index' => $row_index++, 'id_prefix' => 'cal', 'timezone' => $timezone, 'model' => $model, 'demo' => $demo ) ); ?>
-				<?php endforeach; ?>
-			</ol>
-			<p class="dzn-tp-help dzn-tp-class-filter__empty" data-dzn-tp-student-filter-empty hidden>برای این هنرجو در این روز کلاسی ثبت نشده است.</p>
-		</section>
+	<p id="tp-calendar-day" class="dzn-tp-help dzn-tp-calendar-empty" data-dzn-tp-calendar-hint<?php echo '' !== $selected_day ? ' hidden' : ''; ?>>برای دیدن کلاس‌های یک روز، آن روز را در تقویم انتخاب کنید.</p>
+<?php if ( $day_groups ) : ?>
+	<div class="dzn-tp-calendar-days">
+		<?php $row_index = $start_index; ?>
+		<?php foreach ( $day_groups as $day_date => $day_items ) : ?>
+			<?php
+			$day_students = array();
+			foreach ( $day_items as $class_item ) {
+				$name = trim( (string) ( $class_item['student'] ?? '' ) );
+				if ( '' !== $name ) { $day_students[ $name ] = $name; }
+			}
+			ksort( $day_students, SORT_NATURAL | SORT_FLAG_CASE );
+			?>
+			<section class="dzn-tp-day" id="tp-day-<?php echo esc_attr( (string) $day_date ); ?>" data-dzn-tp-day="<?php echo esc_attr( (string) $day_date ); ?>" data-dzn-tp-filter-scope<?php echo $day_date === $selected_day ? '' : ' hidden'; ?>>
+				<div class="dzn-tp-day__head">
+					<h4 class="dzn-tp-day__title"><?php echo esc_html( (string) ( $day_labels[ (string) $day_date ] ?? ( $day_items[0]['date'] ?? '' ) ) ); ?></h4>
+					<a class="dzn-tp-day__clear" href="<?php echo esc_url( add_query_arg( 'tp-month', (string) $grid['key'], $base_url ) . '#tp-classes-calendar' ); ?>" data-dzn-tp-day-clear>بستن</a>
+				</div>
+				<?php if ( $day_students ) : ?>
+				<div class="dzn-tp-class-filter" data-dzn-tp-student-filter>
+					<label for="tp-calendar-student-filter-<?php echo esc_attr( (string) $day_date ); ?>">هنرجو</label>
+					<select id="tp-calendar-student-filter-<?php echo esc_attr( (string) $day_date ); ?>" data-dzn-tp-student-filter-select>
+						<option value="">همهٔ هنرجوها</option>
+						<?php foreach ( $day_students as $student_name ) : ?><option value="<?php echo esc_attr( $student_name ); ?>"><?php echo esc_html( $student_name ); ?></option><?php endforeach; ?>
+					</select>
+					<span class="dzn-tp-class-filter__status" data-dzn-tp-student-filter-status role="status" aria-live="polite"></span>
+				</div>
+				<?php endif; ?>
+				<ol class="dzn-tp-class-list dzn-tp-class-list--rows">
+					<?php foreach ( $day_items as $class_item ) : ?>
+						<?php dzn_theme_teacher_portal_component( 'class-row', array( 'item' => $class_item, 'index' => $row_index++, 'id_prefix' => 'cal', 'timezone' => $timezone, 'model' => $model, 'demo' => $demo ) ); ?>
+					<?php endforeach; ?>
+				</ol>
+				<p class="dzn-tp-help dzn-tp-class-filter__empty" data-dzn-tp-student-filter-empty hidden>برای این هنرجو در این روز کلاسی ثبت نشده است.</p>
+			</section>
+		<?php endforeach; ?>
 	</div>
 <?php endif; ?>
 </section>

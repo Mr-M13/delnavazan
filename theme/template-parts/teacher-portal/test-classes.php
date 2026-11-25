@@ -37,7 +37,7 @@ $format_when = static function ( array $item ) use ( $timezone, $calendar, $loca
 			$reason_label = 'outside_join_window' === $reason ? 'زمان ورود به کلاس نرسیده است.' : ( 'classroom_not_ready' === $reason ? 'کلاس آنلاین هنوز آماده نشده است؛ جزئیات در پرتال مدیر بررسی می‌شود.' : '' );
 			?>
 			<li>
-				<article class="dzn-tp-class is-upcoming is-test">
+				<article class="dzn-tp-class is-upcoming is-test dzn-tp-class--test">
 					<div class="dzn-tp-class__info-col">
 						<div class="dzn-tp-class__title-row">
 							<h3 class="dzn-tp-class__student"><?php echo esc_html( $title ); ?></h3>

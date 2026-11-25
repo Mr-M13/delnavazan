@@ -2,6 +2,10 @@
 /**
  * Post-introductory outcome controls for the Teacher Portal.
  *
+ * The section only appears while a Teacher still has an outcome to record (or for the one-off
+ * confirmation notice). Recorded outcomes are history: they are collapsed, and they are never the
+ * only thing on the screen after a Teacher has already confirmed the class.
+ *
  * @package DelnavazanTheme
  */
 
@@ -13,11 +17,11 @@ $messages = array(
 	'window_expired' => 'مهلت ثبت نتیجهٔ این کلاس آشنایی (۷ روز پس از پایان) گذشته است؛ برای اصلاح با پشتیبانی تماس بگیرید.',
 	'unavailable' => 'ثبت نتیجه در حال حاضر ممکن نیست. لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.',
 );
-if ( ! $items && ! $recorded && ! isset( $messages[ $status ] ) ) {
+if ( ! $items && ! isset( $messages[ $status ] ) ) {
 	return;
 }
 ?>
-<section class="dzn-tp-section" aria-labelledby="dzn-tp-post-intro">
+<section class="dzn-tp-section dzn-tp-post-intro" aria-labelledby="dzn-tp-post-intro">
 	<div class="dzn-tp-heading">
 		<div>
 			<p class="dzn-tp-kicker">پس از کلاس آشنایی</p>
@@ -29,8 +33,9 @@ if ( ! $items && ! $recorded && ! isset( $messages[ $status ] ) ) {
 	<?php endif; ?>
 	<?php if ( $items ) : ?>
 		<p class="dzn-portal-help">پس از پایان زمان کلاس، نتیجهٔ واقعی برگزاری را ثبت کنید. مهلت ثبت دستی ۷ روز پس از پایان کلاس است. فقط «برگزار شد» اجازهٔ ادامهٔ خودکار ثبت‌نام را می‌دهد.</p>
+		<div class="dzn-tp-outcome-list">
 		<?php foreach ( $items as $item ) : ?>
-			<article class="dzn-tp-class">
+			<article class="dzn-tp-outcome-card">
 				<div>
 					<strong><?php echo esc_html( (string) ( $item['student'] ?? '' ) ); ?></strong>
 					<p><?php echo esc_html( trim( (string) ( $item['course'] ?? '' ) . ' · ' . (string) ( $item['when'] ?? '' ) ) ); ?></p>
@@ -49,21 +54,24 @@ if ( ! $items && ! $recorded && ! isset( $messages[ $status ] ) ) {
 				</form>
 			</article>
 		<?php endforeach; ?>
-	<?php endif; ?>
-	<?php if ( $recorded ) : ?>
-		<h3>نتیجه‌های ثبت‌شدهٔ اخیر</h3>
-		<p class="dzn-portal-help">این کلاس‌ها بسته شده‌اند و فرم تأیید دوباره ندارند. اگر نتیجه‌ای خودکار ثبت شده باشد، منبع آن در همان ردیف مشخص است.</p>
-		<?php foreach ( $recorded as $entry ) : ?>
-			<article class="dzn-tp-class dzn-tp-class--recorded">
-				<div>
-					<strong><?php echo esc_html( (string) ( $entry['student'] ?? '' ) ); ?></strong>
-					<p><?php echo esc_html( trim( (string) ( $entry['course'] ?? '' ) . ' · ' . (string) ( $entry['when'] ?? '' ) ) ); ?></p>
-				</div>
-				<div>
-					<span class="dzn-status-badge <?php echo 'provider_evidence' === (string) ( $entry['source_key'] ?? '' ) ? 'is-ok' : 'is-info'; ?>"><?php echo esc_html( (string) ( $entry['outcome'] ?? 'ثبت شد' ) ); ?></span>
-					<p class="dzn-portal-help"><?php echo esc_html( (string) ( $entry['source'] ?? '' ) ); ?><?php echo '' !== (string) ( $entry['recorded_at'] ?? '' ) ? ' · ' . esc_html( (string) $entry['recorded_at'] ) : ''; ?></p>
-				</div>
-			</article>
-		<?php endforeach; ?>
+		</div>
+		<?php if ( $recorded ) : ?>
+			<details class="dzn-tp-outcome-history">
+				<summary>نتیجه‌های ثبت‌شدهٔ اخیر <span class="dzn-tp-class-history__count"><?php echo esc_html( dzn_theme_teacher_portal_digits( count( $recorded ) ) ); ?></span></summary>
+				<p class="dzn-portal-help">این کلاس‌ها بسته شده‌اند و فرم تأیید دوباره ندارند. اگر نتیجه‌ای خودکار ثبت شده باشد، منبع آن در همان ردیف مشخص است.</p>
+				<?php foreach ( $recorded as $entry ) : ?>
+					<article class="dzn-tp-outcome-card is-recorded">
+						<div>
+							<strong><?php echo esc_html( (string) ( $entry['student'] ?? '' ) ); ?></strong>
+							<p><?php echo esc_html( trim( (string) ( $entry['course'] ?? '' ) . ' · ' . (string) ( $entry['when'] ?? '' ) ) ); ?></p>
+						</div>
+						<div>
+							<span class="dzn-status-badge <?php echo 'provider_evidence' === (string) ( $entry['source_key'] ?? '' ) ? 'is-ok' : 'is-info'; ?>"><?php echo esc_html( (string) ( $entry['outcome'] ?? 'ثبت شد' ) ); ?></span>
+							<p class="dzn-portal-help"><?php echo esc_html( (string) ( $entry['source'] ?? '' ) ); ?><?php echo '' !== (string) ( $entry['recorded_at'] ?? '' ) ? ' · ' . esc_html( (string) $entry['recorded_at'] ) : ''; ?></p>
+						</div>
+					</article>
+				<?php endforeach; ?>
+			</details>
+		<?php endif; ?>
 	<?php endif; ?>
 </section>

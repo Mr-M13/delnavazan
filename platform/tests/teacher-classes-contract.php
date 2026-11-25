@@ -236,8 +236,7 @@ namespace {
 	$check( 'the calendar replaces the removed future lists', str_contains( $html, 'tp-classes-intro' ) && str_contains( $html, 'tp-classes-today' ) && str_contains( $html, 'tp-classes-next' ) && str_contains( $html, 'tp-classes-calendar' ) && ! str_contains( $html, 'تقویم کلاس‌های آینده' ) && ! str_contains( $html, 'dzn-tp-calendar__item' ) );
 	$check( 'the calendar renders its grid', str_contains( $html, 'dzn-tp-month__grid' ) );
 	$check( 'the calendar links the selected day', str_contains( $html, 'tp-day=' . $fixture_date_tomorrow ) && str_contains( $html, 'id="tp-calendar-day"' ) );
-	$calendar_day_html = substr( $html, (int) strpos( $html, 'id="tp-calendar-day"' ) );
-	$check( 'the calendar lists only the selected day rows', str_contains( $calendar_day_html, 'data-dzn-tp-student="Student TOMORROW"' ) && ! str_contains( $calendar_day_html, 'data-dzn-tp-student="Student DAY2"' ) );
+	$check( 'the calendar renders one visible day and hides the other days', 1 === substr_count( $html, 'data-dzn-tp-filter-scope>' ) && str_contains( $html, 'id="tp-day-' . $fixture_date_tomorrow . '" data-dzn-tp-day="' . $fixture_date_tomorrow . '" data-dzn-tp-filter-scope>' ) && str_contains( $html, 'data-dzn-tp-filter-scope hidden>' ) );
 	$check( 'the selected day keeps the student filter', str_contains( $html, 'data-dzn-tp-student-filter-select' ) );
 	$check( 'student cards receive stable highlight classes', str_contains( $html, 'is-student-' ) && str_contains( $html, 'data-dzn-tp-student="Student TOMORROW"' ) );
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );

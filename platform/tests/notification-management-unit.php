@@ -659,11 +659,17 @@ namespace {
     $fail('a mapped WhatsApp draft without editorial approval is still refused', $library->draftReviewPolicy('booking.confirmed.student', 'whatsapp', 'fa-IR')['allowed'] === false);
     $library->approveDraft('booking.confirmed.student', 'whatsapp', 'fa-IR');
     $mappedPolicy = $library->draftReviewPolicy('booking.confirmed.student', 'whatsapp', 'fa-IR');
-    $fail('a mapped and approved WhatsApp draft is publishable', $mappedPolicy['allowed'] === true && $mappedPolicy['reason'] === '');
+    // A locally typed mapping is not Meta approval: the draft stays unpublished until the provider
+    // authority reports the template. See OPS-18.
+    $fail('a locally mapped WhatsApp draft stays unpublishable until Meta verifies it', $mappedPolicy['allowed'] === false && str_contains((string) $mappedPolicy['reason'], 'Meta'));
+    $fail('the local mapping is reported as unverified', $library->status('booking.confirmed.student', 'whatsapp', 'fa-IR')['provider_state'] === 'mapped_unverified');
     $library->saveDraft('booking.confirmed.student', 'whatsapp', 'fa-IR', 'عنوان واتس‌اپ', $waBody . "\n" . 'سطر تازه');
     $library->approveDraft('booking.confirmed.student', 'whatsapp', 'fa-IR');
     $driftedPolicy = $library->draftReviewPolicy('booking.confirmed.student', 'whatsapp', 'fa-IR');
-    $fail('editing the body after the provider mapping is refused', $driftedPolicy['allowed'] === false && str_contains((string) $driftedPolicy['reason'], 'provider mapping'));
+    $fail('editing the body after the provider mapping is refused', $driftedPolicy['allowed'] === false);
+    // A manual mapping can never publish, so drift on top of it also stays refused. The drift-specific
+    // state is covered by the discovered-mapping fixture below.
+    $fail('an edited body after a manual mapping stays refused', $library->status('booking.confirmed.student', 'whatsapp', 'fa-IR')['provider_state'] === 'mapped_unverified');
     $library->discardDraft('booking.confirmed.student', 'whatsapp', 'fa-IR');
 
     /* 11d. A discovered but contract-invalid template is evidence, not a usable mapping: the
@@ -931,6 +937,17 @@ namespace {
     $fail('the WhatsApp editor shows the approved provider body read-only', str_contains($whatsappEditorHtml, 'Approved provider body') && str_contains($whatsappEditorHtml, 'درود {{1}}'));
     $fail('the WhatsApp editor flags a provider body that differs from the local copy', str_contains($whatsappEditorHtml, 'Provider body differs from the reviewed local copy'));
     $fail('the WhatsApp editor offers the in-place provider refresh', str_contains($whatsappEditorHtml, 'dzn_notification_provider_refresh'));
+
+    /* 12. Notification evidence must not overclaim. See OPS-16, OPS-17 and OPS-19. */
+    $src = static fn(string $path): string => (string) file_get_contents(dirname(__DIR__) . '/' . $path);
+    $dispatch = $src('src/Core/Application/NotificationDispatchService.php');
+    $outbox = $src('src/Core/Infrastructure/Repository/NotificationOutboxRepository.php');
+    $management = $src('src/Admin/Controller/NotificationManagementController.php');
+    $diagnostics = $src('src/Admin/Controller/DiagnosticsController.php');
+    $fail('a transport acknowledgement is not written as delivery', str_contains($dispatch, 'markAcknowledged(') && !str_contains($dispatch, 'markDelivered('));
+    $fail('an acknowledgement is dispatched, not delivered', str_contains($outbox, 'public function markAcknowledged(') && str_contains($outbox, "'status'=>'dispatched'"));
+    $fail('manual send reports a hand-off, not delivery', str_contains($management, 'handed to the provider (delivery not confirmed)') && !str_contains($management, 'Manual send complete: %d sent'));
+    $fail('retry accepts every state the service accepts', str_contains($diagnostics, "array('failed', 'expired')"));
 
     echo "Notification management unit passed\n";
 }

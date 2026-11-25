@@ -38,6 +38,8 @@ final class Menu {
     private const INTEGRATION_SETTINGS_CAP = 'dzn_access_provider_integration_settings';
     private const SYSTEM_HEALTH_CAP = 'dzn_access_system_health';
 
+    public const PORTAL_CAPABILITIES_CAP = 'dzn_access_portal_capabilities';
+
     public static function register(): void {
         add_filter('map_meta_cap', [__CLASS__, 'mapMetaCap'], 10, 4);
         add_action('admin_menu', [__CLASS__, 'menu']);
@@ -91,6 +93,15 @@ final class Menu {
             'dzn_view_payment_execution_authority',
             'dzn_view_cash_ledger',
             'dzn_manage_commercial_catalogue',
+            'dzn_manage_finance_policies',
+            'dzn_manage_finance_statements',
+            'dzn_manage_teacher_rates',
+            'dzn_manage_lesson_payability',
+            'dzn_manage_cash_ledger',
+        ]);
+        if ($cap === self::PORTAL_CAPABILITIES_CAP) return self::mappedAnyCaps($userId, [
+            'dzn_view_portal_capabilities',
+            'dzn_manage_portal_capabilities',
         ]);
         if ($cap === self::CORE_WORKFLOW_CAP) return self::mappedCoreWorkflowCaps($userId);
         if ($cap === self::POLICY_ACCESS_CAP) return self::mappedAnyCaps($userId, [

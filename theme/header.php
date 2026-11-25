@@ -44,14 +44,17 @@
 				<?php endif; ?>
 			</div>
 		</div>
-		<button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation" hidden>
-			<span class="menu-toggle__label"><?php esc_html_e( 'فهرست اصلی', 'delnavazan-theme' ); ?></span>
-			<svg class="menu-toggle__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-				<path class="menu-toggle__line menu-toggle__line--top" d="M4 7h16"></path>
-				<path class="menu-toggle__line menu-toggle__line--middle" d="M4 12h16"></path>
-				<path class="menu-toggle__line menu-toggle__line--bottom" d="M4 17h16"></path>
-			</svg>
-		</button>
+		<div class="site-header__actions">
+			<a class="site-header__login" href="<?php echo esc_url( home_url( '/login/' ) ); ?>"><?php esc_html_e( 'ورود', 'delnavazan-theme' ); ?></a>
+			<button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation" hidden>
+				<span class="menu-toggle__label"><?php esc_html_e( 'فهرست اصلی', 'delnavazan-theme' ); ?></span>
+				<svg class="menu-toggle__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+					<path class="menu-toggle__line menu-toggle__line--top" d="M4 7h16"></path>
+					<path class="menu-toggle__line menu-toggle__line--middle" d="M4 12h16"></path>
+					<path class="menu-toggle__line menu-toggle__line--bottom" d="M4 17h16"></path>
+				</svg>
+			</button>
+		</div>
 		<nav id="primary-navigation" class="primary-navigation" aria-label="<?php esc_attr_e( 'فهرست اصلی', 'delnavazan-theme' ); ?>">
 			<?php
 			wp_nav_menu( array(

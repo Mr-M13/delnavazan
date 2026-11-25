@@ -55,7 +55,9 @@ $integrations = file_get_contents(__DIR__ . '/../src/Core/Application/Integratio
 $settings = file_get_contents(__DIR__ . '/../src/Admin/Controller/IntegrationControlPlaneController.php');
 if (!str_contains($diagnostics, "current_user_can('manage_options') && !current_user_can('dzn_view_diagnostics')")
     || !str_contains($integrations, "current_user_can('manage_options')&&!current_user_can(self::READ_CAPABILITY)")
-    || !str_contains($settings, "private static function authorizeSettings():void{if(!current_user_can('manage_options')&&!current_user_can('dzn_manage_provider_integrations'))")) {
+    || !str_contains($settings, "private static function authorizeSettings():void{if(!current_user_can('manage_options')")
+    || !str_contains($settings, "dzn_manage_provider_integrations")
+    || !str_contains($settings, "dzn_manage_payment_providers")) {
     throw new RuntimeException('Read and settings callbacks must allow site administrators and retain their delegated capability checks.');
 }
 

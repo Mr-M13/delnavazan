@@ -1049,6 +1049,11 @@
   background: color-mix(in srgb, var(--dzn-color-information) 16%, transparent);
 }
 
+.dzn-tp-month__cell.is-selected {
+  border: 2px solid var(--dzn-color-action-primary);
+  background: color-mix(in srgb, var(--dzn-color-action-primary) 24%, transparent);
+}
+
 .dzn-tp-month__mark {
   display: inline-flex;
   align-items: center;
@@ -1094,11 +1099,28 @@
   margin-block-start: .75rem;
 }
 
+.dzn-tp-day__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-block-end: .35rem;
+}
+
 .dzn-tp-day__title {
-  margin: 0 0 .35rem;
+  margin: 0;
   color: var(--dzn-color-text-secondary);
   font-size: .86rem;
   font-weight: 800;
+}
+
+.dzn-tp-day__clear {
+  font-size: .76rem;
+  color: var(--dzn-color-action-secondary);
+}
+
+.dzn-tp-day .dzn-tp-class-filter {
+  margin-block-end: .55rem;
 }
 
 .dzn-tp-day .dzn-tp-class-list--rows {
@@ -1383,6 +1405,48 @@
   overflow-wrap: anywhere;
 }
 
+.dzn-tp-class__student-zone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .3rem;
+  margin: 0;
+  color: var(--dzn-color-text-secondary);
+  font-size: .78rem;
+}
+
+.dzn-tp-class__country {
+  color: var(--dzn-color-text-primary);
+  font-weight: 700;
+}
+
+.dzn-tp-class__student-zone-label {
+  color: var(--dzn-color-text-muted);
+  font-size: .72rem;
+}
+
+.dzn-tp-wa {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  min-block-size: 2.1rem;
+  padding: .3rem .65rem;
+  border: 1px solid color-mix(in srgb, var(--dzn-color-success) 45%, var(--dzn-tp-border));
+  border-radius: var(--dzn-radius-pill);
+  background: var(--dzn-color-success-surface);
+  color: var(--dzn-color-success);
+  font-size: .78rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.dzn-tp-wa:hover,
+.dzn-tp-wa:focus-visible {
+  border-color: var(--dzn-color-success);
+  outline: 3px solid color-mix(in srgb, var(--dzn-color-success) 30%, transparent);
+  outline-offset: 2px;
+}
+
 .dzn-tp-class__course-line {
   display: flex;
   flex-wrap: wrap;
@@ -1648,6 +1712,10 @@
 
 .dzn-tp-class .dzn-tp-actions {
   justify-content: flex-end;
+  /* The action column is `auto`; cap its contribution so a long classroom message cannot
+     squeeze the student/course column down to a few pixels. */
+  max-inline-size: 18rem;
+  min-inline-size: 0;
 }
 
 .dzn-tp-class .dzn-button {

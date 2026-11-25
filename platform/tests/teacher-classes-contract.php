@@ -65,6 +65,9 @@ namespace Delnavazan\Platform\Portals {
 						'course_name' => 'سه‌تار',
 						'teacher_display_reference' => 'استاد',
 						'student_display_reference' => 'Student ACTIVE',
+						'student_country' => 'AU',
+						'student_timezone' => 'Australia/Sydney',
+						'student_whatsapp' => '+61 400 000 000',
 						'starts_at_utc' => gmdate( 'Y-m-d H:i:s', $now - 600 ),
 						'ends_at_utc' => gmdate( 'Y-m-d H:i:s', $now + 600 ),
 						'join_available' => true,
@@ -178,6 +181,8 @@ namespace {
 	$check( 'the next section is the three days after today', in_array( 'REF-TOMORROW', $next_refs, true ) && in_array( 'REF-DAY2', $next_refs, true ) && ! in_array( 'REF-DAY4', $next_refs, true ) && ! in_array( 'REF-DAY30', $next_refs, true ) && ! in_array( 'REF-DAY30', $today_refs, true ) );
 	$check( 'farther classes stay in the calendar and out of the lists', in_array( 'REF-DAY30', array_column( (array) ( $model['classes'] ?? array() ), 'ref' ), true ) && in_array( 'REF-DAY32', array_column( (array) ( $model['classes'] ?? array() ), 'ref' ), true ) && ! in_array( 'REF-DAY32', $today_refs, true ) && ! in_array( 'REF-DAY32', $next_refs, true ) );
 	$check( 'intro classes have their own section and never repeat in today', in_array( 'CONF-ACTIVE', $intro_refs, true ) && ! in_array( 'CONF-ACTIVE', $today_refs, true ) && ! in_array( 'CONF-ACTIVE', $next_refs, true ) );
+	$intro_class = $classes_by_ref['CONF-ACTIVE'] ?? array();
+	$check( 'intro rows carry the Student country, local time and WhatsApp', 'استرالیا' === ( $intro_class['student_country_label'] ?? '' ) && '' !== ( $intro_class['student_local_time'] ?? '' ) && 'Australia/Sydney' === ( $intro_class['student_timezone'] ?? '' ) && '' !== ( $intro_class['student_whatsapp'] ?? '' ) );
 	$fixture_date_today = wp_date( 'Y-m-d', \Delnavazan\Platform\Portals\PortalAuthenticatedReadService::$fixture_now, wp_timezone() );
 	$calendar_today = array_values( array_filter( (array) ( $model['calendar'] ?? array() ), static fn( array $row ) => (string) ( $row['date'] ?? '' ) === $fixture_date_today ) );
 	$check( 'the calendar carries a machine date for every class', (bool) $calendar_today && '' !== (string) ( $calendar_today[0]['starts_at_utc'] ?? '' ) );
@@ -215,16 +220,25 @@ namespace {
 		),
 	);
 
+	$fixture_date_tomorrow = wp_date( 'Y-m-d', dzn_theme_platform_utc_timestamp( $day_window['tomorrow_start'] ), wp_timezone() );
+	$_GET['tp-day'] = $fixture_date_tomorrow;
 	ob_start();
 	dzn_theme_render_teacher_portal( 'classes', $model );
 	$html = (string) ob_get_clean();
+	unset( $_GET['tp-day'] );
 	$check( 'the classes screen renders its list', str_contains( $html, 'dzn-tp-class-list' ) );
 	$check( 'the classes screen offers the post-intro outcome form', str_contains( $html, 'id="dzn-tp-post-intro"' ) && str_contains( $html, 'name="confirmation_uid" value="CONF-OUTCOME"' ) && str_contains( $html, 'name="outcome"' ) );
 	$check( 'actionable today cards expose the reschedule form', str_contains( $html, 'dzn-tp-reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
 	$check( 'next-days classes are restored with their reschedule action', str_contains( $html, 'tp-classes-next' ) && str_contains( $html, '۳ روز آینده' ) && str_contains( $html, 'dzn-tp-class__reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
 	$check( 'reschedule form exposes the outside-availability confirmation', str_contains( $html, 'name="confirm_outside_availability"' ) );
+	$intro_section = substr( $html, (int) strpos( $html, 'tp-classes-intro' ), 6000 );
+	$check( 'the intro row shows the country, the Student time and a WhatsApp action', str_contains( $intro_section, 'استرالیا' ) && str_contains( $intro_section, 'به وقت هنرجو' ) && str_contains( $intro_section, 'https://wa.me/61400000000' ) );
 	$check( 'the calendar replaces the removed future lists', str_contains( $html, 'tp-classes-intro' ) && str_contains( $html, 'tp-classes-today' ) && str_contains( $html, 'tp-classes-next' ) && str_contains( $html, 'tp-classes-calendar' ) && ! str_contains( $html, 'تقویم کلاس‌های آینده' ) && ! str_contains( $html, 'dzn-tp-calendar__item' ) );
-	$check( 'the calendar marks today and keeps the student filter', str_contains( $html, 'dzn-tp-month__grid' ) && str_contains( $html, 'href="#tp-classes-today"' ) && str_contains( $html, 'data-dzn-tp-student-filter-select' ) && str_contains( $html, 'data-dzn-tp-student="Student FUTURE"' ) );
+	$check( 'the calendar renders its grid', str_contains( $html, 'dzn-tp-month__grid' ) );
+	$check( 'the calendar links the selected day', str_contains( $html, 'tp-day=' . $fixture_date_tomorrow ) && str_contains( $html, 'id="tp-calendar-day"' ) );
+	$calendar_day_html = substr( $html, (int) strpos( $html, 'id="tp-calendar-day"' ) );
+	$check( 'the calendar lists only the selected day rows', str_contains( $calendar_day_html, 'data-dzn-tp-student="Student TOMORROW"' ) && ! str_contains( $calendar_day_html, 'data-dzn-tp-student="Student DAY2"' ) );
+	$check( 'the selected day keeps the student filter', str_contains( $html, 'data-dzn-tp-student-filter-select' ) );
 	$check( 'student cards receive stable highlight classes', str_contains( $html, 'is-student-' ) && str_contains( $html, 'data-dzn-tp-student="Student TOMORROW"' ) );
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );
 	$check( 'no private-note heading appears without a source', ! str_contains( $html, 'یادداشت خصوصی پیشین' ) );

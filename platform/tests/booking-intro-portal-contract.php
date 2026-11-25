@@ -80,4 +80,8 @@ foreach (array('enrolment' => $enrolmentRead, 'student' => $studentRead, 'portal
 $assert(str_contains($portalRead, "'delivery_state_summary' => \$introDelivered ? 'delivered'") && str_contains($portalRead, "'attendance_state_summary' => \$introDelivered ? IntroLessonOutcomeProjection::SETTLED"), 'The legacy portal Lesson must expose a delivered introductory outcome as delivered and settled.');
 $assert(str_contains($enrolmentRead, "\$row->attendance_source='intro_outcome'") && str_contains($enrolmentRead, 'Recorded by the introductory outcome.'), 'The class record must attribute projected attendance to the introductory outcome.');
 $assert(str_contains($studentRead, 'Attended · recorded introductory outcome'), 'The student history must show the projected introductory attendance.');
+$projector = (string) file_get_contents($root . '/src/Portals/BookingUpcomingReadProjector.php');
+$postIntro = (string) file_get_contents($root . '/src/Core/Infrastructure/Repository/PostIntroRepository.php');
+$assert(str_contains($postIntro, 'function outcomeConfirmationIds') && str_contains($bridge, 'outcomeConfirmationIds') && str_contains($bridge, 'The intro outcome is recorded; the class is closed.'), 'A recorded intro outcome must close the confirmed class in the Teacher programme.');
+$assert(str_contains($projector, "'student_whatsapp' =>") && str_contains($projector, "'student_country' =>") && str_contains($repository, 's.whatsapp_number') && str_contains($repository, 's.timezone student_timezone'), 'The Teacher booking projection must carry the contact snapshot WhatsApp, country and timezone.');
 echo "Booking intro portal contract passed\n";

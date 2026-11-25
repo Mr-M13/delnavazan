@@ -2507,6 +2507,20 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	$now = time();
 	$all_lessons = (array) ( $data['lessons'] ?? array() );
 	$booking_classes = array_values( array_filter( (array) ( $data['booking_classes'] ?? array() ), static fn( $row ) => is_array( $row ) && 'teacher_booking_class_v1' === ( $row['version'] ?? '' ) && 'confirmed' === ( $row['confirmation_state'] ?? '' ) ) );
+	// A confirmed intro whose post-intro outcome is already recorded is closed. It is shown in the
+	// recorded-outcome list, never again in the programme or the calendar.
+	$intro_outcome_confirmation_ids = array();
+	$post_intro_repository = '\\Delnavazan\\Platform\\Core\\Infrastructure\\Repository\\PostIntroRepository';
+	if ( $booking_classes && in_array( $screen, array( 'home', 'classes' ), true ) && class_exists( $post_intro_repository ) ) {
+		try {
+			$intro_outcome_confirmation_ids = ( new $post_intro_repository() )->outcomeConfirmationIds(
+				(int) ( $onboarding['teacher_id'] ?? 0 ),
+				array_map( static fn( $row ) => (int) ( $row['confirmation_id'] ?? 0 ), $booking_classes )
+			);
+		} catch ( Throwable $e ) {
+			$intro_outcome_confirmation_ids = array();
+		}
+	}
 	$all_scheduled_classes = array_merge( $all_lessons, $booking_classes );
 	if ( 'finance' === $screen ) {
 		$finance = '\\Delnavazan\\Platform\\Core\\Application\\Finance\\Read\\TeacherStatementReadService';
@@ -2668,6 +2682,10 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$end = dzn_theme_platform_utc_timestamp( $lesson['ends_at_utc'] ?? '' );
 		$is_booking = 'teacher_booking_class_v1' === ( $lesson['version'] ?? '' );
 		$is_intro_class = $is_booking || 'intro' === (string) ( $lesson['lesson_kind'] ?? '' );
+		if ( $is_booking && isset( $intro_outcome_confirmation_ids[ (int) ( $lesson['confirmation_id'] ?? 0 ) ] ) ) {
+			// The intro outcome is recorded; the class is closed.
+			continue;
+		}
 		$temporal = dzn_theme_platform_lesson_temporal_state( $lesson, $now );
 		$soon = $start && $start - $now <= HOUR_IN_SECONDS;
 		$ended = 'ended' === $temporal;
@@ -2767,6 +2785,18 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$join_ready = $livekit_ready || dzn_theme_platform_meet_available( $lesson, $is_booking, $within_join );
 		$classroom_message = dzn_theme_platform_livekit_message( $lesson, $is_booking, $within_join, $livekit_ready, $join_ready );
 		$class_timezone = (string) ( $teacher_timezone ?: ( $lesson['schedule_timezone'] ?? 'UTC' ) );
+		// Intro rows also carry the Student's own country and local time so the Teacher can reach
+		// them at a sensible hour without another tool.
+		$student_timezone = trim( (string) ( $lesson['student_timezone'] ?? '' ) );
+		$student_local_time = '';
+		if ( '' !== $student_timezone && $student_timezone !== $class_timezone ) {
+			try {
+				new DateTimeZone( $student_timezone );
+				$student_local_time = dzn_theme_platform_calendar_time( (string) ( $lesson['starts_at_utc'] ?? '' ), $student_timezone, $teacher_calendar, $teacher_locale, 'date_time_short' );
+			} catch ( Throwable $e ) {
+				$student_local_time = '';
+			}
+		}
 		$state = 'in_progress' === $temporal ? 'in_progress' : ( $ended ? 'ended' : ( $soon ? 'starting_soon' : ( 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'upcoming' ) ) ) );
 		$reference = trim( (string) ( $is_booking ? ( $lesson['confirmation_uid'] ?? '' ) : ( $lesson['reference_code'] ?? '' ) ) );
 		if ( '' === $reference ) { $reference = trim( (string) ( $lesson['lesson_uid'] ?? '' ) ); }
@@ -2826,6 +2856,9 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'is_today' => $is_today_row,
 			'details_available' => ! $is_booking && $is_today_row,
 			'student_whatsapp' => (string) ( $lesson['student_whatsapp'] ?? $lesson['student_phone'] ?? '' ),
+			'student_country_label' => dzn_theme_platform_country_label( (string) ( $lesson['student_country'] ?? '' ) ),
+			'student_local_time' => $student_local_time,
+			'student_timezone' => $student_timezone,
 			'term_sequence' => (int) ( $lesson['term_sequence'] ?? 0 ),
 			'term_label' => (int) ( $lesson['term_sequence'] ?? 0 ) > 0 ? 'ترم ' . dzn_theme_platform_persian_digits( (int) $lesson['term_sequence'] ) : '',
 			'term_total' => (int) ( $lesson['term_lesson_total'] ?? 0 ),

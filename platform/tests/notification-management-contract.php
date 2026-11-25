@@ -97,6 +97,27 @@ $fail('account-claim mobile routes are administrator-controlled and audited', !s
 $fail('only Utility provider templates can map transactional messages', str_contains($authority, "\$utility=strtoupper") && str_contains($authority, "not a Utility template"));
 $fail('new intro bookings record an admin inbox alert', str_contains($catalogue, "'booking.submitted.admin'") && str_contains($submission, "PortalNotificationRecorder::admin('booking.submitted.admin'"));
 
+/* 3b. Mobile activation is limited to methods a real producer sends. */
+$fail('catalogue declares the mobile producer map', str_contains($catalogue, 'MOBILE_PRODUCER_CHANNELS') && str_contains($catalogue, 'producesMobileChannel'));
+$fail('bulk mobile activation uses the producer map', str_contains($controller, 'producesMobileChannel') && !str_contains($controller, "(string)(\$event['category']??'')!=='operational'"));
+$fail('a method without a producer is not switchable', str_contains($controller, "'no_producer'") && str_contains($controller, 'has no sender for that mobile method'));
+$fail('WhatsApp readiness ignores events with no producer', str_contains((string) file_get_contents($root . '/src/Integrations/Notifications/WhatsAppProviderReadinessReadService.php'), "producesMobileChannel(\$eventKey,'whatsapp')"));
+require_once $root . '/src/Integrations/Notifications/NotificationCatalogue.php';
+$catalogueClass = 'Delnavazan\\Platform\\Integrations\\Notifications\\NotificationCatalogue';
+$mobileMap = $catalogueClass::MOBILE_PRODUCER_CHANNELS;
+$fail('mobile producer map is not empty', $mobileMap !== array());
+foreach ($mobileMap as $mobileEvent => $mobileChannels) {
+    $fail('mobile producer event exists: ' . $mobileEvent, $catalogueClass::get($mobileEvent) !== null);
+    foreach ($mobileChannels as $mobileChannel) {
+        $fail('mobile producer channel is known: ' . $mobileEvent, in_array($mobileChannel, array('whatsapp', 'sms'), true));
+    }
+}
+$fail('the confirmed booking has a WhatsApp producer', $catalogueClass::producesMobileChannel('booking.confirmed.student', 'whatsapp'));
+$fail('the renewal notice has a WhatsApp producer', $catalogueClass::producesMobileChannel('renewal.automatic_upcoming.student', 'whatsapp'));
+$fail('the teacher cancellation is SMS-only', $catalogueClass::producesMobileChannel('booking.cancelled.teacher', 'sms') && !$catalogueClass::producesMobileChannel('booking.cancelled.teacher', 'whatsapp'));
+$fail('one-time account codes have no mobile producer', !$catalogueClass::producesMobileChannel('account.claim_issued.student', 'whatsapp') && !$catalogueClass::producesMobileChannel('account.claim_issued.student', 'sms'));
+$fail('consent notices have no mobile producer', !$catalogueClass::producesMobileChannel('consent.student_required.student', 'whatsapp'));
+
 /* 4. Inbox storage is contact-free and read state is scoped to the linked WordPress user. */
 $fail('migration creates the inbox table', str_contains($migration, 'portal_notifications') && str_contains($migration, 'UNIQUE KEY dedupe_key'));
 $fail('inbox never stores contact or provider data', str_contains($migration, "'email','phone','whatsapp','secret','token','payload','provider'"));

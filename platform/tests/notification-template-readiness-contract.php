@@ -272,15 +272,15 @@ $readinessLibrary = new DznNotificationReadinessFakeLibrary(
         'booking.requested.student' => true,
         'booking.confirmed.student' => true,
         'booking.cancelled.student' => true,
-        'booking.new.teacher' => true,
-        'booking.rescheduled.student' => true,
+        'lesson.reminder.student' => true,
+        'renewal.automatic_charged.student' => true,
     ),
     array(
         'booking.requested.student' => array('whatsapp' => true),
         'booking.confirmed.student' => array('whatsapp' => true),
         'booking.cancelled.student' => array('whatsapp' => true),
-        'booking.new.teacher' => array('whatsapp' => true),
-        'booking.rescheduled.student' => array('whatsapp' => false),
+        'lesson.reminder.student' => array('whatsapp' => true),
+        'renewal.automatic_charged.student' => array('whatsapp' => false),
     ),
     array(
         'booking.requested.student' => array(
@@ -298,10 +298,10 @@ $readinessLibrary = new DznNotificationReadinessFakeLibrary(
             'mapping' => array('name' => 'delnavazan_intro_cancelled_fa', 'language' => 'fa', 'source' => 'manual'),
             'primary' => null,
         ),
-        'booking.new.teacher' => array(
+        'lesson.reminder.student' => array(
             'state' => TelnyxTemplateAuthority::NOT_APPROVED,
             'mapping' => array('name' => '', 'language' => '', 'source' => 'discovery'),
-            'primary' => array('name' => 'delnavazan_teacher_new_booking_v2_fa', 'status' => 'PENDING', 'variable_order' => array()),
+            'primary' => array('name' => 'delnavazan_class_reminder_v2_fa', 'status' => 'PENDING', 'variable_order' => array()),
         ),
     )
 );
@@ -309,8 +309,8 @@ $readiness = (new WhatsAppProviderReadinessReadService($readinessLibrary))->repo
 $fail('the readiness projection counts four enabled WhatsApp events', $readiness['enabled'] === 4);
 $fail('the readiness projection counts one ready event', $readiness['ready'] === 1);
 $fail('the readiness projection blocks a stale provider contract', ($readiness['blocked']['booking.confirmed.student'] ?? '') === 'contract_mismatch');
-$fail('the readiness projection blocks an unapproved provider template', ($readiness['blocked']['booking.new.teacher'] ?? '') === 'not_approved');
+$fail('the readiness projection blocks an unapproved provider template', ($readiness['blocked']['lesson.reminder.student'] ?? '') === 'not_approved');
 $fail('the readiness projection flags a manual mapping without provider evidence', isset($readiness['unverified']['booking.cancelled.student']));
-$fail('the readiness projection reports a disabled blocked event separately', isset($readiness['disabled_blocked']['booking.rescheduled.student']));
+$fail('the readiness projection reports a disabled blocked event separately', isset($readiness['disabled_blocked']['renewal.automatic_charged.student']));
 
 echo "Notification template readiness contract passed\n";

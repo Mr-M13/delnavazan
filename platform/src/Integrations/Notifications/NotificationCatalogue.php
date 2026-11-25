@@ -35,6 +35,55 @@ final class NotificationCatalogue {
      */
     public const CHANNELS=array('website','email','whatsapp','sms');
 
+    /**
+     * Delivery truth for the mobile methods: the event keys whose producer actually calls a mobile
+     * transport today, and which mobile channels it calls. The catalogue deliberately offers every
+     * method on every event for future use, but an administrator must never be told a method is
+     * "ready" when no code can send it. Security/account one-time-code events are intentionally absent.
+     *
+     * Keep this list in step with the producers; the notification management contract proves every
+     * mapped event exists and no security event is included.
+     *
+     * @var array<string,string[]>
+     */
+    public const MOBILE_PRODUCER_CHANNELS=array(
+        'booking.requested.student'=>array('whatsapp','sms'),
+        'booking.confirmed.student'=>array('whatsapp','sms'),
+        'booking.declined.student'=>array('whatsapp','sms'),
+        'booking.cancelled.student'=>array('whatsapp','sms'),
+        'booking.cancelled.teacher'=>array('sms'),
+        'booking.rescheduled.student'=>array('whatsapp','sms'),
+        'booking.rescheduled.teacher'=>array('sms'),
+        'post_intro.invitation.student'=>array('sms'),
+        'post_intro.activated.student'=>array('whatsapp','sms'),
+        'lesson.access.student'=>array('whatsapp','sms'),
+        'lesson.reminder.student'=>array('whatsapp','sms'),
+        'lesson.cancelled.student'=>array('whatsapp','sms'),
+        'lesson.access.teacher'=>array('sms'),
+        'lesson.reminder.teacher'=>array('sms'),
+        'lesson.cancelled.teacher'=>array('sms'),
+        'renewal.automatic_upcoming.student'=>array('whatsapp'),
+        'renewal.automatic_charged.student'=>array('whatsapp'),
+        'renewal.automatic_failed.student'=>array('whatsapp'),
+        'renewal.guarantee_deadline_approaching.student'=>array('whatsapp'),
+        'renewal.manual_payment_required.student'=>array('whatsapp'),
+        'renewal.term_lapsed.student'=>array('whatsapp'),
+        'payment.failed.student'=>array('whatsapp'),
+        'payment.recovered.student'=>array('whatsapp'),
+        'refund.review_required.student'=>array('whatsapp'),
+        'refund.resolved.student'=>array('whatsapp'),
+    );
+
+    /** @return string[] The mobile channels a real producer can send for this event. */
+    public static function mobileProducerChannels(string $eventKey):array{
+        return array_values((array)(self::MOBILE_PRODUCER_CHANNELS[$eventKey]??array()));
+    }
+
+    /** Whether a real producer sends this mobile method for this event today. */
+    public static function producesMobileChannel(string $eventKey,string $channel):bool{
+        return in_array($channel,self::mobileProducerChannels($eventKey),true);
+    }
+
     /** One-time secrets that a derived copy must never carry into another channel. */
     private const SECRET_VARIABLES=array('claim_code','claim_url','invitation_code');
 

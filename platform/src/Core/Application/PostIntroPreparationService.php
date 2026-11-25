@@ -335,8 +335,22 @@ final class PostIntroPreparationService {
         (new LessonService())->completeIntroductory((int) $lesson->id, (int) $schedule->id);
 
         $slot = $repository->slotAuthorityForIntro((int) $lesson->id);
+        $override = $repository->recurringSlotOverrideForConfirmation((int) $confirmation->id);
+        $authorisedTeacherOverride = $override && IntroRecurringSlotOverridePolicy::matches((array) $override, (array) $confirmation);
         if (!$slot) {
             $next = $this->nextWeeklyWallClock((string) $confirmation->local_wall_date, (string) $confirmation->local_wall_time, (string) $confirmation->schedule_timezone);
+            // Prove the agreed weekly slot is covered by published availability
+            // *before* writing the slot authority and its continuation hold. A
+            // failed availability check must not leave an orphan reservation
+            // that blocks the next booking at an adjacent time.
+            $resolved = CanonicalContinuationRule::resolveWallClock(
+                (string) $confirmation->schedule_timezone,
+                $next['date'],
+                $next['time'],
+                max(5, (int) $course->default_duration_minutes),
+                max(0, (int) $course->default_buffer_minutes)
+            );
+            if (! $authorisedTeacherOverride) $this->assertSlotAvailable($teacherId, (string) $resolved['starts_at_utc'], (string) $resolved['ends_at_utc'], (int) $course->id);
             (new CanonicalContinuationService())->recordFirstRegularSlot((int) $lesson->id, array(
                 'schedule_timezone' => (string) $confirmation->schedule_timezone,
                 'local_wall_date' => $next['date'],
@@ -353,8 +367,6 @@ final class PostIntroPreparationService {
             $slot = $repository->slotAuthorityForIntro((int) $lesson->id);
         }
         if (!$slot) throw new \RuntimeException('continuation_slot_unavailable');
-        $override = $repository->recurringSlotOverrideForConfirmation((int) $confirmation->id);
-        $authorisedTeacherOverride = $override && IntroRecurringSlotOverridePolicy::matches((array) $override, (array) $confirmation);
         if (! $authorisedTeacherOverride) $this->assertSlotAvailable($teacherId, (string) $slot->starts_at_utc, (string) $slot->ends_at_utc, (int) $course->id);
         if (CanonicalContinuationRule::expiresAt((string) $confirmation->ends_at_utc, (string) $slot->starts_at_utc) <= gmdate('Y-m-d H:i:s')) {
             throw new \RuntimeException('continuation_window_expired');

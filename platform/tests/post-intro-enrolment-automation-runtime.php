@@ -875,7 +875,7 @@ dzn_pia_assert($recoveredPrep !== null && (int) $recoveredPrep->id !== $replayed
 dzn_pia_assert((string) $recoveredPrep->state === 'prepared', 'a resumed preparation must reach the prepared state');
 
 // H. A Term already created by an authorised operator action is identified and funded, not duplicated.
-$existingTermBooking = $booking('existing-term', 24, '09:37:00'); // previous day: clear of the cutoff booking's buffered committed intro
+$existingTermBooking = $booking('existing-term', 24, '11:37:00'); // previous day: clear of the randomized 08:xx cutoff intro and its buffer
 wp_set_current_user($teacherUser);
 $preparations->recordTeacherOutcome($existingTermBooking['confirmation'], $teacherId, 'delivered', 'Synthetic existing-term delivery');
 $existingTermPrep = $repository->preparationByBooking((int) $existingTermBooking['request']);
@@ -924,7 +924,7 @@ dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}tea
 dzn_pia_assert((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}lessons WHERE term_id=%d AND lesson_type='standard'", $operatorTermId)) === 12, 'existing-Term recovery must create twelve Lessons');
 
 // I. Reviewed repair of an unmatched provider evidence row (the production double-hashed legacy shape).
-$repairBooking = $booking('unmatched-repair', 2, '12:47:00');
+$repairBooking = $booking('unmatched-repair', 2, '14:47:00'); // clear of the existing-term's buffered weekly classes
 wp_set_current_user($teacherUser);
 $preparations->recordTeacherOutcome($repairBooking['confirmation'], $teacherId, 'delivered', 'Synthetic unmatched repair delivery');
 $repairPrep = $repository->preparationByBooking((int) $repairBooking['request']);

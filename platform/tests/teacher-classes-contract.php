@@ -50,6 +50,8 @@ namespace Delnavazan\Platform\Portals {
 					$lesson( $now - 600, $now + 600, 'ACTIVE' ),
 					$lesson( $now - 36 * 3600, $now - 35 * 3600, 'YESTERDAY' ),
 					$lesson( $now + 24 * 3600, $now + 25 * 3600, 'TOMORROW' ),
+					$lesson( $now + 2 * 86400, $now + 2 * 86400 + 3600, 'DAY2' ),
+					$lesson( $now + 4 * 86400, $now + 4 * 86400 + 3600, 'DAY4' ),
 					$lesson( $now + 30 * 86400, $now + 30 * 86400 + 3600, 'DAY30' ),
 					$lesson( $now + 32 * 86400, $now + 32 * 86400 + 3600, 'DAY32' ),
 				),
@@ -167,13 +169,17 @@ namespace {
 	$sorted_starts = $today_starts;
 	usort( $sorted_starts, static fn( string $a, string $b ) => strcmp( $a, $b ) );
 	$check( 'today classes are chronological', $today_starts === $sorted_starts );
-	$check( 'today and upcoming sections do not overlap', ! array_intersect( array_column( (array) ( $model['today_classes'] ?? array() ), 'starts_at_utc' ), array_column( (array) ( $model['upcoming_classes'] ?? array() ), 'starts_at_utc' ) ) );
+	$check( 'today and next-days sections do not overlap', ! array_intersect( array_column( (array) ( $model['today_classes'] ?? array() ), 'starts_at_utc' ), array_column( (array) ( $model['next_classes'] ?? array() ), 'starts_at_utc' ) ) );
 	$today_refs = array_column( (array) ( $model['today_classes'] ?? array() ), 'ref' );
-	$upcoming_refs = array_column( (array) ( $model['upcoming_classes'] ?? array() ), 'ref' );
-	$check( 'previous-day classes are excluded from both sections', ! in_array( 'REF-YESTERDAY', $today_refs, true ) && ! in_array( 'REF-YESTERDAY', $upcoming_refs, true ) );
-	$check( 'tomorrow and day-30 classes are upcoming', in_array( 'REF-TOMORROW', $upcoming_refs, true ) && in_array( 'REF-DAY30', $upcoming_refs, true ) );
-	$far_future_refs = array_column( (array) ( $model['far_future_classes'] ?? array() ), 'ref' );
-	$check( 'beyond-day-30 classes remain available in a collapsed section', in_array( 'REF-DAY32', $far_future_refs, true ) && ! in_array( 'REF-DAY32', $today_refs, true ) && ! in_array( 'REF-DAY32', $upcoming_refs, true ) );
+	$next_refs = array_column( (array) ( $model['next_classes'] ?? array() ), 'ref' );
+	$intro_refs = array_column( (array) ( $model['intro_classes'] ?? array() ), 'ref' );
+	$check( 'previous-day classes are excluded from every section', ! in_array( 'REF-YESTERDAY', $today_refs, true ) && ! in_array( 'REF-YESTERDAY', $next_refs, true ) && ! in_array( 'REF-YESTERDAY', $intro_refs, true ) );
+	$check( 'the next section is the three days after today', in_array( 'REF-TOMORROW', $next_refs, true ) && in_array( 'REF-DAY2', $next_refs, true ) && ! in_array( 'REF-DAY4', $next_refs, true ) && ! in_array( 'REF-DAY30', $next_refs, true ) && ! in_array( 'REF-DAY30', $today_refs, true ) );
+	$check( 'farther classes stay in the calendar and out of the lists', in_array( 'REF-DAY30', array_column( (array) ( $model['classes'] ?? array() ), 'ref' ), true ) && in_array( 'REF-DAY32', array_column( (array) ( $model['classes'] ?? array() ), 'ref' ), true ) && ! in_array( 'REF-DAY32', $today_refs, true ) && ! in_array( 'REF-DAY32', $next_refs, true ) );
+	$check( 'intro classes have their own section and never repeat in today', in_array( 'CONF-ACTIVE', $intro_refs, true ) && ! in_array( 'CONF-ACTIVE', $today_refs, true ) && ! in_array( 'CONF-ACTIVE', $next_refs, true ) );
+	$fixture_date_today = wp_date( 'Y-m-d', \Delnavazan\Platform\Portals\PortalAuthenticatedReadService::$fixture_now, wp_timezone() );
+	$calendar_today = array_values( array_filter( (array) ( $model['calendar'] ?? array() ), static fn( array $row ) => (string) ( $row['date'] ?? '' ) === $fixture_date_today ) );
+	$check( 'the calendar carries a machine date for every class', (bool) $calendar_today && '' !== (string) ( $calendar_today[0]['starts_at_utc'] ?? '' ) );
 	$fixture_now = \Delnavazan\Platform\Portals\PortalAuthenticatedReadService::$fixture_now;
 	$day_window = dzn_theme_platform_teacher_day_window( 'Asia/Tehran' );
 	$recent_is_today = ( $fixture_now - 7200 ) >= dzn_theme_platform_utc_timestamp( $day_window['today_start'] );
@@ -211,13 +217,11 @@ namespace {
 	$check( 'the classes screen renders its list', str_contains( $html, 'dzn-tp-class-list' ) );
 	$check( 'the classes screen offers the post-intro outcome form', str_contains( $html, 'id="dzn-tp-post-intro"' ) && str_contains( $html, 'name="confirmation_uid" value="CONF-OUTCOME"' ) && str_contains( $html, 'name="outcome"' ) );
 	$check( 'actionable today cards expose the reschedule form', str_contains( $html, 'dzn-tp-reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
-	$check( 'future class cards are restored with their reschedule action', str_contains( $html, 'tp-classes-upcoming' ) && str_contains( $html, 'کلاس‌های آینده' ) && str_contains( $html, 'dzn-tp-class__reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
+	$check( 'next-days classes are restored with their reschedule action', str_contains( $html, 'tp-classes-next' ) && str_contains( $html, '۳ روز آینده' ) && str_contains( $html, 'dzn-tp-class__reschedule' ) && str_contains( $html, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_propose_reschedule"' ) );
 	$check( 'reschedule form exposes the outside-availability confirmation', str_contains( $html, 'name="confirm_outside_availability"' ) );
-	$check( 'the redundant calendar card is removed from the classes screen', ! str_contains( $html, 'تقویم کلاس‌های آینده' ) && ! str_contains( $html, 'dzn-tp-calendar' ) );
-	$check( 'future classes can be filtered by student', str_contains( $html, 'data-dzn-tp-student-filter-select' ) && str_contains( $html, 'data-dzn-tp-student="Student TOMORROW"' ) && str_contains( $html, 'data-dzn-tp-student="Student DAY30"' ) );
-	$check( 'far-future classes render collapsed with a clear boundary', str_contains( $html, 'dzn-tp-class-horizon' ) && str_contains( $html, 'کلاس‌های بیش از ۳۰ روز آینده' ) && str_contains( $html, '<details' ) );
-	$check( 'upcoming classes render collapsed as a dense row list', str_contains( $html, 'dzn-tp-class-horizon--upcoming' ) && str_contains( $html, 'dzn-tp-class-list--rows' ) && str_contains( $html, 'برای دیدن فهرست باز کنید.' ) );
-	$check( 'student cards receive stable highlight classes', str_contains( $html, 'is-student-' ) && str_contains( $html, 'data-dzn-tp-student="Student DAY30"' ) );
+	$check( 'the calendar replaces the removed future lists', str_contains( $html, 'tp-classes-intro' ) && str_contains( $html, 'tp-classes-today' ) && str_contains( $html, 'tp-classes-next' ) && str_contains( $html, 'tp-classes-calendar' ) && ! str_contains( $html, 'تقویم کلاس‌های آینده' ) && ! str_contains( $html, 'dzn-tp-calendar__item' ) );
+	$check( 'the calendar marks today and keeps the student filter', str_contains( $html, 'dzn-tp-month__grid' ) && str_contains( $html, 'href="#tp-classes-today"' ) && str_contains( $html, 'data-dzn-tp-student-filter-select' ) && str_contains( $html, 'data-dzn-tp-student="Student FUTURE"' ) );
+	$check( 'student cards receive stable highlight classes', str_contains( $html, 'is-student-' ) && str_contains( $html, 'data-dzn-tp-student="Student TOMORROW"' ) );
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );
 	$check( 'no private-note heading appears without a source', ! str_contains( $html, 'یادداشت خصوصی پیشین' ) );
 	$check( 'the mobile tab bar is rendered for a ready teacher', str_contains( $html, 'id="dzn-tp-nav-mobile"' ) );
@@ -241,7 +245,7 @@ namespace {
 	dzn_theme_render_teacher_portal( 'home', $homeModel );
 	$homeHtml = (string) ob_get_clean();
 	$check( 'today renders only the current local day', str_contains( $homeHtml, 'کلاس‌های امروز' ) && ! str_contains( $homeHtml, 'کلاس‌های آینده' ) );
-	$check( 'today does not render the 30-day calendar', ! str_contains( $homeHtml, 'رویدادی در تقویم پیش رو نیست' ) && ! str_contains( $homeHtml, 'dzn-tp-calendar' ) );
+	$check( 'today does not render the calendar or the future sections', ! str_contains( $homeHtml, 'tp-classes-calendar' ) && ! str_contains( $homeHtml, 'tp-classes-next' ) && ! str_contains( $homeHtml, 'tp-classes-intro' ) && ! str_contains( $homeHtml, '۳ روز آینده' ) );
 
 	$financeModel = dzn_theme_platform_teacher_model( 'finance' );
 	ob_start();
@@ -258,7 +262,8 @@ namespace {
 	$attendanceSummary = (string) file_get_contents( ABSPATH . 'platform/src/Integrations/GoogleWorkspace/MeetAttendanceSummaryService.php' );
 	$classesTemplate = (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/classes.php' );
 	$bridgeSource = (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' );
-	$check( 'the class card shows recorded attendance evidence', str_contains( $classesTemplate, 'data-dzn-attendance-evidence' ) && str_contains( $bridgeSource, "'attendance_evidence' =>" ) );
+	$classRowTemplate = (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/class-row.php' );
+	$check( 'the class card shows recorded attendance evidence', str_contains( $classRowTemplate, 'data-dzn-attendance-evidence' ) && str_contains( $bridgeSource, "'attendance_evidence' =>" ) );
 	$check( 'attendance evidence states the overlap minutes against the locked threshold', str_contains( $attendanceSummary, 'CanonicalAttendanceRule::assess' ) && str_contains( $attendanceSummary, "'threshold_minutes'" ) && str_contains( $attendanceSummary, "'identity_unmapped'" ) );
 	$check( 'attendance evidence is read-only, role-mapped and owner-scoped', str_contains( $attendanceSummary, 'participantSessionsForClassroom' ) && str_contains( $attendanceSummary, 'mappingsForAccount' ) && str_contains( $attendanceSummary, "!==\$viewerId)return \$empty;" ) && ! str_contains( $attendanceSummary, 'insert' ) && ! str_contains( $attendanceSummary, 'update' ) );
 

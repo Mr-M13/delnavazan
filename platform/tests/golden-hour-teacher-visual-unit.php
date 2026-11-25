@@ -60,14 +60,14 @@ $themeRoot=dirname(dirname(__DIR__)).'/theme';
 $bridge=file_get_contents($themeRoot.'/inc/platform-bridge.php');
 $account=file_get_contents($themeRoot.'/template-parts/teacher-portal/account.php');
 $onboarding=file_get_contents($themeRoot.'/template-parts/teacher-portal/onboarding.php');
-$classes=file_get_contents($themeRoot.'/template-parts/teacher-portal/classes.php');
+$classRow=file_get_contents($themeRoot.'/template-parts/teacher-portal/class-row.php');
 $view=file_get_contents($root.'/src/Admin/View/InstrumentCoverageClockView.php');
 $pay=file_get_contents($root.'/src/Core/Application/Finance/GoldenHourPayService.php');
 $assert(str_contains($bridge,'dzn_theme_platform_teacher_golden_bonus')&&str_contains($bridge,'GoldenHourTeacherWindowProjection')&&str_contains($bridge,"'golden_bonus' =>"),'The Teacher model must expose the finance-owned projection to the account surfaces.');
 $assert(!str_contains($account,"dzn_theme_teacher_portal_component( 'coverage-clock'")&&!str_contains($account,'dzn_theme_platform_demand_regions'),'The Teacher account must not render a coverage clock or the academy-wide region list.');
 $assert(str_contains($onboarding,"dzn_theme_teacher_portal_component( 'account'")&&!str_contains($onboarding,'dzn_theme_platform_demand_regions'),'Onboarding must use the same unified account workspace.');
 $assert(str_contains($view,"'goldenGaps' => 'ساعت‌های طلایی بدون پوشش'")&&str_contains($view,'Golden Hours')&&str_contains($view,'bonus')&&str_contains($view,'percent'),'The shared clock must carry the corrected Golden label and bonus details.');
-$assert(str_contains($classes,'dzn-tp-golden-badge')&&str_contains($classes,'golden_hour_window_display'),'Booked Teacher lessons must keep the golden-hour badge and local window disclosure.');
+$assert(str_contains($classRow,'dzn-tp-golden-badge')&&str_contains($classRow,'golden_hour_window_display'),'Booked Teacher lessons must keep the golden-hour badge and local window disclosure.');
 $assert(str_contains($pay,'shows only their own local clock')&&!str_contains($pay,"' · your time '"),'The pay presentation must not append academy-clock text to the Teacher view.');
 
 echo "golden-hour-teacher-visual-unit: OK\n";

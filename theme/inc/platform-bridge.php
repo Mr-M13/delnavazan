@@ -2624,9 +2624,19 @@ function dzn_theme_platform_teacher_model( $screen ) {
 	$classes = array();
 	$calendar = array();
 	$today_classes = array();
-	$upcoming_classes = array();
-	$far_future_classes = array();
+	$intro_classes = array();
+	$next_classes = array();
 	$past_classes = array();
+	// Tomorrow, the day after and the day after that. The boundary is built in the Teacher's
+	// timezone so a DST change cannot move it off local midnight.
+	$next_days_end = null;
+	if ( null !== $day_window ) {
+		try { $next_days_zone = new DateTimeZone( $teacher_timezone ); } catch ( Throwable $e ) { $next_days_zone = wp_timezone(); }
+		$next_days_local = ( new DateTimeImmutable( (string) $day_window['tomorrow_start'], new DateTimeZone( 'UTC' ) ) )
+			->setTimezone( $next_days_zone )->format( 'Y-m-d' );
+		$next_days_end = ( new DateTimeImmutable( $next_days_local . ' 00:00:00', $next_days_zone ) )
+			->modify( '+3 days' )->setTimezone( new DateTimeZone( 'UTC' ) )->format( 'Y-m-d H:i:s' );
+	}
 	$class_rows = array_merge( $today_rows, $upcoming_rows );
 	$golden_hour = array();
 	$golden_hour_ids = array();
@@ -2657,6 +2667,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		$is_today_row = null !== $day_window && $start && $start < dzn_theme_platform_utc_timestamp( $day_window['today_end'] );
 		$end = dzn_theme_platform_utc_timestamp( $lesson['ends_at_utc'] ?? '' );
 		$is_booking = 'teacher_booking_class_v1' === ( $lesson['version'] ?? '' );
+		$is_intro_class = $is_booking || 'intro' === (string) ( $lesson['lesson_kind'] ?? '' );
 		$temporal = dzn_theme_platform_lesson_temporal_state( $lesson, $now );
 		$soon = $start && $start - $now <= HOUR_IN_SECONDS;
 		$ended = 'ended' === $temporal;
@@ -2852,6 +2863,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'date' => dzn_theme_platform_calendar_time( (string) ( $lesson['starts_at_utc'] ?? '' ), $class_timezone, $teacher_calendar, $teacher_locale, 'weekday_month_day' ),
 			'starts_at_utc' => (string) ( $lesson['starts_at_utc'] ?? '' ),
 			'starts_at_iso' => dzn_theme_platform_iso_instant( (string) ( $lesson['starts_at_utc'] ?? '' ) ),
+			'local_date' => dzn_theme_platform_local_date_key( (string) ( $lesson['starts_at_utc'] ?? '' ), $class_timezone ),
+			'is_intro' => $is_intro_class,
 			'timezone' => $class_timezone,
 			'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'teacher', $lesson ),
 			'student' => $student_label,
@@ -2942,13 +2955,16 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			$past_classes[] = $past_row;
 			continue;
 		}
-		if ( $is_today_row ) {
+		if ( 'classes' === $screen && $is_intro_class ) {
+			// Every intro class that has not been completed lives in its own top section,
+			// regardless of the date, and is never repeated in Today or the next days.
+			$intro_classes[] = $class;
+		} elseif ( $is_today_row ) {
 			$today_classes[] = $class;
-		} elseif ( $start >= dzn_theme_platform_utc_timestamp( $day_window['upcoming_end'] ?? '' ) ) {
-			$far_future_classes[] = $class;
-		} else {
-			$upcoming_classes[] = $class;
+		} elseif ( 'classes' === $screen && null !== $next_days_end && $start < dzn_theme_platform_utc_timestamp( $next_days_end ) ) {
+			$next_classes[] = $class;
 		}
+		// Farther classes stay in the calendar projection only.
 		$calendarRow = array(
 			'day' => dzn_theme_platform_calendar_time( (string) ( $lesson['starts_at_utc'] ?? '' ), $class_timezone, $teacher_calendar, $teacher_locale, 'weekday_month_day' ),
 			'time' => dzn_theme_platform_calendar_time( (string) ( $lesson['starts_at_utc'] ?? '' ), $class_timezone, $teacher_calendar, $teacher_locale, 'time' ),
@@ -2961,6 +2977,10 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			'golden_hour_eligible' => '' !== $golden_summary && (int) ( $golden['bonus_basis_points'] ?? 0 ) > 0,
 			'state' => 'replacement' === ( $lesson['lesson_kind'] ?? '' ) ? 'replacement' : ( 'intro' === ( $lesson['lesson_kind'] ?? '' ) ? 'intro' : 'regular' ),
 			'calendar_export_url' => dzn_theme_platform_calendar_export_url( 'teacher', $lesson ),
+			// Machine date for the month grid; the Teacher's local calendar, never UTC.
+			'date' => dzn_theme_platform_local_date_key( (string) ( $lesson['starts_at_utc'] ?? '' ), $class_timezone ),
+			'is_intro' => $is_intro_class,
+			'starts_at_utc' => (string) ( $lesson['starts_at_utc'] ?? '' ),
 		);
 		if ( function_exists( 'dzn_theme_teacher_portal_calendar_valid' ) && ! dzn_theme_teacher_portal_calendar_valid( $calendarRow ) ) {
 			do_action( 'dzn_theme_teacher_portal_projection_invalid', 'calendar', $index, 'display_contract' );
@@ -3336,8 +3356,8 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'statistics' => array('active_students'=>(string)count($studentNames),'upcoming'=>(string)$upcoming_count,'lessons_month'=>(string)count($monthRows),'hours_month'=>number_format_i18n($seconds/HOUR_IN_SECONDS,1)),
 		'classes' => $classes,
 		'today_classes' => $today_classes,
-		'upcoming_classes' => $upcoming_classes,
-		'far_future_classes' => $far_future_classes,
+		'intro_classes' => $intro_classes,
+		'next_classes' => $next_classes,
 		'past_classes' => $past_classes,
 		'today_count' => count( $today_rows ),
 		'upcoming_count' => count( $upcoming_rows ),

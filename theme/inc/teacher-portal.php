@@ -174,17 +174,20 @@ function dzn_theme_teacher_portal_demo_model( $screen, $url ) {
 		array( 'ref'=>'ATT-08','action_available'=>true,'state' => 'availability_conflict', 'title' => 'تداخل با زمان در دسترس', 'context' => 'پنجشنبه ۱۸:۰۰', 'message' => 'یک کلاس نمایشی خارج از بازهٔ ترجیحی دیده می‌شود.', 'due' => 'بررسی تا فردا', 'primary' => 'بررسی تداخل' ),
 		array( 'ref'=>'ATT-09','action_available'=>true,'state' => 'admin_request', 'title' => 'درخواست مدیر آموزشگاه', 'context' => 'تکمیل اطلاعات حساب', 'message' => 'منطقهٔ زمانی خود را بازبینی کنید.', 'due' => 'تا ۲ مهر', 'primary' => 'باز کردن حساب' ),
 	);
+	$demo_today = function_exists( 'wp_date' ) ? wp_date( 'Y-m-d' ) : gmdate( 'Y-m-d' );
+	$demo_tomorrow = function_exists( 'wp_date' ) ? wp_date( 'Y-m-d', strtotime( '+1 day' ) ) : gmdate( 'Y-m-d', strtotime( '+1 day' ) );
 	$classes = array(
-		array( 'ref'=>'CLS-01','start_available'=>true,'details_available'=>true,'student_summary'=>'هنرجوی ترم نخست','schedule_summary'=>'امروز ۱۰:۰۰، زمان تهران','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'upcoming', 'time' => '۱۰:۰۰', 'date' => 'امروز', 'student' => 'هلیا', 'course' => 'سه‌تار', 'progress' => 'ترم ۱ · جلسهٔ ۲/۱۲', 'status' => 'پیش رو' ),
-		array( 'ref'=>'CLS-02','start_available'=>true,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'starting_soon', 'time' => '۱۱:۳۰', 'date' => 'امروز', 'student' => 'پارسا', 'course' => 'پیانو', 'progress' => 'ترم ۲ · جلسهٔ ۷/۱۲', 'status' => 'به‌زودی شروع می‌شود' ),
-		array( 'ref'=>'CLS-03','start_available'=>false,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'student_absence', 'time' => '۱۴:۰۰', 'date' => 'امروز', 'student' => 'مهتاب', 'course' => 'سنتور', 'progress' => 'ترم ۱ · جلسهٔ ۵/۱۲', 'status' => 'غیبت اطلاع داده شده' ),
-		array( 'ref'=>'CLS-04','start_available'=>true,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'replacement', 'time' => '۱۶:۳۰', 'date' => 'فردا', 'student' => 'نوید', 'course' => 'تار', 'progress' => 'جلسهٔ جبرانی مجاز', 'status' => 'جایگزین' ),
-		array( 'ref'=>'CLS-05','start_available'=>true,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'intro', 'time' => '۱۸:۰۰', 'date' => 'دوشنبه', 'student' => 'ساغر', 'course' => 'کمانچه', 'progress' => 'کلاس آشنایی', 'status' => 'آشنایی' ),
-		array( 'ref'=>'CLS-06','start_available'=>true,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'flexible', 'time' => '۲۰:۰۰', 'date' => 'سه‌شنبه', 'student' => 'آوا', 'course' => 'دف', 'progress' => 'ترم انعطاف‌پذیر', 'status' => 'زمان هماهنگ‌شده' ),
+		array( 'ref'=>'CLS-01','start_available'=>true,'details_available'=>true,'student_summary'=>'هنرجوی ترم نخست','schedule_summary'=>'امروز ۱۰:۰۰، زمان تهران','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'upcoming', 'time' => '۱۰:۰۰', 'date' => 'امروز', 'local_date' => $demo_today, 'is_intro' => false, 'student' => 'هلیا', 'course' => 'سه‌تار', 'progress' => 'ترم ۱ · جلسهٔ ۲/۱۲', 'status' => 'پیش رو' ),
+		array( 'ref'=>'CLS-02','start_available'=>true,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'starting_soon', 'time' => '۱۱:۳۰', 'date' => 'امروز', 'local_date' => $demo_today, 'is_intro' => false, 'student' => 'پارسا', 'course' => 'پیانو', 'progress' => 'ترم ۲ · جلسهٔ ۷/۱۲', 'status' => 'به‌زودی شروع می‌شود' ),
+		array( 'ref'=>'CLS-03','start_available'=>false,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'student_absence', 'time' => '۱۴:۰۰', 'date' => 'امروز', 'local_date' => $demo_today, 'is_intro' => false, 'student' => 'مهتاب', 'course' => 'سنتور', 'progress' => 'ترم ۱ · جلسهٔ ۵/۱۲', 'status' => 'غیبت اطلاع داده شده' ),
+		array( 'ref'=>'CLS-04','start_available'=>true,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'replacement', 'time' => '۱۶:۳۰', 'date' => 'فردا', 'local_date' => $demo_tomorrow, 'is_intro' => false, 'student' => 'نوید', 'course' => 'تار', 'progress' => 'جلسهٔ جبرانی مجاز', 'status' => 'جایگزین' ),
+		array( 'ref'=>'CLS-05','start_available'=>true,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'intro', 'time' => '۱۸:۰۰', 'date' => 'دوشنبه', 'local_date' => $demo_tomorrow, 'is_intro' => true, 'student' => 'ساغر', 'course' => 'کمانچه', 'progress' => 'کلاس آشنایی', 'status' => 'آشنایی' ),
+		array( 'ref'=>'CLS-06','start_available'=>true,'details_available'=>true,'student_summary'=>'خلاصهٔ هنرجوی نمایشی','schedule_summary'=>'زمان قطعی نمایشی در منطقهٔ زمانی مدرس','previous_private_note'=>'تمرکز روی ریتم آرام','state' => 'flexible', 'time' => '۲۰:۰۰', 'date' => 'سه‌شنبه', 'local_date' => $demo_tomorrow, 'is_intro' => false, 'student' => 'آوا', 'course' => 'دف', 'progress' => 'ترم انعطاف‌پذیر', 'status' => 'زمان هماهنگ‌شده' ),
 	);
 	return array_merge( $base, array(
 		'announcement' => array( 'state' => 'technical', 'title' => 'یادآوری فنی', 'message' => 'پیش از نخستین کلاس، صدا و تنظیمات موسیقی را بررسی کنید.' ),
 		'attention' => $attention, 'classes' => $classes,
+		'intro_classes' => array( $classes[4] ), 'today_classes' => array( $classes[0], $classes[1], $classes[2] ), 'next_classes' => array( $classes[3], $classes[5] ),
 		'calendar' => array( array( 'day' => 'فردا', 'time' => '۱۷:۰۰', 'label' => 'کلاس معمول · سه‌تار', 'state' => 'regular' ), array( 'day' => 'دوشنبه', 'time' => '۱۸:۳۰', 'label' => 'کلاس آشنایی · پیانو', 'state' => 'intro' ), array( 'day' => 'سه‌شنبه', 'time' => '۲۰:۰۰', 'label' => 'جلسهٔ جبرانی · تار', 'state' => 'replacement' ), array( 'day' => 'چهارشنبه', 'time' => '۱۶:۰۰', 'label' => 'غیبت اطلاع‌داده‌شده · سنتور', 'state' => 'student_absence' ) ),
 	) );
 }
@@ -301,4 +304,131 @@ function dzn_theme_teacher_portal_notices( $screen ) {
 		}
 	}
 	return $notices;
+}
+
+/**
+ * Presentation helpers for the Teacher month calendar.
+ *
+ * The grid is calendar-only arithmetic in the Teacher's local timezone; it never changes a
+ * scheduled instant or claims an authority. Persian months use the dependency-free
+ * platform converter when it is autoloaded, and degrade to the Gregorian grid otherwise.
+ */
+function dzn_theme_teacher_portal_calendar_zone( $timezone ) {
+	$name = trim( (string) $timezone );
+	if ( '' === $name && function_exists( 'wp_timezone_string' ) ) { $name = (string) wp_timezone_string(); }
+	if ( '' === $name ) { $name = 'Asia/Tehran'; }
+	try { return new DateTimeZone( $name ); } catch ( Throwable $e ) { return new DateTimeZone( 'UTC' ); }
+}
+
+/** Persian digits when the platform formatter is loaded; plain digits in isolated fixtures. */
+function dzn_theme_teacher_portal_digits( $value ) {
+	return function_exists( 'dzn_theme_platform_persian_digits' ) ? dzn_theme_platform_persian_digits( $value ) : (string) $value;
+}
+
+/** Localized month/day label with a dependency-free fallback for isolated renders. */
+function dzn_theme_teacher_portal_format_day( DateTimeImmutable $instant, DateTimeZone $zone, $calendar, $locale, $kind ) {
+	if ( function_exists( 'dzn_theme_platform_calendar_time' ) ) {
+		return (string) dzn_theme_platform_calendar_time( $instant->setTimezone( new DateTimeZone( 'UTC' ) )->format( 'Y-m-d H:i:s' ), $zone->getName(), (string) $calendar, (string) $locale, $kind );
+	}
+	return 'year_month' === $kind ? $instant->format( 'F Y' ) : $instant->format( 'l j F' );
+}
+
+function dzn_theme_teacher_portal_month_key_for_date( DateTimeImmutable $date, $calendar ) {
+	$class = '\\Delnavazan\\Platform\\Core\\Support\\PersianCalendar';
+	if ( 'persian' === $calendar && class_exists( $class ) ) {
+		$jalali = $class::toJalali( (int) $date->format( 'Y' ), (int) $date->format( 'n' ), (int) $date->format( 'j' ) );
+		return sprintf( '%04d-%02d', $jalali[0], $jalali[1] );
+	}
+	return $date->format( 'Y-m' );
+}
+
+function dzn_theme_teacher_portal_current_month_key( $calendar, $timezone ) {
+	return dzn_theme_teacher_portal_month_key_for_date( new DateTimeImmutable( 'now', dzn_theme_teacher_portal_calendar_zone( $timezone ) ), $calendar );
+}
+
+function dzn_theme_teacher_portal_shift_month_key( $key, $delta, $calendar ) {
+	if ( ! preg_match( '/^(\d{4})-(\d{2})$/', (string) $key, $matches ) ) { return (string) $key; }
+	$class = '\\Delnavazan\\Platform\\Core\\Support\\PersianCalendar';
+	if ( 'persian' === $calendar && class_exists( $class ) ) {
+		$year = (int) $matches[1];
+		$month = (int) $matches[2] + (int) $delta;
+		while ( $month > 12 ) { $month -= 12; $year++; }
+		while ( $month < 1 ) { $month += 12; $year--; }
+		return sprintf( '%04d-%02d', $year, $month );
+	}
+	$month = (int) $matches[2];
+	if ( $month < 1 || $month > 12 ) { return (string) $key; }
+	$first = DateTimeImmutable::createFromFormat( '!Y-m-d', sprintf( '%04d-%02d-01', (int) $matches[1], $month ), new DateTimeZone( 'UTC' ) );
+	if ( ! $first ) { return (string) $key; }
+	return $first->modify( ( $delta < 0 ? '-' : '+' ) . abs( (int) $delta ) . ' months' )->format( 'Y-m' );
+}
+
+/**
+ * One month of the Teacher calendar: labelled cells with the day numbers of the selected
+ * calendar (Persian or Gregorian) and a Gregorian `date` key for matching model rows.
+ *
+ * @return array{key:string,label:string,prev:string,next:string,cell_count:int,first_date:string,last_date:string,weekdays:array<int,string>,cells:array<int,array<string,mixed>|null>}
+ */
+function dzn_theme_teacher_portal_month_grid( $month_key, $calendar, $timezone, $locale ) {
+	$class = '\\Delnavazan\\Platform\\Core\\Support\\PersianCalendar';
+	$calendar = 'persian' === $calendar ? 'persian' : 'gregorian';
+	$persian = 'persian' === $calendar && class_exists( $class );
+	$zone = dzn_theme_teacher_portal_calendar_zone( $timezone );
+	$today = ( new DateTimeImmutable( 'now', $zone ) )->format( 'Y-m-d' );
+	$current = dzn_theme_teacher_portal_current_month_key( $calendar, $timezone );
+	$key = preg_match( '/^(\d{4})-(\d{2})$/', (string) $month_key, $matches ) ? (string) $month_key : $current;
+	$year = (int) substr( $key, 0, 4 );
+	$month = (int) substr( $key, 5, 2 );
+	if ( $month < 1 || $month > 12 ) { $key = $current; $year = (int) substr( $key, 0, 4 ); $month = (int) substr( $key, 5, 2 ); }
+	if ( $persian && $month < 1 ) { $persian = false; }
+	$days = 30;
+	$label = '';
+	$first = null;
+	if ( $persian ) {
+		$days = $class::monthLength( $year, $month );
+		$gregorian = $class::toGregorian( $year, $month, 1 );
+		$first = new DateTimeImmutable( sprintf( '%04d-%02d-%02d 00:00:00', $gregorian[0], $gregorian[1], $gregorian[2] ), $zone );
+		$label = $class::PERSIAN_MONTHS[ $month ] . ' ' . dzn_theme_teacher_portal_digits( $year );
+	}
+	if ( ! $first ) {
+		$persian = false;
+		$first = new DateTimeImmutable( sprintf( '%04d-%02d-01 00:00:00', $year, $month ), $zone );
+		$days = (int) $first->format( 't' );
+		$label = dzn_theme_teacher_portal_format_day( $first, $zone, 'gregorian', (string) $locale, 'year_month' );
+	}
+	$start_column = ( ( (int) $first->format( 'w' ) ) + 1 ) % 7; // Saturday is the first column.
+	$cells = array_fill( 0, $start_column, null );
+	$first_date = '';
+	$last_date = '';
+	for ( $day = 1; $day <= $days; $day++ ) {
+		if ( $persian ) {
+			$gregorian = $class::toGregorian( $year, $month, $day );
+			$date = sprintf( '%04d-%02d-%02d', $gregorian[0], $gregorian[1], $gregorian[2] );
+			$instant = new DateTimeImmutable( $date . ' 00:00:00', $zone );
+		} else {
+			$instant = $first->modify( '+' . ( $day - 1 ) . ' days' );
+			$date = $instant->format( 'Y-m-d' );
+		}
+		if ( '' === $first_date ) { $first_date = $date; }
+		$last_date = $date;
+		$cells[] = array(
+			'date' => $date,
+			'day' => dzn_theme_teacher_portal_digits( $day ),
+			'today' => $date === $today,
+			'label' => dzn_theme_teacher_portal_format_day( $instant, $zone, $calendar, (string) $locale, 'weekday_month_day' ),
+		);
+	}
+	$prev = dzn_theme_teacher_portal_shift_month_key( $key, -1, $calendar );
+	return array(
+		'key' => $key,
+		'label' => $label,
+		'prev' => strcmp( $prev, $current ) >= 0 ? $prev : '',
+		'next' => dzn_theme_teacher_portal_shift_month_key( $key, 1, $calendar ),
+		'cell_count' => count( $cells ),
+		'first_date' => $first_date,
+		'last_date' => $last_date,
+		'today' => $today,
+		'weekdays' => array( 'شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه' ),
+		'cells' => $cells,
+	);
 }

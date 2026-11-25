@@ -500,10 +500,30 @@
 .dzn-tp-open-requests {
   margin-block-start: 1.25rem;
   padding: 1.1rem;
-  border: 1px solid color-mix(in srgb, var(--dzn-color-warning) 50%, var(--dzn-tp-border));
-  border-inline-start: 4px solid var(--dzn-color-warning);
+  border: 2px solid color-mix(in srgb, var(--dzn-color-warning) 65%, var(--dzn-tp-border));
+  border-inline-start: 6px solid var(--dzn-color-warning);
   border-radius: .9rem;
-  background: color-mix(in srgb, var(--dzn-color-warning-surface) 70%, var(--dzn-tp-card));
+  background: color-mix(in srgb, var(--dzn-color-warning-surface) 80%, var(--dzn-tp-card));
+}
+
+.dzn-tp-open-requests .dzn-tp-heading {
+  align-items: flex-start;
+}
+
+.dzn-tp-open-requests .dzn-tp-heading h2 {
+  margin: 0 0 .25rem;
+  color: var(--dzn-color-warning);
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.dzn-tp-open-requests .dzn-tp-count-badge {
+  border: 1px solid var(--dzn-color-warning);
+  background: var(--dzn-color-warning);
+  color: var(--dzn-color-on-action);
+  font-size: .82rem;
+  font-weight: 800;
+  padding: .2rem .6rem;
 }
 .dzn-tp-open-requests .dzn-tp-intro-card.is-opportunity {
   background: var(--dzn-tp-card);
@@ -856,10 +876,6 @@
   font-size: 1.15rem;
 }
 
-.dzn-tp-classes__guidance {
-  margin-block: 0 .75rem;
-}
-
 .dzn-tp-class-section {
   margin-block-start: .9rem;
 }
@@ -868,6 +884,229 @@
   margin: 0 0 .5rem;
   color: var(--dzn-color-text-secondary);
   font-size: 1rem;
+}
+
+.dzn-tp-class-section__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-block-end: .35rem;
+}
+
+.dzn-tp-class-section__heading .dzn-tp-class-section__title {
+  margin: 0;
+}
+
+.dzn-tp-class-section__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 1.7rem;
+  padding: .1rem .45rem;
+  border-radius: 999px;
+  background: var(--dzn-color-accent);
+  color: var(--dzn-color-on-action);
+  font-size: .75rem;
+  font-weight: 800;
+}
+
+.dzn-tp-class-section__help {
+  margin-block: 0 .55rem;
+}
+
+/* Intro classes have their own section above Today, independent of the date. */
+.dzn-tp-class-section--intro {
+  padding: .8rem .8rem .65rem;
+  border: 1px solid color-mix(in srgb, var(--dzn-color-information) 45%, var(--dzn-tp-border));
+  border-inline-start: 4px solid var(--dzn-color-information);
+  border-radius: .9rem;
+  background: color-mix(in srgb, var(--dzn-color-information-surface) 55%, var(--dzn-tp-card));
+}
+
+.dzn-tp-class-section--intro .dzn-tp-class-section__title {
+  color: var(--dzn-color-information);
+  font-size: 1.05rem;
+}
+
+.dzn-tp-class-section--intro .dzn-tp-class-section__count {
+  background: var(--dzn-color-information);
+}
+
+.dzn-tp-class-list--intro {
+  border-color: var(--dzn-color-information-border);
+  background: var(--dzn-tp-card);
+}
+
+
+/* Teacher month calendar: 7 columns, month navigation, marked class days and the day list. */
+.dzn-tp-calendar-section .dzn-tp-heading {
+  align-items: flex-start;
+}
+
+.dzn-tp-calendar-section .dzn-tp-class-section__title {
+  margin-block-end: .25rem;
+  color: var(--dzn-color-text-secondary);
+  font-size: 1rem;
+}
+
+.dzn-tp-month {
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: .9rem;
+  background: var(--dzn-tp-card);
+  padding: .55rem;
+}
+
+.dzn-tp-month__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-block-end: .4rem;
+}
+
+.dzn-tp-month__label {
+  font-size: .95rem;
+  text-align: center;
+}
+
+.dzn-tp-month__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border: 1px solid var(--dzn-tp-border);
+  border-radius: 999px;
+  background: var(--dzn-color-surface-elevated);
+  color: var(--dzn-color-text-primary);
+  font-size: 1.15rem;
+  text-decoration: none;
+}
+
+.dzn-tp-month__nav:hover,
+.dzn-tp-month__nav:focus-visible {
+  border-color: var(--dzn-color-action-primary);
+  outline: 3px solid color-mix(in srgb, var(--dzn-color-action-primary) 35%, transparent);
+  outline-offset: 2px;
+}
+
+.dzn-tp-month__nav.is-disabled {
+  opacity: .35;
+}
+
+.dzn-tp-month__weekdays,
+.dzn-tp-month__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.dzn-tp-month__weekdays span {
+  padding-block: .2rem .3rem;
+  color: var(--dzn-color-text-secondary);
+  font-size: .62rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.dzn-tp-month__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-block-size: 2.5rem;
+  border-radius: .5rem;
+  color: var(--dzn-color-text-primary);
+  font-size: .8rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.dzn-tp-month__cell.is-empty {
+  background: transparent;
+}
+
+.dzn-tp-month__cell.is-today {
+  outline: 1px solid var(--dzn-color-action-primary);
+  outline-offset: -1px;
+}
+
+.dzn-tp-month__cell.has-classes {
+  background: color-mix(in srgb, var(--dzn-color-action-primary) 12%, transparent);
+  font-weight: 800;
+}
+
+.dzn-tp-month__cell.has-classes:hover,
+.dzn-tp-month__cell.has-classes:focus-visible {
+  background: color-mix(in srgb, var(--dzn-color-action-primary) 22%, transparent);
+  outline: 3px solid color-mix(in srgb, var(--dzn-color-action-primary) 35%, transparent);
+  outline-offset: 1px;
+}
+
+.dzn-tp-month__cell.has-intro {
+  background: color-mix(in srgb, var(--dzn-color-information) 16%, transparent);
+}
+
+.dzn-tp-month__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 1rem;
+  padding-inline: 2px;
+  border-radius: 999px;
+  background: var(--dzn-color-action-primary);
+  color: var(--dzn-color-on-action);
+  font-size: .6rem;
+  font-weight: 800;
+  line-height: 1rem;
+}
+
+.dzn-tp-month__cell.has-intro .dzn-tp-month__mark {
+  background: var(--dzn-color-information);
+}
+
+.dzn-tp-month__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .25rem .45rem;
+  margin-block: .5rem 0;
+  font-size: .72rem;
+}
+
+.dzn-tp-month__legend-dot {
+  inline-size: .55rem;
+  block-size: .55rem;
+  border-radius: 999px;
+  background: var(--dzn-color-action-primary);
+}
+
+.dzn-tp-month__legend-dot.has-intro {
+  margin-inline-start: .35rem;
+  background: var(--dzn-color-information);
+}
+
+.dzn-tp-calendar-days {
+  display: grid;
+  gap: .9rem;
+  margin-block-start: .75rem;
+}
+
+.dzn-tp-day__title {
+  margin: 0 0 .35rem;
+  color: var(--dzn-color-text-secondary);
+  font-size: .86rem;
+  font-weight: 800;
+}
+
+.dzn-tp-day .dzn-tp-class-list--rows {
+  border-radius: .7rem;
+}
+
+.dzn-tp-calendar-empty {
+  margin-block-start: .55rem;
 }
 
 .dzn-tp-class-filter {
@@ -973,24 +1212,6 @@
 .dzn-tp-class.is-student-4 { border-inline-start-color: var(--dzn-color-accent); }
 .dzn-tp-class.is-student-5 { border-inline-start-color: var(--dzn-color-success); }
 .dzn-tp-class.is-student-6 { border-inline-start-color: var(--dzn-color-secondary); }
-
-.dzn-tp-class-horizon {
-  margin-block-start: 1rem;
-  border: 1px solid var(--dzn-tp-border);
-  border-radius: .8rem;
-  background: var(--dzn-tp-surface);
-  padding: .75rem 1rem;
-}
-
-.dzn-tp-class-horizon > summary {
-  cursor: pointer;
-  font-weight: 800;
-}
-
-.dzn-tp-class-horizon > summary:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--dzn-color-action-primary) 35%, transparent);
-  outline-offset: 2px;
-}
 
 /* Future horizon rows: one dense line per class so a long programme stays scannable.
    The row keeps every action, disclosure and filter that the card carried. */

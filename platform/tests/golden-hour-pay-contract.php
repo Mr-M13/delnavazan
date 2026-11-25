@@ -31,7 +31,7 @@ $enrolmentArea = $read('src/Core/Application/EnrolmentServiceAreaService.php');
 $attendance = $read('src/Core/Application/CanonicalAttendanceSettlementService.php');
 $completionWorker = $read('src/Integrations/LessonCompletionAutomationWorker.php');
 $theme = $read('../theme/inc/platform-bridge.php');
-$classes = $read('../theme/template-parts/teacher-portal/classes.php');
+$classes = $read('../theme/template-parts/teacher-portal/class-row.php');
 $finance = $read('../theme/template-parts/teacher-portal/finance.php');
 $fail = array();
 $assert = static function (bool $condition, string $message) use (&$fail): void { if (!$condition) $fail[] = $message; };

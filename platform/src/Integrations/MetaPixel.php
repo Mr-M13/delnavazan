@@ -31,7 +31,6 @@ final class MetaPixel {
 
     public static function register(): void {
         add_action('wp_head', array(__CLASS__, 'renderBaseCode'), 5);
-        add_action('wp_body_open', array(__CLASS__, 'renderNoScript'), 5);
     }
 
     /** Validated, stored pixel id. Empty when unset or malformed. */
@@ -71,22 +70,26 @@ final class MetaPixel {
         if (!self::shouldRender()) return;
         $pixel = self::pixelId();
         if ($pixel === '') return;
-        echo "\n<!-- Delnavazan Meta Pixel: browser-side PageView and explicit conversion events only. No personal data is sent. -->\n";
+        // Keep the block byte-for-byte compatible with the code Meta issues, so an HTML-level
+        // detector sees the canonical loader, init, PageView and noscript image. The pixel id is
+        // strictly numeric, so the unescaped ampersand in the fallback URL is safe. The extra
+        // `dznMetaPixel` helper at the end is the only addition.
+        echo "\n<!-- Meta Pixel Code (Delnavazan) -->\n";
         echo "<script>\n";
-        echo "!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');\n";
-        echo "fbq('init','" . esc_js($pixel) . "');\n";
-        echo "fbq('track','PageView');\n";
+        echo "!function(f,b,e,v,n,t,s)\n";
+        echo "{if(f.fbq)return;n=f.fbq=function(){n.callMethod?\n";
+        echo "n.callMethod.apply(n,arguments):n.queue.push(arguments)};\n";
+        echo "if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';\n";
+        echo "n.queue=[];t=b.createElement(e);t.async=!0;\n";
+        echo "t.src=v;s=b.getElementsByTagName(e)[0];\n";
+        echo "s.parentNode.insertBefore(t,s)}(window, document,'script',\n";
+        echo "'https://connect.facebook.net/en_US/fbevents.js');\n";
+        echo "fbq('init', '" . esc_js($pixel) . "');\n";
+        echo "fbq('track', 'PageView');\n";
         echo "window.dznMetaPixel={track:function(name,params,eventId){if(typeof window.fbq!=='function'){return;}var options=eventId?{eventID:String(eventId)}:undefined;window.fbq('track',String(name),params||{},options);}};\n";
         echo "</script>\n";
-    }
-
-    /** The standard no-JavaScript fallback image, under the same gates as the base snippet. */
-    public static function renderNoScript(): void {
-        if (!self::shouldRender()) return;
-        $pixel = self::pixelId();
-        if ($pixel === '') return;
-        $src = esc_url('https://www.facebook.com/tr?id=' . $pixel . '&ev=PageView&noscript=1');
-        echo '<noscript><img height="1" width="1" style="display:none" alt="" src="' . $src . '"></noscript>' . "\n";
+        echo '<noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=' . $pixel . '&ev=PageView&noscript=1" /></noscript>' . "\n";
+        echo "<!-- End Meta Pixel Code -->\n";
     }
 
     /** Consent is opt-out by default; a consent manager or the filter can deny marketing cookies. */

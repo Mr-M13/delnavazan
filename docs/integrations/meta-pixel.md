@@ -21,7 +21,7 @@ Deliberately **not** implemented:
 
 ## Where the snippet prints
 
-The plugin prints it from `wp_head` / `wp_body_open` only when **all** of these are true:
+The plugin prints Meta's canonical code block — loader, `fbq('init', …)`, `fbq('track', 'PageView')` and the `<noscript>` fallback image — from `wp_head` only when **all** of these are true:
 
 1. an operator enabled the integration and stored a valid pixel id (5–20 digits);
 2. the request is not admin, AJAX, cron, REST/JSON, feed, preview, Customizer preview or robots;

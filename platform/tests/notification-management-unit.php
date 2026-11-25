@@ -562,7 +562,7 @@ namespace {
     $library->saveEventChannel($event, 'whatsapp', false);
     $offWhatsApp = $stateMethod->invoke(null, $library, $event, 'whatsapp');
     $fail('off WhatsApp still shows approval blocker', $offWhatsApp['state']==='disabled' && !empty($offWhatsApp['enable_blocked']) && stripos($offWhatsApp['reason'], 'approv') !== false);
-    $smsEvent = 'booking.new.teacher';
+    $smsEvent = 'lesson.reminder.teacher';
     $library->saveEventChannel($smsEvent, 'sms', false);
     $offSms = $stateMethod->invoke(null, $library, $smsEvent, 'sms');
     $fail('off SMS still shows unavailable selected routes', $offSms['state']==='disabled' && !empty($offSms['enable_blocked']) && str_contains($offSms['reason'], 'unavailable'));

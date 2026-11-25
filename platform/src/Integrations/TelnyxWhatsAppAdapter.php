@@ -91,7 +91,7 @@ final class TelnyxWhatsAppAdapter {
         if($sender==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused');
         $notification=$this->notification($command);
         $attempt=$this->attempt($command,$notification);
-        if($notification&&$attempt&&$this->provider->messageForAttempt((int)$notification->id,(int)$attempt->id)){
+        if($notification&&$attempt&&$this->provider->messageForAttempt((int)$notification->id,(int)$attempt->id,'whatsapp')){
             return array('acknowledged'=>true,'permanent_failure'=>null,'idempotent'=>true);
         }
         $mapped=$this->mapping($command);
@@ -133,7 +133,7 @@ final class TelnyxWhatsAppAdapter {
         $to=PhoneNumberNormalizer::toE164($to);
         if(!preg_match('/^\+[1-9][0-9]{7,14}$/',$to))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
         if($notificationId<1)return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'booking_notification_required');
-        if($this->provider->messageForAttempt($notificationId,0))return array('acknowledged'=>true,'permanent_failure'=>null,'idempotent'=>true);
+        if($this->provider->messageForAttempt($notificationId,0,'whatsapp'))return array('acknowledged'=>true,'permanent_failure'=>null,'idempotent'=>true);
         $sender=(string)$this->settings->value('whatsapp','sender_id');
         if($sender==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'sender_not_configured');
         $mapped=$this->eventMapping($eventKey);

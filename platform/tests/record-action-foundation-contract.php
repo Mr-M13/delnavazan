@@ -114,4 +114,16 @@ $contains($screen, array(
 $expect(!str_contains($screen, 'teacherArchiveActions('), 'The teacher archive action must not remain a parallel form');
 $expect(str_contains($screen, "archiveActions('student'"), 'The unresolved student status model must keep its existing authorised action until its own domain PR');
 
+// A read failure while building an action's options must never be silent: every catch logs, and the
+// two option builders explain the failure to the operator instead of leaving an empty list. See OPS-15.
+$registry = $read('src/Admin/RecordAction/RecordActionRegistry.php');
+$expect(
+    substr_count($registry, 'catch (\Throwable') === substr_count($registry, 'error_log('),
+    'Every swallowed read failure in the record-action registry must be logged'
+);
+$contains($registry, array(
+    'The current enrolments could not be read. Reload; if it repeats, report it with the reference.',
+    'The current Terms could not be read. Reload; if it repeats, report it with the reference.',
+), 'A failed option read must be explained to the operator, not rendered as an empty list');
+
 echo "Record action foundation contract passed\n";

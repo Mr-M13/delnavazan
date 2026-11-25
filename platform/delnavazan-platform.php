@@ -101,6 +101,7 @@ add_action( 'plugins_loaded', static function () {
 	// control-plane service and RecordingOperationsReadService remain available to the existing
 	// archive/legal-hold authorities; no Settings tab or emergency-stop UI is exposed.
 	Delnavazan\Platform\Core\Application\ConsentLifecycleWorker::register();
+	Delnavazan\Platform\Core\Application\AttendanceEscalationWorker::register();
 	Delnavazan\Platform\Admin\Controller\PaymentExecutionController::register();
 	Delnavazan\Platform\Admin\Controller\FinanceAdminController::register();
 	Delnavazan\Platform\Admin\Controller\CommercialCatalogueController::register();

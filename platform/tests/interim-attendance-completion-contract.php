@@ -95,4 +95,15 @@ foreach (array('delivery', 'policy', 'worker') as $name) {
 }
 $assert(str_contains($policy, 'CanonicalAttendanceRepository') && str_contains($policy, 'CanonicalLessonDeliveryRepository'), 'The guard must read existing canonical intake and delivery authority');
 
+// Owner decision (4), 2026-11-25: remind the Teacher after 24 hours and refer the case to the
+// administrator after 48 hours. The worker nudges only; it never records a delivery outcome.
+$escalation = $read('src/Core/Application/AttendanceEscalationWorker.php');
+$assert(str_contains($escalation, 'TEACHER_AFTER_HOURS = 24') && str_contains($escalation, 'ADMIN_AFTER_HOURS = 48'), 'Escalation must remind the Teacher at 24 hours and refer to the administrator at 48');
+$assert(str_contains($escalation, "'dzn_attendance_escalation'") && str_contains($escalation, "'hourly'"), 'The escalation must run on an hourly cron');
+$assert(str_contains($escalation, "c.state IN ('open','ready_for_review')"), 'Only an unresolved attendance case may be escalated');
+$assert(str_contains($escalation, 'attendance.escalation.') && str_contains($escalation, 'alreadySent('), 'Each escalation stage must be written once per case');
+$assert(!str_contains($escalation, 'CanonicalLessonDeliveryService') && !str_contains($escalation, 'record_outcome'), 'Escalation must never record delivery');
+$plugin = $read('delnavazan-platform.php');
+$assert(str_contains($plugin, 'AttendanceEscalationWorker::register()'), 'The escalation worker must be registered');
+
 echo "Interim attendance and completion source contract: PASS\n";

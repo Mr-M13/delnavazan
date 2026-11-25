@@ -67,4 +67,20 @@ $expect(str_contains($eligibilityRepository,'booking_teacher_eligibility_authori
 foreach(array('ensureAndLockTeacherRoot','assertCapacity','overlappingApplicable','begin()','commit()') as $fact)$expect(str_contains($scheduleService.$scheduleRepo,$fact),'commit-time scheduling must serialize and recheck teacher capacity: '.$fact);
 foreach(array('capacity_first','same_key','different_keys','buffer_adjacency','unrelated_teachers') as $fact)$expect(str_contains($scheduleRaces,$fact),'teacher scheduling race suite is missing case: '.$fact);
 foreach(array('dzn_phase_2a2n_after_version_supersede','dzn_phase_2a2n_after_version_insert','dzn_phase_2a2n_after_event_insert','dzn_phase_2a2n_after_command_insert','Rollback') as $fact)$expect(str_contains($scheduleFailures,$fact),'teacher scheduling failure-atomicity suite is missing case: '.$fact);
+// Availability across midnight: per-weekday rules end at 23:59:59 and the next day starts at
+// 00:00:00, so adjoining days must be treated as contiguous. A real gap must still refuse.
+require $root.'/src/Core/Application/CanonicalLessonScheduleService.php';
+$scheduleClass='Delnavazan\Platform\Core\Application\CanonicalLessonScheduleService';
+$adjacent=array(
+    array('state'=>'requestable','starts_at_utc'=>'2026-11-24 00:00:00','ends_at_utc'=>'2026-11-24 23:59:59'),
+    array('state'=>'requestable','starts_at_utc'=>'2026-11-25 00:00:00','ends_at_utc'=>'2026-11-25 23:59:59'),
+);
+$expect($scheduleClass::segmentsCover($adjacent,'2026-11-24 23:50:00','2026-11-25 00:20:00'),'Adjoining days must cover a class that crosses midnight');
+$gapped=array(
+    array('state'=>'requestable','starts_at_utc'=>'2026-11-24 00:00:00','ends_at_utc'=>'2026-11-24 23:00:00'),
+    array('state'=>'requestable','starts_at_utc'=>'2026-11-25 00:00:00','ends_at_utc'=>'2026-11-25 23:59:59'),
+);
+$expect(!$scheduleClass::segmentsCover($gapped,'2026-11-24 22:50:00','2026-11-25 00:20:00'),'A real availability gap must still refuse');
+$expect(!$scheduleClass::segmentsCover(array(),'2026-11-24 22:50:00','2026-11-24 23:20:00'),'No availability must refuse');
+
 echo "Booking canonical occupancy contract passed\n";

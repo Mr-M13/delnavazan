@@ -5,6 +5,7 @@ $service = (string) file_get_contents($root . '/src/Core/Application/BookingStud
 $repository = (string) file_get_contents($root . '/src/Core/Infrastructure/Repository/BookingStudentAccountRepository.php');
 $submission = (string) file_get_contents($root . '/src/Core/Application/BookingRequestSubmissionService.php');
 $bookingRepository = (string) file_get_contents($root . '/src/Core/Infrastructure/Repository/BookingRequestRepository.php');
+$adminIntro = (string) file_get_contents($root . '/src/Core/Application/AdministratorIntroBookingService.php');
 $occupancyQuery = (string) file_get_contents($root . '/src/Core/Infrastructure/Repository/StudentOccupancyQuery.php');
 $controller = (string) file_get_contents($root . '/src/Public/BookingRequestRestController.php');
 $portal = (string) file_get_contents($root . '/src/Portals/PortalAuthenticatedReadService.php');
@@ -47,6 +48,18 @@ foreach ( array( 'ensureAndLockStudentRoot', 'studentOccupancyConflicts', 'Booki
 $expect(strpos($submission . $bookingRepository, 'studentHasActiveInstrumentEnrolment') !== false, 'Introductory intake must check existing instrument enrolments before creating a request.');
 $expect(strpos($submission, 'BookingRequestInstrumentEnrolmentException') !== false, 'Existing instrument enrolments must stop intake before persistence.');
 $expect(strpos($submission, 'BookingRequestInstrumentEnrollmentException') === false, 'The exception name must use the platform spelling "Enrolment", not "Enrollment".');
+// Every repository method the manual intro service calls must exist on BookingRequestRepository.
+// A spelling drift here is a runtime fatal, and a string assert on the call site would keep it green.
+// See OPS-22.
+preg_match_all('/\$requests->([A-Za-z_][A-Za-z0-9_]*)\s*\(/', $adminIntro, $adminIntroCalls);
+preg_match_all('/function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/', $bookingRepository, $adminIntroMethods);
+$adminIntroDeclared = array_fill_keys($adminIntroMethods[1], true);
+$expect(count($adminIntroCalls[1]) >= 1, 'The manual intro call scan found nothing to check.');
+foreach (array_unique($adminIntroCalls[1]) as $adminIntroCall) {
+    $expect(isset($adminIntroDeclared[$adminIntroCall]), 'AdministratorIntroBookingService::$requests->' . $adminIntroCall . '() is not declared on BookingRequestRepository.');
+}
+$expect(isset($adminIntroDeclared['studentHasActiveInstrumentEnrolment']), 'The repository must declare the Enrolment-spelled instrument check.');
+$expect(!str_contains($adminIntro, 'studentHasActiveInstrumentEnrollment('), 'The American-spelling call must not return.');
 $expect(strpos($controller, 'student_instrument_already_enrolled') !== false && strpos($javascript, 'student_instrument_already_enrolled') !== false, 'Existing instrument enrolments must map to a specific public response.');
 foreach ( array( 'canonical_lesson_schedule_versions', 'lesson_schedule_versions', 'booking_request_confirmations', "r.lifecycle_status='submitted'", 'occupied_ends_at_utc', 'include_open_requests' ) as $needle ) {
     $expect(strpos($occupancyQuery, $needle) !== false, 'Missing Student occupancy source: ' . $needle);

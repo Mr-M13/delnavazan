@@ -85,5 +85,21 @@ if ($removed !== array()) {
     );
 }
 
+// The registry is the one place a sentence is added; the admin mappers must consult it, or the
+// registry is decorative and the operator still reads the generic sentence.
+$workspaceMapper = (string) file_get_contents($root . '/src/Admin/Controller/EnrolmentWorkspaceController.php');
+$deskMapper = (string) file_get_contents($root . '/src/Admin/Controller/EnrolmentDeskController.php');
+foreach (array('workspace' => $workspaceMapper, 'desk' => $deskMapper) as $name => $source) {
+    if (!str_contains($source, 'OperatorRefusalCopy::sentence')) {
+        throw new RuntimeException('The ' . $name . ' refusal mapper must consult OperatorRefusalCopy before its generic sentence.');
+    }
+}
+if (!class_exists('Delnavazan\Platform\Admin\OperatorRefusalCopy')) {
+    require_once $root . '/src/Admin/OperatorRefusalCopy.php';
+}
+if (\Delnavazan\Platform\Admin\OperatorRefusalCopy::sentence('teacher_unavailable') === null) {
+    throw new RuntimeException('The operator refusal registry must answer for a mapped code.');
+}
+
 echo 'operator-refusal-coverage-contract: OK (' . count($refusals) . ' codes, '
     . (count($refusals) - count($unmapped)) . ' explained, ' . count($unmapped) . " baselined)\n";

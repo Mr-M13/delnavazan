@@ -147,7 +147,7 @@ final class EnrolmentDeskController {
             'manual_payment_offer_required'          => 'The offer could not be found. Send the payment link first.',
             'manual_payment_ingest_authority_required' => 'Recording an offline payment needs both the payment-execution and the payment-evidence ingestion authorities.',
             'manual_payment_received_on_required'       => 'Record the date the payment was received, as YYYY-MM-DD.',
-            default                                  => ucfirst( str_replace( '_', ' ', $error->getMessage() ) ) . '.',
+            default                                  => \Delnavazan\Platform\Admin\OperatorRefusalCopy::sentence( $error->getMessage() ) ?? ucfirst( str_replace( '_', ' ', $error->getMessage() ) ) . '.',
         };
     }
 

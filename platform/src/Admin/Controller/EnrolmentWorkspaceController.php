@@ -834,11 +834,11 @@ final class EnrolmentWorkspaceController {
             'A link was sent less than 24 hours ago. Use Send reminder when a reminder is appropriate.' => 'A payment link was sent less than 24 hours ago. Use Send reminder if a reminder is appropriate.',
             'Verified payment already exists; no payment prompt is permitted' => 'Verified payment already exists. No payment prompt is permitted.',
             'The continuation is not in an open decision or payment period' => 'The continuation is not in an open decision or payment period.',
-            default => preg_match('/^(?:The|A|An|This|No|Choose|Resolve|Record|Verified|Confirm|Select|Enter|Cannot)\b.{8,220}$/u', $message) === 1
+            default => \Delnavazan\Platform\Admin\OperatorRefusalCopy::sentence($message) ?? (preg_match('/^(?:The|A|An|This|No|Choose|Resolve|Record|Verified|Confirm|Select|Enter|Cannot)\b.{8,220}$/u', $message) === 1
                 ? $message
                 : (str_starts_with($message, 'teacher_') || str_contains($message, 'required')
                     ? ucfirst(str_replace('_', ' ', $message)) . '.'
-                    : 'The action could not be completed; no change was saved.' . ($failureReference !== '' ? ' Reference: ' . $failureReference . '.' : '')),
+                    : 'The action could not be completed; no change was saved.' . ($failureReference !== '' ? ' Reference: ' . $failureReference . '.' : ''))),
         };
     }
 

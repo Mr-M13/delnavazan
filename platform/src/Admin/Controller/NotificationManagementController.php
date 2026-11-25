@@ -1334,7 +1334,7 @@ CSS;
     }
 
     private static function authorizeView():void{
-        if(!current_user_can('manage_options')&&!current_user_can(self::CAP_VIEW)&&!current_user_can(self::CAP_EDIT))wp_die('Forbidden',403);
+        if(!current_user_can('manage_options')&&!current_user_can(self::CAP_VIEW)&&!current_user_can(self::CAP_EDIT)&&!current_user_can('dzn_operate_notification_dispatch')&&!current_user_can('dzn_manage_notification_workflows'))wp_die('Forbidden',403);
     }
     private static function authorizeEdit():void{
         if(!current_user_can('manage_options')&&!current_user_can(self::CAP_EDIT))wp_die('Forbidden',403);

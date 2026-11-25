@@ -67,7 +67,7 @@ final class FinanceReconciliationController {
     }
 
     public static function render():void{
-        if(!current_user_can(self::CAPABILITY))return;
+        if(!current_user_can(self::CAPABILITY))wp_die('Forbidden','Delnavazan',array('response'=>403));
         global $wpdb;$p=$wpdb->prefix.'dzn_';
         echo '<div class="wrap"><h1>Finance reconciliation</h1>';
         $notice=self::notice();

@@ -56,7 +56,7 @@ final class CoordinationCaseController {
 
     public static function handlePost(): void {
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') return;
-        if (!current_user_can(self::CAPABILITY) || !current_user_can(self::VIEW_CAPABILITY)) {
+        if (!current_user_can(self::CAPABILITY)) {
             wp_die('Access denied.', 'Delnavazan', array('response' => 403));
         }
         $raw = wp_unslash($_POST);
@@ -84,7 +84,7 @@ final class CoordinationCaseController {
     }
 
     public static function screen(): void {
-        if (!current_user_can(self::CAPABILITY) || !current_user_can(self::VIEW_CAPABILITY)) {
+        if (!current_user_can(self::CAPABILITY)) {
             echo '<div class="wrap"><p>Access denied.</p></div>';
             return;
         }

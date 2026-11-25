@@ -68,7 +68,7 @@ final class IntegrationControlPlaneController {
         $page=$provider==='sms_ir'?'dzn-integration-sms':'dzn-integration-'.$provider;
         wp_safe_redirect(add_query_arg(array('page'=>$page,'integration_result'=>$result),admin_url('admin.php')));exit;
     }
-    private static function authorizeSettings():void{if(!current_user_can('manage_options')&&!current_user_can('dzn_manage_provider_integrations'))wp_die('Forbidden',403);}
+    private static function authorizeSettings():void{if(!current_user_can('manage_options')&&!current_user_can('dzn_manage_provider_integrations')&&!current_user_can('dzn_manage_payment_providers'))wp_die('Forbidden',403);}
     public static function saveChatGptAds():void {
         self::authorizeSettings();check_admin_referer('dzn_chatgpt_ads_save');
         $enabled=isset($_POST['enabled'])&&$_POST['enabled']==='1'?'1':'0';

@@ -46,6 +46,17 @@ $student_tone = '' !== $student_name ? ( abs( crc32( $student_name ) ) % 6 ) + 1
 		<?php if ( $valid ) : ?>
 			<p class="dzn-tp-class__course-line"><span class="dzn-tp-class__course"><?php echo esc_html( $item['course'] ); ?></span><?php if ( $is_today ) : ?> <span class="dzn-tp-class__dot" aria-hidden="true">·</span> <span class="dzn-tp-class__progress"><?php echo esc_html( $item['progress'] ); ?></span><?php endif; ?></p>
 			<p class="dzn-tp-class__schedule-summary"><span aria-hidden="true">◷</span> <span class="dzn-tp-sr">زمان کلاس: </span><?php echo esc_html( $item['schedule_summary'] ); ?></p>
+			<?php
+			$student_country = (string) ( $item['student_country_label'] ?? '' );
+			$student_local_time = (string) ( $item['student_local_time'] ?? '' );
+			?>
+			<?php if ( ! empty( $item['is_intro'] ) && ( '' !== $student_country || '' !== $student_local_time ) ) : ?>
+				<p class="dzn-tp-class__student-zone">
+					<?php if ( '' !== $student_country ) : ?><span class="dzn-tp-class__country"><?php echo esc_html( $student_country ); ?></span><?php endif; ?>
+					<?php if ( '' !== $student_country && '' !== $student_local_time ) : ?><span class="dzn-tp-class__dot" aria-hidden="true">·</span><?php endif; ?>
+					<?php if ( '' !== $student_local_time ) : ?><span dir="auto"><?php echo esc_html( $student_local_time ); ?></span> <span class="dzn-tp-class__student-zone-label">به وقت هنرجو</span><?php endif; ?>
+				</p>
+			<?php endif; ?>
 		<?php else : ?>
 			<p class="dzn-tp-state">اطلاعات این کلاس کامل یا معتبر نیست؛ اقدام‌ها غیرفعال شدند. صفحه را دوباره بارگذاری کنید و اگر ادامه داشت به مدیر آموزشگاه خبر دهید.</p>
 		<?php endif; ?>
@@ -70,6 +81,12 @@ $student_tone = '' !== $student_name ? ( abs( crc32( $student_name ) ) % 6 ) + 1
 		<?php if ( ! empty( $item['lesson_uid'] ) && ! empty( $item['schedule_version_uid'] ) && ( 'ended' === ( $item['temporal_state'] ?? '' ) || ! empty( $item['completion_available'] ) ) ) : ?>
 			<?php $finish_url = add_query_arg( array( 'lesson_uid' => (string) $item['lesson_uid'], 'schedule_version_uid' => (string) $item['schedule_version_uid'], 'view' => 'finish' ), home_url( '/music-classroom/' ) ); ?>
 			<a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( $finish_url ); ?>">ثبت یادداشت و پایان کلاس</a>
+		<?php endif; ?>
+		<?php if ( ! empty( $item['is_intro'] ) ) : ?>
+			<?php $whatsapp_number = preg_replace( '/[^0-9]/', '', (string) ( $item['student_whatsapp'] ?? '' ) ); ?>
+			<?php if ( '' !== $whatsapp_number ) : ?>
+				<a class="dzn-tp-wa" href="<?php echo esc_url( 'https://wa.me/' . $whatsapp_number ); ?>" target="_blank" rel="noopener noreferrer" aria-label="گفتگو با هنرجو در واتساپ"><span aria-hidden="true">✆</span><span class="dzn-tp-wa__label">واتس‌اپ</span></a>
+			<?php endif; ?>
 		<?php endif; ?>
 		<?php if ( true === $item['details_available'] ) : ?><button class="dzn-tp-chevron" type="button" aria-expanded="false" aria-controls="<?php echo esc_attr( $details_id ); ?>" aria-label="نمایش جزئیات کلاس" data-dzn-tp-toggle="<?php echo esc_attr( $details_id ); ?>" data-dzn-tp-label-open="بستن جزئیات کلاس" data-dzn-tp-label-closed="نمایش جزئیات کلاس"><span class="dzn-tp-chevron__icon" aria-hidden="true">⌄</span></button><?php endif; ?>
 	</div>

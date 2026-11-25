@@ -15,6 +15,10 @@ final class BookingUpcomingReadProjector {
             'confirmation_state' => 'confirmed',
             'student_display_reference' => (string) ($row->student_display_reference ?? ''),
             'student_name' => (string) ($row->student_name ?? $row->student_display_reference ?? ''),
+            // Direct-contact fields come from the same locked contact snapshot the booking used.
+            'student_whatsapp' => (string) ($this->whatsapp($row)),
+            'student_country' => (string) ($row->student_country ?? ''),
+            'student_timezone' => (string) ($row->student_timezone ?? ''),
             'teacher_display_reference' => (string) ($row->teacher_display_reference ?? ''),
             'teacher_name' => (string) ($row->teacher_name ?? $row->teacher_display_reference ?? ''),
             'instrument_name' => (string) ($row->instrument_name ?? $row->course_reference ?? ''),
@@ -25,6 +29,14 @@ final class BookingUpcomingReadProjector {
             'join_available' => $join['available'],
             'join_issue' => $join['issue'],
         );
+    }
+
+    private function whatsapp(object $row): string {
+        $number = ! empty($row->student_whatsapp_same_as_mobile)
+            ? (string) ($row->student_mobile ?? '')
+            : (string) ($row->student_whatsapp_number ?? '');
+        if (trim($number) === '') { $number = (string) ($row->student_mobile ?? ''); }
+        return trim($number);
     }
 
     private function joinState(object $row): array {

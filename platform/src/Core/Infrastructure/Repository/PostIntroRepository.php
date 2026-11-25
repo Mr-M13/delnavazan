@@ -625,6 +625,30 @@ final class PostIntroRepository {
     }
 
     /**
+     * Confirmation ids among the given set that already own an intro outcome for this Teacher.
+     *
+     * The Teacher programme is a live projection: once the post-intro outcome is recorded the
+     * confirmed booking is closed and must not stay in the intro/upcoming lists.
+     *
+     * @param list<int> $confirmationIds
+     * @return array<int,true>
+     */
+    public function outcomeConfirmationIds(int $teacherId, array $confirmationIds): array {
+        global $wpdb;
+        $ids = array_values(array_unique(array_filter(array_map('intval', $confirmationIds), static fn(int $id): bool => $id > 0)));
+        if ($teacherId < 1 || !$ids) return array();
+        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+        $rows = $wpdb->get_col($wpdb->prepare(
+            "SELECT DISTINCT confirmation_id FROM {$this->p}booking_request_intro_outcomes WHERE teacher_id=%d AND confirmation_id IN ({$placeholders})",
+            $teacherId,
+            ...$ids
+        ));
+        $found = array();
+        foreach ((array) $rows as $id) { $found[(int) $id] = true; }
+        return $found;
+    }
+
+    /**
      * Recently recorded introductory outcomes for the Teacher's read-only status view.
      *
      * @return list<object>

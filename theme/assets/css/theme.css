@@ -673,6 +673,74 @@
       var(--dzn-space-4);
   }
 
+  /*
+   * The mobile header keeps the login action beside the disclosure button so
+   * signing in never requires opening the menu. The same action stays inside
+   * the navigation on desktop, and only one of the two is ever rendered
+   * visible.
+   */
+  .site-header__actions {
+    display: flex;
+
+    flex: 0 0 auto;
+
+    align-items: center;
+
+    gap:
+      var(--dzn-space-2);
+  }
+
+  .site-header__login {
+    display: inline-flex;
+
+    min-block-size:
+      var(--dzn-tap);
+
+    align-items: center;
+
+    justify-content: center;
+
+    border-radius:
+      .35rem;
+
+    background:
+      var(--dzn-color-text-secondary);
+
+    box-shadow:
+      none;
+
+    color:
+      var(--dzn-color-on-action);
+
+    font-size:
+      var(--dzn-text-nav);
+
+    font-weight:
+      700;
+
+    padding-inline:
+      var(--dzn-space-3);
+
+    text-decoration:
+      none;
+
+    white-space:
+      nowrap;
+  }
+
+  .site-header__login:hover,
+
+  .site-header__login:focus-visible {
+    background:
+      var(--dzn-color-action-primary-hover);
+
+    color:
+      var(--dzn-color-on-action);
+
+    text-decoration:
+      none;
+  }
+
   .site-branding {
     display: flex;
 
@@ -906,6 +974,20 @@
 
     text-decoration:
       none;
+  }
+
+  /*
+   * Below the desktop breakpoint the login action lives in the header bar, so
+   * the copy appended to the menu stays out of the disclosure to avoid a
+   * duplicate action in one viewport.
+   */
+  @media (max-width: 63.99rem) {
+
+    .primary-navigation
+    .dzn-nav-portal {
+      display:
+        none;
+    }
   }
 
 
@@ -1553,6 +1635,11 @@
         none;
     }
 
+    .site-header__login {
+      display:
+        none;
+    }
+
     .site-header__inner {
       min-block-size:
         5.25rem;
@@ -1761,6 +1848,9 @@
       inline-flex;
 
     min-inline-size:
+      var(--dzn-tap);
+
+    min-block-size:
       var(--dzn-tap);
 
     align-items:
@@ -6962,6 +7052,19 @@ a.dzn-nav-action:hover,
 
 .primary-navigation
 a.dzn-nav-action:focus-visible {
+  color:
+    var(--dzn-color-on-action);
+}
+
+/*
+ * The mobile header login action uses the same palette as the menu action, so
+ * it needs the same unlayered label colour.
+ */
+.site-header__login:link,
+.site-header__login:visited,
+.site-header__login:hover,
+.site-header__login:focus-visible,
+.site-header__login:active {
   color:
     var(--dzn-color-on-action);
 }

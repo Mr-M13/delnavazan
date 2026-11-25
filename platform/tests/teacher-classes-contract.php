@@ -216,6 +216,7 @@ namespace {
 	$check( 'the redundant calendar card is removed from the classes screen', ! str_contains( $html, 'تقویم کلاس‌های آینده' ) && ! str_contains( $html, 'dzn-tp-calendar' ) );
 	$check( 'future classes can be filtered by student', str_contains( $html, 'data-dzn-tp-student-filter-select' ) && str_contains( $html, 'data-dzn-tp-student="Student TOMORROW"' ) && str_contains( $html, 'data-dzn-tp-student="Student DAY30"' ) );
 	$check( 'far-future classes render collapsed with a clear boundary', str_contains( $html, 'dzn-tp-class-horizon' ) && str_contains( $html, 'کلاس‌های بیش از ۳۰ روز آینده' ) && str_contains( $html, '<details' ) );
+	$check( 'upcoming classes render collapsed as a dense row list', str_contains( $html, 'dzn-tp-class-horizon--upcoming' ) && str_contains( $html, 'dzn-tp-class-list--rows' ) && str_contains( $html, 'برای دیدن فهرست باز کنید.' ) );
 	$check( 'student cards receive stable highlight classes', str_contains( $html, 'is-student-' ) && str_contains( $html, 'data-dzn-tp-student="Student DAY30"' ) );
 	$check( 'no fabricated private note is rendered', ! str_contains( $html, 'یادداشت خصوصی در این نمای خواندنی' ) );
 	$check( 'no private-note heading appears without a source', ! str_contains( $html, 'یادداشت خصوصی پیشین' ) );

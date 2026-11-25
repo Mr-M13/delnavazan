@@ -795,41 +795,43 @@ final class RecordActionRegistry {
     private static function hasEnrolmentAction(int $studentId): bool {
         if ($studentId < 1 || !function_exists('current_user_can') || !current_user_can('dzn_manage_students')) return false;
         try { return (new StudentWorkspaceReadService())->enrolmentActionOptions($studentId) !== array(); }
-        catch (\Throwable) { return false; }
+        catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); return false; }
     }
 
     /** @return array<string,mixed> */
     private static function enrolmentActionField(int $studentId): array {
         $options = array('' => 'Choose current enrolment');
+        $description = 'Only canonical enrolments in an active, current or paused state are listed.';
         try {
             foreach ((new StudentWorkspaceReadService())->enrolmentActionOptions($studentId) as $row) {
                 $options[(string) $row->id] = trim((string) ($row->course_name ?? 'Course') . ' · ' . ucfirst(str_replace('_', ' ', (string) $row->lifecycle_state)) . ' · ' . (string) ($row->reference_code ?: 'No public reference'));
             }
-        } catch (\Throwable) {}
-        return self::selectField('enrolment_id', 'Current enrolment', $options, '', 'Only canonical enrolments in an active, current or paused state are listed.');
+        } catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); $description = 'The current enrolments could not be read. Reload; if it repeats, report it with the reference.'; }
+        return self::selectField('enrolment_id', 'Current enrolment', $options, '', $description);
     }
 
     private static function hasTermAction(int $studentId): bool {
         if ($studentId < 1 || !function_exists('current_user_can') || !current_user_can('dzn_manage_students')) return false;
         try { return (new StudentWorkspaceReadService())->termActionOptions($studentId) !== array(); }
-        catch (\Throwable) { return false; }
+        catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); return false; }
     }
 
     /** @return array<string,mixed> */
     private static function termActionField(int $studentId): array {
         $options = array('' => 'Choose current term');
+        $description = 'Only canonical Terms in an authorised or current state are listed.';
         try {
             foreach ((new StudentWorkspaceReadService())->termActionOptions($studentId) as $row) {
                 $options[(string) $row->id] = 'Term ' . (int) $row->sequence_number . ' · ' . (string) ($row->course_name ?? 'Course') . ' · ' . ucfirst(str_replace('_', ' ', (string) $row->lifecycle_state));
             }
-        } catch (\Throwable) {}
-        return self::selectField('term_id', 'Current term', $options, '', 'Only canonical Terms in an authorised or current state are listed.');
+        } catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); $description = 'The current Terms could not be read. Reload; if it repeats, report it with the reference.'; }
+        return self::selectField('term_id', 'Current term', $options, '', $description);
     }
 
     private static function hasLessonAction(int $studentId): bool {
         if ($studentId < 1 || !function_exists('current_user_can') || !current_user_can('dzn_manage_students')) return false;
         try { return (new StudentWorkspaceReadService())->lessonActionOptions($studentId) !== array(); }
-        catch (\Throwable) { return false; }
+        catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); return false; }
     }
 
     /** @return array<string,mixed> */
@@ -839,14 +841,14 @@ final class RecordActionRegistry {
             foreach ((new StudentWorkspaceReadService())->lessonActionOptions($studentId) as $row) {
                 $options[(string) $row->id] = trim((string) ($row->course_name ?? 'Class') . ' · ' . (string) ($row->reference_code ?: 'No public reference') . ' · current ' . (string) ($row->starts_at_utc ?: 'not scheduled'));
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); }
         return self::selectField('lesson_id', 'Lesson', $options, '', 'Only authorised canonical Lessons with a current Teacher assignment are listed.');
     }
 
     private static function hasAttendanceCase(int $studentId): bool {
         if ($studentId < 1 || !function_exists('current_user_can') || !current_user_can('dzn_manage_students')) return false;
         try { return (new StudentWorkspaceReadService())->attendanceCaseOptions($studentId) !== array(); }
-        catch (\Throwable) { return false; }
+        catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); return false; }
     }
 
     /** @return array<string,mixed> */
@@ -856,14 +858,14 @@ final class RecordActionRegistry {
             foreach ((new StudentWorkspaceReadService())->attendanceCaseOptions($studentId) as $row) {
                 $options[(string) $row->id] = (string) $row->label;
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); }
         return self::selectField('case_id', 'Attendance case', $options, '', 'Only cases awaiting an operator outcome are listed.');
     }
 
     private static function hasRescheduleProposal(int $studentId): bool {
         if ($studentId < 1 || !function_exists('current_user_can') || !current_user_can('dzn_manage_students')) return false;
         try { return (new StudentWorkspaceReadService())->rescheduleProposalOptions($studentId) !== array(); }
-        catch (\Throwable) { return false; }
+        catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); return false; }
     }
 
     /** @return array<string,mixed> */
@@ -873,14 +875,14 @@ final class RecordActionRegistry {
             foreach ((new StudentWorkspaceReadService())->rescheduleProposalOptions($studentId) as $row) {
                 $options[(string) $row->uid] = (string) $row->label;
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); }
         return self::selectField('proposal_uid', 'Pending reschedule proposal', $options, '', 'Only pending or committing proposals for this student are listed.');
     }
 
     private static function hasPendingBookingMatch(int $studentId): bool {
         if ($studentId < 1 || !function_exists('current_user_can') || !current_user_can('dzn_manage_students')) return false;
         try { return (new StudentWorkspaceReadService())->pendingBookingIdentityMatches($studentId) !== array(); }
-        catch (\Throwable) { return false; }
+        catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); return false; }
     }
 
     /** @return array<string,mixed> */
@@ -890,7 +892,7 @@ final class RecordActionRegistry {
             foreach ((new StudentWorkspaceReadService())->pendingBookingIdentityMatches($studentId) as $row) {
                 $options[(string) $row->id] = (string) ($row->reference_code ?: 'Introductory request') . ' · ' . (string) ($row->instrument_name ?? 'Instrument') . ' · ' . (string) $row->created_at;
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); }
         return self::selectField('booking_request_id', 'Matching booking request', $options, '', 'Only unresolved requests with a matching student contact are listed.');
     }
 
@@ -915,7 +917,7 @@ final class RecordActionRegistry {
         $id = (int) ($record->id ?? 0);
         if ($id < 1 || !function_exists('current_user_can') || !current_user_can('dzn_manage_students')) return false;
         try { return (new StudentWorkspaceReadService())->hasActiveAccount($id); }
-        catch (\Throwable) { return false; }
+        catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); return false; }
     }
 
     /** @return array<string,mixed> */
@@ -940,13 +942,13 @@ final class RecordActionRegistry {
     private static function studentCapacity(int $studentId): string {
         if ($studentId < 1 || !function_exists('current_user_can') || !current_user_can('dzn_manage_students')) return '';
         try { return (new StudentWorkspaceReadService())->capacityForStudent($studentId); }
-        catch (\Throwable) { return ''; }
+        catch (\Throwable $e) { error_log('[Delnavazan record action] label read failed: '.get_class($e).' '.$e->getMessage()); return ''; }
     }
 
     private static function hasActiveGuardian(int $studentId): bool {
         if ($studentId < 1 || !function_exists('current_user_can') || !current_user_can('dzn_manage_students')) return false;
         try { return (new StudentWorkspaceReadService())->activeGuardianOptions($studentId) !== array(); }
-        catch (\Throwable) { return false; }
+        catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); return false; }
     }
 
     /** @return array<string,mixed> */
@@ -956,14 +958,14 @@ final class RecordActionRegistry {
             foreach ((new StudentWorkspaceReadService())->activeGuardianOptions($studentId) as $grant) {
                 $options[(string) $grant->id] = trim((string) ($grant->display_name ?? 'Guardian') . ' · ' . (string) ($grant->user_email ?? ''));
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); }
         return self::selectField('grant_id', 'Current guardian authority', $options, '', 'Only active representative grants for this student are listed.');
     }
 
     private static function hasOpenTask(int $studentId): bool {
         if ($studentId < 1 || !function_exists('current_user_can') || !current_user_can('dzn_manage_students')) return false;
         try { return (new StudentWorkspaceReadService())->openTaskOptions($studentId) !== array(); }
-        catch (\Throwable) { return false; }
+        catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); return false; }
     }
 
     /** @return array<string,mixed> */
@@ -973,14 +975,14 @@ final class RecordActionRegistry {
             foreach ((new StudentWorkspaceReadService())->openTaskOptions($studentId) as $task) {
                 $options[(string) $task->id] = (string) $task->summary;
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); }
         return self::selectField('exception_id', 'Open task', $options, '', 'Only operational exceptions attached to this student or its enrolments and lessons are listed.');
     }
 
     private static function hasAssignmentOption(int $studentId): bool {
         if ($studentId < 1 || !function_exists('current_user_can') || !current_user_can('dzn_manage_students')) return false;
         try { return (new StudentWorkspaceReadService())->assignmentOptions($studentId) !== array(); }
-        catch (\Throwable) { return false; }
+        catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); return false; }
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -994,13 +996,13 @@ final class RecordActionRegistry {
                 $assignmentOptions[(int) $option->enrolment_id . '-' . (int) $option->assignment_id] = $label;
                 if ($currentTeacher === '') $currentTeacher = (string) ($option->teacher_name ?? '');
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); }
         $teacherOptions = array('' => 'Choose a replacement teacher');
         try {
             foreach ((new StudentWorkspaceReadService())->activeTeacherOptions() as $teacher) {
                 $teacherOptions[(string) $teacher->id] = (string) $teacher->display_name;
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) { error_log('[Delnavazan record action] option read failed: '.get_class($e).' '.$e->getMessage()); }
         return array(
             self::selectField('assignment_key', 'Current enrolment and assignment', $assignmentOptions, '', $currentTeacher !== '' ? 'Current teacher: ' . $currentTeacher : 'Only canonical enrolments with a current assignment are listed.'),
             self::selectField('teacher_id', 'Replacement teacher', $teacherOptions),

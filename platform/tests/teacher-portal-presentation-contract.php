@@ -138,6 +138,16 @@ namespace {
     $check('details are collapsed by default and the toggle is wired with aria-controls', str_contains($classes_html, 'id="tp-details-0" class="dzn-tp-class-details" hidden') && str_contains($classes_html, 'aria-expanded="false" aria-controls="tp-details-0"'));
     $check('completed classes are available only in the collapsed history section', str_contains($classes_html, '<details class="dzn-tp-class-history">') && str_contains($classes_html, 'کلاس‌های گذشته') && str_contains($classes_html, 'Student Past'));
 
+    // 1c. Attendance confirmation is a fallback: Meet-confirmed classes must not show it.
+    $autoClass = $class(array('completion_available' => false, 'completion_completed' => false, 'completion_claimed' => false, 'temporal_state' => 'ended', 'attendance_evidence' => array('state' => 'confirmed', 'minutes' => 25, 'threshold_minutes' => 20, 'reason' => 'overlap_confirmed')));
+    $autoHtml = $render('classes', $model(array('classes' => array($autoClass), 'today_classes' => array($autoClass))));
+    $check('a Meet-confirmed class hides the manual confirmation block', ! str_contains($autoHtml, 'تأیید برگزاری و حضور') && str_contains($autoHtml, 'data-dzn-auto-confirmed') && str_contains($autoHtml, 'نیازی به تأیید دستی نیست'));
+    $manualHtml = $render('classes', $model(array('classes' => array($lesson), 'today_classes' => array($lesson))));
+    $check('the manual confirmation block stays when automation could not confirm', str_contains($manualHtml, 'تأیید برگزاری و حضور') && str_contains($manualHtml, '>تأیید برگزاری و حضور</button>'));
+    $expiredClass = $class(array('completion_available' => false, 'completion_window_expired' => true, 'temporal_state' => 'ended', 'completion_message' => 'مهلت ثبت دستی این کلاس (۷ روز پس از پایان) گذشته است؛ برای اصلاح با پشتیبانی تماس بگیرید.'));
+    $expiredHtml = $render('classes', $model(array('classes' => array($expiredClass), 'today_classes' => array($expiredClass))));
+    $check('an expired manual window explains itself without a form', str_contains($expiredHtml, 'تأیید برگزاری و حضور') && str_contains($expiredHtml, 'مهلت ثبت دستی این کلاس') && ! str_contains($expiredHtml, '>تأیید برگزاری و حضور</button>'));
+
     // 1b. Optional display fields and per-row resilience.
     $optionalNote = $class(array('previous_private_note' => ''));
     $check('an absent optional private note is accepted', dzn_theme_teacher_portal_class_valid($optionalNote));
@@ -167,10 +177,10 @@ namespace {
     $check('real forms opt into busy-state handling', substr_count($html, 'data-dzn-tp-submit') >= 1 && str_contains($html, 'data-dzn-tp-busy-label="در حال ثبت گزارش…"'));
     $completedClass = $class(array('completion_available' => false, 'completion_completed' => true, 'state' => 'ended', 'status' => 'تکمیل‌شده', 'completion_message' => 'این کلاس تکمیل شده است و فرم گزارش برگزاری برای آن نمایش داده نمی‌شود.'));
     $completedHtml = $render('home', $model(array('today_classes' => array($completedClass))));
-    $check('a completed class never renders the completion form again', ! str_contains($completedHtml, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_report_delivery"') && str_contains($completedHtml, 'این کلاس تکمیل شده است'));
+    $check('a completed class never renders the completion form again', ! str_contains($completedHtml, 'action="https://example.invalid/wp-admin/admin-post.php?action=dzn_teacher_report_delivery"') && ! str_contains($completedHtml, 'تأیید برگزاری و حضور'));
     $claimedClass = $class(array('completion_available' => false, 'completion_claimed' => true, 'state' => 'ended', 'status' => 'گزارش ثبت شده — در انتظار بررسی', 'completion_message' => 'گزارش برگزاری این کلاس ثبت شده و در انتظار بررسی مدیر است.'));
     $claimedHtml = $render('home', $model(array('today_classes' => array($claimedClass))));
-    $check('a claimed class is non-actionable but still visible', str_contains($claimedHtml, 'گزارش ثبت شده — در انتظار بررسی') && ! str_contains($claimedHtml, 'name="lesson_uid" value="LESSON-UID"') && str_contains($claimedHtml, 'در انتظار بررسی مدیر است'));
+    $check('a claimed class is non-actionable but still visible', str_contains($claimedHtml, 'گزارش ثبت شده — در انتظار بررسی') && ! str_contains($claimedHtml, 'name="lesson_uid" value="LESSON-UID"') && ! str_contains($claimedHtml, 'تأیید برگزاری و حضور'));
 
     // 3. Booking acceptance is preserved and gains an honest in-progress state.
     $classesAttn = $render('classes', $model(array('attention' => array($request()))));

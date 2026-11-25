@@ -52,6 +52,7 @@ namespace Delnavazan\Platform\Portals {
 					$lesson( $now + 24 * 3600, $now + 25 * 3600, 'TOMORROW' ),
 					$lesson( $now + 2 * 86400, $now + 2 * 86400 + 3600, 'DAY2' ),
 					$lesson( $now + 4 * 86400, $now + 4 * 86400 + 3600, 'DAY4' ),
+					array_merge( $lesson( $now - 5400, $now - 3600, 'CLAIMED' ), array( 'completion_claimed' => true ) ),
 					$lesson( $now + 30 * 86400, $now + 30 * 86400 + 3600, 'DAY30' ),
 					$lesson( $now + 32 * 86400, $now + 32 * 86400 + 3600, 'DAY32' ),
 				),
@@ -185,6 +186,9 @@ namespace {
 	$recent_is_today = ( $fixture_now - 7200 ) >= dzn_theme_platform_utc_timestamp( $day_window['today_start'] );
 	$recent_present = isset( $classes_by_ref['REF-RECENT'] );
 	$check( 'future row remains present and recently ended row follows the local-day boundary', isset( $classes_by_ref['REF-FUTURE'] ) && $recent_present === $recent_is_today );
+	$claimed_starts_today = ( $fixture_now - 5400 ) >= dzn_theme_platform_utc_timestamp( $day_window['today_start'] );
+	$past_refs = array_column( (array) ( $model['past_classes'] ?? array() ), 'ref' );
+	$check( 'a confirmed class awaiting review leaves today for history', ! $claimed_starts_today || ( in_array( 'REF-CLAIMED', $past_refs, true ) && ! in_array( 'REF-CLAIMED', $today_refs, true ) && ! in_array( 'REF-CLAIMED', $next_refs, true ) && ! in_array( 'REF-CLAIMED', $intro_refs, true ) ) );
 	$check( 'today statuses remain accurate', 'in_progress' === ( $classes_by_ref['REF-ACTIVE']['state'] ?? '' ) && in_array( 'REF-ACTIVE', $today_refs, true ) && ( ! $recent_is_today || ( 'ended' === ( $classes_by_ref['REF-RECENT']['state'] ?? '' ) && in_array( 'REF-RECENT', $today_refs, true ) ) ) );
 	// The fixture is relative to wall-clock time. Near Tehran midnight its start
 	// belongs to yesterday, which the Classes view intentionally excludes.

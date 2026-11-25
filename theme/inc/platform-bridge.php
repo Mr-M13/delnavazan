@@ -2702,6 +2702,18 @@ function dzn_theme_platform_teacher_model( $screen ) {
 			? \Delnavazan\Platform\Core\Application\ManualAttendanceWindowRule::open( (string) ( $lesson['ends_at_utc'] ?? '' ) )
 			: false;
 		$completion_available = $completion_available && $ended && ! $completion_completed && ! $completion_claimed && $manual_window_open;
+		// The manual window can close before the Teacher confirms: that is still an ended occurrence
+		// with no recorded outcome, so the row must explain why no form is available instead of
+		// silently hiding the whole confirmation block.
+		$completion_window_expired = $ended
+			&& ! $is_booking
+			&& ! $completion_completed
+			&& ! $completion_claimed
+			&& ! $completion_review_pending
+			&& ! $recorded_outcome
+			&& 'authorised' === (string) ( $lesson['lifecycle_state'] ?? '' )
+			&& '' !== (string) ( $lesson['schedule_version_uid'] ?? '' )
+			&& ! $manual_window_open;
 		$completion_outcome_labels = array(
 			'completed'              => 'برگزار شد',
 			'delivered'              => 'برگزار شد',
@@ -2824,6 +2836,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 				: '',
 			'lesson_number' => (int) ( $lesson['canonical_sequence'] ?? ( $lesson['lesson_number'] ?? 0 ) ),
 			'completion_available' => $completion_available,
+			'completion_window_expired' => $completion_window_expired,
 			'completion_completed' => $completion_completed,
 			'completion_claimed' => $completion_claimed,
 			'completion_review_pending' => $completion_review_pending,
@@ -2952,6 +2965,12 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		);
 		if ( $class['completion_completed'] ) {
 			// A completed or recorded occurrence is history, never an actionable Today row.
+			$past_classes[] = $past_row;
+			continue;
+		}
+		if ( $completion_claimed && $ended ) {
+			// A Teacher confirmation that is still awaiting review has already left the actionable
+			// list: it is history with an explicit pending-review outcome.
 			$past_classes[] = $past_row;
 			continue;
 		}

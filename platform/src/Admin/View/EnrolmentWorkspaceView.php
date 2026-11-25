@@ -1157,14 +1157,10 @@ final class EnrolmentWorkspaceView {
     }
 
     private static function timeSelect(string $name, string $label, string $value = ''): void {
-        echo '<p><label>' . esc_html($label) . '<select name="' . esc_attr($name) . '" required><option value="">Choose a local start time</option>';
-        // Quarter-hour steps: the public intake and Teacher availability both offer
-        // :15 and :45 slots, so an agreed 18:45 must be enterable here too.
-        for ($minute = 0; $minute < 24 * 60; $minute += 15) {
-            $option = sprintf('%02d:%02d', intdiv($minute, 60), $minute % 60);
-            echo '<option value="' . esc_attr($option) . '"' . selected($value, $option, false) . '>' . esc_html($option) . '</option>';
-        }
-        echo '</select></label><br><span class="description">24-hour local time in the selected service-area timezone.</span></p>';
+        // A native time input, exactly like the create-intro form. The domain accepts any minute
+        // (BookingRequestValidationService), so a 15-minute list would refuse a minute the Student
+        // or Teacher already agreed. See OPS-14.
+        echo '<p><label>' . esc_html($label) . '<input type="time" name="' . esc_attr($name) . '" required step="60" value="' . esc_attr(substr($value, 0, 5)) . '"></label><br><span class="description">24-hour local time in the selected service-area timezone.</span></p>';
     }
 
     private static function timezoneSelect(string $name, string $label, string $value = ''): void {

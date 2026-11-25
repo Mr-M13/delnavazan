@@ -323,19 +323,36 @@ final class CanonicalLessonScheduleService {
         $this->studentOccupancy->assertLessonIntervalAvailable((int)$lesson->student_id,$startsAt,$occupiedEnd,(int)$lesson->id,$bookingRequestId);
     }
 
+    /**
+     * Whether adjacent, unblocked availability segments cover [$starts, $ends].
+     *
+     * Per-weekday rules end at 23:59:59 and the next day starts at 00:00:00, so a one-second gap is
+     * the day boundary, not unavailability: adjoining days are contiguous. See the 2026-11-25
+     * decision on OPS-20 / OPS-12.
+     */
+    public static function segmentsCover(array $segments,string $starts,string $ends):bool{
+        $cursor=$starts;
+        foreach($segments as$segment){
+            if((string)($segment['state']??'')==='blocked')continue;
+            $segmentStart=(string)($segment['starts_at_utc']??'');
+            $segmentEnd=(string)($segment['ends_at_utc']??'');
+            if($segmentStart===''||$segmentEnd==='')continue;
+            if($segmentStart>$cursor){
+                $gap=(int)strtotime($segmentStart.' UTC')-(int)strtotime($cursor.' UTC');
+                if($gap>1)break;
+            }
+            if($segmentEnd<=$cursor)continue;
+            $cursor=$segmentEnd;
+            if($cursor>=$ends)return true;
+        }
+        return false;
+    }
+
     /** Availability is an upstream constraint, never scheduling authority. */
     private function availabilityBasis(array $intent,int $teacherId,string $starts,string $ends,?int $courseId=null):string{
         $segments=array();
         try{$availability=new TeacherAvailabilityService();$segments=$availability->effective($teacherId,$starts,$ends,$courseId?$availability->instrumentIdForCourse($courseId):null);}catch(\Throwable$e){$segments=array();}
-        $cursor=$starts;$covered=false;
-        foreach($segments as$segment){
-            if((string)($segment['state']??'')==='blocked')continue;
-            if((string)$segment['starts_at_utc']>$cursor)break;
-            if((string)$segment['ends_at_utc']<=$cursor)continue;
-            $cursor=(string)$segment['ends_at_utc'];
-            if($cursor>=$ends){$covered=true;break;}
-        }
-        if($covered)return 'within_availability';
+        if(self::segmentsCover($segments,$starts,$ends))return 'within_availability';
         if(!empty($intent['availability_override']))return 'administrative_override';
         throw new \InvalidArgumentException('teacher_unavailable');
     }

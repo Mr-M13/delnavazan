@@ -237,4 +237,16 @@ $contains($workspaceReadService, array(
     "Start a new request when the Student is ready to rebook",
 ), 'The Enrolment queue must name the rebooking path for a cancelled intro');
 
+// The payment step must not offer a control its handler will refuse, and must never invent a
+// received date. See OPS-04 / OPS-05.
+$contains($view, array(
+    "current_user_can( 'dzn_manage_post_intro_automation' )",
+), 'The send-payment-link form must be gated on the authority its handler needs');
+$contains($controller, array(
+    'manual_payment_received_on_required',
+), 'A malformed received date must be refused by name');
+$notContains($controller, array(
+    '$receivedOn = gmdate(',
+), 'The Desk must never substitute today for the received date');
+
 echo "Enrolment desk contract passed\n";

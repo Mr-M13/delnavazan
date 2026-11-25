@@ -219,15 +219,15 @@ final class DiagnosticsController {
             echo '<td>' . esc_html((string) $row->state) . '</td><td>' . (int) $row->attempt_count . ' · ' . esc_html((string) ($row->last_attempt_state ?? '—')) . '</td>';
             echo '<td>' . esc_html((string) ($row->last_outcome_code ?? '—')) . '</td><td>' . esc_html((string) ($row->delivery_state ?? '—')) . '</td>';
             echo '<td><code dir="ltr">' . esc_html((string) ($row->failure_reason_code ?? '—')) . '</code></td><td>';
-            $retryable = (string) $row->state === 'failed';
+            // NotificationManualDeliveryService accepts failed and expired; the UI must not refuse
+            // what the service allows. See OPS-19.
+            $retryable = in_array((string) $row->state, array('failed', 'expired'), true);
             if ($retryable && $canRetry) {
                 echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="' . esc_attr(self::ACTION_RETRY) . '"><input type="hidden" name="notification_id" value="' . (int) $row->id . '"><input type="hidden" name="nstate" value="' . esc_attr($state) . '">';
                 wp_nonce_field(self::ACTION_RETRY);
                 echo '<button class="button button-small" type="submit" onclick="return confirm(\'Queue one exact retry for this notification? The recipient, template and send window are re-checked; nothing else is sent.\')">Retry exact notification</button></form>';
             } elseif ($retryable) {
                 echo '<span class="dzn-settings-meta">Requires the notification dispatch authority.</span>';
-            } elseif ((string) $row->state === 'expired') {
-                echo '<span class="dzn-settings-meta">Window closed — no retry.</span>';
             } else {
                 echo '—';
             }

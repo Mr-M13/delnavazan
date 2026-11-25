@@ -23,6 +23,8 @@ final class WhatsAppProviderReadinessReadService {
         foreach(NotificationCatalogue::events() as $eventKey=>$event){
             $eventKey=(string)$eventKey;
             if(!in_array('whatsapp',(array)($event['channels']??array()),true))continue;
+            // A method with no producer can never send, however ready its provider route looks.
+            if(!NotificationCatalogue::producesMobileChannel($eventKey,'whatsapp'))continue;
             // A globally disabled event cannot send on any channel; its provider route is not
             // currently actionable and must not make the delivery category look broken.
             if(!(bool)$this->library->eventEnabled($eventKey))continue;

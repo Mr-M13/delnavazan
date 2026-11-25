@@ -24,7 +24,7 @@ $fail('student WhatsApp failure never fans out SMS', str_contains($mobile, '$stu
 $fail('teacher WhatsApp is independently eligible', str_contains($mobile, '$whatsappEligible') && str_contains($mobile, "audience === 'student'"));
 $fail('email shell ignores global appearance', str_contains($renderer, 'Email presentation is code-owned') && !str_contains($renderer, 'EmailAppearance'));
 $fail('WhatsApp has no SMS profile fallback', !str_contains($whatsapp, "value('sms','messaging_profile_id')") && !str_contains($config, "value('sms','messaging_profile_id'))}"));
-$fail('ready operational mobile channels have one explicit bulk opt-in', str_contains($controller, 'dzn_notification_enable_ready_mobile') && str_contains($controller, 'enableReadyMobile') && str_contains($controller, "!=='operational'") && str_contains($controller, 'channelBlocker'));
+$fail('ready mobile routes have one explicit bulk opt-in', str_contains($controller, 'dzn_notification_enable_ready_mobile') && str_contains($controller, 'enableReadyMobile') && str_contains($controller, 'producesMobileChannel') && str_contains($controller, 'channelBlocker'));
 $fail('held drafts expose their exact count and reasons', str_contains($controller, "\$workflow['held']") && str_contains($controller, "\$workflow['held_by_reason']") && !str_contains($controller, "\$workflow['restricted']"));
 $lessonLifecycle = file_get_contents($root . '/src/Core/Application/LessonLifecycleNotificationService.php');
 $renewal = file_get_contents($root . '/src/Core/Application/RenewalAutomationNotificationService.php');

@@ -55,7 +55,7 @@ final class TelnyxSmsAdapter {
         if($from===''&&$profile==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused');
         $notification=$this->notification($command);
         $attempt=$this->attempt($command,$notification);
-        if($notification&&$attempt&&$this->provider->messageForAttempt((int)$notification->id,(int)$attempt->id)){
+        if($notification&&$attempt&&$this->provider->messageForAttempt((int)$notification->id,(int)$attempt->id,'sms')){
             return array('acknowledged'=>true,'permanent_failure'=>null,'idempotent'=>true);
         }
         $payload=self::messagePayload($to,$text,$from,$profile);
@@ -87,7 +87,7 @@ final class TelnyxSmsAdapter {
         if(!preg_match('/^\+[1-9][0-9]{7,14}$/',$to))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
         if($text==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused');
         if($notificationId<1)return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'booking_notification_required');
-        if($this->provider->messageForAttempt($notificationId,0))return array('acknowledged'=>true,'permanent_failure'=>null,'idempotent'=>true);
+        if($this->provider->messageForAttempt($notificationId,0,'sms'))return array('acknowledged'=>true,'permanent_failure'=>null,'idempotent'=>true);
         $from=(string)$this->settings->value('sms','sender_id');
         $profile=(string)$this->settings->value('sms','messaging_profile_id');
         if($from===''&&$profile==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'sender_not_configured');

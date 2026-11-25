@@ -223,7 +223,7 @@ final class NotificationManagementController {
         $label=self::channelLabel($channel);
         $stateKey=(string)($state['state']??'unsupported');
         $on=self::channelStateIsOn($stateKey);
-        $unsupported=$stateKey==='unsupported';
+        $unsupported=$stateKey==='unsupported'||$stateKey==='no_producer';
         $reason=trim((string)($state['label']??'').(($state['reason']??'')!==''?': '.(string)$state['reason']:''));
         if(!self::canEdit()||$unsupported){
             echo '<button type="button" class="dzn-nc-channel '.($on?'is-on':'is-off').'" disabled aria-pressed="'.($on?'true':'false').'" title="'.esc_attr($reason!==''?$reason:($on?'Active':'Inactive')).'">'.esc_html($label).'</button>';
@@ -303,11 +303,15 @@ final class NotificationManagementController {
             $state=self::effectiveChannelState($library,$eventKey,$channel);
             echo '<li><strong>'.esc_html(self::channelLabel($channel)).':</strong> <span class="dzn-badge '.($state['state']==='enabled'?'is-ok':'is-warn').'">'.esc_html((string)$state['label']).'</span> ';
             if(self::canEdit()){
+                if($state['state']==='no_producer'&&!$active){
+                    echo '<span class="dzn-notif-meta">No sender for this method yet.</span>';
+                }else{
                 echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_event_channel_toggle"><input type="hidden" name="event_key" value="'.esc_attr($eventKey).'"><input type="hidden" name="channel" value="'.esc_attr($channel).'"><input type="hidden" name="enabled" value="'.($active?'0':'1').'"><input type="hidden" name="source" value="editor">';
                 foreach(self::tableContext() as $contextKey=>$contextValue)echo '<input type="hidden" name="filter_'.esc_attr($contextKey).'" value="'.esc_attr((string)$contextValue).'">';
                 wp_nonce_field('dzn_notification_event_channel_toggle');
                 echo '<button class="button button-small" type="submit">'.($active?'Turn off':'Turn on').'</button>';
                 echo '</form>';
+                }
             }
             if($state['reason']!=='')echo '<span class="dzn-notif-meta">'.esc_html((string)$state['reason']).'</span>';
             echo '</li>';
@@ -443,9 +447,9 @@ final class NotificationManagementController {
             echo '<button class="button button-primary" type="submit" onclick="return confirm(\'Publish every approved draft as a new immutable version?\')">3. Publish approved drafts</button></form>';
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_enable_ready_mobile">';
             wp_nonce_field('dzn_notification_enable_ready_mobile');
-            echo '<button class="button" type="submit" onclick="return confirm(\'Enable SMS and WhatsApp for every operational event whose copy and provider route are ready? Sensitive events stay off.\')">4. Enable ready SMS &amp; WhatsApp events</button></form>';
+            echo '<button class="button" type="submit" onclick="return confirm(\'Enable every WhatsApp and SMS route whose producer exists and whose copy/provider route is ready? Security and one-time-code events are never included.\')">4. Enable ready WhatsApp &amp; SMS events</button></form>';
             echo '</div>';
-            echo '<p class="dzn-notif-meta">The provider test under Integrations proves transport only. Event delivery stays off until its channel is enabled here; this button does not enable sensitive, blocked or unmapped events.</p>';
+            echo '<p class="dzn-notif-meta">This enables only events whose code actually sends the method. A method with no producer is shown as “No sender yet” and cannot be switched on. The provider test under Integrations proves transport only.</p>';
         }
 
         $oneTimeAll=$library->oneTimeAllDraftApproval();
@@ -1139,24 +1143,26 @@ final class NotificationManagementController {
      * Explicit opt-in for the operational mobile channels after the provider test.
      *
      * The provider test proves transport only; it does not enable event delivery. This action
-     * enables SMS and WhatsApp for every operational event whose copy/provider route is already
-     * ready, and leaves sensitive or blocked events untouched for a deliberate per-event decision.
+     * enables SMS and WhatsApp for every event whose producer actually calls that mobile method and
+     * whose copy/provider route is already ready. It never enables a method with no sender, and
+     * security/one-time-code events are not in the mobile producer map.
      */
     public static function enableReadyMobile():never{
         self::authorizeEdit();
         check_admin_referer('dzn_notification_enable_ready_mobile');
         $library=new NotificationTemplateLibrary();
-        $enabled=0;$blocked=0;
+        $enabled=0;$blocked=0;$noSender=0;
         foreach(NotificationCatalogue::events() as $eventKey=>$event){
-            if((string)($event['category']??'')!=='operational')continue;
             foreach(array('whatsapp','sms') as $channel){
+                if(!NotificationCatalogue::producesMobileChannel($eventKey,$channel)){$noSender++;continue;}
                 if(!$library->channelOffered($eventKey,$channel)||$library->eventChannelEnabled($eventKey,$channel))continue;
                 if(self::channelBlocker($library,$eventKey,$channel)!==null){$blocked++;continue;}
                 try{$library->saveEventChannel($eventKey,$channel,true);$enabled++;}catch(\Throwable){$blocked++;}
             }
         }
-        $message=$enabled.' operational SMS/WhatsApp channel(s) enabled.';
+        $message=$enabled.' mobile channel(s) enabled.';
         if($blocked>0)$message.=' '.$blocked.' channel(s) stayed off because their copy, provider route or provider template is not ready; open the event to see the exact blocker.';
+        if($noSender>0)$message.=' '.$noSender.' method(s) were left untouched because no producer sends them yet.';
         self::flash($enabled>0?'success':'error',$message);
         self::redirectBack('events');
     }
@@ -1169,6 +1175,10 @@ final class NotificationManagementController {
         // A card switch is a toggle, not an invitation to edit: return to the catalogue card and
         // leave the drawer closed. Only the editor's own switch reopens the drawer.
         $source=isset($_POST['source'])&&(string)$_POST['source']==='editor'?'editor':'card';
+        if($enabled&&in_array($channel,array('whatsapp','sms'),true)&&!NotificationCatalogue::producesMobileChannel($eventKey,$channel)){
+            self::flash('error','This notification has no sender for that mobile method yet, so it cannot be enabled.');
+            self::redirectBack('events',self::postTableContext(),$eventKey);
+        }
         try{
             $library=new NotificationTemplateLibrary();
             // The administrator owns the on/off decision even when a route is not ready yet.
@@ -1405,6 +1415,7 @@ CSS;
     }
     private static function effectiveChannelState(NotificationTemplateLibrary $library,string $eventKey,string $channel):array{
         if(!$library->channelOffered($eventKey,$channel))return array('state'=>'unsupported','label'=>'Not offered','reason'=>'This notification does not use this delivery method.');
+        if(in_array($channel,array('whatsapp','sms'),true)&&!NotificationCatalogue::producesMobileChannel($eventKey,$channel))return array('state'=>'no_producer','label'=>'No sender yet','reason'=>'No code sends this mobile method for this notification yet. It stays off until a producer is added.','enable_blocked'=>true);
         if(!$library->eventEnabled($eventKey))return array('state'=>'disabled','label'=>'Notification disabled','reason'=>'All channels are switched off for this notification.');
         $blocker=self::channelBlocker($library,$eventKey,$channel);
         if(!$library->eventChannelEnabled($eventKey,$channel)){

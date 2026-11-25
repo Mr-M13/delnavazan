@@ -28,4 +28,20 @@ foreach (array('FinanceRateController.php','FinanceStatementController.php','Fin
     $source = $read($file);
     $need($source, array('FinanceTeacherOptionsReadService','teacher_id','dzn_view_finance_authority'), 'Protected Teacher finance view must remain scoped');
 }
+// A bundle must not open a page whose callback refuses it (OPS-28), and a denial must emit a
+// response instead of a blank admin frame (OPS-31).
+$need($read('CoordinationCaseController.php'), array("if (!current_user_can(self::CAPABILITY))"), 'Class admin must accept the route capability it is reached by');
+$need($read('NotificationManagementController.php'), array("dzn_operate_notification_dispatch", "dzn_manage_notification_workflows"), 'Notifications must accept the capabilities its route maps to');
+$need($read('IntegrationControlPlaneController.php'), array("dzn_manage_payment_providers"), 'Integration settings must accept the capability its route maps to');
+foreach (array('FinancePolicyController.php','FinanceRateController.php','FinanceStatementController.php','FinancePayabilityController.php','PaymentExecutionController.php','PortalCapabilityController.php','AcademyCoverageController.php','FinanceReconciliationController.php') as $denied) {
+    $source = $read($denied);
+    if (str_contains($source, 'current_user_can(self::CAPABILITY))return;')) { throw new RuntimeException('A denial must emit a response, not a blank page: ' . $denied); }
+    if (!str_contains($source, "wp_die('Forbidden'")) throw new RuntimeException('A denied screen must say Forbidden: ' . $denied);
+}
+// A grantable capability must open a screen (OPS-30).
+foreach (array('dzn_manage_finance_policies','dzn_manage_finance_statements','dzn_manage_teacher_rates','dzn_manage_lesson_payability','dzn_manage_cash_ledger') as $financeCap) {
+    if (!str_contains($menu, $financeCap)) { throw new RuntimeException('A grantable Finance capability must open the Finance route: ' . $financeCap); }
+}
+$need($menu, array("PORTAL_CAPABILITIES_CAP", "dzn_manage_portal_capabilities"), 'Portal capabilities must be reachable by its manage capability');
+
 echo "Consolidated admin navigation and Teacher finance contract passed\n";

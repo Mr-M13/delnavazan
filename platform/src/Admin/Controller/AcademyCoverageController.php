@@ -17,7 +17,7 @@ final class AcademyCoverageController {
     }
 
     public static function renderAtlas(string $page='dzn-teachers-menu'):void{
-        if(!current_user_can(self::CAP))return;
+        if(!current_user_can(self::CAP))wp_die('Forbidden','Delnavazan',array('response'=>403));
         try{
             $clock=(new InstrumentCoverageClockReadService())->admin(self::clockFilters($page));
         }catch(\Throwable){

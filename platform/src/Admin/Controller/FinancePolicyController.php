@@ -21,7 +21,7 @@ final class FinancePolicyController {
         add_submenu_page(self::PARENT_SLUG,'Finance policies','Finance policies',self::CAPABILITY,self::MENU_SLUG,array(__CLASS__,'render'));
     }
     public static function render():void{
-        if(!current_user_can(self::CAPABILITY))return;
+        if(!current_user_can(self::CAPABILITY))wp_die('Forbidden','Delnavazan',array('response'=>403));
         $service=new FinancePolicyService();
         echo '<div class="wrap"><h1>Finance policies</h1>';
         echo '<p>Recorded finance authority only. Structural finance invariants are not configurable here.</p>';

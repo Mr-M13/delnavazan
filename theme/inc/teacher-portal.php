@@ -30,6 +30,8 @@ add_action( 'wp_enqueue_scripts', 'dzn_theme_enqueue_teacher_portal_assets', 20 
 
 function dzn_theme_teacher_portal_view_model( $screen ) {
 	$allowed = array( 'home', 'classes', 'finance', 'settings', 'onboarding', 'induction' );
+	$followups_authority = '\\Delnavazan\\Platform\\Core\\Application\\OwnerFollowupAuthority';
+	if ( class_exists( $followups_authority ) && $followups_authority::isOperator() ) { $allowed[] = 'followups'; }
 	$screen = in_array( $screen, $allowed, true ) ? $screen : 'classes';
 	$model = apply_filters( 'dzn_theme_teacher_portal_view_model', null, $screen, get_queried_object_id() );
 	if ( is_array( $model ) && false === ( $model['available'] ?? null ) && $screen === ( $model['screen'] ?? null ) && in_array( $model['state'] ?? null, array( 'not_linked', 'onboarding_required', 'signed_out', 'error' ), true ) ) {
@@ -47,6 +49,7 @@ function dzn_theme_teacher_portal_validate_model( $model, $screen ) {
 		// remain usable. Core teacher identity and navigation above stay mandatory.
 		return is_array( $model['attention'] ?? null ) && is_array( $model['classes'] ?? null ) && is_array( $model['calendar'] ?? null );
 	}
+	if ( 'followups' === $screen ) { return is_array( $model['owner_followups'] ?? null ); }
 	if ( 'finance' === $screen ) { return in_array( $model['finance_state'] ?? null, array( 'available', 'empty', 'unavailable' ), true ) && is_array( $model['statements'] ?? null ); }
 	if ( 'classes' === $screen ) { return is_array( $model['classes'] ?? null ) && is_array( $model['calendar'] ?? null ); }
 	if ( 'settings' === $screen ) {
@@ -86,7 +89,7 @@ function dzn_theme_teacher_portal_navigation_valid( $navigation, $screen ) {
 	if ( ! is_array( $navigation ) || ! in_array( count( $navigation ), array( 3, 4 ), true ) ) { return false; }
 	$current = 0;
 	$seen = array();
-	$allowed = array( 'classes', 'finance', 'settings', 'home' );
+	$allowed = array( 'classes', 'finance', 'settings', 'home', 'followups' );
 	foreach ( $navigation as $item ) {
 		if ( ! is_array( $item ) ) { return false; }
 		$item_screen = $item['screen'] ?? null;

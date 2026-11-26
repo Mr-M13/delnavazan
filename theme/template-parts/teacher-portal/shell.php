@@ -1,9 +1,12 @@
 <?php
-$screen = isset( $args['screen'] ) && in_array( $args['screen'], array( 'home', 'classes', 'finance', 'settings', 'onboarding', 'induction' ), true ) ? $args['screen'] : 'classes';
+$dzn_screens = array( 'home', 'classes', 'finance', 'settings', 'onboarding', 'induction' );
+$dzn_followups_authority = '\\Delnavazan\\Platform\\Core\\Application\\OwnerFollowupAuthority';
+if ( class_exists( $dzn_followups_authority ) && $dzn_followups_authority::isOperator() ) { $dzn_screens[] = 'followups'; }
+$screen = isset( $args['screen'] ) && in_array( $args['screen'], $dzn_screens, true ) ? $args['screen'] : 'classes';
 $model = isset( $args['model'] ) && is_array( $args['model'] ) ? $args['model'] : array();
 $teacher = isset( $model['teacher'] ) && is_array( $model['teacher'] ) ? $model['teacher'] : array();
 $teacher_first_name = trim( (string) ( $model['teacher']['first_name'] ?? '' ) );
-$title = 'settings' === $screen ? 'تنظیمات' : ( 'finance' === $screen ? 'مالی' : ( 'classes' === $screen ? 'کلاس‌ها' : ( 'onboarding' === $screen ? 'شروع همکاری با دلنوازان' : ( 'induction' === $screen ? 'راهنمای تدریس' : 'امروز' ) ) ) );
+$title = 'settings' === $screen ? 'تنظیمات' : ( 'finance' === $screen ? 'مالی' : ( 'classes' === $screen ? 'کلاس‌ها' : ( 'followups' === $screen ? 'پیگیری‌های نیما' : ( 'onboarding' === $screen ? 'شروع همکاری با دلنوازان' : ( 'induction' === $screen ? 'راهنمای تدریس' : 'امروز' ) ) ) ) );
 $heading = 'home' === $screen ? 'درود بر شما' . ( '' !== $teacher_first_name ? '، ' . $teacher_first_name : '' ) : $title;
 $navigation = isset( $model['navigation'] ) && is_array( $model['navigation'] ) ? $model['navigation'] : array();
 $show_tabs = ! empty( $model['available'] ) && 'onboarding' !== $screen && $navigation;
@@ -61,6 +64,7 @@ $notification_url = home_url( '/teacher-portal/' ) . '#dzn-tp-notifications';
  ?><section class="dzn-tp-section dzn-tp-unavailable dzn-tp-unavailable--<?php echo esc_attr( $state ); ?>" role="<?php echo 'error' === $state ? 'alert' : 'status'; ?>"><h2><?php echo esc_html( $message[0] ); ?></h2><p><?php echo esc_html( $message[1] ); ?></p><div class="dzn-tp-unavailable__actions"><?php if ( isset( $recovery[ $state ] ) ) : ?><a class="dzn-button" href="<?php echo esc_url( $recovery[ $state ][1] ); ?>"><?php echo esc_html( $recovery[ $state ][0] ); ?></a><?php endif; ?><?php if ( 'not_linked' === $state ) : ?><a class="dzn-button dzn-button--secondary" href="<?php echo esc_url( home_url( '/' ) ); ?>">صفحهٔ اصلی</a><?php endif; ?></div></section>
  <?php elseif ( 'settings' === $screen ) : dzn_theme_teacher_portal_component( 'account', array( 'model' => $model ) ); dzn_theme_teacher_portal_component( 'open-requests', array( 'items' => $model['open_requests'] ?? array(), 'model' => $model ) );
  elseif ( 'finance' === $screen ) : dzn_theme_teacher_portal_component( 'finance', array( 'model' => $model ) );
+ elseif ( 'followups' === $screen ) : dzn_theme_teacher_portal_component( 'owner-followups', array( 'items' => $model['owner_followups'] ?? array(), 'timezone' => $model['teacher_timezone'] ?? '' ) );
  elseif ( 'classes' === $screen ) : dzn_theme_teacher_portal_component( 'attention', array( 'items' => $model['attention'] ?? array(), 'model' => $model, 'timezone' => $model['teacher_timezone'] ?? '' ) ); dzn_theme_teacher_portal_component( 'post-intro-outcomes', array( 'items' => $model['post_intro_outcomes'] ?? array(), 'recorded' => $model['post_intro_recorded_outcomes'] ?? array() ) ); dzn_theme_teacher_portal_component( 'classes', array( 'items' => array(), 'intro_items' => $model['intro_classes'] ?? array(), 'today_items' => $model['today_classes'] ?? array(), 'next_items' => $model['next_classes'] ?? array(), 'past_items' => $model['past_classes'] ?? array(), 'model' => $model, 'timezone' => $model['teacher_timezone'] ?? '' ) ); dzn_theme_teacher_portal_component( 'open-requests', array( 'items' => $model['open_requests'] ?? array(), 'model' => $model ) );
  elseif ( 'onboarding' === $screen ) : dzn_theme_teacher_portal_component( 'onboarding', array( 'model' => $model ) );
  elseif ( 'induction' === $screen ) : dzn_theme_teacher_portal_component( 'induction', array( 'model' => $model ) );

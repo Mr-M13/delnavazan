@@ -106,7 +106,7 @@ final class TeacherOnboardingRepository {
         global $wpdb;
         $limit = max(1, min(200, $limit));
         return $wpdb->get_results($wpdb->prepare(
-            "SELECT t.id teacher_id,t.reference_code,t.display_name,t.email,t.country_code,t.timezone,t.locale,t.calendar_preference,t.status teacher_status,t.archived_at,
+            "SELECT t.id teacher_id,t.reference_code,t.display_name,t.email,t.phone,t.whatsapp_phone,t.country_code,t.timezone,t.locale,t.calendar_preference,t.status teacher_status,t.archived_at,
                     o.state,o.readiness_state,o.profile_state,o.availability_state,o.agreement_state,o.submitted_at,o.reviewed_at,o.review_reason_code,
                     l.wordpress_user_id linked_user_id,l.status principal_status,
                     i.status invitation_status,g.status generation_status,g.expires_at generation_expires_at

@@ -2364,6 +2364,32 @@ function dzn_theme_platform_teacher_booked_bands( array $classes, string $timezo
 	return $bands;
 }
 
+/**
+ * The operator's live to-do lists for the Teacher portal.
+ *
+ * Read-only projection over the canonical booking, onboarding and statement reads. Each list
+ * fails independently so the screen stays usable when one source is unavailable.
+ *
+ * @return array{intros:array<int,array<string,mixed>>,onboarding:array<int,array<string,mixed>>,payments:array<int,array<string,mixed>>,failed:array<string,bool>}
+ */
+function dzn_theme_platform_owner_followups_data() {
+	$service = '\\Delnavazan\\Platform\\Core\\Application\\OwnerFollowupReadService';
+	$data = array( 'intros' => array(), 'onboarding' => array(), 'payments' => array(), 'failed' => array() );
+	if ( ! class_exists( $service ) ) {
+		$data['failed'] = array( 'intros' => true, 'onboarding' => true, 'payments' => true );
+		return $data;
+	}
+	$reader = new $service();
+	foreach ( array( 'intros' => 'introsWithoutTeacher', 'onboarding' => 'onboardingOutstanding', 'payments' => 'unpaidStatements' ) as $key => $method ) {
+		try {
+			$data[ $key ] = $reader->{$method}();
+		} catch ( Throwable $e ) {
+			$data['failed'][ $key ] = true;
+		}
+	}
+	return $data;
+}
+
 function dzn_theme_platform_teacher_model( $screen ) {
 	$identity = dzn_theme_platform_user_identity();
 	$google_notice = dzn_theme_platform_google_notice();
@@ -2373,6 +2399,11 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		array( 'screen' => 'finance', 'label' => 'مالی', 'url' => add_query_arg( 'teacher-view', 'finance', $base_url ), 'current' => 'finance' === $screen ),
 		array( 'screen' => 'settings', 'label' => 'تنظیمات', 'url' => add_query_arg( 'teacher-view', 'settings', $base_url ), 'current' => 'settings' === $screen ),
 	);
+	$followups_authority = '\\Delnavazan\\Platform\\Core\\Application\\OwnerFollowupAuthority';
+	$is_followup_operator = class_exists( $followups_authority ) && $followups_authority::isOperator();
+	if ( $is_followup_operator ) {
+		$nav[] = array( 'screen' => 'followups', 'label' => 'پیگیری‌های نیما', 'url' => add_query_arg( 'teacher-view', 'followups', $base_url ), 'current' => 'followups' === $screen );
+	}
 	$onboarding_class = '\\Delnavazan\\Platform\\Core\\Application\\TeacherOnboardingService';
 	$onboarding = null;
 	if ( class_exists( $onboarding_class ) ) {
@@ -3399,6 +3430,7 @@ function dzn_theme_platform_teacher_model( $screen ) {
 		'notification_actions' => $teacher_inbox['actions'],
 		'announcement' => array( 'state' => 'none' ),
 		'attention' => $bookingAttention,
+		'owner_followups' => ( 'followups' === $screen && $is_followup_operator ) ? dzn_theme_platform_owner_followups_data() : array(),
 		'open_requests' => $openRequestAttention,
 		'booking_provisioning' => (array) ( $data['booking_provisioning'] ?? array() ),
 		'god_mode_test_classes' => (array) ( $data['god_mode_test_classes'] ?? array() ),

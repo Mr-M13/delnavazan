@@ -485,7 +485,10 @@ function dzn_theme_render_portal_route( $kind ) {
 	}
 	if ( 'teacher' === $kind ) {
 		$screen = isset( $_GET['teacher-view'] ) ? sanitize_key( wp_unslash( $_GET['teacher-view'] ) ) : 'classes';
-		$screen = in_array( $screen, array( 'home', 'classes', 'finance', 'settings', 'onboarding', 'induction' ), true ) ? $screen : 'classes';
+		$screens = array( 'home', 'classes', 'finance', 'settings', 'onboarding', 'induction' );
+		$followups_authority = '\\Delnavazan\\Platform\\Core\\Application\\OwnerFollowupAuthority';
+		if ( class_exists( $followups_authority ) && $followups_authority::isOperator() ) { $screens[] = 'followups'; }
+		$screen = in_array( $screen, $screens, true ) ? $screen : 'classes';
 		if ( dzn_theme_teacher_requires_onboarding() ) { $screen = 'onboarding'; }
 		dzn_theme_render_teacher_portal( $screen, dzn_theme_teacher_portal_view_model( $screen ) );
 		return;

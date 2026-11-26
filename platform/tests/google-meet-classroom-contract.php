@@ -127,6 +127,10 @@ $check('anonymous guests are retained as unverified evidence', str_contains($att
 $check('every signed-in or guest session reaches canonical intake without an identity mapping', str_contains($attendance, "'attendee'") && str_contains($attendance, 'liaisonDigests'));
 $check('the organizer/liaison account is never admitted as evidence', str_contains($attendance, "'mapping_state'=>'liaison'") && str_contains($attendance, 'learnLiaison'));
 $check('attendance never writes completion directly', !str_contains($attendance, 'completed_at') && !str_contains($attendance, 'lifecycle_state'));
+$diagnostics = $read('platform/src/Core/Application/Diagnostics/DiagnosticRegistry.php');
+$attendanceRepository = $read('platform/src/Core/Infrastructure/Repository/CanonicalAttendanceRepository.php');
+$check('attendance health never queries a resolution column the append-only conflict ledger does not have', !str_contains($diagnostics, 'canonical_attendance_conflicts WHERE resolved_at') && str_contains($diagnostics, 'unresolvedConflictCount'));
+$check('unresolved conflicts are counted through the owning case state', str_contains($attendanceRepository, 'function unresolvedConflictCount') && str_contains($attendanceRepository, "k.state NOT IN ('confirmed','resolved','closed','cancelled')"));
 $check('unattended Meet ingestion uses the narrow provider-evidence actor', str_contains($attendance, 'ProviderEvidenceSystemActor::run') && !str_contains($attendance, "current_user_can('dzn_ingest_canonical_attendance_evidence')"));
 $check('signed-in Meet accounts use the canonical identity-registry digest', str_contains($attendance, 'CanonicalAttendanceIdempotency::evidence($account)') && !str_contains($attendance, "hash('sha256','dzn-meet-account:"));
 $check('booking classrooms enter the introductory settlement adapter', str_contains($attendance, 'booking_confirmation_id') && str_contains($attendance, 'MeetIntroAttendanceService') && str_contains($attendance, 'settleClassroom'));

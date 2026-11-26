@@ -77,6 +77,7 @@ owner-bound commercial read returns obligations. A state with neither stays at H
 | --- | --- | --- | --- |
 | `home` | `/teacher-portal/` | stats, announcement, attention, post-intro outcomes, classes, calendar, help | Existing |
 | `classes` | `/teacher-portal/?teacher-view=classes` | intro classes, today, the next three days, month calendar and completed history | Existing lesson read |
+| `followups` | `/teacher-portal/?teacher-view=followups` | operator-only to-do lists: intros without a teacher, unfinished teacher onboarding and unpaid statements | Operator identity |
 | `finance` | `/teacher-portal/?teacher-view=finance` | statements | Existing read |
 | `settings` | `/teacher-portal/?teacher-view=settings` | profile, instruments, availability, demand, accepting, Google | Existing |
 | `onboarding` | `/teacher-portal/?teacher-view=onboarding` | five presentation steps | Server-forced while not ready |

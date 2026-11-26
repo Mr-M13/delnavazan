@@ -150,7 +150,7 @@ $count = static fn ( array $rows ): string => dzn_theme_teacher_portal_digits( c
 								<input type="hidden" name="action" value="dzn_owner_followup_payment">
 								<input type="hidden" name="statement_id" value="<?php echo esc_attr( (string) (int) ( $row['statement_id'] ?? 0 ) ); ?>">
 								<input type="hidden" name="command_key" value="<?php echo esc_attr( 'owner-followup-' . (int) ( $row['statement_id'] ?? 0 ) . '-' . wp_generate_uuid4() ); ?>">
-								<?php wp_nonce_field( 'dzn_owner_followup_payment' ); ?>
+								<?php dzn_theme_nonce_field( 'dzn_owner_followup_payment' ); ?>
 								<label>کد پیگیری یا یادداشت (اختیاری)
 									<input type="text" name="payment_reference" maxlength="120" autocomplete="off" placeholder="مثلاً حوالهٔ بانکی">
 								</label>

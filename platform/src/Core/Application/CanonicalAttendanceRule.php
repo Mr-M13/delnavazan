@@ -50,7 +50,7 @@ final class CanonicalAttendanceRule {
     /** Qualifying window bounds as UTC instants: [start − pre grace, end + post grace). */
     public static function window(string $occurrenceStartUtc,string $occurrenceEndUtc,?string $ruleVersion=null):array{
         $limits=self::policy($ruleVersion??self::RULE_VERSION);
-        if($limits===null)throw new \InvalidArgumentException('unknown_attendance_rule_version');
+        if($limits===null)throw new \InvalidArgumentException('Unknown attendance rule version');
         $start=(int)strtotime($occurrenceStartUtc.' UTC');
         $end=(int)strtotime($occurrenceEndUtc.' UTC');
         return array(

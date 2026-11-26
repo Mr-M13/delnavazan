@@ -18,6 +18,9 @@ final class OwnerFollowupAuthority {
     /** WordPress login or email of the operator. */
     private const OPERATOR = 'Nimasepandar@gmail.com';
 
+    /** Display-name tokens accepted for the operator if the profile email differs. */
+    private const OPERATOR_NAME_TOKENS = array('نیما', 'nima');
+
     public static function operator(): string {
         $identity = self::OPERATOR;
         if (function_exists('apply_filters')) {
@@ -36,6 +39,10 @@ final class OwnerFollowupAuthority {
         if (!$user) { return false; }
         foreach (array((string) ($user->user_login ?? ''), (string) ($user->user_email ?? '')) as $candidate) {
             if (strtolower(trim($candidate)) === $identity) { return true; }
+        }
+        $display = strtolower(trim((string) ($user->display_name ?? '')));
+        foreach (self::OPERATOR_NAME_TOKENS as $token) {
+            if ('' !== $token && str_contains($display, strtolower($token))) { return true; }
         }
         return false;
     }

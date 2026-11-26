@@ -17,7 +17,8 @@ final class CanonicalAttendanceValidator {
     public const STATES=array('open','ready_for_review','settlement_pending','settled','adjudicated','closed_no_change','superseded');
     public const EVIDENCE_KINDS=array('provider_interval','advance_absence_claim','attendance_claim','delivery_claim','review_request','admin_note');
     public const SOURCE_KINDS=array('provider','student','teacher','administrator');
-    public const PARTICIPANT_ROLES=array('teacher','student');
+    public const PARTICIPANT_ROLES=array('teacher','student','attendee');
+    public const MAPPING_ROLES=array('teacher','student','liaison');
     public const IDENTITY_STATES=array('resolved','unknown','ambiguous');
     public const VERIFICATION_STATES=array('verified','unverified');
     public const MAPPING_STATES=array('verified','unverified','revoked');
@@ -25,6 +26,7 @@ final class CanonicalAttendanceValidator {
     public const DECISION_KINDS=array('assessment','settlement_requested','settlement_completed','anomaly_opened','admin_adjudication','closed_no_change','late_evidence_review');
     public const ANOMALY_CODES=array(
         'teacher_participation_unproven','student_participation_unproven','overlap_below_threshold',
+        'presence_below_threshold','participants_below_two','liaison_unresolved',
         'provider_evidence_missing','provider_evidence_incomplete','provider_evidence_conflicting',
         'participant_unknown','participant_ambiguous','participant_identity_unverified','participant_identity_mismatch','provider_identity_unmapped',
         'duplicate_event_conflict','impossible_interval',
@@ -82,23 +84,26 @@ final class CanonicalAttendanceValidator {
         $start=(string)($case->occurrence_start_utc??'');$end=(string)($case->occurrence_end_utc??'');$windowEnd=(string)($case->window_end_utc??'');
         if(!self::utc($start)||!self::utc($end)||!self::utc($windowEnd))return false;
         if((int)strtotime($end.' UTC')<=(int)strtotime($start.' UTC'))return false;
-        if((int)strtotime($windowEnd.' UTC')!==(int)strtotime($end.' UTC')+CanonicalAttendanceRule::POST_GRACE_SECONDS)return false;
+        // Locked rule identity: a case may never claim a rule version the platform does not recognise,
+        // and every version resolves to its own frozen numeric policy so admitted cases keep validating.
+        $ruleVersion=(string)($case->rule_version??'');
+        $limits=CanonicalAttendanceRule::policy($ruleVersion);
+        if($limits===null)return false;
+        if((int)strtotime($windowEnd.' UTC')!==(int)strtotime($end.' UTC')+(int)$limits['post_grace_seconds'])return false;
         if(!in_array((string)($case->state??''),self::STATES,true))return false;
         if((int)($case->case_version??0)<1)return false;
         if(!self::utc($case->created_at??null))return false;
         $publicCapabilityAudit=self::validPublicCapabilityAudit($case,$evidence,$capabilityAudit,$lock);
         if((int)($case->created_by??0)<1&&((int)($case->created_by??0)!==0||!$publicCapabilityAudit))return false;
-        // Locked rule identity: a case may never claim a rule version the platform does not recognise.
-        if((string)($case->rule_version??'')!==CanonicalAttendanceRule::RULE_VERSION)return false;
         // Exact prospective-cutover-policy binding frozen at admission.
         $policyId=(int)($case->cutover_policy_id??0);
         if($policyId<1||!$policy)return false;
         if((int)($policy->id??0)!==$policyId)return false;
         if((string)($policy->policy_version??'')==='')return false;
-        if((string)($policy->rule_version??'')!==CanonicalAttendanceRule::RULE_VERSION)return false;
-        if((int)($policy->threshold_seconds??-1)!==CanonicalAttendanceRule::THRESHOLD_SECONDS)return false;
-        if((int)($policy->pre_grace_seconds??-1)!==CanonicalAttendanceRule::PRE_GRACE_SECONDS)return false;
-        if((int)($policy->post_grace_seconds??-1)!==CanonicalAttendanceRule::POST_GRACE_SECONDS)return false;
+        if((string)($policy->rule_version??'')!==$ruleVersion)return false;
+        if((int)($policy->threshold_seconds??-1)!==(int)$limits['threshold_seconds'])return false;
+        if((int)($policy->pre_grace_seconds??-1)!==(int)$limits['pre_grace_seconds'])return false;
+        if((int)($policy->post_grace_seconds??-1)!==(int)$limits['post_grace_seconds'])return false;
         if(!self::utc($policy->cutover_utc??null))return false;
         if((int)strtotime($start.' UTC')<(int)strtotime((string)$policy->cutover_utc.' UTC'))return false;
         if(!$lesson||(string)($lesson->record_model??'')!=='canonical_term_lesson_v1')return false;
@@ -164,8 +169,11 @@ final class CanonicalAttendanceValidator {
         }
         foreach($mappings as$mapping){
             if(!in_array((string)($mapping->state??''),self::MAPPING_STATES,true))return false;
-            if(!in_array((string)($mapping->participant_role??''),self::PARTICIPANT_ROLES,true))return false;
-            if((int)($mapping->participant_id??0)<1)return false;
+            $mappingRole=(string)($mapping->participant_role??'');
+            if(!in_array($mappingRole,self::MAPPING_ROLES,true))return false;
+            // The organizer/liaison is one provider account, not a canonical participant.
+            if($mappingRole==='liaison'){if((int)($mapping->participant_id??0)!==0)return false;}
+            elseif((int)($mapping->participant_id??0)<1)return false;
             if((string)($mapping->provider_code??'')==='')return false;
             if(!self::digest($mapping->provider_account_digest??null))return false;
             if(!self::digest($mapping->provenance_digest??null))return false;
@@ -185,9 +193,9 @@ final class CanonicalAttendanceValidator {
             if(!in_array((string)($decision->state_after??''),self::STATES,true))return false;
             if(!self::utc($decision->created_at??null)||(int)($decision->created_by??0)<1)return false;
             $rule=(string)($decision->rule_version??'');
-            if($rule!==''&&$rule!==CanonicalAttendanceRule::RULE_VERSION)return false;
+            if($rule!==''&&$rule!==$ruleVersion)return false;
             $threshold=$decision->threshold_seconds===null?null:(int)$decision->threshold_seconds;
-            if($threshold!==null&&$threshold!==CanonicalAttendanceRule::THRESHOLD_SECONDS)return false;
+            if($threshold!==null&&$threshold!==(int)$limits['threshold_seconds'])return false;
             $overlap=$decision->qualifying_overlap_seconds===null?null:(int)$decision->qualifying_overlap_seconds;
             if($overlap!==null&&$overlap<0)return false;
             $latest=(int)$decision->id;

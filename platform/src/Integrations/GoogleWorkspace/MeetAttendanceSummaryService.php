@@ -44,30 +44,27 @@ final class MeetAttendanceSummaryService {
         try{$sessions=$this->repository->participantSessionsForClassroom($classroomId);}
         catch(\Throwable){return array_merge($empty,array('reason'=>'sessions_unavailable'));}
         if(!$sessions)return array_merge($empty,array('state'=>'pending','reason'=>'meet_evidence_missing'));
-        $intervals=array('teacher'=>array(),'student'=>array(),'unmapped'=>0);
+        $liaison=array_flip($this->identities->liaisonDigests('google_meet'));
+        $participants=array();
         foreach($sessions as $session){
-            if((string)($session->participant_type??'')!=='signedin')continue;
             $join=trim((string)($session->join_at_utc??''));
             if($join==='')continue;
-            $leave=trim((string)($session->leave_at_utc??''));
             $digest=(string)($session->participant_account_digest??'');
-            if($digest===''){$intervals['unmapped']++;continue;}
-            $role=$this->roleFor($digest,$teacherId,$studentId);
-            if($role===null){$intervals['unmapped']++;continue;}
-            $intervals[$role][]=array('join_at_utc'=>$join,'leave_at_utc'=>$leave!==''?$leave:null);
+            if($digest!==''&&isset($liaison[$digest]))continue;
+            $leave=trim((string)($session->leave_at_utc??''));
+            $key=$digest!==''?$digest:'session:'.(string)($session->participant_session_name??$session->id);
+            $participants[$key][]=array('join_at_utc'=>$join,'leave_at_utc'=>$leave!==''?$leave:null);
         }
-        $assessment=CanonicalAttendanceRule::assess($intervals['teacher'],$intervals['student'],$start,$end);
+        $assessment=CanonicalAttendanceRule::presence($participants,$start,$end);
         $minutes=(int)floor(((int)$assessment['seconds'])/60);
         if(!empty($assessment['eligible'])){
             return array(
                 'state'=>'confirmed','minutes'=>$minutes,
                 'threshold_minutes'=>(int)(CanonicalAttendanceRule::THRESHOLD_SECONDS/60),
-                'reason'=>'overlap_confirmed','rule_version'=>CanonicalAttendanceRule::RULE_VERSION,
+                'reason'=>'presence_confirmed','rule_version'=>CanonicalAttendanceRule::RULE_VERSION,
             );
         }
-        $reason='overlap_below_threshold';
-        if(!$intervals['teacher']||!$intervals['student'])$reason='identity_unmapped';
-        elseif($intervals['unmapped']>0)$reason='identity_unmapped';
+        $reason=$assessment['participants']<CanonicalAttendanceRule::MIN_PARTICIPANTS?'participants_below_two':'presence_below_threshold';
         return array(
             'state'=>'pending','minutes'=>$minutes,
             'threshold_minutes'=>(int)(CanonicalAttendanceRule::THRESHOLD_SECONDS/60),

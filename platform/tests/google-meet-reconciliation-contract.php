@@ -159,7 +159,7 @@ $check('claims bind only on a unique, clearly nearest participant arrival', str_
 $check('an account bound to another participant is never rebound', str_contains($claimService, 'participant_id===$participantId)return false;') && str_contains($claimService, "'provider_code'=>'google_meet'"));
 $check('the organizer has no portal claim, so it can never become a mapped participant', !str_contains($claimService, 'recorder') && str_contains($claimService, "array('teacher','student')"));
 $check('auto-mapping runs before attendance is assessed', str_contains($attendanceService, 'autoMap($classroom)'));
-$check('the attendance window allows early and late classes', str_contains($attendanceRule, "RULE_VERSION='canonical_attendance_overlap_v2'") && str_contains($attendanceRule, 'PRE_GRACE_SECONDS=3600') && str_contains($attendanceRule, 'POST_GRACE_SECONDS=3600') && str_contains($attendanceRule, 'THRESHOLD_SECONDS=1200'));
+$check('the attendance window allows early and late classes', str_contains($attendanceRule, "RULE_VERSION='canonical_attendance_presence_v3'") && str_contains($attendanceRule, 'PRE_GRACE_SECONDS=1800') && str_contains($attendanceRule, 'POST_GRACE_SECONDS=1800') && str_contains($attendanceRule, 'THRESHOLD_SECONDS=1200'));
 
 // The queue's decisions are pure, so they are also proven as behaviour, not only as source shape.
 require_once $root . '/src/Integrations/GoogleWorkspace/MeetRecorderPlan.php';

@@ -195,23 +195,30 @@ detached), so the portal is the boundary, not the waiting room.
 
 ## Attendance auto-confirmation
 
-Automatic attendance needs two things Google does not hand over directly: **who** a Meet participant is
-(Meet exposes only an opaque `users/…` id) and **how long** the Teacher and the Student overlapped.
+The owner policy since v3 (`canonical_attendance_presence_v3`) is **presence, not identity**: a class
+settles as delivered when **at least two participants other than the organizer/liaison are
+simultaneously present for 1200 seconds (20 minutes)** inside `[start − 30 min, end + 30 min)`.
 
-- **Identity comes from the portal claim.** Every Teacher/Student portal join records an
-  `attendance_claim` event with the classroom, the role and the instant. During reconciliation the
-  platform binds a claim to the one signed-in participant whose arrival falls inside
-  `MeetAttendanceClaimService::TOLERANCE_SECONDS` (180 s) of it. The binding is written to the
-  Phase-P registry as `verified` with `portal_claim_correlation` provenance, and it never overwrites a
-  binding that already belongs to another participant — an ambiguous correlation is skipped, not
-  guessed.
-- **The organizer can never become a mapped participant.** The companion joins through the recorder
-  queue, which writes no claim, and only `teacher`/`student` claims exist, so `classroom@` has nothing
-  to correlate with.
-- **The window is v2 (`canonical_attendance_overlap_v2`)**: one hour of pre-class grace and one hour
-  of post-class grace around the scheduled slot, with the unchanged **1200 s** simultaneous
-  Teacher∩Student threshold. A class that starts early or runs late now confirms; a class with a
-  short overlap still does not.
-- **A claim only helps once.** The first reconciliation after the class correlates and maps; the
-  overlap assessment then uses the durable sessions. If a participant joins from a second Google
-  account, that account gets its own claim-based mapping and the intervals are unioned.
+- **Who** a participant is does not matter. A signed-in account, a personal Gmail account and a guest
+  all count as one person; two devices of the same account are unioned, never double-counted. A
+  verified identity mapping only labels the role and is no longer a precondition.
+- **When** matters. The 20 minutes must fall inside the class window: 30 minutes before the scheduled
+  start through 30 minutes after the scheduled end. An open link the day before, the day after, or at
+  any other date never qualifies. The threshold is contiguous: a gap splits the run (1199 s fails).
+- **The liaison is excluded.** The recording companion joins as the single Delnavazan organizer. On
+  its first recorded class the platform binds the organizer's Meet account from the companion's
+  `recorder_join` event (nearest signed-in arrival inside the same 180 s tolerance, 30 s distinct
+  margin) and stores it once as a `liaison` mapping. That account is never counted. Until the binding
+  succeeds, the class defers to manual review instead of risking a two-person false positive.
+- **Everything else is manual.** One participant, a short overlap, an open interval (no leave time), a
+  cancelled class, a conflicting recorded outcome or a closed Term produce an
+  anomaly/review case and never auto-settle. Teacher or Student reports to the administrator follow
+  the existing reviewed-outcome path.
+- **Activation.** The rule applies to occurrences beginning at or after the recorded cutover policy.
+  Record the next prospective cutover once per rule change:
+  `wp dzn-meet attendance_cutover --at="<UTC a few minutes ahead>" --user=<administrator_id>`.
+  A class that started earlier keeps the rule it was admitted under; the retired
+  `canonical_attendance_overlap_v2` (verified Teacher ∩ Student, one hour of grace either side) stays
+  readable for those cases.
+- **One-time portal claims still help.** They attribute roles for the portals and summaries, but they
+  are no longer required for attendance.

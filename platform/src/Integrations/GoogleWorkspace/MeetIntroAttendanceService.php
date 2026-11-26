@@ -68,6 +68,12 @@ final class MeetIntroAttendanceService {
             $window=CanonicalAttendanceRule::window((string)$confirmation->starts_at_utc,(string)$confirmation->ends_at_utc);
             if((string)$window['window_end_utc']>$now)return array('state'=>'window_open','window_end_utc'=>(string)$window['window_end_utc'],'retry'=>true);
 
+            // The organizer/liaison must be attributable before presence is counted: with a confirmed
+            // companion join and no learned liaison, the organizer could be mistaken for a second
+            // participant. Defer to the next reconciliation instead of guessing.
+            if(!$this->identities->liaisonDigests(self::PROVIDER)&&$this->repository->recorderJoinedAt((int)$classroom->id)!==null){
+                return array('state'=>'liaison_unresolved','retry'=>true);
+            }
             $assessment=$this->assess($classroom,$confirmation,(int)$record->id);
             if(empty($assessment['eligible']))return array('state'=>'not_eligible','retry'=>false,'assessment'=>$assessment);
             if(!ProviderEvidenceSystemActor::isConfigured())return array('state'=>'actor_unconfigured','retry'=>true,'assessment'=>$assessment);
@@ -112,43 +118,36 @@ final class MeetIntroAttendanceService {
     }
 
     /** @return array<string,mixed> */
+    /**
+     * Presence-based introductory assessment: two or more participants other than the
+     * organizer/liaison, simultaneously present for the locked threshold inside the class window.
+     * Identity is not required; it only labels a participant when a verified mapping exists.
+     */
     private function assess(object $classroom,object $confirmation,int $conferenceRecordId):array{
         $sessions=$this->repository->participantSessionsForClassroom((int)$classroom->id);
-        $teacher=array();$student=array();
-        $unmapped=0;$ambiguous=0;$mismatched=0;$counted=0;
+        $participants=array();$counted=0;
+        $liaison=array_flip($this->identities->liaisonDigests(self::PROVIDER));
         foreach($sessions as $row){
             // A rescheduled classroom may retain sessions from an earlier conference record. Only
             // the record reconciled for this exact occurrence may contribute.
             if((int)($row->conference_record_id??0)!==$conferenceRecordId)continue;
             $counted++;
             $digest=(string)($row->participant_account_digest??'');
-            if($digest===''){$unmapped++;continue;}
-            $teacherRows=$this->identities->mappingsForAccount(self::PROVIDER,$digest,'teacher');
-            $studentRows=$this->identities->mappingsForAccount(self::PROVIDER,$digest,'student');
-            $teacherResolved=CanonicalAttendanceIdentityService::resolveExpected($teacherRows,'teacher',(int)$confirmation->teacher_id);
-            $studentResolved=CanonicalAttendanceIdentityService::resolveExpected($studentRows,'student',(int)$confirmation->student_id);
-            $isTeacher=$teacherResolved['state']==='resolved';
-            $isStudent=$studentResolved['state']==='resolved';
-            if($isTeacher&&$isStudent){$ambiguous++;continue;}
-            if(!$isTeacher&&!$isStudent){
-                if(($teacherResolved['state']??'')==='mismatch'||($studentResolved['state']??'')==='mismatch')$mismatched++;
-                else $unmapped++;
-                continue;
-            }
-            $interval=array(
+            if($digest!==''&&isset($liaison[$digest]))continue;
+            $key=$digest!==''?$digest:'session:'.(string)($row->participant_session_name??$row->id);
+            $participants[$key][]=array(
                 'join_at_utc'=>(string)($row->join_at_utc??''),
                 'leave_at_utc'=>$row->leave_at_utc===null?null:(string)$row->leave_at_utc,
             );
-            if($isTeacher)$teacher[]=$interval;else $student[]=$interval;
         }
-        $assessment=CanonicalAttendanceRule::assess($teacher,$student,(string)$confirmation->starts_at_utc,(string)$confirmation->ends_at_utc);
+        $assessment=CanonicalAttendanceRule::presence($participants,(string)$confirmation->starts_at_utc,(string)$confirmation->ends_at_utc);
         $anomalies=array();
-        if(!$teacher)$anomalies[]='teacher_participation_unproven';
-        if(!$student)$anomalies[]='student_participation_unproven';
-        if($unmapped>0)$anomalies[]='provider_identity_unmapped';
-        if($ambiguous>0)$anomalies[]='participant_ambiguous';
-        if($mismatched>0)$anomalies[]='participant_identity_mismatch';
-        if($assessment['seconds']<CanonicalAttendanceRule::THRESHOLD_SECONDS&&$teacher&&$student)$anomalies[]='overlap_below_threshold';
+        if($assessment['participants']<CanonicalAttendanceRule::MIN_PARTICIPANTS)$anomalies[]='participants_below_two';
+        elseif($assessment['seconds']<CanonicalAttendanceRule::THRESHOLD_SECONDS)$anomalies[]='presence_below_threshold';
+        foreach($assessment['excluded'] as$excluded){
+            $reason=(string)($excluded['reason']??'');
+            if(in_array($reason,array(CanonicalAttendanceRule::EXCLUDED_IMPOSSIBLE_INTERVAL,CanonicalAttendanceRule::EXCLUDED_OPEN_INTERVAL,CanonicalAttendanceRule::EXCLUDED_INVALID_INTERVAL),true))$anomalies[]=$reason;
+        }
         $assessment['session_count']=$counted;
         $assessment['anomalies']=array_values(array_unique($anomalies));
         return $assessment;

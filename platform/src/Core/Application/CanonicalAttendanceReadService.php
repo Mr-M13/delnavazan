@@ -45,6 +45,7 @@ final class CanonicalAttendanceReadService {
         // settlement. A stale historical aggregate is retained but never presented as current truth.
         if(!$latest||(int)$latest->id!==(int)$case->schedule_version_id)throw new \InvalidArgumentException('schedule_version_conflict');
         $policy=$this->repository->policy((int)$case->cutover_policy_id);
+        $limits=CanonicalAttendanceRule::policy((string)($case->rule_version??''))??CanonicalAttendanceRule::policy(CanonicalAttendanceRule::RULE_VERSION);
         $evidence=$this->repository->evidenceForCase((int)$case->id);
         $decisions=$this->repository->decisionsForCase((int)$case->id);
         $anomalies=$this->repository->anomaliesForCase((int)$case->id);
@@ -53,7 +54,7 @@ final class CanonicalAttendanceReadService {
         $outcomes=$this->delivery->outcomesForLesson($lessonId);
         $term=(string)$this->termState((int)$case->term_id);
         $latestDecision=$decisions?$decisions[count($decisions)-1]:null;
-        $provider=array();$claims=array();$intervals=array();
+        $provider=array();$claims=array();$intervals=array();$presence=array();
         $counts=array('provider_interval'=>0,'human_claim'=>0,'verified'=>0,'unverified'=>0,'resolved'=>0,'unresolved'=>0,'ambiguous'=>0,'mismatch'=>0,'conflict'=>count($conflicts));
         foreach($evidence as$row){
             if((string)$row->evidence_kind==='provider_interval'){
@@ -79,6 +80,12 @@ final class CanonicalAttendanceReadService {
                 if($verification==='verified'&&$identity==='resolved'&&!$mismatch){
                     $intervals[]=array('role'=>$role,'join_at_utc'=>$row->join_at_utc,'leave_at_utc'=>$row->leave_at_utc);
                 }
+                // Presence rule: every provider interval counts, resolved or not. The liaison is
+                // excluded at ingestion, so the stored evidence set is the complete presence authority.
+                if((string)($case->rule_version??'')==='canonical_attendance_presence_v3'){
+                    $digest=(string)($row->provider_account_digest??'');
+                    $presence[$digest!==''?$digest:'session:'.(string)($row->provider_session_digest??$row->id)][]=array('join_at_utc'=>$row->join_at_utc,'leave_at_utc'=>$row->leave_at_utc);
+                }
             }else{
                 $counts['human_claim']++;
                 $claims[]=array(
@@ -91,7 +98,9 @@ final class CanonicalAttendanceReadService {
         }
         $teacher=array();$student=array();
         foreach($intervals as$interval)if($interval['role']==='teacher')$teacher[]=$interval;else $student[]=$interval;
-        $assessment=CanonicalAttendanceRule::assess($teacher,$student,(string)$case->occurrence_start_utc,(string)$case->occurrence_end_utc);
+        $assessment=(string)($case->rule_version??'')==='canonical_attendance_presence_v3'
+            ? CanonicalAttendanceRule::presence($presence??array(),(string)$case->occurrence_start_utc,(string)$case->occurrence_end_utc)
+            : CanonicalAttendanceRule::assess($teacher,$student,(string)$case->occurrence_start_utc,(string)$case->occurrence_end_utc);
         // The stored decision chain must agree with the stored evidence: a divergence is corruption,
         // never a silently recomputed "trusted" answer.
         $recordedOverlap=null;
@@ -127,10 +136,10 @@ final class CanonicalAttendanceReadService {
             ),
             'evidence'=>array('counts'=>$counts,'provider'=>$provider,'intervals'=>$intervals,'excluded'=>$assessment['excluded']),
             'assessment'=>array(
-                'rule_version'=>CanonicalAttendanceRule::RULE_VERSION,
-                'threshold_seconds'=>CanonicalAttendanceRule::THRESHOLD_SECONDS,
-                'pre_grace_seconds'=>CanonicalAttendanceRule::PRE_GRACE_SECONDS,
-                'post_grace_seconds'=>CanonicalAttendanceRule::POST_GRACE_SECONDS,
+                'rule_version'=>(string)($case->rule_version??CanonicalAttendanceRule::RULE_VERSION),
+                'threshold_seconds'=>(int)($limits['threshold_seconds']??CanonicalAttendanceRule::THRESHOLD_SECONDS),
+                'pre_grace_seconds'=>(int)($limits['pre_grace_seconds']??CanonicalAttendanceRule::PRE_GRACE_SECONDS),
+                'post_grace_seconds'=>(int)($limits['post_grace_seconds']??CanonicalAttendanceRule::POST_GRACE_SECONDS),
                 'qualifying_overlap_seconds'=>(int)$assessment['seconds'],
                 'recorded_overlap_seconds'=>$recordedOverlap,
                 'segments'=>$assessment['segments'],

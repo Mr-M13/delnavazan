@@ -161,6 +161,19 @@ final class CanonicalAttendanceRepository {
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->p}canonical_attendance_participant_mappings WHERE provider_account_digest IN ({$in}) ORDER BY id{$suffix}",...$digests))?:array();
     }
     public function insertMapping(array $data):int{return $this->insert('canonical_attendance_participant_mappings',$data,'Canonical attendance participant mapping persistence failed');}
+    /**
+     * Verified organizer/liaison provider accounts, excluded from presence counting.
+     *
+     * The Delnavazan organizer joins every recorded class as the liaison and is one provider account,
+     * not a canonical participant.
+     *
+     * @return array<int,string>
+     */
+    public function liaisonDigests(string $providerCode='google_meet'):array{
+        global $wpdb;
+        $digests=$wpdb->get_col($wpdb->prepare("SELECT provider_account_digest FROM {$this->p}canonical_attendance_participant_mappings WHERE provider_code=%s AND participant_role='liaison' AND state='verified' AND revoked_at IS NULL",$providerCode));
+        return is_array($digests)?array_values(array_unique(array_map('strval',$digests))):array();
+    }
     public function updateMappingState(int $mappingId,int $expectedVersion,string $state,?string $revokedAt,string $now,int $actor):void{
         global $wpdb;
         $changed=$wpdb->update($this->p.'canonical_attendance_participant_mappings',array(

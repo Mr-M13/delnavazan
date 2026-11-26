@@ -349,7 +349,10 @@ final class CanonicalAttendanceIntakeService {
         $case=$this->repository->caseFor($lessonId,$scheduleVersionId,true);
         $created=false;
         if(!$case){
-            $window=CanonicalAttendanceRule::window((string)$version->starts_at_utc,(string)$version->ends_at_utc);
+            // The admitted case freezes the rule version of the policy that covers its occurrence, so
+            // an occurrence before the next cutover keeps the rule it was actually admitted under.
+            $ruleVersion=(string)($policy->rule_version??'');
+            $window=CanonicalAttendanceRule::window((string)$version->starts_at_utc,(string)$version->ends_at_utc,$ruleVersion);
             $now=gmdate('Y-m-d H:i:s');
             $id=$this->repository->insertCase(array(
                 'uid'=>Identifier::uid(),'lesson_id'=>$lessonId,'schedule_version_id'=>$scheduleVersionId,
@@ -357,7 +360,7 @@ final class CanonicalAttendanceIntakeService {
                 'student_id'=>(int)$lesson->student_id,'teacher_id'=>(int)$lesson->teacher_id,
                 'teacher_assignment_id'=>(int)$lesson->teacher_assignment_id,
                 'occurrence_start_utc'=>(string)$version->starts_at_utc,'occurrence_end_utc'=>(string)$version->ends_at_utc,
-                'window_end_utc'=>(string)$window['window_end_utc'],'rule_version'=>CanonicalAttendanceRule::RULE_VERSION,
+                'window_end_utc'=>(string)$window['window_end_utc'],'rule_version'=>$ruleVersion,
                 'cutover_policy_id'=>(int)$policy->id,
                 'state'=>'open','case_version'=>1,'latest_decision_id'=>null,
                 'created_at'=>$now,'created_by'=>$this->actor($auditActor),'updated_at'=>$now,'updated_by'=>$this->actor($auditActor),
@@ -385,6 +388,59 @@ final class CanonicalAttendanceIntakeService {
 
     /** Assess the evidence set and durably record the assessment (and anomaly) decisions. */
     private function assessAndDecide(object $case,?object $lesson):array{
+        // Cases admitted under the retired identity rule keep their own frozen assessment so their
+        // evidence, decisions and settlement stay internally consistent.
+        if((string)($case->rule_version??'')==='canonical_attendance_overlap_v2')return $this->assessLegacyAndDecide($case,$lesson);
+        $lesson??=$this->lessons->lesson((int)$case->lesson_id,true);
+        $evidence=$this->repository->evidenceForCase((int)$case->id,true);
+        // The liaison/organizer is excluded once, at provider ingestion: its sessions never become
+        // evidence. The stored evidence set is therefore the complete presence authority, so a later
+        // liaison discovery can never reinterpret an already admitted occurrence.
+        $participants=array();$anomalies=array();$providerSeen=0;
+        foreach($evidence as$row){
+            if((string)$row->evidence_kind!=='provider_interval')continue;
+            $providerSeen++;
+            $digest=(string)($row->provider_account_digest??'');
+            $key=$digest!==''?$digest:'session:'.(string)($row->provider_session_digest??$row->id);
+            $participants[$key][]=array('join_at_utc'=>(string)($row->join_at_utc??''),'leave_at_utc'=>$row->leave_at_utc===null?null:(string)$row->leave_at_utc);
+        }
+        $assessment=CanonicalAttendanceRule::presence($participants,(string)$case->occurrence_start_utc,(string)$case->occurrence_end_utc);
+        foreach($assessment['excluded'] as$excluded){
+            $reason=(string)($excluded['reason']??'');
+            if(in_array($reason,array(CanonicalAttendanceRule::EXCLUDED_IMPOSSIBLE_INTERVAL,CanonicalAttendanceRule::EXCLUDED_OPEN_INTERVAL,CanonicalAttendanceRule::EXCLUDED_INVALID_INTERVAL),true))$anomalies[]=$reason;
+        }
+        if($providerSeen===0)$anomalies[]='provider_evidence_missing';
+        if($providerSeen>0&&$assessment['participants']<CanonicalAttendanceRule::MIN_PARTICIPANTS)$anomalies[]='participants_below_two';
+        if($providerSeen>0&&$assessment['participants']>=CanonicalAttendanceRule::MIN_PARTICIPANTS&&$assessment['seconds']<CanonicalAttendanceRule::THRESHOLD_SECONDS)$anomalies[]='presence_below_threshold';
+        $now=gmdate('Y-m-d H:i:s');
+        $lessonState=(string)($lesson->lifecycle_state??'');
+        $termClosed=$this->isAfterTermClosure((int)$case->term_id);
+        $effective=(new CanonicalLessonDeliveryGuard())->effective((int)$case->lesson_id);
+        if($lessonState==='cancelled')$anomalies[]='lesson_cancelled';
+        if($effective&&(string)$effective->outcome_code!=='delivered')$anomalies[]='canonical_outcome_exists';
+        if($termClosed)$anomalies[]='late_evidence';
+        $eligible=$assessment['eligible']&&!$anomalies&&$lessonState!=='cancelled'&&!$termClosed
+            &&(!$effective||(string)$effective->outcome_code==='delivered');
+        $anomalies=array_values(array_unique($anomalies));
+        $stateAfter=$eligible?'settlement_pending':'ready_for_review';
+        $decisionId=$this->recordDecision($case,'assessment',$stateAfter,$assessment['seconds'],$eligible?'automatically_eligible':'review',array(),$now,$this->actor());
+        if(!$eligible){
+            foreach($anomalies as$code)$this->openAnomaly($case,$code,$now,$this->actor(),$decisionId);
+            $decisionId=$this->recordDecision($case,'anomaly_opened','ready_for_review',$assessment['seconds'],'review',$anomalies,$now,$this->actor());
+        }
+        return array(
+            'eligible'=>(bool)$eligible,'state'=>$stateAfter,'decision_id'=>$decisionId,
+            'qualifying_overlap_seconds'=>(int)$assessment['seconds'],
+            'threshold_seconds'=>CanonicalAttendanceRule::THRESHOLD_SECONDS,
+            'rule_version'=>(string)($case->rule_version??CanonicalAttendanceRule::RULE_VERSION),
+            'participants'=>(int)$assessment['participants'],
+            'segments'=>$assessment['segments'],'excluded'=>$assessment['excluded'],
+            'anomalies'=>$anomalies,'term_closed'=>$termClosed,
+        );
+    }
+
+    /** Frozen v2 assessment: verified Teacher ∩ Student overlap with one hour of grace either side. */
+    private function assessLegacyAndDecide(object $case,?object $lesson):array{
         $lesson??=$this->lessons->lesson((int)$case->lesson_id,true);
         $evidence=$this->repository->evidenceForCase((int)$case->id,true);
         $teacherIntervals=array();$studentIntervals=array();$anomalies=array();
@@ -441,7 +497,8 @@ final class CanonicalAttendanceIntakeService {
             'eligible'=>(bool)$eligible,'state'=>$stateAfter,'decision_id'=>$decisionId,
             'qualifying_overlap_seconds'=>(int)$assessment['seconds'],
             'threshold_seconds'=>CanonicalAttendanceRule::THRESHOLD_SECONDS,
-            'rule_version'=>CanonicalAttendanceRule::RULE_VERSION,
+            'rule_version'=>(string)($case->rule_version??CanonicalAttendanceRule::RULE_VERSION),
+            'participants'=>0,
             'segments'=>$assessment['segments'],'excluded'=>$assessment['excluded'],
             'anomalies'=>$anomalies,'term_closed'=>$termClosed,
         );
@@ -521,10 +578,12 @@ final class CanonicalAttendanceIntakeService {
 
     private function recordDecision(object $case,string $kind,string $stateAfter,?int $overlap,?string $basis,array $anomalies,string $now,int $actor,?int $outcomeId=null):int{
         $sequence=$this->repository->maxDecisionSequence((int)$case->id)+1;
+        $ruleVersion=(string)($case->rule_version??CanonicalAttendanceRule::RULE_VERSION);
+        $limits=CanonicalAttendanceRule::policy($ruleVersion)??CanonicalAttendanceRule::policy(CanonicalAttendanceRule::RULE_VERSION);
         $id=$this->repository->insertDecision(array(
             'uid'=>Identifier::uid(),'case_id'=>(int)$case->id,'decision_sequence'=>$sequence,
-            'decision_kind'=>$kind,'state_after'=>$stateAfter,'rule_version'=>CanonicalAttendanceRule::RULE_VERSION,
-            'threshold_seconds'=>CanonicalAttendanceRule::THRESHOLD_SECONDS,'qualifying_overlap_seconds'=>$overlap,
+            'decision_kind'=>$kind,'state_after'=>$stateAfter,'rule_version'=>$ruleVersion,
+            'threshold_seconds'=>(int)$limits['threshold_seconds'],'qualifying_overlap_seconds'=>$overlap,
             'decision_basis'=>$basis,'result_outcome_id'=>$outcomeId,
             'created_at'=>$now,'created_by'=>$actor,
         ));
@@ -610,6 +669,15 @@ final class CanonicalAttendanceIntakeService {
      * expected canonical participant is the only way evidence can contribute qualifying attendance.
      */
     private function resolveIdentity(array $intent):array{
+        // Presence evidence does not require a canonical identity. An unattributed participant is
+        // retained with role `attendee` and never carries a resolved target.
+        if((string)$intent['participant_role']==='attendee'){
+            $intent['participant_identity_state']='unknown';
+            $intent['verification_state']='unverified';
+            $intent['identity_reason']='presence_rule_identity_not_required';
+            $intent['resolved_student_id']=null;$intent['resolved_teacher_id']=null;
+            return $intent;
+        }
         // Registry rows are read without row locks: two occurrences that share one provider account
         // must never contend on the registry row, only on their own occurrence aggregate.
         $rows=$this->repository->mappingsForAccount((string)$intent['provider_code'],(string)$intent['provider_account_digest'],(string)$intent['participant_role'],false);

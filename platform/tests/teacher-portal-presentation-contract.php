@@ -22,6 +22,14 @@ namespace {
     function sanitize_text_field($v): string { return trim(strip_tags((string) $v)); }
     function wp_unslash($v) { return $v; }
     function wp_generate_uuid4(): string { return '11111111-2222-4333-8444-555555555555'; }
+    function get_current_user_id(): int { return 99; }
+    function get_userdata(int $id): object { return (object) array('ID' => $id, 'user_login' => 'nima', 'user_email' => 'Nimasepandar@gmail.com', 'display_name' => 'نیما سپندار'); }
+    function admin_url($p = ''): string { return 'https://example.invalid/wp-admin/' . ltrim((string) $p, '/'); }
+    function wp_nonce_field($action, $name = '_wpnonce', $referer = true, $echo = true): string {
+        $field = '<input type="hidden" name="' . $name . '" value="nonce-' . $action . '">';
+        if ($echo) echo $field;
+        return $field;
+    }
     function wp_get_environment_type(): string { return $GLOBALS['dzn_env']; }
     function is_user_logged_in(): bool { return true; }
     function wp_logout_url($r = ''): string { return 'https://example.invalid/logout'; }
@@ -42,6 +50,7 @@ namespace {
         return $seconds > 0 ? '۱ ساعت مانده' : 'مهلت پاسخ گذشته است';
     }
 
+    require_once dirname(__DIR__, 2) . '/platform/src/Core/Application/OwnerFollowupAuthority.php';
     require_once $theme . '/inc/brand.php';
     require_once $theme . '/inc/teacher-portal.php';
 
@@ -143,6 +152,27 @@ namespace {
     $check('status is exposed as text for assistive technology', str_contains($classes_html, 'وضعیت: </span>کلاس آشنایی تأیید شده'));
     $check('details are collapsed by default and the toggle is wired with aria-controls', str_contains($classes_html, 'id="tp-details-0" class="dzn-tp-class-details" hidden') && str_contains($classes_html, 'aria-expanded="false" aria-controls="tp-details-0"'));
     $check('completed classes are available only in the collapsed history section', str_contains($classes_html, '<details class="dzn-tp-class-history">') && str_contains($classes_html, 'کلاس‌های گذشته') && str_contains($classes_html, 'Student Past'));
+
+    // 1d. The operator's follow-up to-do list lives in the Teacher portal, never in wp-admin.
+    $followupNav = array(
+        array('screen' => 'classes', 'label' => 'کلاس‌ها', 'url' => 'https://example.invalid/teacher-portal/?teacher-view=classes', 'current' => false),
+        array('screen' => 'finance', 'label' => 'مالی', 'url' => 'https://example.invalid/teacher-portal/?teacher-view=finance', 'current' => false),
+        array('screen' => 'settings', 'label' => 'تنظیمات', 'url' => 'https://example.invalid/teacher-portal/?teacher-view=settings', 'current' => false),
+        array('screen' => 'followups', 'label' => 'پیگیری‌های نیما', 'url' => 'https://example.invalid/teacher-portal/?teacher-view=followups', 'current' => true),
+    );
+    $followupModel = $model(array(
+        'screen' => 'followups', 'navigation' => $followupNav,
+        'owner_followups' => array(
+            'intros' => array(array('reference' => 'BR-1', 'learner' => 'Sara', 'instrument' => 'Setar', 'when' => 'شنبه ۲۹ آبان، ۱۸:۳۰', 'stage_key' => 'new', 'age' => '۲ روز پیش', 'request_id' => 1)),
+            'onboarding' => array(array('name' => 'Maryam', 'state' => 'در انتظار بررسی شما', 'outstanding' => array('اطلاعات پروفایل کامل نیست'), 'phone' => '+98 912 000 0000')),
+            'payments' => array(array('statement_id' => 11, 'teacher' => 'Nima', 'teacher_reference' => 'DZN-TCH-11', 'period' => 'آبان ۱۴۰۵', 'amount_minor' => 18500000, 'currency' => 'TOM', 'phone' => '+98 912 000 0001')),
+            'failed' => array(),
+        ),
+    ));
+    $followupHtml = $render('followups', $followupModel);
+    $check('the follow-up screen is a Teacher portal to-do list with no admin navigation', str_contains($followupHtml, 'پیگیری‌های نیما') && str_contains($followupHtml, 'کلاس‌های آشنایی بدون مدرس') && str_contains($followupHtml, 'مدرس‌هایی که پرونده‌شان کامل نشده') && str_contains($followupHtml, 'پرداخت به مدرس‌ها') && !str_contains($followupHtml, 'admin.php?page=dzn-'));
+    $check('the follow-up screen offers call and SMS actions for the Teacher', str_contains($followupHtml, 'href="tel:+989120000000"') && str_contains($followupHtml, 'href="sms:+989120000001"'));
+    $check('the follow-up payment posts through the guarded front-end action', str_contains($followupHtml, 'value="dzn_owner_followup_payment"') && str_contains($followupHtml, 'name="command_key"') && str_contains($followupHtml, '_wpnonce'));
 
     // 1c. Attendance confirmation is a fallback: Meet-confirmed classes must not show it.
     $autoClass = $class(array('completion_available' => false, 'completion_completed' => false, 'completion_claimed' => false, 'temporal_state' => 'ended', 'attendance_evidence' => array('state' => 'confirmed', 'minutes' => 25, 'threshold_minutes' => 20, 'reason' => 'overlap_confirmed')));
@@ -316,7 +346,12 @@ namespace {
     foreach (array('classes', 'attention', 'open-requests', 'calendar', 'shell', 'help') as $p) { $parts[$p] = (string) file_get_contents($theme . "/template-parts/teacher-portal/$p.php"); }
     $joined_src = implode("\n", $parts) . (string) file_get_contents($theme . '/inc/teacher-portal.php');
     $check('presentation reads no tables, calls no provider and creates no domain state', !preg_match('/\$wpdb|wp_remote_|curl_|Delnavazan\\\\Platform|platform_outbox|update_option|update_user_meta/', $joined_src));
-    $bridge = (string) file_get_contents($theme . '/inc/platform-bridge.php');
+
+    $routes_src = (string) file_get_contents($theme . '/inc/routes.php');
+    $payment_src = (string) file_get_contents(dirname(__DIR__, 2) . '/platform/src/Portals/OwnerFollowupPaymentController.php');
+    $check('the follow-up screen is available only to the operator identity', str_contains($routes_src, "\$screens[] = 'followups'") && str_contains($routes_src, 'OwnerFollowupAuthority') && str_contains($routes_src, 'isOperator()'));
+    $check('the follow-up payment stays in the platform, nonced and guarded', str_contains($payment_src, 'check_admin_referer') && str_contains($payment_src, 'OwnerFollowupAuthority::isOperator') && str_contains($payment_src, 'TeacherStatementPaymentService') && str_contains($payment_src, "'teacher-view' => 'followups'"));
+    $check('the follow-up screen offers no route into wp-admin pages', !str_contains($followupHtml, 'admin.php?page='));    $bridge = (string) file_get_contents($theme . '/inc/platform-bridge.php');
     $check('view model supplies locale-aware date, UTC start and one teacher timezone for every lesson', str_contains($bridge, "'date' => dzn_theme_platform_calendar_time") && str_contains($bridge, "'starts_at_utc' => (string)") && str_contains($bridge, "'timezone' => \$class_timezone") && str_contains($bridge, "'teacher_timezone' => \$teacher_timezone") && str_contains($bridge, "dzn_theme_platform_teacher_day_window"));
     $check('manual completion is bounded by the seven-day rule', str_contains($bridge, 'ManualAttendanceWindowRule::open') && str_contains($bridge, 'مهلت ثبت دستی'));
     $check('teacher notices distinguish automatic and already-recorded outcomes', str_contains($joined_src, 'class_auto_recorded') && str_contains($joined_src, 'class_already_recorded') && str_contains($joined_src, 'manual_window_expired'));

@@ -87,6 +87,8 @@ final class OwnerFollowupReadService {
                 'reference' => (string) ($teacher->reference_code ?? ''),
                 'state' => $state_labels[$state] ?? 'بدون پرونده',
                 'outstanding' => $outstanding,
+                'phone' => trim((string) ($teacher->phone ?? '')),
+                'whatsapp' => trim((string) ($teacher->whatsapp_phone ?? '')),
             );
         }
         return array_slice($rows, 0, max(1, $limit));
@@ -109,6 +111,8 @@ final class OwnerFollowupReadService {
                 'amount_minor' => (int) ($row->payable_amount_minor ?? 0),
                 'currency' => (string) ($row->currency ?? ''),
                 'issued_at' => (string) ($row->issued_at ?? ''),
+                'phone' => trim((string) ($row->teacher_phone ?? '')),
+                'whatsapp' => trim((string) ($row->teacher_whatsapp ?? '')),
             );
         }
         return $rows;
@@ -174,6 +178,5 @@ final class OwnerFollowupReadService {
 
     private function guard(): void {
         if (!OwnerFollowupAuthority::isOperator()) { throw new \RuntimeException('Unauthorized'); }
-        if (function_exists('current_user_can') && !current_user_can(OwnerFollowupAuthority::CAPABILITY)) { throw new \RuntimeException('Unauthorized'); }
     }
 }

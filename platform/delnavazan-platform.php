@@ -110,7 +110,6 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Admin\Controller\FinanceRateController::register();
 	Delnavazan\Platform\Admin\Controller\FinancePayabilityController::register();
 	Delnavazan\Platform\Admin\Controller\FinanceStatementController::register();
-	Delnavazan\Platform\Admin\Controller\OwnerFollowupController::register();
 	Delnavazan\Platform\Admin\Controller\FinanceReconciliationController::register();
 	Delnavazan\Platform\Admin\Controller\CoreDatasetReadinessController::register();
 	Delnavazan\Platform\Admin\Controller\PortalCapabilityController::register();
@@ -119,6 +118,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Portals\StudentProfileController::register();
 	Delnavazan\Platform\Portals\RecordingDecisionController::register();
 	Delnavazan\Platform\Portals\TeacherOnboardingController::register();
+	Delnavazan\Platform\Portals\OwnerFollowupPaymentController::register();
 	Delnavazan\Platform\Portals\TeacherInductionController::register();
 	Delnavazan\Platform\Portals\TeacherAvailabilitySelfServiceController::register();
 	Delnavazan\Platform\Portals\TeacherInvitationController::register();

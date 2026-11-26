@@ -2,15 +2,11 @@
 namespace Delnavazan\Platform\Admin\Controller;
 
 use Delnavazan\Platform\Admin\AcademyDashboardScreen;
-use Delnavazan\Platform\Core\Application\OwnerFollowupAuthority;
 
 /** Shared, capability-aware Delnavazan application chrome inside wp-admin. */
 final class AdminShellController {
     /** The visible primary navigation follows academy work, never table layout. */
     private const TABS = [
-        'owner' => ['پیگیری‌های نیما', [
-            ['پیگیری‌های نیما', 'dzn-owner-followups', OwnerFollowupAuthority::CAPABILITY],
-        ]],
         'overview' => ['Overview', [
             ['Overview', 'dzn-academy-dashboard', 'dzn_view_booking_requests'],
         ]],
@@ -95,7 +91,6 @@ final class AdminShellController {
 
     /** Pages share their tab while retaining their original, protected callback. */
     private const PAGE_TABS = [
-        'dzn-owner-followups' => 'owner',
         'dzn-platform' => 'overview', 'dzn-academy-dashboard' => 'overview', 'dzn-god-mode' => 'godmode',
         'dzn-teachers-menu' => 'teachers',
         'dzn-student' => 'students', 'dzn-student-identity-authority' => 'students',

@@ -59,6 +59,7 @@ final class NotificationManagementController {
         add_action('admin_post_dzn_notification_provider_refresh',array(__CLASS__,'refreshProviderTemplates'));
         add_action('admin_post_dzn_notification_event_toggle',array(__CLASS__,'toggleEvent'));
         add_action('admin_post_dzn_notification_event_channel_toggle',array(__CLASS__,'toggleEventChannel'));
+        add_action('admin_post_dzn_notification_channel_toggle_ajax',array(__CLASS__,'ajaxToggleEventChannel'));
         add_action('admin_post_dzn_notification_enable_ready_mobile',array(__CLASS__,'enableReadyMobile'));
         add_action('admin_post_dzn_notification_disable_blocked_mobile',array(__CLASS__,'disableBlockedMobile'));
         add_action('admin_post_dzn_notification_inbox_prune',array(__CLASS__,'pruneInbox'));
@@ -103,6 +104,74 @@ final class NotificationManagementController {
             }
         }
         echo '</div></div>';
+        echo self::liveToggleScript();
+    }
+
+    private static function liveToggleScript():string{
+        return <<<'HTML'
+<script>(function(){
+  var status=document.getElementById("dzn-notif-live-status");
+  function say(text){if(status)status.textContent=text||"";}
+  function update(data){
+    say(data.message||"");
+    document.querySelectorAll("form").forEach(function(form){
+      var action=form.querySelector('input[name="action"]');
+      if(!action||action.value!=="dzn_notification_event_channel_toggle")return;
+      var eventInput=form.querySelector('input[name="event_key"]');
+      var channelInput=form.querySelector('input[name="channel"]');
+      if(!eventInput||!channelInput||eventInput.value!==data.event_key||channelInput.value!==data.channel)return;
+      var hidden=form.querySelector('input[name="enabled"]');
+      if(hidden)hidden.value=data.enabled?"0":"1";
+      var button=form.querySelector('button[type="submit"]');
+      if(!button)return;
+      button.disabled=false;
+      button.title=data.title||"";
+      if(button.classList.contains("dzn-nc-channel")){
+        button.classList.toggle("is-on",!!data.active);
+        button.classList.toggle("is-off",!data.active);
+        button.setAttribute("aria-pressed",data.enabled?"true":"false");
+        button.textContent=data.label||"";
+      }else{
+        button.textContent=data.enabled?"Turn off":"Turn on";
+      }
+    });
+    document.querySelectorAll("a.dzn-nc-tab").forEach(function(tab){
+      try{
+        var url=new URL(tab.href,window.location.origin);
+        if(url.searchParams.get("template")!==data.event_key||url.searchParams.get("template_channel")!==data.channel)return;
+        var dot=tab.querySelector(".dzn-nc-dot");
+        if(dot){dot.classList.toggle("is-on",!!data.active);dot.classList.toggle("is-off",!data.active);}
+      }catch(e){}
+    });
+  }
+  document.addEventListener("submit",function(event){
+    var form=event.target;
+    if(!form||form.tagName!=="FORM")return;
+    var action=form.querySelector('input[name="action"]');
+    if(!action||action.value!=="dzn_notification_event_channel_toggle")return;
+    if(!window.fetch)return; // The POST/redirect form remains the no-JavaScript fallback.
+    event.preventDefault();
+    var body=new FormData(form);
+    body.set("action","dzn_notification_channel_toggle_ajax");
+    var nonce=form.querySelector('input[name="_wpnonce"]');
+    if(nonce)body.set("_wpnonce",nonce.value);
+    var button=form.querySelector('button[type="submit"]');
+    var original=button?button.textContent:"";
+    if(button){button.disabled=true;button.textContent="Saving…";}
+    fetch(form.getAttribute("action")||window.ajaxurl,{method:"POST",credentials:"same-origin",body:body,headers:{"X-Requested-With":"XMLHttpRequest"}})
+      .then(function(response){return response.json();})
+      .then(function(result){
+        if(!result||!result.success)throw new Error((result&&result.data&&result.data.message)||"The channel was not changed.");
+        update(result.data);
+        if(button)button.disabled=false;
+      })
+      .catch(function(error){
+        say(error.message||"The channel was not changed.");
+        if(button){button.disabled=false;button.textContent=original;}
+      });
+  },false);
+})();</script>
+HTML;
     }
 
     // ------------------------------------------------------------------ event workspace
@@ -112,6 +181,7 @@ final class NotificationManagementController {
         $filters=self::tableContext();
         $search=(string)($filters['search']??'');$categoryFilter=(string)($filters['category']??'');$recipientFilter=(string)($filters['recipient']??'');$channelFilter=(string)($filters['channel']??'');$statusFilter=(string)($filters['status']??'');
         echo '<h2>Notification catalogue</h2>';
+        echo '<p id="dzn-notif-live-status" class="dzn-notif-meta" role="status" aria-live="polite"></p>';
         echo '<p>Every business notification is managed here, grouped by task. Open one to toggle its channels and edit its copy in a panel that keeps your place. A channel is never described as ready unless its copy and provider are both satisfied; switching delivery off never changes accounts, payments, lessons or consent records.</p>';
         self::renderChannelHealth();
         self::renderCatalogueActions($library);
@@ -1156,10 +1226,10 @@ final class NotificationManagementController {
         self::authorizeEdit();
         check_admin_referer('dzn_notification_enable_ready_mobile');
         $library=new NotificationTemplateLibrary();
-        $enabled=0;$blocked=0;$noSender=0;
+        $enabled=0;$blocked=0;
         foreach(NotificationCatalogue::events() as $eventKey=>$event){
             foreach(array('whatsapp','sms') as $channel){
-                if(!NotificationCatalogue::producesMobileChannel($eventKey,$channel)){$noSender++;continue;}
+                if(!NotificationCatalogue::producesMobileChannel($eventKey,$channel))continue;
                 if(!$library->channelOffered($eventKey,$channel)||$library->eventChannelEnabled($eventKey,$channel))continue;
                 if(self::channelBlocker($library,$eventKey,$channel)!==null){$blocked++;continue;}
                 try{$library->saveEventChannel($eventKey,$channel,true);$enabled++;}catch(\Throwable){$blocked++;}
@@ -1167,7 +1237,6 @@ final class NotificationManagementController {
         }
         $message=$enabled.' mobile channel(s) enabled.';
         if($blocked>0)$message.=' '.$blocked.' channel(s) stayed off because their copy, provider route or provider template is not ready; open the event to see the exact blocker.';
-        if($noSender>0)$message.=' '.$noSender.' method(s) were left untouched because no producer sends them yet.';
         self::flash($enabled>0?'success':'error',$message);
         self::redirectBack('events');
     }
@@ -1193,7 +1262,8 @@ final class NotificationManagementController {
         self::redirectBack('events');
     }
 
-    public static function toggleEventChannel():never{        self::authorizeEdit();
+    public static function toggleEventChannel():never{
+        self::authorizeEdit();
         check_admin_referer('dzn_notification_event_channel_toggle');
         $eventKey=isset($_POST['event_key'])?self::eventKey(wp_unslash((string)$_POST['event_key'])):'';
         $channel=isset($_POST['channel'])?sanitize_key(wp_unslash((string)$_POST['channel'])):'';
@@ -1201,24 +1271,58 @@ final class NotificationManagementController {
         // A card switch is a toggle, not an invitation to edit: return to the catalogue card and
         // leave the drawer closed. Only the editor's own switch reopens the drawer.
         $source=isset($_POST['source'])&&(string)$_POST['source']==='editor'?'editor':'card';
-        if($enabled&&in_array($channel,array('whatsapp','sms'),true)&&!NotificationCatalogue::producesMobileChannel($eventKey,$channel)){
-            self::flash('error','This notification has no sender for that mobile method yet, so it cannot be enabled.');
-            self::redirectBack('events',self::postTableContext(),$eventKey);
-        }
         try{
-            $library=new NotificationTemplateLibrary();
-            // The administrator owns the on/off decision even when a route is not ready yet.
-            // Enabling stores the intent; sending still fails closed until the template, provider
-            // approval and selected route are ready, and the editor shows that blocker.
-            $blocker=$enabled?self::channelBlocker($library,$eventKey,$channel):null;
-            $library->saveEventChannel($eventKey,$channel,$enabled);
-            $message=self::channelLabel($channel).' delivery '.($enabled?'enabled.':'disabled.');
-            if($enabled&&$blocker!==null)$message.=' '.$blocker['label'].': '.$blocker['reason'].' Sending will start when this is resolved.';
-            self::flash('success',$message);
-        }catch(\Throwable $error){self::flash('error','This delivery channel is not available for this event.');}
+            $result=self::applyChannelToggle($eventKey,$channel,$enabled);
+            self::flash('success',$result['message']);
+        }catch(\InvalidArgumentException $error){
+            self::flash('error',$error->getMessage());
+        }catch(\Throwable $error){self::flash('error','This delivery channel was not changed.');}
         $extra=self::postTableContext();
         if($source==='editor')$extra=array('template'=>$eventKey,'template_channel'=>$channel)+$extra;
         self::redirectBack('events',$extra,$eventKey);
+    }
+
+    /**
+     * AJAX twin of toggleEventChannel. It reuses the same capability, nonce, producer guard and
+     * audited save path, and returns the effective state so the card/editor can update in place.
+     * The admin-post form remains the no-JavaScript fallback.
+     */
+    public static function ajaxToggleEventChannel():never{
+        if(!self::canEdit())wp_send_json_error(array('message'=>'You are not allowed to change notification delivery.'),403);
+        if(!wp_verify_nonce(isset($_POST['_wpnonce'])?(string)wp_unslash($_POST['_wpnonce']):'','dzn_notification_event_channel_toggle'))wp_send_json_error(array('message'=>'Security check failed. Reload the page and try again.'),403);
+        $eventKey=isset($_POST['event_key'])?self::eventKey(wp_unslash((string)$_POST['event_key'])):'';
+        $channel=isset($_POST['channel'])?sanitize_key(wp_unslash((string)$_POST['channel'])):'';
+        $enabled=isset($_POST['enabled'])&&(string)$_POST['enabled']==='1';
+        try{
+            wp_send_json_success(self::applyChannelToggle($eventKey,$channel,$enabled));
+        }catch(\InvalidArgumentException $error){
+            wp_send_json_error(array('message'=>$error->getMessage()),400);
+        }catch(\Throwable $error){
+            wp_send_json_error(array('message'=>'The delivery channel was not changed. Reload the page and try again.'),500);
+        }
+    }
+
+    /** Apply one channel switch and return the effective state shared by the POST and AJAX paths. */
+    private static function applyChannelToggle(string $eventKey,string $channel,bool $enabled):array{
+        $event=NotificationCatalogue::get($eventKey);
+        if($event===null||!in_array($channel,array('website','email','whatsapp','sms'),true))throw new \InvalidArgumentException('That delivery channel is not available for this event.');
+        if($enabled&&in_array($channel,array('whatsapp','sms'),true)&&!NotificationCatalogue::producesMobileChannel($eventKey,$channel))throw new \InvalidArgumentException('This notification has no sender for that mobile method yet, so it cannot be enabled.');
+        $library=new NotificationTemplateLibrary();
+        $blocker=$enabled?self::channelBlocker($library,$eventKey,$channel):null;
+        $library->saveEventChannel($eventKey,$channel,$enabled);
+        $state=self::effectiveChannelState($library,$eventKey,$channel);
+        $active=self::channelStateIsOn((string)$state['state']);
+        $reason=(string)($state['reason']??'');
+        $message=self::channelLabel($channel).' delivery '.($enabled?'enabled.':'disabled.');
+        if($enabled&&$blocker!==null)$message.=' '.$blocker['label'].': '.$blocker['reason'].' Sending will start when this is resolved.';
+        $title=$enabled
+            ?($active?'Active. Click to turn this method off.':'On, but not sending yet.'.($reason!==''?' '.$reason:'').' Click to turn this method off.')
+            :('Off. Click to turn this method on.'.($reason!==''?' '.$reason:''));
+        return array(
+            'event_key'=>$eventKey,'channel'=>$channel,'enabled'=>$enabled,'active'=>$active,
+            'state'=>(string)$state['state'],'label'=>(string)($state['label']??''),'reason'=>$reason,
+            'message'=>$message,'title'=>$title,
+        );
     }
 
     public static function pruneInbox():never{self::handle(function(NotificationTemplateLibrary $library,array $input):array{

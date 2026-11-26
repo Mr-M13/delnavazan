@@ -34,6 +34,9 @@ foreach (array(
 $fail('editing uses the canonical template capability', str_contains($controller, "CAP_EDIT='dzn_manage_notification_templates'"));
 $fail('a manual send is idempotent by content, not by clock', str_contains($controller, "hash('sha256',wp_json_encode(\$input))") && !str_contains($controller, "'manual-send:'.gmdate"));
 $fail('a manual send requires the dispatch capability', str_contains((string) file_get_contents(dirname(__DIR__) . '/src/Integrations/Notifications/NotificationManualSendService.php'), "current_user_can(self::CAPABILITY)"));
+$fail('channel toggles have an AJAX no-reload path', str_contains($controller, 'admin_post_dzn_notification_channel_toggle_ajax') && str_contains($controller, 'ajaxToggleEventChannel') && str_contains($controller, 'admin_post_dzn_notification_event_channel_toggle'));
+$fail('the AJAX channel toggle reuses capability, nonce and the audited save path', str_contains($controller, "wp_verify_nonce(isset(\$_POST['_wpnonce'])?(string)wp_unslash(\$_POST['_wpnonce']):'','dzn_notification_event_channel_toggle')") && str_contains($controller, 'wp_send_json_success(self::applyChannelToggle') && str_contains($controller, 'saveEventChannel($eventKey,$channel,$enabled)'));
+$fail('the channel toggle is progressive enhancement, not a replacement', str_contains($controller, 'liveToggleScript') && str_contains($controller, 'dzn_notification_channel_toggle') && str_contains($controller, 'preventDefault') && str_contains($controller, 'new FormData(form)') && str_contains($controller, 'dzn-notif-live-status') && !str_contains($controller, 'location.reload'));
 $fail('every handler checks a nonce', substr_count($controller, 'check_admin_referer(') >= 2);
 $fail('redirects are validated', str_contains($controller, 'wp_safe_redirect'));
 $fail('no eval or request superglobal', !str_contains($controller, 'eval(') && !str_contains($controller, '$_REQUEST'));

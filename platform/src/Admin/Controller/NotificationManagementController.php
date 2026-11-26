@@ -59,7 +59,7 @@ final class NotificationManagementController {
         add_action('admin_post_dzn_notification_provider_refresh',array(__CLASS__,'refreshProviderTemplates'));
         add_action('admin_post_dzn_notification_event_toggle',array(__CLASS__,'toggleEvent'));
         add_action('admin_post_dzn_notification_event_channel_toggle',array(__CLASS__,'toggleEventChannel'));
-        add_action('wp_ajax_dzn_notification_channel_toggle',array(__CLASS__,'ajaxToggleEventChannel'));
+        add_action('admin_post_dzn_notification_channel_toggle_ajax',array(__CLASS__,'ajaxToggleEventChannel'));
         add_action('admin_post_dzn_notification_enable_ready_mobile',array(__CLASS__,'enableReadyMobile'));
         add_action('admin_post_dzn_notification_disable_blocked_mobile',array(__CLASS__,'disableBlockedMobile'));
         add_action('admin_post_dzn_notification_inbox_prune',array(__CLASS__,'pruneInbox'));
@@ -152,13 +152,13 @@ final class NotificationManagementController {
     if(!window.fetch)return; // The POST/redirect form remains the no-JavaScript fallback.
     event.preventDefault();
     var body=new FormData(form);
-    body.set("action","dzn_notification_channel_toggle");
+    body.set("action","dzn_notification_channel_toggle_ajax");
     var nonce=form.querySelector('input[name="_wpnonce"]');
     if(nonce)body.set("_wpnonce",nonce.value);
     var button=form.querySelector('button[type="submit"]');
     var original=button?button.textContent:"";
     if(button){button.disabled=true;button.textContent="Saving…";}
-    fetch(window.ajaxurl||"/wp-admin/admin-ajax.php",{method:"POST",credentials:"same-origin",body:body,headers:{"X-Requested-With":"XMLHttpRequest"}})
+    fetch(form.getAttribute("action")||window.ajaxurl,{method:"POST",credentials:"same-origin",body:body,headers:{"X-Requested-With":"XMLHttpRequest"}})
       .then(function(response){return response.json();})
       .then(function(result){
         if(!result||!result.success)throw new Error((result&&result.data&&result.data.message)||"The channel was not changed.");
@@ -1289,7 +1289,7 @@ HTML;
      */
     public static function ajaxToggleEventChannel():never{
         if(!self::canEdit())wp_send_json_error(array('message'=>'You are not allowed to change notification delivery.'),403);
-        if(!check_ajax_referer('dzn_notification_event_channel_toggle','_wpnonce',false))wp_send_json_error(array('message'=>'Security check failed. Reload the page and try again.'),403);
+        if(!wp_verify_nonce(isset($_POST['_wpnonce'])?(string)wp_unslash($_POST['_wpnonce']):'','dzn_notification_event_channel_toggle'))wp_send_json_error(array('message'=>'Security check failed. Reload the page and try again.'),403);
         $eventKey=isset($_POST['event_key'])?self::eventKey(wp_unslash((string)$_POST['event_key'])):'';
         $channel=isset($_POST['channel'])?sanitize_key(wp_unslash((string)$_POST['channel'])):'';
         $enabled=isset($_POST['enabled'])&&(string)$_POST['enabled']==='1';

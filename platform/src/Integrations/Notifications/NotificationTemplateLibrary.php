@@ -115,10 +115,16 @@ final class NotificationTemplateLibrary {
         return $rows;
     }
 
-    /** A channel exists only when the closed notification catalogue declares it for this event. */
+    /**
+     * A channel exists only when the catalogue declares it for this event and, for a mobile method,
+     * when a producer actually sends it today. The catalogue keeps copy for future channels, but the
+     * workspace must not advertise or enable a method with no sender.
+     */
     public function channelOffered(string $eventKey,string $channel):bool{
         $event=NotificationCatalogue::get($eventKey);
-        return $event!==null&&in_array($channel,(array)$event['channels'],true);
+        if($event===null||!in_array($channel,(array)$event['channels'],true))return false;
+        if(in_array($channel,array('whatsapp','sms'),true)&&!NotificationCatalogue::producesMobileChannel($eventKey,$channel))return false;
+        return true;
     }
 
     /** Whether a declared channel is currently enabled for this exact event. */

@@ -26,6 +26,7 @@ foreach (array(
     'dzn_notification_copy_restore', 'dzn_notification_copy_restore_default', 'dzn_notification_provider_mapping',
     'dzn_notification_event_toggle', 'dzn_notification_event_channel_toggle', 'dzn_notification_inbox_prune', 'dzn_notification_inbox_test',
     'dzn_notification_recover_leases', 'dzn_notification_prepare_drafts', 'dzn_notification_publish_drafts',
+    'dzn_notification_disable_blocked_mobile',
     'dzn_notification_approve_draft', 'dzn_notification_revoke_approval', 'dzn_notification_approve_operational',
     'dzn_notification_approve_all_drafts', 'dzn_notification_manual_send',
 ) as $action) {
@@ -117,6 +118,15 @@ $fail('the renewal notice has a WhatsApp producer', $catalogueClass::producesMob
 $fail('the teacher cancellation is SMS-only', $catalogueClass::producesMobileChannel('booking.cancelled.teacher', 'sms') && !$catalogueClass::producesMobileChannel('booking.cancelled.teacher', 'whatsapp'));
 $fail('one-time account codes have no mobile producer', !$catalogueClass::producesMobileChannel('account.claim_issued.student', 'whatsapp') && !$catalogueClass::producesMobileChannel('account.claim_issued.student', 'sms'));
 $fail('consent notices have no mobile producer', !$catalogueClass::producesMobileChannel('consent.student_required.student', 'whatsapp'));
+$fail('mobile methods without a producer are not offered', str_contains($library, 'producesMobileChannel($eventKey,$channel)') && !str_contains($library, 'return $event!==null&&in_array($channel,(array)$event[\'channels\'],true);'));
+$fail('the card renders only offered methods', str_contains($controller, "foreach((array)\$row['offered'] as \$channel)"));
+$fail('the editor hides an unoffered method', str_contains($controller, 'if(!$library->channelOffered($eventKey,$channel))continue;'));
+$fail('blocked-mobile cleanup is registered and gated', str_contains($controller, 'disableBlockedMobile') && str_contains($controller, 'dzn_notification_disable_blocked_mobile') && str_contains($controller, 'check_admin_referer(\'dzn_notification_disable_blocked_mobile\')'));
+$fail('blocked-mobile cleanup only disables what cannot send', str_contains($controller, 'producesMobileChannel($eventKey,$channel)&&self::channelBlocker($library,$eventKey,$channel)===null') && str_contains($controller, 'saveEventChannel($eventKey,$channel,false)'));
+$fail('WhatsApp readiness uses the Telnyx event transport', str_contains($controller, 'new TelnyxConfiguration($settings)') && str_contains($controller, 'whatsappReady()'));
+$testRunner = (string) file_get_contents($root . '/src/Integrations/IntegrationTestRunner.php');
+$fail('the WhatsApp test requires Telnyx event readiness', str_contains($testRunner, 'telnyx_whatsapp_configuration_incomplete') && str_contains($testRunner, 'whatsappReady()'));
+$fail('the WhatsApp test cannot fall back to Meta direct', !str_contains($testRunner, 'graph.facebook.com'));
 
 /* 4. Inbox storage is contact-free and read state is scoped to the linked WordPress user. */
 $fail('migration creates the inbox table', str_contains($migration, 'portal_notifications') && str_contains($migration, 'UNIQUE KEY dedupe_key'));

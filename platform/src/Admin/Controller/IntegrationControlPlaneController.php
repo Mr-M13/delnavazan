@@ -706,7 +706,12 @@ final class IntegrationControlPlaneController {
 
     private static function renderProviderCard(IntegrationSettingsService $settings,string $provider,string $label,string $supports,string $route,array $controls):void{
         $ready=false;$redacted=array();
-        try{$ready=$settings->ready($provider);$redacted=$settings->redacted($provider);}catch(\Throwable){}
+        try{
+            // WhatsApp event delivery is Telnyx-only; readiness must match the sender, not a
+            // Meta-direct test configuration.
+            $ready=$provider==='whatsapp'?(new TelnyxConfiguration($settings))->whatsappReady():$settings->ready($provider);
+            $redacted=$settings->redacted($provider);
+        }catch(\Throwable){}
         $secretStored=false;foreach($redacted as $value)if($value===true){$secretStored=true;break;}
         $last=(array)get_option('dzn_integration_test_'.$provider,array());
         $lastState=(string)($last['state']??'');

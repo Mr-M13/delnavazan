@@ -376,7 +376,9 @@ final class DiagnosticRegistry {
 
     private function checkAttendanceEvidence(): array {
         $open = $this->int("SELECT COUNT(*) FROM {$this->p()}canonical_attendance_cases WHERE state NOT IN ('confirmed','resolved','closed','cancelled')");
-        $conflicts = $this->int("SELECT COUNT(*) FROM {$this->p()}canonical_attendance_conflicts WHERE resolved_at IS NULL");
+        // Conflicts are an append-only ledger with no resolution column: the owning case state is the
+        // resolution signal, read through the repository that owns that schema knowledge.
+        $conflicts = (new \Delnavazan\Platform\Core\Infrastructure\Repository\CanonicalAttendanceRepository())->unresolvedConflictCount();
         if ($conflicts > 0) return array('state' => 'failed', 'detail' => $conflicts . ' attendance conflict(s) are unresolved.', 'technical_code' => 'attendance_conflicts_open', 'related' => array('page=dzn-attendance-review'));
         return $open > 0
             ? array('state' => 'degraded', 'detail' => $open . ' attendance case(s) await confirmation or review.', 'technical_code' => 'attendance_cases_open', 'related' => array('page=dzn-attendance-review'))

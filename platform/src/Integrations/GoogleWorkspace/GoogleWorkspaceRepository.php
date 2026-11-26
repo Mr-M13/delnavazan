@@ -318,6 +318,13 @@ final class GoogleWorkspaceRepository {
     }
     public function insertParticipantSession(array $data):int{return $this->insert('meet_participant_sessions',$data);}
     public function updateParticipantSession(int $id,array $data,array $where):int{return $this->update('meet_participant_sessions',$data,array_merge(array('id'=>$id),$where));}
+
+    /** Timestamp the recording companion reported it had joined a classroom, if it ever did. */
+    public function recorderJoinedAt(int $classroomId):?string{
+        global $wpdb;
+        $value=$wpdb->get_var($wpdb->prepare("SELECT created_at FROM {$this->p}meet_classroom_events WHERE classroom_id=%d AND operation='recorder_join' AND result_state='joined' ORDER BY id DESC LIMIT 1",$classroomId));
+        return $value===null?null:(string)$value;
+    }
     public function participantSessionsForClassroom(int $classroomId):array{
         return $this->rows("SELECT * FROM {$this->p}meet_participant_sessions WHERE classroom_id=%d ORDER BY join_at_utc,id",$classroomId);
     }

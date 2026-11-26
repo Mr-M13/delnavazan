@@ -281,7 +281,7 @@ namespace {
 	$bridgeSource = (string) file_get_contents( ABSPATH . 'theme/inc/platform-bridge.php' );
 	$classRowTemplate = (string) file_get_contents( ABSPATH . 'theme/template-parts/teacher-portal/class-row.php' );
 	$check( 'the class card shows recorded attendance evidence', str_contains( $classRowTemplate, 'data-dzn-attendance-evidence' ) && str_contains( $bridgeSource, "'attendance_evidence' =>" ) );
-	$check( 'attendance evidence states the overlap minutes against the locked threshold', str_contains( $attendanceSummary, 'CanonicalAttendanceRule::assess' ) && str_contains( $attendanceSummary, "'threshold_minutes'" ) && str_contains( $attendanceSummary, "'identity_unmapped'" ) );
+	$check( 'attendance evidence states the presence minutes against the locked threshold', str_contains( $attendanceSummary, 'CanonicalAttendanceRule::presence' ) && str_contains( $attendanceSummary, "'threshold_minutes'" ) && str_contains( $attendanceSummary, "'participants_below_two'" ) );
 	$check( 'attendance evidence is read-only, role-mapped and owner-scoped', str_contains( $attendanceSummary, 'participantSessionsForClassroom' ) && str_contains( $attendanceSummary, 'mappingsForAccount' ) && str_contains( $attendanceSummary, "!==\$viewerId)return \$empty;" ) && ! str_contains( $attendanceSummary, 'insert' ) && ! str_contains( $attendanceSummary, 'update' ) );
 
 	$routes = (string) file_get_contents( ABSPATH . 'theme/inc/routes.php' );

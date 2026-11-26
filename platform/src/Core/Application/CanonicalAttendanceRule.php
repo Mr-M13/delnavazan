@@ -2,38 +2,109 @@
 namespace Delnavazan\Platform\Core\Application;
 
 /**
- * Locked Phase 2A.2-P attendance assessment rule (owner-locked policy).
+ * Locked Phase 2A.2-P attendance assessment rules (owner-locked policy).
  *
- * The rule is deliberately explicit and versioned because it decides when ordinary delivery may
- * settle automatically. Nothing here is canonical delivery truth: Phase O owns that.
+ * These rules decide when ordinary delivery may settle automatically. Nothing here is canonical
+ * delivery truth: Phase O owns that.
  *
- * Owner locks encoded here:
- *  - v2 widens the window so a class that starts early or runs late still confirms: one hour of
- *    pre-class grace and one hour of post-class grace;
- *  - the qualifying window is therefore [scheduled_start - 3600s, scheduled_end + 3600s);
- *  - automatic success requires at least 1200 seconds (20 minutes) of simultaneous Teacher/Student
- *    qualifying overlap; exactly 1200 passes, 1199 does not;
- *  - multiple trusted intervals for one participant are unioned (devices/accounts are never
- *    double-counted), and open/missing leave times never qualify.
+ * v3 (current owner policy, `canonical_attendance_presence_v3`):
+ *  - presence is the evidence, not identity: any two or more participants other than the
+ *    organizer/liaison session, simultaneously present for at least 1200 seconds (20 minutes),
+ *    settle the class as delivered;
+ *  - the qualifying window is [scheduled_start − 1800s, scheduled_end + 1800s); a meeting held on
+ *    any other date through the same link never qualifies;
+ *  - exactly 1200 seconds pass, 1199 do not;
+ *  - multiple sessions for one participant are unioned (devices are never double-counted), open or
+ *    missing leave times never qualify, and a participant swap does not break a continuous run.
+ *
+ * v2 (`canonical_attendance_overlap_v2`) is retained only so cases admitted under it keep
+ * validating and reading identically. It required verified Teacher and Student identities and one
+ * hour of grace either side.
  */
 final class CanonicalAttendanceRule {
-    public const RULE_VERSION='canonical_attendance_overlap_v2';
+    public const RULE_VERSION='canonical_attendance_presence_v3';
+    public const RULE_VERSIONS=array('canonical_attendance_overlap_v2','canonical_attendance_presence_v3');
     public const THRESHOLD_SECONDS=1200;
-    public const PRE_GRACE_SECONDS=3600;
-    public const POST_GRACE_SECONDS=3600;
+    public const PRE_GRACE_SECONDS=1800;
+    public const POST_GRACE_SECONDS=1800;
+    public const MIN_PARTICIPANTS=2;
     public const EXCLUDED_IMPOSSIBLE_INTERVAL='impossible_interval';
     public const EXCLUDED_OUTSIDE_WINDOW='outside_qualifying_window';
     public const EXCLUDED_OPEN_INTERVAL='open_interval';
+    public const EXCLUDED_INVALID_INTERVAL='invalid_interval';
 
-    /** Qualifying window bounds as UTC instants: [start, end + post grace). */
-    public static function window(string $occurrenceStartUtc,string $occurrenceEndUtc):array{
+    /** Frozen numeric policy for one rule version; null for an unknown version. */
+    public static function policy(string $ruleVersion):?array{
+        if($ruleVersion==='canonical_attendance_overlap_v2')return array(
+            'threshold_seconds'=>1200,'pre_grace_seconds'=>3600,'post_grace_seconds'=>3600,
+            'min_participants'=>0,'presence'=>false,
+        );
+        if($ruleVersion==='canonical_attendance_presence_v3')return array(
+            'threshold_seconds'=>self::THRESHOLD_SECONDS,'pre_grace_seconds'=>self::PRE_GRACE_SECONDS,
+            'post_grace_seconds'=>self::POST_GRACE_SECONDS,'min_participants'=>self::MIN_PARTICIPANTS,
+            'presence'=>true,
+        );
+        return null;
+    }
+
+    /** Qualifying window bounds as UTC instants: [start − pre grace, end + post grace). */
+    public static function window(string $occurrenceStartUtc,string $occurrenceEndUtc,?string $ruleVersion=null):array{
+        $limits=self::policy($ruleVersion??self::RULE_VERSION);
+        if($limits===null)throw new \InvalidArgumentException('unknown_attendance_rule_version');
         $start=(int)strtotime($occurrenceStartUtc.' UTC');
         $end=(int)strtotime($occurrenceEndUtc.' UTC');
         return array(
-            'window_start_utc'=>gmdate('Y-m-d H:i:s',$start-self::PRE_GRACE_SECONDS),
-            'window_end_utc'=>gmdate('Y-m-d H:i:s',$end+self::POST_GRACE_SECONDS),
-            'window_start_ts'=>$start-self::PRE_GRACE_SECONDS,
-            'window_end_ts'=>$end+self::POST_GRACE_SECONDS,
+            'window_start_utc'=>gmdate('Y-m-d H:i:s',$start-(int)$limits['pre_grace_seconds']),
+            'window_end_utc'=>gmdate('Y-m-d H:i:s',$end+(int)$limits['post_grace_seconds']),
+            'window_start_ts'=>$start-(int)$limits['pre_grace_seconds'],
+            'window_end_ts'=>$end+(int)$limits['post_grace_seconds'],
+        );
+    }
+
+    /**
+     * Assess simultaneous presence of distinct participants inside the qualifying window.
+     *
+     * @param array<string,array<int,array{join_at_utc:string,leave_at_utc:?string}>> $participants
+     *        keyed by the provider account or session identity; the liaison/organizer must already
+     *        be excluded by the caller.
+     * @return array{seconds:int,threshold_seconds:int,min_participants:int,participants:int,eligible:bool,segments:array,excluded:array,window:array}
+     */
+    public static function presence(array $participants,string $occurrenceStartUtc,string $occurrenceEndUtc):array{
+        $window=self::window($occurrenceStartUtc,$occurrenceEndUtc,self::RULE_VERSION);
+        $excluded=array();$merged=array();
+        foreach($participants as$key=>$intervals){
+            $clipped=self::union(self::clip((array)$intervals,$window,$excluded,(string)$key),$window,$excluded,(string)$key);
+            if($clipped)$merged[(string)$key]=$clipped;
+        }
+        $delta=array();
+        foreach($merged as$intervals)foreach($intervals as$interval){
+            $delta[$interval['start_ts']]=($delta[$interval['start_ts']]??0)+1;
+            $delta[$interval['end_ts']]=($delta[$interval['end_ts']]??0)-1;
+        }
+        ksort($delta);
+        $active=0;$seconds=0;$segments=array();$open=null;$previous=null;
+        foreach($delta as$instant=>$change){
+            if($previous!==null&&$instant>$previous){
+                if($active>=self::MIN_PARTICIPANTS){
+                    if($open===null)$open=(int)$previous;
+                    $seconds+=(int)$instant-(int)$previous;
+                }elseif($open!==null){
+                    $segments[]=array('start_ts'=>$open,'end_ts'=>(int)$previous);$open=null;
+                }
+            }
+            $active+=(int)$change;$previous=(int)$instant;
+        }
+        if($open!==null&&$previous!==null)$segments[]=array('start_ts'=>$open,'end_ts'=>(int)$previous);
+        $count=count($merged);
+        return array(
+            'seconds'=>$seconds,
+            'threshold_seconds'=>self::THRESHOLD_SECONDS,
+            'min_participants'=>self::MIN_PARTICIPANTS,
+            'participants'=>$count,
+            'eligible'=>$count>=self::MIN_PARTICIPANTS&&$seconds>=self::THRESHOLD_SECONDS,
+            'segments'=>array_map(static fn(array $s):array=>array('start_utc'=>gmdate('Y-m-d H:i:s',$s['start_ts']),'end_utc'=>gmdate('Y-m-d H:i:s',$s['end_ts'])),$segments),
+            'excluded'=>$excluded,
+            'window'=>$window,
         );
     }
 
@@ -45,7 +116,8 @@ final class CanonicalAttendanceRule {
      * @return array{seconds:int,threshold_seconds:int,eligible:bool,segments:array,excluded:array,excluded_teacher:int,excluded_student:int}
      */
     public static function assess(array $teacherIntervals,array $studentIntervals,string $occurrenceStartUtc,string $occurrenceEndUtc):array{
-        $window=self::window($occurrenceStartUtc,$occurrenceEndUtc);
+        // Legacy v2 assessment: retained for cases admitted under the identity-based rule.
+        $window=self::window($occurrenceStartUtc,$occurrenceEndUtc,'canonical_attendance_overlap_v2');
         $excluded=array();
         $teacher=self::union(self::clip($teacherIntervals,$window,$excluded,'teacher'),$window,$excluded,'teacher');
         $student=self::union(self::clip($studentIntervals,$window,$excluded,'student'),$window,$excluded,'student');

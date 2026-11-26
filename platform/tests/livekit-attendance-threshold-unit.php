@@ -71,9 +71,10 @@ $impossible=dzn_lk_threshold_assess(array($t('2026-10-31 10:10:00','2026-10-31 1
 dzn_lk_threshold_assert($impossible['seconds']===0,'an impossible interval must not qualify');
 dzn_lk_threshold_assert(in_array(CanonicalAttendanceRule::EXCLUDED_IMPOSSIBLE_INTERVAL,array_column($impossible['excluded'],'reason'),true),'an impossible interval must be reported');
 
-// The rule identity is locked.
+// The rule identity is locked (v3 presence policy).
 dzn_lk_threshold_assert(CanonicalAttendanceRule::THRESHOLD_SECONDS===1200,'the locked threshold must remain 1200');
-dzn_lk_threshold_assert(CanonicalAttendanceRule::PRE_GRACE_SECONDS===3600,'pre-start grace must remain one hour');
-dzn_lk_threshold_assert(CanonicalAttendanceRule::POST_GRACE_SECONDS===3600,'post-end grace must remain one hour');
+dzn_lk_threshold_assert(CanonicalAttendanceRule::PRE_GRACE_SECONDS===1800,'pre-start grace must remain 30 minutes');
+dzn_lk_threshold_assert(CanonicalAttendanceRule::POST_GRACE_SECONDS===1800,'post-end grace must remain 30 minutes');
+dzn_lk_threshold_assert(CanonicalAttendanceRule::MIN_PARTICIPANTS===2,'two participants must remain the presence minimum');
 
 echo "LiveKit attendance threshold unit passed\n";

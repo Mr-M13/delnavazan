@@ -36,13 +36,14 @@ if(str_contains($migration,"if(!\$role->has_cap('dzn_manage_canonical_attendance
 foreach(array('dzn_manage_canonical_attendance_identity','dzn_view_canonical_attendance_review')as$n)if(!str_contains($migration,'$phasePGrants')||!str_contains($migration,$n))throw new RuntimeException('Phase P capability repair must independently ensure '.$n);
 if(!str_contains($migration,'remove_cap'))throw new RuntimeException('Phase P capability repair must withhold reserved authority from the Teacher role');
 
-// Locked temporal window and threshold.
-foreach(array("RULE_VERSION='canonical_attendance_overlap_v2'","THRESHOLD_SECONDS=1200","PRE_GRACE_SECONDS=3600","POST_GRACE_SECONDS=3600")as$n)if(!str_contains($rule,$n))throw new RuntimeException('Missing locked Phase P rule constant: '.$n);
-if(!str_contains($rule,'$end+self::POST_GRACE_SECONDS'))throw new RuntimeException('Qualifying window must end at scheduled end plus the post-class grace');
-if(!str_contains($rule,'$start-self::PRE_GRACE_SECONDS'))throw new RuntimeException('Qualifying window must start at the scheduled start minus the pre-class grace');
+// Locked temporal window and threshold (v3 presence rule).
+foreach(array("RULE_VERSION='canonical_attendance_presence_v3'","THRESHOLD_SECONDS=1200","PRE_GRACE_SECONDS=1800","POST_GRACE_SECONDS=1800","MIN_PARTICIPANTS=2",'public static function presence','public static function policy')as$n)if(!str_contains($rule,$n))throw new RuntimeException('Missing locked Phase P rule constant: '.$n);
+if(!str_contains($rule,"'window_start_ts'=>\$start-(int)\$limits['pre_grace_seconds']"))throw new RuntimeException('Qualifying window must start at the scheduled start minus the pre-class grace');
+if(!str_contains($rule,"'window_end_ts'=>\$end+(int)\$limits['post_grace_seconds']"))throw new RuntimeException('Qualifying window must end at scheduled end plus the post-class grace');
 if(!str_contains($rule,'$seconds>=self::THRESHOLD_SECONDS'))throw new RuntimeException('Automatic success must require at least the locked threshold');
 if(!str_contains($rule,'EXCLUDED_OPEN_INTERVAL')||!str_contains($rule,'EXCLUDED_IMPOSSIBLE_INTERVAL'))throw new RuntimeException('Open and impossible intervals must be explicitly excluded');
 if(!str_contains($rule,'private static function union')||!str_contains($rule,'private static function intersect'))throw new RuntimeException('Overlap must union per participant then intersect');
+if(!str_contains($rule,'canonical_attendance_overlap_v2'))throw new RuntimeException('The retired v2 rule must stay readable for admitted cases');
 
 // P-1 durable provider-neutral participant identity authority.
 foreach(array("const CAPABILITY='dzn_manage_canonical_attendance_identity'",'record_participant_mapping','revoke_participant_mapping','provider_account_digest','mapping_version','public static function resolve','public static function resolveExpected')as$n)if(!str_contains($identity,$n))throw new RuntimeException('Missing Phase P identity authority contract: '.$n);
@@ -55,7 +56,7 @@ if(!str_contains($intake,'resolveIdentity')||!str_contains($intake,'CanonicalAtt
 if(!str_contains($intake,'canonical_attendance_integrity_conflict'))throw new RuntimeException('Provider intake must fail closed when the post-insert aggregate is invalid');
 
 // Intake is not delivery truth; settlement delegates to Phase O and Lesson authority.
-foreach(array("const PROVIDER_CAPABILITY='dzn_ingest_canonical_attendance_evidence'","const STUDENT_CLAIM_CAPABILITY='dzn_submit_own_attendance_claim'","const TEACHER_CLAIM_CAPABILITY='dzn_submit_own_delivery_claim'","const REVIEW_CAPABILITY='dzn_manage_canonical_attendance_review'",'ingestProviderEvidence','submitClaim','adjudicate','reassess','assessAndDecide','cutover_policy_required','occurrence_before_cutover','schedule_version_conflict','provider_evidence_missing','overlap_below_threshold','teacher_participation_unproven','student_participation_unproven','late_evidence','canonical_outcome_exists','lesson_cancelled')as$n)if(!str_contains($intake,$n))throw new RuntimeException('Missing Phase P intake contract: '.$n);
+foreach(array("const PROVIDER_CAPABILITY='dzn_ingest_canonical_attendance_evidence'","const STUDENT_CLAIM_CAPABILITY='dzn_submit_own_attendance_claim'","const TEACHER_CLAIM_CAPABILITY='dzn_submit_own_delivery_claim'","const REVIEW_CAPABILITY='dzn_manage_canonical_attendance_review'",'ingestProviderEvidence','submitClaim','adjudicate','reassess','assessAndDecide','assessLegacyAndDecide','cutover_policy_required','occurrence_before_cutover','schedule_version_conflict','provider_evidence_missing','participants_below_two','presence_below_threshold','overlap_below_threshold','late_evidence','canonical_outcome_exists','lesson_cancelled')as$n)if(!str_contains($intake,$n))throw new RuntimeException('Missing Phase P intake contract: '.$n);
 if(!str_contains($intake,'CanonicalLessonDeliveryService'))throw new RuntimeException('Phase P must delegate canonical outcomes to Phase O');
 if(!str_contains($settlement,'CanonicalLessonDeliveryService')||!str_contains($settlement,'CanonicalLessonAuthorityService'))throw new RuntimeException('Settlement must delegate to Phase O and Lesson authority');
 if(!str_contains($settlement,'attendance-settlement-outcome-')||!str_contains($settlement,'attendance-settlement-complete-'))throw new RuntimeException('Settlement must use deterministic staged convergence keys');
@@ -96,7 +97,7 @@ if(!str_contains($intake,'duplicate_cutover_instant'))throw new RuntimeException
 if(!str_contains($migration,'UNIQUE KEY cutover_instant(cutover_utc)')&&!str_contains($migration,"'cutover_instant',true"))throw new RuntimeException('Migration 023 must enforce one immutable cutover policy per instant');
 if(!str_contains($validator,"'policy'")&&!str_contains($validator,'$policy'))throw new RuntimeException('The validator must validate the cutover policy binding');
 foreach(array('->threshold_seconds','->pre_grace_seconds','->post_grace_seconds','->cutover_utc')as$n)if(!str_contains($validator,$n))throw new RuntimeException('The validator must freeze the cutover policy constants: '.$n);
-if(!str_contains($validator,'rule_version')||!str_contains($validator,'CanonicalAttendanceRule::RULE_VERSION'))throw new RuntimeException('The validator must validate the case rule version');
+if(!str_contains($validator,'rule_version')||!str_contains($validator,'CanonicalAttendanceRule::policy('))throw new RuntimeException('The validator must validate the case rule version against its frozen policy');
 
 // P-8: duplicate-key recovery always compares the expected payload, with no null-digest bypass.
 if(str_contains($intake,'replayCommand($winner,null'))throw new RuntimeException('Duplicate command recovery must never pass a null expected payload/context digest');

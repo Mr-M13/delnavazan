@@ -2,7 +2,7 @@
 namespace Delnavazan\Platform\Admin\Cli;
 
 use Delnavazan\Platform\Integrations\GoogleWorkspace\{GoogleWorkspaceApiClient,GoogleWorkspaceClassroomRule,GoogleWorkspaceClassroomService,GoogleWorkspaceOAuthService,GoogleWorkspaceRepository,MeetAttendanceService,MeetRecordingService};
-use Delnavazan\Platform\Core\Application\ProviderEvidenceSystemActor;
+use Delnavazan\Platform\Core\Application\{CanonicalAttendanceIntakeService,CanonicalAttendanceRule,ProviderEvidenceSystemActor};
 
 /** Operator commands for the Google Meet migration. No command deletes historical data. */
 final class MeetMigrationCommand {
@@ -296,6 +296,31 @@ final class MeetMigrationCommand {
             throw $error;
         }
         \WP_CLI::success('Classroom '.(int)$result['classroom_id'].' retried for lesson '.$lessonId.' · state '.(string)$result['state'].' · reset '.($result['reset']?'yes':'no'));
+    }
+
+    /**
+     * Record the next prospective canonical attendance cutover (owner policy activation).
+     *
+     * The presence rule starts applying to occurrences that begin at or after this instant. The
+     * instant must still be in the future; an earlier class keeps the rule it was admitted under.
+     *
+     * ## OPTIONS
+     * --at=<YYYY-MM-DD HH:MM:SS>  UTC activation instant, a few minutes in the future.
+     *
+     * ## EXAMPLES
+     *     wp dzn-meet attendance_cutover --at="2026-11-26 12:00:00" --user=1
+     */
+    public function attendance_cutover(array $args,array $assoc):void{
+        self::requireOperator();
+        $at=trim((string)($assoc['at']??''));
+        if($at==='') \WP_CLI::error('--at is required (UTC Y-m-d H:i:s).');
+        try{
+            $result=(new CanonicalAttendanceIntakeService())->recordCutoverPolicy($at,'attendance-cutover-'.$at);
+        }catch(\Throwable $error){
+            \WP_CLI::error($error->getMessage());
+            return;
+        }
+        \WP_CLI::success('Attendance cutover recorded: policy #'.(int)($result['policy_id']??0).' from '.$at.' UTC under '.CanonicalAttendanceRule::RULE_VERSION.'.');
     }
 
     /** Reconcile ended classrooms' recordings and participant sessions. */

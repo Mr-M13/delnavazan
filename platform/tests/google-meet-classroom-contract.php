@@ -124,14 +124,15 @@ $check('playback uses the audited access service', str_contains($playback, 'Meet
 $attendance = $read('platform/src/Integrations/GoogleWorkspace/MeetAttendanceService.php');
 $check('participant sessions are read from Meet', str_contains($attendance, 'listParticipantSessions'));
 $check('anonymous guests are retained as unverified evidence', str_contains($attendance, "'type'=>'anonymous'"));
-$check('only a verified Phase-P mapping may reach canonical intake', str_contains($attendance, 'verifiedAttendanceMapping'));
+$check('every signed-in or guest session reaches canonical intake without an identity mapping', str_contains($attendance, "'attendee'") && str_contains($attendance, 'liaisonDigests'));
+$check('the organizer/liaison account is never admitted as evidence', str_contains($attendance, "'mapping_state'=>'liaison'") && str_contains($attendance, 'learnLiaison'));
 $check('attendance never writes completion directly', !str_contains($attendance, 'completed_at') && !str_contains($attendance, 'lifecycle_state'));
 $check('unattended Meet ingestion uses the narrow provider-evidence actor', str_contains($attendance, 'ProviderEvidenceSystemActor::run') && !str_contains($attendance, "current_user_can('dzn_ingest_canonical_attendance_evidence')"));
 $check('signed-in Meet accounts use the canonical identity-registry digest', str_contains($attendance, 'CanonicalAttendanceIdempotency::evidence($account)') && !str_contains($attendance, "hash('sha256','dzn-meet-account:"));
 $check('booking classrooms enter the introductory settlement adapter', str_contains($attendance, 'booking_confirmation_id') && str_contains($attendance, 'MeetIntroAttendanceService') && str_contains($attendance, 'settleClassroom'));
 $introAttendance = $read('platform/src/Integrations/GoogleWorkspace/MeetIntroAttendanceService.php');
-$check('introductory settlement reuses the locked attendance rule', str_contains($introAttendance, 'CanonicalAttendanceRule::assess') && str_contains($introAttendance, 'CanonicalAttendanceRule::THRESHOLD_SECONDS') && str_contains($introAttendance, 'CanonicalAttendanceRule::window'));
-$check('introductory settlement re-reads durable sessions and verified exact participants', str_contains($introAttendance, 'participantSessionsForClassroom') && str_contains($introAttendance, 'resolveExpected') && str_contains($introAttendance, 'mappingsForAccount'));
+$check('introductory settlement reuses the locked attendance rule', str_contains($introAttendance, 'CanonicalAttendanceRule::presence') && str_contains($introAttendance, 'CanonicalAttendanceRule::THRESHOLD_SECONDS') && str_contains($introAttendance, 'CanonicalAttendanceRule::window'));
+$check('introductory settlement re-reads durable sessions and excludes the liaison', str_contains($introAttendance, 'participantSessionsForClassroom') && str_contains($introAttendance, 'liaisonDigests') && str_contains($introAttendance, 'CanonicalAttendanceRule::presence'));
 $check('introductory settlement waits for the post-class window', str_contains($introAttendance, "array('state'=>'window_open'") && str_contains($introAttendance, 'window_end_utc'));
 $check('introductory settlement requires the reconciled conference record', str_contains($introAttendance, "array('state'=>'conference_record_required'"));
 $check('introductory settlement rejects an inactive or non-reconcilable classroom', str_contains($introAttendance, "array('state'=>'classroom_not_reconcilable'"));

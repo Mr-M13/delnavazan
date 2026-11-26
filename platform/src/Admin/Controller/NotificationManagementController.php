@@ -17,6 +17,7 @@ use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateSanitizer
 use Delnavazan\Platform\Integrations\Notifications\NotificationTemplateValidationException;
 use Delnavazan\Platform\Integrations\Notifications\SmsIrTemplateRegistry;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateAuthority;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxConfiguration;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateDiscoveryService;
 use Delnavazan\Platform\Integrations\Notifications\TelnyxTemplateRegistry;
 use Delnavazan\Platform\Portals\PortalNotificationInbox;
@@ -59,6 +60,7 @@ final class NotificationManagementController {
         add_action('admin_post_dzn_notification_event_toggle',array(__CLASS__,'toggleEvent'));
         add_action('admin_post_dzn_notification_event_channel_toggle',array(__CLASS__,'toggleEventChannel'));
         add_action('admin_post_dzn_notification_enable_ready_mobile',array(__CLASS__,'enableReadyMobile'));
+        add_action('admin_post_dzn_notification_disable_blocked_mobile',array(__CLASS__,'disableBlockedMobile'));
         add_action('admin_post_dzn_notification_inbox_prune',array(__CLASS__,'pruneInbox'));
         add_action('admin_post_dzn_notification_inbox_test',array(__CLASS__,'testInbox'));
         add_action('admin_post_dzn_notification_recover_leases',array(__CLASS__,'recoverLeases'));
@@ -120,7 +122,8 @@ final class NotificationManagementController {
         foreach(NotificationCatalogue::events() as $eventKey=>$event){
             $searchText=$eventKey.' '.(string)($event['label']??'').' '.(string)($event['purpose']??'');
             foreach((array)($event['channels']??array()) as $searchChannel){$copy=$library->activeCopy($eventKey,(string)$searchChannel,NotificationCatalogue::PRIMARY_LOCALE);$searchText.=' '.(string)($copy['subject']??'').' '.(string)($copy['body']??'');}
-            $offered=(array)($event['channels']??array());
+            $offered=array();
+            foreach(array('website','email','whatsapp','sms') as $offeredChannel)if($library->channelOffered($eventKey,$offeredChannel))$offered[]=$offeredChannel;
             $states=array();$enabled=array();foreach(array('website','email','whatsapp','sms') as $channel){$states[$channel]=self::effectiveChannelState($library,$eventKey,$channel);$enabled[$channel]=$library->eventChannelEnabled($eventKey,$channel);}
             $candidate=array('key'=>$eventKey,'event'=>$event,'offered'=>$offered,'states'=>$states,'enabled'=>$enabled,'readiness'=>self::readiness($library,$eventKey,$offered),'search_text'=>$searchText);
             if(!self::tableFilterMatches($candidate,$filters))continue;
@@ -203,9 +206,8 @@ final class NotificationManagementController {
         echo '</div>';
 
         echo '<div class="dzn-nc-channel-buttons" role="group" aria-label="Delivery methods">';
-        foreach(array('website','email','whatsapp','sms') as $channel){
-            if(!in_array($channel,(array)$row['offered'],true)){self::renderCardChannelButton($eventKey,$channel,array('state'=>'unsupported','label'=>'Not offered','reason'=>'This notification does not use this delivery method.'),false);continue;}
-            self::renderCardChannelButton($eventKey,$channel,$row['states'][$channel],(bool)($row['enabled'][$channel]??false));
+        foreach((array)$row['offered'] as $channel){
+            self::renderCardChannelButton($eventKey,(string)$channel,$row['states'][$channel],(bool)($row['enabled'][$channel]??false));
         }
         echo '</div>';
 
@@ -448,8 +450,11 @@ final class NotificationManagementController {
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_enable_ready_mobile">';
             wp_nonce_field('dzn_notification_enable_ready_mobile');
             echo '<button class="button" type="submit" onclick="return confirm(\'Enable every WhatsApp and SMS route whose producer exists and whose copy/provider route is ready? Security and one-time-code events are never included.\')">4. Enable ready WhatsApp &amp; SMS events</button></form>';
+            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_disable_blocked_mobile">';
+            wp_nonce_field('dzn_notification_disable_blocked_mobile');
+            echo '<button class="button" type="submit" onclick="return confirm(\'Disable every enabled WhatsApp/SMS route that cannot send (no producer, missing provider or unapproved template)? Ready routes stay on.\')">5. Disable blocked mobile routes</button></form>';
             echo '</div>';
-            echo '<p class="dzn-notif-meta">This enables only events whose code actually sends the method. A method with no producer is shown as “No sender yet” and cannot be switched on. The provider test under Integrations proves transport only.</p>';
+            echo '<p class="dzn-notif-meta">Action 4 enables only events whose code actually sends the method and whose provider route is ready. Action 5 turns off enabled routes that cannot send, so they are reported as an administrator decision instead of a permanent error. A method with no producer is not shown at all.</p>';
         }
 
         $oneTimeAll=$library->oneTimeAllDraftApproval();
@@ -753,8 +758,8 @@ final class NotificationManagementController {
     private static function renderChannelTabs(NotificationTemplateLibrary $library,string $eventKey,string $activeChannel,string $locale):void{
         echo '<nav class="dzn-nc-tabs" role="tablist" aria-label="Delivery methods">';
         foreach(array('website','email','whatsapp','sms') as $channel){
-            $offered=$library->channelOffered($eventKey,$channel);
-            $state=$offered?self::effectiveChannelState($library,$eventKey,$channel):array('state'=>'unsupported');
+            if(!$library->channelOffered($eventKey,$channel))continue;
+            $state=self::effectiveChannelState($library,$eventKey,$channel);
             $on=self::channelStateIsOn((string)$state['state']);
             echo '<a role="tab" aria-selected="'.($channel===$activeChannel?'true':'false').'" class="dzn-nc-tab'.($channel===$activeChannel?' is-active':'').'" href="'.esc_url(self::editorUrl($eventKey,$channel,$locale)).'#event-'.esc_attr($eventKey).'"><span class="dzn-nc-dot '.($on?'is-on':'is-off').'" aria-hidden="true"></span>'.esc_html(self::channelLabel($channel)).'</a>';
         }
@@ -1167,6 +1172,27 @@ final class NotificationManagementController {
         self::redirectBack('events');
     }
 
+    /**
+     * Turn off every enabled mobile route that cannot send: no producer, missing provider, or an
+     * unapproved/unmapped provider template. A route that is off is reported as an administrator
+     * decision, not a permanent delivery error, and a ready route is never touched.
+     */
+    public static function disableBlockedMobile():never{
+        self::authorizeEdit();
+        check_admin_referer('dzn_notification_disable_blocked_mobile');
+        $library=new NotificationTemplateLibrary();
+        $disabled=0;$kept=0;
+        foreach(NotificationCatalogue::events() as $eventKey=>$event){
+            foreach(array('whatsapp','sms') as $channel){
+                if(!$library->eventChannelEnabled($eventKey,$channel))continue;
+                if(NotificationCatalogue::producesMobileChannel($eventKey,$channel)&&self::channelBlocker($library,$eventKey,$channel)===null){$kept++;continue;}
+                try{$library->saveEventChannel($eventKey,$channel,false);$disabled++;}catch(\Throwable){}
+            }
+        }
+        self::flash('success',$disabled.' blocked mobile channel(s) disabled; '.$kept.' ready route(s) left unchanged.');
+        self::redirectBack('events');
+    }
+
     public static function toggleEventChannel():never{        self::authorizeEdit();
         check_admin_referer('dzn_notification_event_channel_toggle');
         $eventKey=isset($_POST['event_key'])?self::eventKey(wp_unslash((string)$_POST['event_key'])):'';
@@ -1359,7 +1385,13 @@ CSS;
     /** Local provider configuration only; never a live send or provider verification. */
     private static function providerReady(string $channel):?bool{
         if(!in_array($channel,array('email','whatsapp','sms','sms_ir'),true))return null;
-        try{$settings=new IntegrationSettingsService();return $channel==='sms_ir'?$settings->verified($channel):$settings->ready($channel);}catch(\Throwable){return false;}
+        try{
+            $settings=new IntegrationSettingsService();
+            // WhatsApp event delivery is Telnyx-only. Use the exact readiness the sender uses so
+            // the admin cannot report a Meta-direct test as a working event transport.
+            if($channel==='whatsapp')return (new TelnyxConfiguration($settings))->whatsappReady();
+            return $channel==='sms_ir'?$settings->verified($channel):$settings->ready($channel);
+        }catch(\Throwable){return false;}
     }
     private static function smsRouteStatus():array{
         $routing=SmsProviderRoutingPolicy::settings();$status=array();

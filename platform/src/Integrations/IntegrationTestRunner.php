@@ -16,7 +16,11 @@ final class IntegrationTestRunner {
         $settings=new IntegrationSettingsService();
         try {
             if($provider==='google')return $this->google($settings->ready('google'));
-            if(!$settings->ready($provider))return array('state'=>'failed','code'=>'local_configuration_incomplete');
+            if($provider==='whatsapp'){
+                // Event WhatsApp is Telnyx-only. Never let a Meta-direct test stand in for the
+                // transport the event sender actually uses.
+                if(!(new TelnyxConfiguration($settings))->whatsappReady())return array('state'=>'failed','code'=>'telnyx_whatsapp_configuration_incomplete');
+            } elseif(!$settings->ready($provider))return array('state'=>'failed','code'=>'local_configuration_incomplete');
             return match($provider){
                 'email'=>$this->email($input),
                 'whatsapp'=>$this->whatsapp($settings,$input),
@@ -206,22 +210,14 @@ final class IntegrationTestRunner {
         $raw=preg_replace('/[^0-9+]/','',(string)($input['destination']??''));
         $e164=PhoneNumberNormalizer::toE164($raw);
         $telnyx=new TelnyxConfiguration($s);
-        if($telnyx->apiKey()!==''&&$telnyx->whatsappSender()!==''&&$telnyx->wabaId()!==''){
-            if($e164==='')return array('state'=>'failed','code'=>'destination_invalid');
-            $status=(new TelnyxTemplateDiscoveryService($s))->status();
-            $selection=TelnyxWhatsAppTestTemplate::resolve((string)$s->value('whatsapp','test_template_name'),(array)($status['templates']??array()));
-            if($selection===null)return array('state'=>'failed','code'=>'test_template_not_configured','reason'=>'Configure an approved provider template name or event key.');
-            $template=$selection['name'];$language=$selection['language'];$eventKey=$selection['event_key'];
-            $parameters=array_merge(TelnyxTemplateRegistry::sampleParameters(),NotificationCatalogue::previewVariables($eventKey));
-            return (new TelnyxWhatsAppAdapter($s))->sendTest($e164,$template,$language,$parameters);
-        }
-        $to=preg_replace('/[^0-9]/','',$raw);
-        if(strlen($to)<8||strlen($to)>15)return array('state'=>'failed','code'=>'destination_invalid');
-        $template=preg_replace('/[^a-zA-Z0-9_]/','',(string)$s->value('whatsapp','test_template_name'));
-        if($template===''||stripos($template,'test')===false)return array('state'=>'failed','code'=>'test_template_not_configured');
-        $payload=array('messaging_product'=>'whatsapp','to'=>$to,'type'=>'template','template'=>array('name'=>$template,'language'=>array('code'=>(string)($s->value('whatsapp','test_template_language')?:'en_US'))));
-        $response=wp_remote_post('https://graph.facebook.com/v21.0/'.rawurlencode($s->value('whatsapp','phone_number_id')).'/messages',array('timeout'=>20,'redirection'=>0,'headers'=>array('Authorization'=>'Bearer '.$s->value('whatsapp','access_token'),'Content-Type'=>'application/json'),'body'=>wp_json_encode($payload)));
-        return $this->httpResult($response,'meta');
+        if(!$telnyx->whatsappReady())return array('state'=>'failed','code'=>'telnyx_whatsapp_configuration_incomplete');
+        if($e164==='')return array('state'=>'failed','code'=>'destination_invalid');
+        $status=(new TelnyxTemplateDiscoveryService($s))->status();
+        $selection=TelnyxWhatsAppTestTemplate::resolve((string)$s->value('whatsapp','test_template_name'),(array)($status['templates']??array()));
+        if($selection===null)return array('state'=>'failed','code'=>'test_template_not_configured','reason'=>'Configure an approved provider template name or event key.');
+        $template=$selection['name'];$language=$selection['language'];$eventKey=$selection['event_key'];
+        $parameters=array_merge(TelnyxTemplateRegistry::sampleParameters(),NotificationCatalogue::previewVariables($eventKey));
+        return (new TelnyxWhatsAppAdapter($s))->sendTest($e164,$template,$language,$parameters);
     }
     private function sms(IntegrationSettingsService $s,array $input):array {
         $to=preg_replace('/[^0-9+]/','',(string)($input['destination']??''));

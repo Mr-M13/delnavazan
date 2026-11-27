@@ -31,7 +31,7 @@ final class LegalPageProvisioner {
                 'legacy' => array(),
                 'title' => 'سیاست حفظ حریم خصوصی',
                 'description' => 'سیاست حفظ حریم خصوصی دلنوازان دربارهٔ جمع‌آوری، استفاده، نگهداری و حفاظت از اطلاعات هنرجویان، مدرسان و بازدیدکنندگان.',
-                'version' => '1.0-draft-2026-10-31',
+                'version' => '1.1-2026-11-27',
                 'file' => 'privacy-policy.html',
             ),
             'terms-and-conditions' => array(
@@ -39,7 +39,7 @@ final class LegalPageProvisioner {
                 'legacy' => array('terms'),
                 'title' => 'شرایط و ضوابط استفاده',
                 'description' => 'شرایط و ضوابط استفاده از خدمات آموزشی آنلاین دلنوازان، ثبت‌نام، شهریه، حضور، لغو، مالکیت فکری و حقوق مصرف‌کننده.',
-                'version' => '1.0-draft-2026-10-31',
+                'version' => '1.1-2026-11-27',
                 'file' => 'terms-and-conditions.html',
             ),
             'cancellation-and-refunds' => array(
@@ -54,8 +54,8 @@ final class LegalPageProvisioner {
                 'slug' => 'recording-and-ai-policy',
                 'legacy' => array(),
                 'title' => 'سیاست ضبط کلاس‌ها و استفاده از هوش مصنوعی',
-                'description' => 'سیاست دلنوازان دربارهٔ ضبط کلاس، فایل‌های تمرین، دسترسی، نگهداری و پژوهش اختیاری با هوش مصنوعی. ضبط و پژوهش در نسخهٔ فعلی غیرفعال است.',
-                'version' => '1.0-draft-2026-10-31',
+                'description' => 'سیاست دلنوازان دربارهٔ ضبط کلاس، فایل‌های تمرین، دسترسی، نگهداری ۲۵ ساله و پژوهش اختیاری با هوش مصنوعی. ضبط کلاس به‌طور پیش‌فرض فعال است و قابل خاموش‌کردن است.',
+                'version' => '1.1-2026-11-27',
                 'file' => 'recording-and-ai-policy.html',
             ),
             'cookie-policy' => array(

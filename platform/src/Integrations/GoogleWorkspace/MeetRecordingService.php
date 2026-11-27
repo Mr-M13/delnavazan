@@ -227,6 +227,11 @@ final class MeetRecordingService {
                 $this->raiseAlert((int)$classroom->id,'recording_did_not_end','recording_ended_unexpectedly');
             }
             if(!in_array($state,array('ENDED','FILE_GENERATED'),true))continue;
+            // Default-on recording is a product decision, but an artifact with no explicit Student or
+            // guardian decision is an unresolved consent state and must reach an operator, not only a log.
+            if((int)($classroom->student_id??0)>0&&!$this->recording->hasExplicitStudentRecordingDecision((int)$classroom->student_id)){
+                $this->raiseAlert((int)$classroom->id,'recording_without_student_decision','recording_default_on_without_decision','A class was recorded with no explicit Student or guardian recording decision. Review the consent record before retaining or using the recording.');
+            }
             if(empty($artifact['verified'])&&$end+self::PROCESSING_GRACE_SECONDS<$now){
                 $this->raiseAlert((int)$classroom->id,'recording_unplayable','recording_processing_stalled');
             }

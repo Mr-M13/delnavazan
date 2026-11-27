@@ -155,6 +155,18 @@ final class RecordingDecisionAuthorityService {
         return $this->eligibility(true,'student_recording_default_on',$decision,null);
     }
 
+    /**
+     * Whether an explicit Student or guardian recording decision exists.
+     *
+     * The classroom default is recording-on. This probe distinguishes "the default applies" from
+     * "a person actually chose", so an unconsented default-on recording can be surfaced for review.
+     */
+    public function hasExplicitStudentRecordingDecision(int $studentId): bool {
+        if ($studentId < 1) return false;
+        if ($this->latestDecision('student', $studentId, ConsentPurposeRegistry::STUDENT_RECORDING, false) !== null) return true;
+        return $this->latestDecision('student', $studentId, ConsentPurposeRegistry::STUDENT_RECORDING, true) !== null;
+    }
+
     /** Current published notice for a supported audience, or null when none is approved. */
     public function publishedNotice(string $audience,string $language):?array {
         $audiences=array(

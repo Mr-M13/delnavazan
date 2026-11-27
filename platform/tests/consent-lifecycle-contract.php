@@ -94,10 +94,10 @@ $need(str_contains($controller, 'ConsentNotificationService'), 'Reminders must u
 $need(str_contains($student, 'dzn_unified_student_consent'), 'Student unified consent form is required');
 $need(str_contains($student, 'unified_agree'), 'Student unified checkbox is required');
 $need(str_contains($student, 'dzn_unified_student_withdraw'), 'Student withdraw-all control is required');
-$need(str_contains($student, 'Privacy Policy'), 'Student policy hyperlinks are required');
+$need(str_contains($student, "\$policy_urls['privacy']") && str_contains($student, "\$policy_urls['recording_ai']"), 'Student policy hyperlinks are required');
 $need(str_contains($student, "'guardian' === \$authority"), 'Minor students must see the guardian-authority state');
 $need(str_contains($student, 'dir="rtl"') || str_contains($student, 'lang="fa"'), 'The public consent surface must remain RTL');
-$need(str_contains($student, 'checked'), 'Student unified checkbox is pre-checked by default');
+$need(!preg_match('/name="unified_agree"[^>]*checked/', $student), 'Optional research consent must not be pre-checked');
 $need(str_contains($teacher, 'dzn_unified_teacher_consent'), 'Teacher unified consent form is required');
 $need(str_contains($teacher, 'unified_agree'), 'Teacher unified checkbox is required');
 $need(str_contains($teacher, 'required'), 'Teacher mandatory consent must require an affirmative action');

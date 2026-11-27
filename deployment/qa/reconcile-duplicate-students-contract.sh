@@ -29,6 +29,8 @@ has "$php" "count( \$keep ) === 1" 'exactly one history owner is required for an
 has "$php" "hash_equals( \$fingerprint, \$dzn_rec_expected )" 'execute must match the reviewed fingerprint'
 has "$php" "'RECONCILE_DUPLICATES'" 'the confirm token is fixed'
 has "$php" 'b74053a74d5419f2bb026036e1dd05ca233b7ccef2df5949acd4ef1303041102' 'the protected attestation digest is pinned'
+has "$php" 'eval-file runs in a method scope' 'the payload must not rely on eval-file file-scope globals'
+has "$php" 'student_read_failed' 'a failed student read must abort, never report an empty plan'
 has "$php" 'backup_implausible' 'a missing/implausible backup must stop execute'
 has "$php" 'backup_digest_mismatch' 'the backup digest must be verified'
 has "$php" "no_active_principal_remains" 'post-verification must prove no active principal remains'

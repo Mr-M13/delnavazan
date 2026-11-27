@@ -35,10 +35,17 @@ final class StudentAdministrationService {
         $email = Normalizer::email($input['email'] ?? null);
         $phone = Normalizer::phone($input['phone'] ?? null);
         $whatsapp = Normalizer::phone($input['whatsapp_phone'] ?? null);
+        $capacity = sanitize_key((string) ($input['capacity'] ?? ''));
+        unset($input['capacity']);
         $duplicate = $this->duplicate($email, $phone, $whatsapp);
         if ($duplicate) throw new \InvalidArgumentException('student_identity_already_exists');
 
         $id = (new StudentService())->create($input);
+        // A reviewed category recorded at creation removes the permanent "not reviewed" task without
+        // granting any guardian authority. "Not reviewed" stays an explicit, visible task.
+        if (in_array($capacity, array('adult', 'minor'), true) && current_user_can('dzn_manage_student_acceptance_authority')) {
+            $this->classifyCapacity($id, $capacity);
+        }
         if ($formKey !== '' && function_exists('set_transient')) set_transient('dzn_student_create_' . $formKey, $id, 600);
         $this->audit($id, 'student.created', 'profile_created');
         return $id;

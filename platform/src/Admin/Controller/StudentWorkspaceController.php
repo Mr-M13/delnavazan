@@ -714,6 +714,10 @@ final class StudentWorkspaceController {
         self::select('locale', 'Preferred language', array('en_AU'=>'English (Australia)','fa_IR'=>'Persian'), 'en_AU');
         self::select('calendar_preference', 'Calendar', array('gregorian'=>'Gregorian','persian'=>'Persian','auto'=>'Automatic'), 'gregorian');
         self::select('status', 'Status', array('active'=>'Active','inactive'=>'Inactive'), 'active');
+        if (current_user_can('dzn_manage_student_acceptance_authority')) {
+            self::select('capacity', 'Age / authority category', array(''=>'Not reviewed — keep the identity task open','adult'=>'Adult — the student holds the account','minor'=>'Minor — a guardian must hold authority'), '');
+            echo '<p class="description">Recording the reviewed category now clears the “category not reviewed” task. “Not reviewed” is honest and leaves the task open on purpose.</p>';
+        }
         echo '</div><p><button class="button button-primary">Create student</button></p></form></details>';
     }
 

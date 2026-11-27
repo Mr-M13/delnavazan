@@ -67,6 +67,16 @@ foreach ( array( 'canonical_lesson_schedule_versions', 'lesson_schedule_versions
 $expect(strpos($controller, "'student_slot_conflict'") !== false && strpos($javascript, 'student_slot_conflict') !== false, 'Student slot conflicts must map to a non-generic public response.');
 $expect(str_contains($repository, "'student_acceptance_capacity_classifications'"), 'Capacity classification storage must be transactional.');
 $expect(str_contains($repository, 'function recordAdultSelfAttestation('), 'The new student requires capacity evidence.');
+// One person must have one canonical Student identity. A booking adopts an existing unlinked record
+// with the same verified email, and blocks for staff review when that email already belongs to an account.
+$expect(str_contains($repository, 'function adoptableStudentsForEmailForUpdate('), 'Booking must look for an existing unlinked Student before creating one.');
+$expect(str_contains($repository, 'function linkedStudentExistsForEmailForUpdate('), 'A booking must not create a second identity for an email that already has a portal account.');
+$expect(str_contains($service, 'BookingAccountIdentityConflict'), 'An identity conflict must be a distinct refusal, not a credential failure.');
+$expect(str_contains($service, 'contactCompatible'), 'Adoption must prove contact compatibility before linking.');
+$expect(str_contains($service, "('booking-adoption-' . Identifier::uid())") || str_contains($service, "'booking-adoption-' . Identifier::uid()"), 'Adoption must leave durable evidence.');
+$expect(str_contains($service, "'verification_basis' => 'self_attestation', 'evidence_channel' => 'authenticated_platform'"), 'A booking-created principal must record self-authentication, not internal verification.');
+$workspace = (string) file_get_contents($root . '/src/Core/Application/StudentWorkspaceReadService.php');
+$expect(str_contains($workspace, 'isBookingSelfAuthenticated'), 'Booking self-authentication must not be reported as unproven account ownership.');
 foreach (array("'classification' => 'adult'", "'verification_basis' => 'self_attestation'", "'evidence_channel' => 'authenticated_platform'", 'current_acceptance_capacity_classification_id') as $field) {
     $expect(str_contains($repository, $field), 'Capacity evidence missing: ' . $field);
 }

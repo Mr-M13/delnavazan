@@ -3,6 +3,7 @@ namespace Delnavazan\Platform\Public;
 
 use Delnavazan\Platform\Core\Application\BookingStudentAccountService;
 use Delnavazan\Platform\Core\Application\BookingAccountAuthenticationException;
+use Delnavazan\Platform\Core\Application\BookingAccountIdentityConflict;
 use Delnavazan\Platform\Core\Application\BookingContentionException;
 use Delnavazan\Platform\Core\Application\BookingLeadTimeException;
 use Delnavazan\Platform\Core\Application\BookingRequestValidationService;
@@ -108,6 +109,13 @@ final class BookingRequestRestController {
             return new \WP_REST_Response( array( 'success' => false, 'code' => 'student_instrument_already_enrolled' ), 409 );
         } catch ( BookingRequestRateLimitException ) {
             return new \WP_REST_Response( array( 'success' => false, 'code' => 'rate_limited' ), 429 );
+        } catch ( BookingAccountIdentityConflict $e ) {
+            // A second identity is never created silently. Staff must review the existing record.
+            return new \WP_REST_Response( array(
+                'success' => false,
+                'code' => 'student_identity_conflict',
+                'reason' => sanitize_key( $e->getMessage() ),
+            ), 409 );
         } catch ( \Throwable ) {
             return new \WP_REST_Response( array( 'success' => false, 'code' => 'submission_unavailable' ), 500 );
         } finally {

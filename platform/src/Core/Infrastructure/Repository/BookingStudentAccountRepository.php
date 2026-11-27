@@ -73,6 +73,70 @@ final class BookingStudentAccountRepository {
         global $wpdb;
         return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->prefix}students WHERE id=%d FOR UPDATE", $studentId ) );
     }
+    /**
+     * Existing Student records for one exact email that no portal account owns yet.
+     *
+     * A booking may adopt one of these instead of creating a second identity for the same person. The
+     * caller must still prove contact compatibility and must never adopt across an active principal.
+     *
+     * @return object[]
+     */
+    public function adoptableStudentsForEmailForUpdate( string $email ): array {
+        global $wpdb;
+        $email = trim( $email );
+        if ( $email === '' ) return array();
+        return (array) $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$this->prefix}students s
+             WHERE s.status='active' AND s.archived_at IS NULL AND s.email<>'' AND LOWER(s.email)=LOWER(%s)
+               AND NOT EXISTS (SELECT 1 FROM {$this->prefix}student_principal_links l
+                               WHERE l.student_id=s.id AND l.status='active' AND l.active_slot=1 AND l.revoked_at IS NULL)
+             ORDER BY s.id ASC LIMIT 3 FOR UPDATE",
+            $email
+        ) );
+    }
+    /** Any Student identity already bound to an active portal principal for this email. */
+    public function linkedStudentExistsForEmailForUpdate( string $email ): bool {
+        global $wpdb;
+        $email = trim( $email );
+        if ( $email === '' ) return false;
+        return (bool) $wpdb->get_var( $wpdb->prepare(
+            "SELECT l.id FROM {$this->prefix}student_principal_links l
+             INNER JOIN {$this->prefix}students s ON s.id=l.student_id
+             WHERE s.email<>'' AND LOWER(s.email)=LOWER(%s) AND s.archived_at IS NULL
+               AND l.status='active' AND l.active_slot=1 AND l.revoked_at IS NULL
+             LIMIT 1 FOR UPDATE",
+            $email
+        ) );
+    }
+    /** Fill only the contact facts an adopted Student was missing; never overwrite academy-reviewed values. */
+    public function fillMissingContact( int $studentId, array $contact, string $now, int $actor ): void {
+        global $wpdb;
+        $row = $wpdb->get_row( $wpdb->prepare( "SELECT phone,whatsapp_phone,country_code,city,timezone FROM {$this->prefix}students WHERE id=%d FOR UPDATE", $studentId ) );
+        if ( ! $row ) throw new \RuntimeException( 'Adopted Student is unavailable' );
+        $data = array();
+        foreach ( array( 'phone' => 'mobile', 'whatsapp_phone' => 'whatsapp_number', 'country_code' => 'country', 'city' => 'city', 'timezone' => 'timezone' ) as $column => $key ) {
+            $current = trim( (string) ( $row->{$column} ?? '' ) );
+            $incoming = trim( (string) ( $contact[ $key ] ?? '' ) );
+            if ( $current === '' && $incoming !== '' ) $data[ $column ] = $incoming;
+        }
+        if ( ! $data ) return;
+        $data['updated_at'] = $now;
+        $data['updated_by'] = $actor;
+        if ( $wpdb->update( $this->prefix . 'students', $data, array( 'id' => $studentId ) ) === false ) throw new \RuntimeException( 'Adopted Student contact fill failed' );
+    }
+    /** Keep the legacy profile column pointing at the account that now owns the adopted identity. */
+    public function attachWordpressUserIfEmpty( int $studentId, int $userId, string $now ): void {
+        global $wpdb;
+        $wpdb->query( $wpdb->prepare(
+            "UPDATE {$this->prefix}students SET wordpress_user_id=%d,updated_at=%s,updated_by=%d
+             WHERE id=%d AND (wordpress_user_id IS NULL OR wordpress_user_id=0)",
+            $userId, $now, $userId, $studentId
+        ) );
+    }
+    public function currentCapacityIsMissing( int $studentId ): bool {
+        global $wpdb;
+        return $wpdb->get_var( $wpdb->prepare( "SELECT current_acceptance_capacity_classification_id FROM {$this->prefix}students WHERE id=%d", $studentId ) ) === null;
+    }
     public function createStudent(array $data): int {
         global $wpdb;
         if ( $wpdb->insert( $this->prefix . 'students', $data ) === false ) throw new \RuntimeException( 'Student creation failed' );

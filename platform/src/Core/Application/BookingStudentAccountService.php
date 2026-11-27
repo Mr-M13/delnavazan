@@ -17,7 +17,7 @@ final class BookingStudentAccountService {
     }
 
     /** @return array{success:bool,request_reference:string,user_id:int,replayed:bool,recording_research_consent_accepted:bool,communication_language:string} */
-    public function submit(array $input, string $idempotencyKey, string $password, string $confirmation, int $sessionUserId = 0, ?callable $newSubmissionGate = null): array {
+    public function submit(array $input, string $idempotencyKey, string $password, string $confirmation, int $sessionUserId = 0, ?callable $newSubmissionGate = null, ?callable $authGate = null, ?callable $authFailure = null): array {
         $normalized = $this->validator->normalizePublic( $input );
         $email = (string) $normalized['contact']['email'];
         $this->assertPasswordShape( $password, $confirmation, $sessionUserId );
@@ -29,7 +29,7 @@ final class BookingStudentAccountService {
             $this->accounts->assertTransactionalStorage();
             $this->accounts->begin();
             try {
-                $user = $this->resolveAccount( $email, $password, $normalized['contact']['full_name'], $sessionUserId, $createdUserId );
+                $user = $this->resolveAccount( $email, $password, $normalized['contact']['full_name'], $sessionUserId, $createdUserId, $authGate, $authFailure );
                 $userId = (int) $user->ID;
                 $studentId = $this->resolveStudent( $userId, $normalized['contact'] );
                 $result = $this->submissions->submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate, $studentId );
@@ -55,7 +55,7 @@ final class BookingStudentAccountService {
         if ( $length < 8 || $length > 4096 || ! hash_equals( $password, $confirmation ) ) throw new BookingAccountAuthenticationException( 'Account authentication failed' );
     }
 
-    private function resolveAccount(string $email, string $password, string $displayName, int $sessionUserId, int &$createdUserId): object {
+    private function resolveAccount(string $email, string $password, string $displayName, int $sessionUserId, int &$createdUserId, ?callable $authGate = null, ?callable $authFailure = null): object {
         $discovered = $this->accounts->usersForEmail( $email );
         if ( count( $discovered ) > 1 ) throw new BookingAccountAuthenticationException( 'Account authentication failed' );
         if ( $discovered ) {
@@ -76,8 +76,14 @@ final class BookingStudentAccountService {
                 if ( (int) $user->ID !== $sessionUserId ) throw new BookingAccountAuthenticationException( 'Account authentication failed' );
                 return $user;
             }
+            // Failed guesses against an existing account are counted before WordPress verifies the
+            // password, so the public form cannot be used as an unthrottled credential oracle.
+            if ( $authGate !== null && ! $authGate( $email ) ) throw new BookingRequestRateLimitException( 'Booking Request rate limited' );
             $authenticated = wp_authenticate( $email, $password );
-            if ( is_wp_error( $authenticated ) || (int) $authenticated->ID !== (int) $user->ID ) throw new BookingAccountAuthenticationException( 'Account authentication failed' );
+            if ( is_wp_error( $authenticated ) || (int) $authenticated->ID !== (int) $user->ID ) {
+                if ( $authFailure !== null ) $authFailure( $email );
+                throw new BookingAccountAuthenticationException( 'Account authentication failed' );
+            }
             return $user;
         }
         $users = $this->accounts->usersForEmailForUpdate( $email );

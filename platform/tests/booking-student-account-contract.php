@@ -35,6 +35,9 @@ foreach (array('account_authentication_failed','BookingAccountAuthenticationExce
     $expect(strpos($all, $needle) !== false, 'Missing generic credential handling contract: ' . $needle);
 }
 $expect(strpos($controller, "unset( \$payload['account_password'], \$payload['account_password_confirmation'] )") !== false, 'Password fields must leave the booking payload before validation/digest/persistence.');
+$expect(str_contains($controller, 'allowAuth') && str_contains($controller, 'recordAuthFailure'), 'Existing-account password checks must be throttled per email and address.');
+$expect(strpos($service, '$authGate') < strpos($service, 'wp_authenticate'), 'The authentication gate must run before wp_authenticate.');
+$expect(!str_contains($controller, 'dzn_booking_csrf_invalid'), 'The CSRF refusal code must match the client message map (csrf_invalid).');
 $expect(strpos($javascript, 'sessionStorage') === false && strpos($javascript, 'localStorage') === false, 'Credentials or resumable booking data must not be placed in browser storage.');
 $expect(!preg_match('/(?:error_log|trigger_error|wp_json_encode|serialize)\s*\([^;]*(?:password|confirmation)/i', $service . $controller), 'Credential material must not be logged or serialized by application code.');
 $expect(strpos($service, "'user_pass' => \$password") !== false && strpos($service, "'role' => 'subscriber'") !== false, 'WordPress must remain the password hash and least-privilege role authority.');

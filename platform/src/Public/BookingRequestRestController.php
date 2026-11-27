@@ -40,7 +40,7 @@ final class BookingRequestRestController {
             self::assertCsrf( $request );
             return true;
         } catch ( \InvalidArgumentException ) {
-            return new \WP_Error( 'dzn_booking_csrf_invalid', 'Booking request rejected.', array( 'status' => 403 ) );
+            return new \WP_Error( 'csrf_invalid', 'Booking request rejected.', array( 'status' => 403 ) );
         }
     }
 
@@ -58,7 +58,16 @@ final class BookingRequestRestController {
             $confirmation = isset( $payload['account_password_confirmation'] ) && is_string( $payload['account_password_confirmation'] ) ? $payload['account_password_confirmation'] : '';
             unset( $payload['account_password'], $payload['account_password_confirmation'] );
             $limiter = new BookingRequestRateLimiter();
-            $result = ( new BookingStudentAccountService() )->submit( $payload, $key, $password, $confirmation, get_current_user_id(), static fn(): bool => $limiter->allow() );
+            $result = ( new BookingStudentAccountService() )->submit(
+                $payload,
+                $key,
+                $password,
+                $confirmation,
+                get_current_user_id(),
+                static fn(): bool => $limiter->allow(),
+                static fn( string $email ): bool => $limiter->allowAuth( $email ),
+                static function ( string $email ) use ( $limiter ): void { $limiter->recordAuthFailure( $email ); }
+            );
             $user = get_user_by( 'id', (int) $result['user_id'] );
             if ( ! $user ) throw new \RuntimeException( 'Committed account unavailable' );
             wp_set_current_user( (int) $user->ID );

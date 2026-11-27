@@ -291,6 +291,8 @@ final class LessonLifecycleNotificationService {
      * @return array{state:string,provider?:string,reason?:string}
      */
     private function sms(string $eventKey,array $row,array $variables,?int $notificationId,string $audience):array{
+        $recipientId=$audience==='student'?(int)($row['student_id']??0):(int)($row['teacher_id']??0);
+        if((new NotificationSuppressionGuard())->suppressed($audience,$recipientId,$eventKey))return array('state'=>'skipped','reason'=>'suppressed');
         $contact=PhoneNumberNormalizer::pair($audience==='student'?($row['student_phone']??''):($row['phone']??''),$audience==='student'?($row['student_whatsapp']??''):($row['teacher_whatsapp']??''));
         $phone=$contact['phone'];
         if($phone==='')return array('state'=>'skipped','reason'=>'no_phone');
@@ -323,6 +325,7 @@ final class LessonLifecycleNotificationService {
      * @return array{state:string,reason?:string}
      */
     private function whatsapp(string $eventKey,array $row,array $variables,?int $notificationId):array{
+        if((new NotificationSuppressionGuard())->suppressed('student',(int)($row['student_id']??0),$eventKey))return array('state'=>'skipped','reason'=>'suppressed');
         $contact=PhoneNumberNormalizer::pair($row['student_phone']??'',$row['student_whatsapp']??'');
         $phone=$contact['whatsapp'];
         if($phone==='')return array('state'=>'skipped','reason'=>'no_whatsapp_phone');

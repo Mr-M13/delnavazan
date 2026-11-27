@@ -43,7 +43,7 @@ if ( ! $items && ! in_array( $status, array( 'ok', 'failed' ), true ) ) {
 						<form method="post" action="<?php echo esc_url( (string) ( $item['action_url'] ?? '' ) ); ?>">
 							<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['nonce'] ?? '' ) ); ?>">
 							<input type="hidden" name="proposal_uid" value="<?php echo esc_attr( (string) ( $item['proposal_uid'] ?? '' ) ); ?>">
-							<input type="hidden" name="decision_key" value="<?php echo esc_attr( wp_generate_uuid4() ); ?>">
+							<input type="hidden" name="decision_key" value="<?php echo esc_attr( hash( 'sha256', 'reschedule-reject|' . (string) ( $item['proposal_uid'] ?? '' ) ) ); ?>">
 							<input type="hidden" name="decision" value="reject">
 							<button class="dzn-button dzn-button--secondary" type="submit"><?php esc_html_e( 'رد پیشنهاد', 'delnavazan-theme' ); ?></button>
 						</form>

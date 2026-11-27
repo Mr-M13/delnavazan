@@ -3,6 +3,8 @@ namespace Delnavazan\Platform\Core\Application;
 
 /** Normalizes public facts before locking, then resolves catalogue authority only while locked. */
 final class BookingRequestValidationService {
+    /** The published intake privacy-notice version accepted by the public form. */
+    public const PRIVACY_NOTICE_VERSION = '2026-09-05';
     public const MAX_REQUESTED_TIMES = 3;
     public const BOOKING_HORIZON_DAYS = 90;
     public const BLOCKED_TIME_MESSAGE = 'Requested interval overlaps Iran quiet hours';
@@ -23,7 +25,7 @@ final class BookingRequestValidationService {
         if ( ! $email || ! $this->phone( $mobile ) || ! $country || ! $city || ! $timezone ) throw new \InvalidArgumentException( 'Valid contact, country, city, and IANA timezone required' );
         $same = filter_var( $input['whatsapp_same_as_mobile'] ?? null, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE ); if ( $same === null ) throw new \InvalidArgumentException( 'WhatsApp mobile relationship required' );
         $whatsapp = $same ? $mobile : $this->contactPhone( Normalizer::phone( $input['whatsapp_number'] ?? null ) ); if ( ! $this->phone( $whatsapp ) ) throw new \InvalidArgumentException( 'Valid WhatsApp number required' );
-        if ( ($input['privacy_notice_accepted'] ?? null) !== true ) throw new \InvalidArgumentException( 'Privacy notice acknowledgement required' ); if ( isset( $input['privacy_notice_version'] ) && (string) $input['privacy_notice_version'] !== '2026-09-05' ) throw new \InvalidArgumentException( 'Unsupported privacy notice version' );
+        if ( ($input['privacy_notice_accepted'] ?? null) !== true ) throw new \InvalidArgumentException( 'Privacy notice acknowledgement required' ); if ( isset( $input['privacy_notice_version'] ) && (string) $input['privacy_notice_version'] !== self::PRIVACY_NOTICE_VERSION ) throw new \InvalidArgumentException( 'Unsupported privacy notice version' );
         $recordingResearch = array_key_exists('recording_research_consent_accepted',$input) ? filter_var( $input['recording_research_consent_accepted'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE ) : false;
         if ( $recordingResearch === null ) throw new \InvalidArgumentException( 'Recording and research consent must be boolean' );
         $adultAttested = filter_var( $input['adult_self_attested'] ?? false, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE );

@@ -46,8 +46,10 @@ $need(str_contains($readService,'wp_generate_uuid4()'),'each rendered action mus
 $need(str_contains($student,'ضبط کلاس، پژوهش و حریم خصوصی'),'the Account Settings section title is required');
 $need(str_contains($student,'dzn_unified_student_consent'),'the unified student consent action is required');
 $need(str_contains($student,'unified_agree'),'the unified checkbox name is required');
-$need(str_contains($student,'Privacy Policy')&&str_contains($student,'Recording &amp; AI Policy'),'student policy hyperlinks are required');
-$need(str_contains($student,'checked'),'the unified checkbox is pre-checked by default');
+$need(str_contains($student,"\$policy_urls['privacy']")&&str_contains($student,"\$policy_urls['recording_ai']"),'student policy hyperlinks are required');
+$need(!preg_match('/name="unified_agree"[^>]*checked/',$student),'optional research consent must not be pre-checked');
+$need(str_contains($student,'ضبط کلاس به‌طور پیش‌فرض فعال است'),'the default-on recording state must be stated');
+$need(str_contains($student,'value="decline"'),'default-on recording must expose a decline control');
 $need(str_contains($student,'پس گرفتن رضایت'),'the withdraw-all control is required');
 $need(str_contains($student,"'account' === \$context && \$consent_active"),'only Account Settings may show withdrawal');
 $need(str_contains($student,"'guardian' === \$authority"),'the guardian authority path must be exposed only when the server resolves it');
@@ -76,13 +78,13 @@ $need(str_contains($booking,'هرگز منتشر نمی‌شوند'),'online enr
 $need(!str_contains($booking,'Draft product copy'),'the public enrolment page must not expose internal draft copy');
 
 $projectCopy=$read('../theme/template-parts/recording/project-copy.php');
-foreach(array('Why this project?','An example: learning riz on setar','How will we proceed?','How could this research help?','Participation and care of information','currently disabled')as$text)$need(str_contains($projectCopy,$text),'the Project must explain '.$text);
+foreach(array('Why this project?','An example: learning riz on setar','How will we proceed?','How could this research help?','Participation and care of information','recording is active by default')as$text)$need(str_contains($projectCopy,$text),'the Project must explain '.$text);
 $need(str_contains($infoBody,"'fa'")&&str_contains($infoBody,"'en'"),'the information page must support both languages');
 $nameForm=$read('../theme/template-parts/recording/name-suggestion.php');
 $need(str_contains($nameForm,'name="action" value="dzn_research_name"'),'the name form must use only the independent suggestion action');
 $need(!str_contains($infoBody.$nameForm,'dzn_unified_student_consent')&&!str_contains($infoBody.$nameForm,'dzn_unified_teacher_consent'),'the information page must not collect recording decisions');
 $need(!str_contains($infoBody,'link pending approval'),'the Project must replace the old placeholder');
-$need(str_contains($projectCopy,'specifies ten-year retention')&&str_contains($projectCopy,'does not extend retention or remove existing rights'),'the Project must distinguish current policy from proposed changes');
+$need(str_contains($projectCopy,'specifies 25-year retention')&&str_contains($projectCopy,'does not extend retention or remove existing rights'),'the Project must distinguish current policy from proposed changes');
 $need(str_contains($projectCopy,'does not itself opt you into research'),'enrolment must not imply research participation');
 $need(str_contains($infoBody,'publishedNotice'),'the page must preserve the current notice readout');
 $need(str_contains($info,"get_template_part( 'template-parts/recording/research-information' )"),'the Page Template must use the shared information body');

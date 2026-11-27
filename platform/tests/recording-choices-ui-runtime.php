@@ -34,7 +34,7 @@ $recordingNotice=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_S
 $researchNotice=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RESEARCH,'en',1,'Student research notice v1');
 $privacyNotice=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_PRIVACY_TERMS,'en',1,'Privacy v1');
 
-// Enrolment: single pre-checked unified checkbox with policy hyperlinks.
+// Enrolment: default-on recording with an explicit decline control and an unchecked research opt-in.
 wp_set_current_user($adultUser);
 $enrolment=$ui->student('enrolment','en');
 dzn_rda_ui_assert($enrolment['available']===true,'adult enrolment choices must be available');
@@ -44,8 +44,10 @@ dzn_rda_ui_assert($enrolment['forms']['recording']['notice_uid']===$recordingNot
 dzn_rda_ui_assert($enrolment['forms']['research']['notice_uid']===$researchNotice['uid'],'research form must cite the separate published notice');
 dzn_rda_ui_assert(!empty($enrolment['unified']['available'])===true,'unified enrolment consent must be available');
 $html=dzn_rda_ui_render_student($enrolment);
-foreach(array('ضبط کلاس، پژوهش و حریم خصوصی','Privacy Policy','Recording &amp; AI Policy','unified_agree')as$text)dzn_rda_ui_assert(str_contains($html,$text),'enrolment component missing '.$text);
-dzn_rda_ui_assert((bool)preg_match('/name="unified_agree"[^>]*checked/',$html),'unified checkbox must be checked by default');
+foreach(array('ضبط کلاس، پژوهش و حریم خصوصی','privacy-policy','recording-and-ai-policy','unified_agree')as$text)dzn_rda_ui_assert(str_contains($html,$text),'enrolment component missing '.$text);
+dzn_rda_ui_assert(!preg_match('/name="unified_agree"[^>]*checked/',$html),'optional research consent must not be pre-checked');
+dzn_rda_ui_assert(str_contains($html,'ضبط کلاس به‌طور پیش‌فرض فعال است'),'default-on recording state must be stated');
+dzn_rda_ui_assert(str_contains($html,'value="decline"'),'default-on recording must expose a decline control');
 dzn_rda_ui_assert(!str_contains($html,'guardian'),'no guardian form may be exposed');
 
 // Account Settings: unified state, withdraw-all control at the end.
@@ -248,7 +250,7 @@ dzn_rda_ui_assert($statusModel['status']==='','the confirmation status must be c
 $_SERVER['REQUEST_URI']='/recording-and-research/';
 dzn_rda_ui_assert(dzn_theme_route()==='recording-and-research','the canonical information URL must resolve as a public route');
 ob_start();dzn_theme_render_recording_information_route();$infoHtml=(string)ob_get_clean();
-foreach(array('پروژه پژوهشی','Research Project','An example: learning riz on setar','currently disabled','lang="fa"','lang="en"','Privacy policy')as$text)dzn_rda_ui_assert(str_contains($infoHtml,$text),'public information route missing '.$text);
+foreach(array('پروژه پژوهشی','Research Project','An example: learning riz on setar','recording is active by default','lang="fa"','lang="en"','Privacy policy')as$text)dzn_rda_ui_assert(str_contains($infoHtml,$text),'public information route missing '.$text);
 dzn_rda_ui_assert(substr_count($infoHtml,'<form')===1 && str_contains($infoHtml,'name="action" value="dzn_research_name"'),'Only the project name suggestion form belongs on this page');
 dzn_rda_ui_assert(!str_contains($infoHtml,'dzn_unified_student_consent') && !str_contains($infoHtml,'dzn_unified_teacher_consent'),'Name suggestions must not collect recording or research decisions');
 dzn_rda_ui_assert(str_contains($infoHtml,'<article id="project-fa"') && !preg_match('/<details[^>]*id="project-en"[^>]*\bopen\b/',$infoHtml),'Persian must be an article and English must start collapsed');

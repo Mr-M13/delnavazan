@@ -77,15 +77,35 @@ $format_date = static function ( string $value ): string {
 	<?php endif; ?>
 	<?php if ( $unified_available ) : ?>
 		<?php if ( $consent_active ) : ?>
-			<p class="dzn-portal-help" role="status"><strong>رضایت شما ثبت شده است.</strong> ضبط و پژوهش فعال است<?php echo ! empty( $recording_state['decided_at'] ) ? ' · ' . esc_html( $format_date( (string) $recording_state['decided_at'] ) ) : ''; ?>. · Consent saved. You can withdraw it anytime below.</p>
+			<p class="dzn-portal-help" role="status"><strong>رضایت شما ثبت شده است.</strong> ضبط و پژوهش فعال است<?php echo ! empty( $recording_state['decided_at'] ) ? ' · ' . esc_html( $format_date( (string) $recording_state['decided_at'] ) ) : ''; ?>. می‌توانید هر زمان از بخش «پس گرفتن رضایت» آن را لغو کنید.</p>
 		<?php else : ?>
+			<p class="dzn-portal-help" role="status"><strong>ضبط کلاس به‌طور پیش‌فرض فعال است.</strong> اگر نمی‌خواهید کلاس‌هایتان ضبط شود، از دکمهٔ زیر برای کلاس‌های آینده خاموش کنید. خاموش کردن ضبط، برگزاری کلاس یا ثبت‌نام را متوقف نمی‌کند.</p>
+			<?php
+			$recording_form = isset( $recording['forms']['recording'] ) && is_array( $recording['forms']['recording'] ) ? $recording['forms']['recording'] : array();
+			$recording_declined = 'decline' === (string) ( $recording_state['decision'] ?? '' );
+			?>
+			<?php if ( $recording_declined ) : ?>
+				<p class="dzn-portal-help" role="status">ضبط برای کلاس‌های آیندهٔ شما خاموش است. اگر نظرتان تغییر کرد، می‌توانید از فرم زیر دوباره آن را فعال کنید.</p>
+			<?php elseif ( $recording_form ) : ?>
+				<form class="dzn-recording-choices__form" method="post" action="<?php echo esc_url( (string) ( $recording_form['action_url'] ?? '' ) ); ?>">
+					<?php dzn_theme_nonce_field( 'dzn_recording_student_choice' ); ?>
+					<input type="hidden" name="purpose" value="lesson_recording">
+					<input type="hidden" name="choice" value="decline">
+					<input type="hidden" name="notice_uid" value="<?php echo esc_attr( (string) ( $recording_form['notice_uid'] ?? '' ) ); ?>">
+					<input type="hidden" name="language" value="<?php echo esc_attr( (string) ( $recording_form['language'] ?? 'fa' ) ); ?>">
+					<input type="hidden" name="idempotency_key" value="<?php echo esc_attr( (string) ( $recording_form['idempotency_key'] ?? '' ) ); ?>">
+					<input type="hidden" name="return_to" value="account">
+					<button class="dzn-button dzn-button--secondary" type="submit">خاموش کردن ضبط کلاس‌ها</button>
+				</form>
+			<?php endif; ?>
+			<hr>
 			<form class="dzn-recording-choices__form" method="post" action="<?php echo esc_url( (string) ( $unified['action_url'] ?? '' ) ); ?>">
 				<?php dzn_theme_nonce_field( 'dzn_unified_student_consent' ); ?>
 				<input type="hidden" name="idempotency_key" value="<?php echo esc_attr( (string) ( $unified['idempotency_key'] ?? '' ) ); ?>">
 				<input type="hidden" name="return_to" value="<?php echo esc_attr( (string) ( $unified['return_to'] ?? 'account' ) ); ?>">
-				<label class="dzn-unified-consent"><input type="checkbox" name="unified_agree" value="1" checked> <span>I accept the <a href="<?php echo esc_url( $policy_urls['privacy'] ); ?>" target="_blank" rel="noopener">Privacy Policy</a>, <a href="<?php echo esc_url( $policy_urls['terms'] ); ?>" target="_blank" rel="noopener">Terms and Conditions</a>, and the <a href="<?php echo esc_url( $policy_urls['recording_ai'] ); ?>" target="_blank" rel="noopener">Recording &amp; AI Policy</a> — my classes may be recorded and used for teaching quality, research and AI model training. Please read them fully before continuing. · <span lang="fa" dir="rtl">سیاست حریم خصوصی، شرایط و ضوابط و سیاست ضبط و هوش مصنوعی را می‌پذیرم؛ کلاس‌هایم ممکن است ضبط شوند و برای بهبود کیفیت آموزش، پژوهش و آموزش مدل هوش مصنوعی استفاده شوند. لطفاً پیش از ادامه آن‌ها را کامل بخوانید. این رضایت اختیاری است.</span></span></label>
-				<p class="dzn-portal-help">این رضایت اختیاری است؛ بدون آن هم ثبت‌نام شما ادامه پیدا می‌کند، اما ضبط و پژوهش انجام نمی‌شود. · This consent is optional; uncheck it to continue without recording.</p>
-				<button class="dzn-button" type="submit">I agree · موافقم</button>
+				<label class="dzn-unified-consent"><input type="checkbox" name="unified_agree" value="1"> <span>رضایت <strong>اختیاری</strong> برای پژوهش و آموزش مدل: می‌پذیرم ضبط‌های کلاسم، در صورت ثبت این رضایت، برای پژوهش و آموزش (توسط انسان یا ماشین) استفاده شوند. این رضایت جدا از ضبط کلاس است و ضبط را کنترل نمی‌کند. <a href="<?php echo esc_url( $policy_urls['privacy'] ); ?>" target="_blank" rel="noopener">سیاست حریم خصوصی</a>، <a href="<?php echo esc_url( $policy_urls['terms'] ); ?>" target="_blank" rel="noopener">شرایط و ضوابط</a> و <a href="<?php echo esc_url( $policy_urls['recording_ai'] ); ?>" target="_blank" rel="noopener">سیاست ضبط و هوش مصنوعی</a> را خوانده‌ام.</span></label>
+				<p class="dzn-portal-help">بدون این رضایت هم ثبت‌نام و ضبط کلاس (با امکان خاموش‌کردن) ادامه پیدا می‌کند؛ فقط استفادهٔ پژوهشی/آموزش مدل انجام نمی‌شود.</p>
+				<button class="dzn-button" type="submit">ثبت رضایت پژوهش</button>
 			</form>
 		<?php endif; ?>
 	<?php else : ?>

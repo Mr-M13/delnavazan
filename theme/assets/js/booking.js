@@ -41,8 +41,16 @@
   let selectedDate = '';
   let dateCursor;
 
-  const showError = (message) => {
-    errorBox.textContent = message || '';
+  const showError = (message, action) => {
+    errorBox.replaceChildren();
+    if (message) errorBox.append(document.createTextNode(message));
+    if (action && action.url) {
+      const link = document.createElement('a');
+      link.href = action.url;
+      link.textContent = action.label || 'ورود به حساب';
+      link.className = 'dzn-booking__error-link';
+      errorBox.append(' ', link);
+    }
     errorBox.hidden = !message;
   };
   // Re-rendering a step must never move the page under the student's pointer
@@ -798,7 +806,9 @@
       }, async (response) => ({ response, result: await response.json() }));
       if (!response.ok || !result.success || !result.request_reference) {
         if (response.status === 400 || result.code === 'student_slot_conflict') idempotencyKey = '';
-        throw new Error(result.code || 'submission_unavailable');
+        const failure = new Error(result.code || 'submission_unavailable');
+        failure.payload = result;
+        throw failure;
       }
       root.querySelector('[data-reference]').textContent = result.request_reference;
       const successTimes = root.querySelector('[data-success-times]');
@@ -848,10 +858,15 @@
         idempotency_conflict: 'برای جلوگیری از ثبت درخواست تکراری، دوباره تلاش نکنید. با دلنوازان تماس بگیرید تا وضعیت درخواست قبلی بررسی شود.',
         csrf_invalid: 'اعتبار فرم منقضی شده است. صفحه را تازه‌سازی کنید و دوباره تلاش کنید.',
         account_authentication_failed: 'ساخت یا ورود به حساب انجام نشد. ایمیل و رمز را بررسی کنید؛ اگر قبلاً حساب دارید می‌توانید از صفحهٔ ورود یا بازیابی رمز استفاده کنید.',
+        student_identity_conflict: 'این ایمیل از قبل به یک پروندهٔ هنرجو در دلنوازان متصل است. برای جلوگیری از ایجاد پروندهٔ تکراری، لطفاً با پشتیبانی تماس بگیرید تا پروندهٔ موجود بررسی شود.',
         submission_unavailable: 'سامانه نتوانست ثبت درخواست را تأیید کند. اطلاعات این فرم باقی مانده است؛ همین صفحه را با همین اطلاعات دوباره ارسال کنید.'
       };
       const code = error instanceof Error ? error.message : '';
-      showError(messages[code] || 'پاسخ سامانه دریافت نشد. فرم را نبندید؛ با همین صفحه و همان اطلاعات دوباره تلاش کنید. ارسال مجدد با همان کلید از ثبت تکراری جلوگیری می‌کند.');
+      const payload = error && error.payload ? error.payload : {};
+      const action = code === 'account_authentication_failed' && payload.login_url
+        ? { url: String(payload.login_url), label: 'ورود یا بازیابی رمز' }
+        : null;
+      showError(messages[code] || 'پاسخ سامانه دریافت نشد. فرم را نبندید؛ با همین صفحه و همان اطلاعات دوباره تلاش کنید. ارسال مجدد با همان کلید از ثبت تکراری جلوگیری می‌کند.', action);
     } finally {
       submissionPending = false;
       button.disabled = false;

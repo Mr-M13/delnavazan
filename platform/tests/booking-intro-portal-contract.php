@@ -4,7 +4,8 @@ $repository = (string) file_get_contents($root . '/src/Core/Infrastructure/Repos
 $student = (string) file_get_contents($root . '/src/Portals/StudentUpcomingBookingReadService.php');
 $join = (string) file_get_contents($root . '/src/Integrations/BookingClassJoinService.php');
 $bridge = (string) file_get_contents(dirname($root) . '/theme/inc/platform-bridge.php');
-$studentTemplate = (string) file_get_contents(dirname($root) . '/theme/template-parts/portal/upcoming-lesson.php');
+// The live Student schedule card is the participant UI; the old homepage card was retired.
+$studentTemplate = (string) file_get_contents(dirname($root) . '/theme/template-parts/portal/schedule.php');
 $teacherTemplate = (string) file_get_contents(dirname($root) . '/theme/template-parts/teacher-portal/class-row.php');
 $classroomActions = (string) file_get_contents(dirname($root) . '/theme/template-parts/components/classroom-actions.php');
 $assert = static function(bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); };

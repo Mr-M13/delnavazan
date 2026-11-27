@@ -564,6 +564,12 @@ final class StudentWorkspaceReadService {
         );
     }
 
+    /** A booking creates the principal only after authenticating the same account in that request. */
+    private function isBookingSelfAuthenticated(object $principal): bool {
+        return (string) ($principal->verification_basis ?? '') === 'self_attestation'
+            && (string) ($principal->evidence_channel ?? '') === 'authenticated_platform';
+    }
+
     /** @return array<string,mixed> */
     private function identity(object $student): array {
         $available = $this->can('dzn_view_student_acceptance_eligibility') || $this->can('dzn_manage_student_acceptance_authority');
@@ -578,7 +584,7 @@ final class StudentWorkspaceReadService {
             $studentId
         ));
         $principal = $wpdb->get_row($wpdb->prepare(
-            "SELECT l.id,l.wordpress_user_id,l.version,l.linked_at,u.user_email,u.display_name
+            "SELECT l.id,l.wordpress_user_id,l.version,l.linked_at,l.verification_basis,l.evidence_channel,l.evidence_reference,u.user_email,u.display_name
              FROM {$this->p}student_principal_links l LEFT JOIN {$wpdb->users} u ON u.ID=l.wordpress_user_id
              WHERE l.student_id=%d AND l.status='active' AND l.active_slot=1 AND l.revoked_at IS NULL LIMIT 1",
             $studentId
@@ -625,7 +631,7 @@ final class StudentWorkspaceReadService {
                 'central' => null,
             );
         }
-        if ($principal && (!$claim || (string) $claim->state !== 'claimed' || (int) $claim->claimed_principal_id !== (int) $principal->wordpress_user_id)) {
+        if ($principal && !$this->isBookingSelfAuthenticated($principal) && (!$claim || (string) $claim->state !== 'claimed' || (int) $claim->claimed_principal_id !== (int) $principal->wordpress_user_id)) {
             $anomalies[] = array(
                 'code' => 'account_ownership_unverified',
                 'title' => 'Account ownership is not proven',

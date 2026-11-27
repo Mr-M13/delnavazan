@@ -1224,7 +1224,7 @@ function dzn_theme_platform_student_reschedule_proposals( array $rows, $timezone
 			'timezone_label' => dzn_theme_platform_timezone_label( $timezone ),
 			'action_url' => admin_url( 'admin-post.php?action=dzn_student_reschedule_decision' ),
 			'nonce' => wp_create_nonce( 'dzn_student_reschedule_decision' ),
-			'decision_key' => wp_generate_uuid4(),
+			'decision_key' => hash( 'sha256', 'reschedule-accept|' . (string) ( $row['proposal_uid'] ?? '' ) ),
 		);
 	}
 	return $out;

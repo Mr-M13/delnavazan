@@ -3,6 +3,7 @@ namespace Delnavazan\Platform\Public;
 
 use Delnavazan\Platform\Core\Application\BookingStudentAccountService;
 use Delnavazan\Platform\Core\Application\BookingAccountAuthenticationException;
+use Delnavazan\Platform\Core\Application\BookingAccountIdentityConflict;
 use Delnavazan\Platform\Core\Application\BookingContentionException;
 use Delnavazan\Platform\Core\Application\BookingLeadTimeException;
 use Delnavazan\Platform\Core\Application\BookingRequestValidationService;
@@ -39,7 +40,7 @@ final class BookingRequestRestController {
             self::assertCsrf( $request );
             return true;
         } catch ( \InvalidArgumentException ) {
-            return new \WP_Error( 'dzn_booking_csrf_invalid', 'Booking request rejected.', array( 'status' => 403 ) );
+            return new \WP_Error( 'csrf_invalid', 'Booking request rejected.', array( 'status' => 403 ) );
         }
     }
 
@@ -57,7 +58,16 @@ final class BookingRequestRestController {
             $confirmation = isset( $payload['account_password_confirmation'] ) && is_string( $payload['account_password_confirmation'] ) ? $payload['account_password_confirmation'] : '';
             unset( $payload['account_password'], $payload['account_password_confirmation'] );
             $limiter = new BookingRequestRateLimiter();
-            $result = ( new BookingStudentAccountService() )->submit( $payload, $key, $password, $confirmation, get_current_user_id(), static fn(): bool => $limiter->allow() );
+            $result = ( new BookingStudentAccountService() )->submit(
+                $payload,
+                $key,
+                $password,
+                $confirmation,
+                get_current_user_id(),
+                static fn(): bool => $limiter->allow(),
+                static fn( string $email ): bool => $limiter->allowAuth( $email ),
+                static function ( string $email ) use ( $limiter ): void { $limiter->recordAuthFailure( $email ); }
+            );
             $user = get_user_by( 'id', (int) $result['user_id'] );
             if ( ! $user ) throw new \RuntimeException( 'Committed account unavailable' );
             wp_set_current_user( (int) $user->ID );
@@ -108,6 +118,13 @@ final class BookingRequestRestController {
             return new \WP_REST_Response( array( 'success' => false, 'code' => 'student_instrument_already_enrolled' ), 409 );
         } catch ( BookingRequestRateLimitException ) {
             return new \WP_REST_Response( array( 'success' => false, 'code' => 'rate_limited' ), 429 );
+        } catch ( BookingAccountIdentityConflict $e ) {
+            // A second identity is never created silently. Staff must review the existing record.
+            return new \WP_REST_Response( array(
+                'success' => false,
+                'code' => 'student_identity_conflict',
+                'reason' => sanitize_key( $e->getMessage() ),
+            ), 409 );
         } catch ( \Throwable ) {
             return new \WP_REST_Response( array( 'success' => false, 'code' => 'submission_unavailable' ), 500 );
         } finally {

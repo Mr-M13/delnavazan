@@ -100,7 +100,7 @@ $render_rows = static function ( array $rows, bool $archive = false ) use ( $lab
 								<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( (string) ( $item['intro_cancel_nonce'] ?? '' ) ); ?>">
 								<input type="hidden" name="confirmation_uid" value="<?php echo esc_attr( (string) ( $item['confirmation_uid'] ?? '' ) ); ?>">
 								<input type="hidden" name="reason_code" value="student_requested">
-								<input type="hidden" name="command_key" value="<?php echo esc_attr( wp_generate_uuid4() ); ?>">
+								<input type="hidden" name="command_key" value="<?php echo esc_attr( hash( 'sha256', 'intro-cancel|' . (string) ( $item['confirmation_uid'] ?? '' ) ) ); ?>">
 								<button class="dzn-button dzn-button--secondary" type="submit"><?php esc_html_e( 'تأیید لغو کلاس آشنایی', 'delnavazan-theme' ); ?></button>
 							</form>
 						</details>

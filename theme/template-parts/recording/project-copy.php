@@ -182,8 +182,8 @@ return array(
 				'eyebrow' => '6',
 				'title' => 'Participation and care of information',
 				'paragraphs' => array(
-					'Recording for this project is currently disabled on the website. Student research participation is optional and separate from permission to record lessons; reading this page, suggesting a name or enrolling in lessons does not itself opt you into research. Before collection, the uses, access and participation terms, including the necessary arrangements for children, must be explained.',
-					'Private lesson recordings are not intended for public release. Any public resource requires separate privacy, permission and rights review. The current policy specifies ten-year retention and explains how to request withdrawal; this article does not extend retention or remove existing rights. Read the policies below for details and how to request changes or deletion of information.',
+					'Class recording is active by default on the website. A student or their guardian can turn recording off in the account settings; turning it off does not stop the lesson or the enrolment. Student research participation is optional and separate from permission to record lessons; reading this page, suggesting a name or enrolling in lessons does not itself opt you into research.',
+					'Private lesson recordings are not intended for public release. Any public resource requires separate privacy, permission and rights review. The current policy specifies 25-year retention and explains how to request withdrawal; this article does not extend retention or remove existing rights. Read the policies below for details and how to request changes or deletion of information.',
 				),
 			),
 		),

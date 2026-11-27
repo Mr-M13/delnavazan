@@ -24,3 +24,13 @@ $unavailable=new NotificationTransportRouter(array(array('channel'=>'sms','provi
 if(($unavailable->route('mobile',array('recipient_kind'=>'student','sms'=>'+989121234567','sms_eligible'=>true))[0]['provider']??'')!=='sms_ir')throw new RuntimeException('Iranian student must use SMS.ir');
 if(\Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy::select('+989121234567',array('iran'=>'telnyx','international'=>'sms_ir'))!=='telnyx')throw new RuntimeException('Admin override must select Telnyx for Iran');
 echo "Notification transport routing contract passed\n";
+// A carrier STOP must reach every mobile producer, not only the canonical dispatcher.
+foreach (array('LessonLifecycleNotificationService','RenewalAutomationNotificationService','PaymentRefundNotificationService') as $producer) {
+    $source = (string) file_get_contents(dirname(__DIR__) . '/src/Core/Application/' . $producer . '.php');
+    if (strpos($source, 'NotificationSuppressionGuard') === false) throw new RuntimeException($producer . ' must consult the recipient suppression register before a mobile send');
+}
+$guard = (string) file_get_contents(dirname(__DIR__) . '/src/Core/Application/NotificationSuppressionGuard.php');
+if (strpos($guard, 'NotificationSuppressionRepository') === false) throw new RuntimeException('The suppression guard must use the canonical register');
+if (strpos($guard, "'recipient:' . \$audience . ':' . \$recipientId") === false) throw new RuntimeException('The suppression guard must use the recipient digest the register writes');
+if (strpos($guard, 'last_error') === false) throw new RuntimeException('A register read failure must not be treated as no opt-out');
+echo "Notification suppression enforcement contract passed\n";

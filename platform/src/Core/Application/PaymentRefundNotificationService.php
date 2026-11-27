@@ -231,6 +231,7 @@ final class PaymentRefundNotificationService {
      * @return array{state:string,reason?:string}
      */
     private function whatsapp(string $eventKey,array $row,array $variables,?int $notificationId):array{
+        if((new NotificationSuppressionGuard())->suppressed('student',(int)($row['student_id']??0),$eventKey))return array('state'=>'skipped','reason'=>'suppressed');
         $contact=PhoneNumberNormalizer::pair($row['student_phone']??'',$row['student_whatsapp']??'');
         $phone=$contact['whatsapp'];
         if($phone==='')return array('state'=>'skipped','reason'=>'no_whatsapp_phone');

@@ -17,7 +17,7 @@ final class BookingStudentAccountService {
     }
 
     /** @return array{success:bool,request_reference:string,user_id:int,replayed:bool,recording_research_consent_accepted:bool,communication_language:string} */
-    public function submit(array $input, string $idempotencyKey, string $password, string $confirmation, int $sessionUserId = 0, ?callable $newSubmissionGate = null): array {
+    public function submit(array $input, string $idempotencyKey, string $password, string $confirmation, int $sessionUserId = 0, ?callable $newSubmissionGate = null, ?callable $authGate = null, ?callable $authFailure = null): array {
         $normalized = $this->validator->normalizePublic( $input );
         $email = (string) $normalized['contact']['email'];
         $this->assertPasswordShape( $password, $confirmation, $sessionUserId );
@@ -29,7 +29,7 @@ final class BookingStudentAccountService {
             $this->accounts->assertTransactionalStorage();
             $this->accounts->begin();
             try {
-                $user = $this->resolveAccount( $email, $password, $normalized['contact']['full_name'], $sessionUserId, $createdUserId );
+                $user = $this->resolveAccount( $email, $password, $normalized['contact']['full_name'], $sessionUserId, $createdUserId, $authGate, $authFailure );
                 $userId = (int) $user->ID;
                 $studentId = $this->resolveStudent( $userId, $normalized['contact'] );
                 $result = $this->submissions->submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate, $studentId );
@@ -55,7 +55,7 @@ final class BookingStudentAccountService {
         if ( $length < 8 || $length > 4096 || ! hash_equals( $password, $confirmation ) ) throw new BookingAccountAuthenticationException( 'Account authentication failed' );
     }
 
-    private function resolveAccount(string $email, string $password, string $displayName, int $sessionUserId, int &$createdUserId): object {
+    private function resolveAccount(string $email, string $password, string $displayName, int $sessionUserId, int &$createdUserId, ?callable $authGate = null, ?callable $authFailure = null): object {
         $discovered = $this->accounts->usersForEmail( $email );
         if ( count( $discovered ) > 1 ) throw new BookingAccountAuthenticationException( 'Account authentication failed' );
         if ( $discovered ) {
@@ -76,8 +76,14 @@ final class BookingStudentAccountService {
                 if ( (int) $user->ID !== $sessionUserId ) throw new BookingAccountAuthenticationException( 'Account authentication failed' );
                 return $user;
             }
+            // Failed guesses against an existing account are counted before WordPress verifies the
+            // password, so the public form cannot be used as an unthrottled credential oracle.
+            if ( $authGate !== null && ! $authGate( $email ) ) throw new BookingRequestRateLimitException( 'Booking Request rate limited' );
             $authenticated = wp_authenticate( $email, $password );
-            if ( is_wp_error( $authenticated ) || (int) $authenticated->ID !== (int) $user->ID ) throw new BookingAccountAuthenticationException( 'Account authentication failed' );
+            if ( is_wp_error( $authenticated ) || (int) $authenticated->ID !== (int) $user->ID ) {
+                if ( $authFailure !== null ) $authFailure( $email );
+                throw new BookingAccountAuthenticationException( 'Account authentication failed' );
+            }
             return $user;
         }
         $users = $this->accounts->usersForEmailForUpdate( $email );
@@ -119,16 +125,71 @@ final class BookingStudentAccountService {
             return (int) $student->id;
         }
         if ( $this->accounts->anyPrincipalHistoryForUserForUpdate( $userId ) || $this->accounts->activeGuardianForUserForUpdate( $userId, $now ) || $this->accounts->activeTeacherForUserForUpdate( $userId ) ) throw new BookingAccountAuthenticationException( 'Account authentication failed' );
-        $studentId = $this->accounts->createStudent( array(
-            'uid' => Identifier::uid(), 'reference_code' => null, 'status' => 'active', 'display_name' => $contact['full_name'], 'email' => $contact['email'], 'phone' => $contact['mobile'], 'whatsapp_phone' => $contact['whatsapp_number'], 'country_code' => $contact['country'], 'city' => $contact['city'], 'timezone' => $contact['timezone'], 'timezone_source' => 'booking_account', 'locale' => $contact['communication_language'], 'calendar_preference' => 'auto', 'wordpress_user_id' => $userId, 'created_at' => $now, 'updated_at' => $now, 'created_by' => $userId, 'updated_by' => $userId,
-        ) );
-        $this->accounts->assignStudentReference( $studentId, Identifier::reference( 'DZN-STU-', $studentId ) );
-        // The booking form requires explicit 18+ attestation. Never infer adulthood when absent.
-        if ( ! empty( $contact['adult_self_attested'] ) ) $this->accounts->recordAdultSelfAttestation( $studentId, $userId, $now );
+
+        // Never create a second identity for a person the academy already knows. An existing Student
+        // with the same exact email and no active portal account is adopted by this booking; an
+        // existing Student that already belongs to another account blocks the booking for staff review.
+        $adoptable = $this->accounts->adoptableStudentsForEmailForUpdate( (string) $contact['email'] );
+        if ( count( $adoptable ) > 1 ) throw new BookingAccountIdentityConflict( 'multiple_existing_students' );
+        $adopted = null;
+        if ( count( $adoptable ) === 1 ) {
+            if ( ! $this->contactCompatible( $adoptable[0], $contact ) ) throw new BookingAccountIdentityConflict( 'contact_mismatch' );
+            $adopted = $adoptable[0];
+        } elseif ( $this->accounts->linkedStudentExistsForEmailForUpdate( (string) $contact['email'] ) ) {
+            throw new BookingAccountIdentityConflict( 'email_already_linked' );
+        } elseif ( $this->accounts->inactiveStudentExistsForEmailForUpdate( (string) $contact['email'] ) ) {
+            // An inactive record for the same person must be restored by staff, never duplicated.
+            throw new BookingAccountIdentityConflict( 'inactive_existing_student' );
+        }
+
+        $evidenceReference = 'booking-account-' . Identifier::uid();
+        if ( $adopted !== null ) {
+            $studentId = (int) $adopted->id;
+            $this->accounts->fillMissingContact( $studentId, $contact, $now, $userId );
+            $this->accounts->attachWordpressUserIfEmpty( $studentId, $userId, $now );
+            if ( ! empty( $contact['adult_self_attested'] ) && $this->accounts->currentCapacityIsMissing( $studentId ) ) $this->accounts->recordAdultSelfAttestation( $studentId, $userId, $now, 'booking' );
+            $evidenceReference = 'booking-adoption-' . Identifier::uid();
+            $this->recordAdoption( $studentId, $userId );
+        } else {
+            $studentId = $this->accounts->createStudent( array(
+                'uid' => Identifier::uid(), 'reference_code' => null, 'status' => 'active', 'display_name' => $contact['full_name'], 'email' => $contact['email'], 'phone' => $contact['mobile'], 'whatsapp_phone' => $contact['whatsapp_number'], 'country_code' => $contact['country'], 'city' => $contact['city'], 'timezone' => $contact['timezone'], 'timezone_source' => 'booking_account', 'locale' => $contact['communication_language'], 'calendar_preference' => 'auto', 'wordpress_user_id' => $userId, 'created_at' => $now, 'updated_at' => $now, 'created_by' => $userId, 'updated_by' => $userId,
+            ) );
+            $this->accounts->assignStudentReference( $studentId, Identifier::reference( 'DZN-STU-', $studentId ) );
+            // The booking form requires explicit 18+ attestation. Never infer adulthood when absent.
+            if ( ! empty( $contact['adult_self_attested'] ) ) $this->accounts->recordAdultSelfAttestation( $studentId, $userId, $now );
+        }
         $this->accounts->createPrincipal( array(
-            'student_id' => $studentId, 'wordpress_user_id' => $userId, 'status' => 'active', 'link_sequence' => $this->accounts->nextPrincipalSequence( $studentId ), 'active_slot' => 1, 'version' => 1, 'verification_basis' => 'verified_internal_record', 'evidence_channel' => 'verified_internal_record', 'evidence_reference' => 'booking-account-' . Identifier::uid(), 'evidence_at' => $now, 'linked_at' => $now, 'linked_by' => $userId, 'updated_at' => $now, 'updated_by' => $userId,
+            'student_id' => $studentId, 'wordpress_user_id' => $userId, 'status' => 'active', 'link_sequence' => $this->accounts->nextPrincipalSequence( $studentId ), 'active_slot' => 1, 'version' => 1, 'verification_basis' => 'self_attestation', 'evidence_channel' => 'authenticated_platform', 'evidence_reference' => $evidenceReference, 'evidence_at' => $now, 'linked_at' => $now, 'linked_by' => $userId, 'updated_at' => $now, 'updated_by' => $userId,
         ) );
         return $studentId;
+    }
+
+    /** One phone/WhatsApp fact may fill a gap; it must never contradict the existing identity. */
+    private function contactCompatible( object $student, array $contact ): bool {
+        foreach ( array( array( (string) ( $student->phone ?? '' ), (string) ( $contact['mobile'] ?? '' ) ), array( (string) ( $student->whatsapp_phone ?? '' ), (string) ( $contact['whatsapp_number'] ?? '' ) ) ) as $pair ) {
+            $existing = (string) preg_replace( '/[^0-9]/', '', $pair[0] );
+            $incoming = (string) preg_replace( '/[^0-9]/', '', $pair[1] );
+            if ( $existing !== '' && $incoming !== '' && $existing !== $incoming ) return false;
+        }
+        return true;
+    }
+
+    /** Durable operator visibility for an identity adoption; never blocks the booking. */
+    private function recordAdoption( int $studentId, int $userId ): void {
+        try {
+            if ( class_exists( ExceptionService::class ) ) {
+                ( new ExceptionService() )->recordTrusted( array(
+                    'exception_type' => 'student_identity_adoption', 'severity' => 'warning',
+                    'entity_type' => 'student', 'entity_id' => $studentId,
+                    'fingerprint_key' => 'booking_adoption:' . $studentId . ':' . $userId,
+                    'summary' => 'A booking adopted an existing Student record with the same verified email and no active portal account. Review the contact facts and guardian/authority category.',
+                    'error_code' => 'booking_adopted_existing_student', 'retry_available' => false,
+                ) );
+            }
+        } catch ( \Throwable ) {
+            // The booking is already valid; visibility must not reverse it.
+        }
+        do_action( 'dzn_booking_student_adopted', $studentId, $userId );
     }
 
     private function bindBooking(int $requestId, int $studentId, int $userId): void {

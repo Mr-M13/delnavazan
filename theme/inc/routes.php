@@ -547,6 +547,8 @@ function dzn_theme_send_protected_response_headers() {
 	header( 'Cache-Control: no-store, private, max-age=0', true );
 	header( 'Pragma: no-cache', true );
 	header( 'Referrer-Policy: same-origin', true );
+	header( 'X-Frame-Options: SAMEORIGIN', true );
+	header( "Content-Security-Policy: frame-ancestors 'self'", true );
 }
 
 function dzn_theme_render_virtual_route() {

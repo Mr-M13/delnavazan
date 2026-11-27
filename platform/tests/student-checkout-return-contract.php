@@ -54,7 +54,7 @@ foreach (array('student/commercial-checkout', 'student/checkout-status', 'studen
 if (strpos($checkoutUi, 'CommercialPaymentService') !== false || strpos($checkoutUi, 'payment_state:') !== false || strpos($checkoutUi, 'innerHTML') !== false) {
     throw new RuntimeException('Student checkout browser cannot settle payment or render untrusted HTML');
 }
-foreach (array('portal-view=account&checkout=return&attempt=', 'portal-view=account&checkout=cancel&attempt=') as $needle) {
+foreach (array('portal-view=payments&checkout=return&attempt=', 'portal-view=payments&checkout=cancel&attempt=') as $needle) {
     if (strpos($stripeAdapter, $needle) === false) throw new RuntimeException('Stripe Checkout return routing contract missing ' . $needle);
 }
 if (strpos($checkoutTemplate, '<form') !== false || strpos($checkoutUi, 'amount_minor:') !== false || strpos($checkoutUi, 'currency: row.currency') !== false) {

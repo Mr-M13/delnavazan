@@ -94,6 +94,16 @@ final class BookingStudentAccountRepository {
             $email
         ) );
     }
+    /** A matching Student that is not active cannot be adopted or duplicated silently. */
+    public function inactiveStudentExistsForEmailForUpdate( string $email ): bool {
+        global $wpdb;
+        $email = trim( $email );
+        if ( $email === '' ) return false;
+        return (bool) $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$this->prefix}students WHERE email<>'' AND LOWER(email)=LOWER(%s) AND archived_at IS NULL LIMIT 1 FOR UPDATE",
+            $email
+        ) );
+    }
     /** Any Student identity already bound to an active portal principal for this email. */
     public function linkedStudentExistsForEmailForUpdate( string $email ): bool {
         global $wpdb;

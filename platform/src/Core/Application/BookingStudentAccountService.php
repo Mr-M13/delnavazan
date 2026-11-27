@@ -137,6 +137,9 @@ final class BookingStudentAccountService {
             $adopted = $adoptable[0];
         } elseif ( $this->accounts->linkedStudentExistsForEmailForUpdate( (string) $contact['email'] ) ) {
             throw new BookingAccountIdentityConflict( 'email_already_linked' );
+        } elseif ( $this->accounts->inactiveStudentExistsForEmailForUpdate( (string) $contact['email'] ) ) {
+            // An inactive record for the same person must be restored by staff, never duplicated.
+            throw new BookingAccountIdentityConflict( 'inactive_existing_student' );
         }
 
         $evidenceReference = 'booking-account-' . Identifier::uid();

@@ -63,14 +63,16 @@ function dzn_rec_allowed_empty_relation( string $table ): bool {
  * @return array<int,array<string,mixed>>
  */
 function dzn_rec_plan(): array {
-	global $wpdb, $dzn_rec_prefix;
+	global $wpdb;
+	// eval-file runs in a method scope: file-scope variables are not true globals here.
+	$dzn_rec_prefix = $wpdb->prefix . 'dzn_';
 	$rows = $wpdb->get_results(
 		"SELECT id,uid,reference_code,display_name,email,status,archived_at,wordpress_user_id
 		 FROM {$dzn_rec_prefix}students
 		 WHERE archived_at IS NULL AND email<>'' AND status IN ('active','inactive')
 		 ORDER BY LOWER(email) ASC,id ASC"
 	);
-	if ( ! is_array( $rows ) ) throw new RuntimeException( 'student_read_failed' );
+	if ( ! is_array( $rows ) || (string) $wpdb->last_error !== '' ) throw new RuntimeException( 'student_read_failed' );
 	$groups = array();
 	foreach ( $rows as $row ) {
 		$key = strtolower( trim( (string) $row->email ) );
@@ -145,7 +147,8 @@ function dzn_rec_fingerprint( array $plan ): string {
  * @return array<string,mixed>
  */
 function dzn_rec_diagnose( int $limit = 25 ): array {
-	global $wpdb, $dzn_rec_prefix;
+	global $wpdb;
+	$dzn_rec_prefix = $wpdb->prefix . 'dzn_';
 	$admins = get_users( array( 'role' => 'administrator', 'number' => 1, 'orderby' => 'ID', 'order' => 'ASC' ) );
 	if ( ! is_array( $admins ) || ! isset( $admins[0]->ID ) ) return array( 'available' => false, 'reason' => 'administrator_unavailable' );
 	wp_set_current_user( (int) $admins[0]->ID );

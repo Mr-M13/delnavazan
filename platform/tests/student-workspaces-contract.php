@@ -135,4 +135,10 @@ $assert(!str_contains($controller, '$wpdb->'), 'The controller must not write or
 $has($shell_controller, array('dzn_return_to', 'wp_validate_redirect', 'preserveReturnContext', 'Back to student profile'), 'Central workflows must carry a validated return destination back to the student profile.');
 $assert(str_contains($filtersSource, "DEFAULT_STATUS = 'active'"), 'The first page must prioritise current active students.');
 
+// Identity-anomaly accuracy: a shared family phone is not a duplicate, archived rows are not
+// candidates, and legacy booking self-authentication is not unproven ownership.
+$assert(str_contains((string) file_get_contents(dirname(__DIR__) . '/src/Core/Application/StudentWorkspaceReadService.php'), "s.archived_at IS NULL AND s.status<>'archived'"), 'Archived records must not remain duplicate candidates.');
+$assert(str_contains((string) file_get_contents(dirname(__DIR__) . '/src/Core/Application/StudentWorkspaceReadService.php'), 'booking-account-'), 'Legacy booking principals must be recognised as booking self-authentication.');
+$assert(str_contains((string) file_get_contents(dirname(__DIR__) . '/src/Core/Application/StudentWorkspaceReadService.php'), 'A shared phone/WhatsApp alone is common'), 'Phone-only matches must not be treated as duplicate identities.');
+
 echo "Student workspaces contract passed\n";

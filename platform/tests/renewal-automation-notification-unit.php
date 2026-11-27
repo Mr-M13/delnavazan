@@ -1,4 +1,10 @@
 <?php
+namespace Delnavazan\Platform\Core\Application {
+    /** Unit harness: the production guard is exercised by the runtime/canonical suites. */
+    final class NotificationSuppressionGuard {
+        public function suppressed(string $audience,int $recipientId,string $eventKey):bool{return false;}
+    }
+}
 /** Renewal-automation notifications: catalogue declaration, idempotency, fact gating, clock-driven due window, recipient resolution and the WhatsApp leg. */
 namespace {
     define('ABSPATH', dirname(__DIR__, 2) . '/');
@@ -16,6 +22,8 @@ namespace {
     require_once dirname(__DIR__, 2) . '/platform/src/Integrations/Notifications/PhoneNumberNormalizer.php';
     require_once dirname(__DIR__, 2) . '/platform/src/Integrations/Notifications/TelnyxTemplateRegistry.php';
     require_once dirname(__DIR__, 2) . '/platform/src/Core/Application/Finance/Pricing/PricingMoney.php';
+    require_once dirname(__DIR__, 2) . '/platform/src/Core/Application/OperationalNotificationReceipt.php';
+
     require_once dirname(__DIR__, 2) . '/platform/src/Core/Application/RenewalAutomationNotificationService.php';
     require_once dirname(__DIR__, 2) . '/platform/src/Integrations/RenewalAutomationWorker.php';
 

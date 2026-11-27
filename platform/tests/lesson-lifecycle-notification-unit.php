@@ -1,4 +1,10 @@
 <?php
+namespace Delnavazan\Platform\Core\Application {
+    /** Unit harness: the production guard is exercised by the runtime/canonical suites. */
+    final class NotificationSuppressionGuard {
+        public function suppressed(string $audience,int $recipientId,string $eventKey):bool{return false;}
+    }
+}
 /** Teacher and Student lesson-lifecycle notifications: catalogue declaration, idempotency, lifecycle gating, recipient resolution, the SMS leg and the student WhatsApp leg. */
 namespace {
     define('ABSPATH', dirname(__DIR__, 2) . '/');
@@ -15,6 +21,8 @@ namespace {
     require_once dirname(__DIR__, 2) . '/platform/src/Integrations/Notifications/NotificationCatalogue.php';
     require_once dirname(__DIR__, 2) . '/platform/src/Integrations/Notifications/PhoneNumberNormalizer.php';
     require_once dirname(__DIR__, 2) . '/platform/src/Core/Application/SmsProviderRoutingPolicy.php';
+    require_once dirname(__DIR__, 2) . '/platform/src/Core/Application/OperationalNotificationReceipt.php';
+
     require_once dirname(__DIR__, 2) . '/platform/src/Core/Application/LessonLifecycleNotificationService.php';
 
     use Delnavazan\Platform\Core\Application\LessonLifecycleNotificationService;

@@ -159,6 +159,7 @@ final class PaymentRefundNotificationService {
                 'whatsapp'=>array('state'=>'skipped','reason'=>'already_recorded'),
             );
         }
+        if(!OperationalNotificationReceipt::claim($eventKey,$subjectId,self::AUDIENCE,'all'))return self::skipped('already_claimed');
         $variables=$this->variables($eventKey,$row);
         $linkUrl=(string)($variables['portal_url']??'');
         $recorded=($this->record)($recipientId,$eventKey,self::SOURCE_KIND,$subjectId,$variables,$linkUrl);

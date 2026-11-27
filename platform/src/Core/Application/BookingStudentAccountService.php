@@ -35,6 +35,7 @@ final class BookingStudentAccountService {
                 $result = $this->submissions->submitWithinTransaction( $input, $idempotencyKey, $newSubmissionGate, $studentId );
                 $this->bindBooking( (int) $result['request_id'], $studentId, $userId );
                 $this->accounts->commit();
+                AdminIntroWhatsAppNotifier::schedule( (int) $result['request_id'] );
                 return array( 'success' => true, 'request_reference' => (string) $result['request_reference'], 'user_id' => $userId, 'replayed' => ! empty( $result['replayed'] ), 'recording_research_consent_accepted' => ! empty( $normalized['recording_research_consent_accepted'] ), 'communication_language' => (string) ( $normalized['contact']['communication_language'] ?? 'fa' ) );
             } catch ( \Throwable $e ) {
                 $contention = BookingContention::capture( $e );

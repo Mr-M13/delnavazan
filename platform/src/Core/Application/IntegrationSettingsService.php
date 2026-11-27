@@ -91,7 +91,7 @@ final class IntegrationSettingsService {
     public static function providerSchemas():array{return (new self())->schema();}
     private function schema():array{return array(
         'email'=>array('mode'=>'text','host'=>'text','port'=>'text','encryption'=>'text','username'=>'text','password'=>'secret','from_name'=>'text','from_email'=>'email'),
-        'whatsapp'=>array('app_id'=>'text','business_account_id'=>'text','phone_number_id'=>'text','sender_id'=>'text','waba_id'=>'text','messaging_profile_id'=>'text','webhook_public_key'=>'text','test_template_name'=>'text','test_template_language'=>'text','access_token'=>'secret','app_secret'=>'secret','verify_token'=>'secret'),
+        'whatsapp'=>array('app_id'=>'text','business_account_id'=>'text','phone_number_id'=>'text','sender_id'=>'text','waba_id'=>'text','messaging_profile_id'=>'text','webhook_public_key'=>'text','admin_whatsapp_number'=>'text','test_template_name'=>'text','test_template_language'=>'text','access_token'=>'secret','app_secret'=>'secret','verify_token'=>'secret'),
         'sms'=>array('messaging_profile_id'=>'text','sender_id'=>'text','webhook_public_key'=>'text','api_key'=>'secret'),
         'sms_ir'=>array('endpoint'=>'url','sender_id'=>'text','template_endpoint'=>'url','template_account_referral_id'=>'text','template_intro_booking_id'=>'text','api_key'=>'secret'),
         'google'=>array('client_id'=>'text','client_secret'=>'secret','redirect_uri'=>'url','meet_redirect_uri'=>'url'),

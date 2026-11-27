@@ -89,6 +89,28 @@
             }
         },
         {
+            "name": "delnavazan_admin_new_intro_v2_fa",
+            "event_key": "booking.submitted.admin",
+            "audience": "admin",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درخواست کلاس آشنایی جدید {{1}} — هنرجو {{2}}، ساز {{3}}، زمان {{4}}. صف هماهنگی: {{5}} — دلنوازان",
+            "variables": [
+                "booking_reference",
+                "learner_name",
+                "instrument",
+                "requested_time",
+                "queue_url"
+            ],
+            "samples": {
+                "booking_reference": "DZN-BKG-000123",
+                "learner_name": "باران",
+                "instrument": "تار",
+                "requested_time": "شنبه ۱۰ آبان ۱۴۰۵ ۱۷:۰۰ · Asia/Tehran",
+                "queue_url": "https://example.invalid/wp-admin/admin.php?page=dzn-booking-requests&request_id=1"
+            }
+        },
+        {
             "name": "delnavazan_teacher_new_booking_v2_fa",
             "event_key": "booking.new.teacher",
             "audience": "teacher",

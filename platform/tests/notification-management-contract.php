@@ -121,6 +121,15 @@ $fail('the renewal notice has a WhatsApp producer', $catalogueClass::producesMob
 $fail('the teacher cancellation is SMS-only', $catalogueClass::producesMobileChannel('booking.cancelled.teacher', 'sms') && !$catalogueClass::producesMobileChannel('booking.cancelled.teacher', 'whatsapp'));
 $fail('one-time account codes have no mobile producer', !$catalogueClass::producesMobileChannel('account.claim_issued.student', 'whatsapp') && !$catalogueClass::producesMobileChannel('account.claim_issued.student', 'sms'));
 $fail('consent notices have no mobile producer', !$catalogueClass::producesMobileChannel('consent.student_required.student', 'whatsapp'));
+$fail('only the new intro admin event has a mobile producer', (static function () use ($mobileMap): bool {
+    $admin = array();
+    foreach ($mobileMap as $eventKey => $channels) if (str_ends_with((string) $eventKey, '.admin')) $admin[$eventKey] = $channels;
+    return array_keys($admin) === array('booking.submitted.admin') && in_array('whatsapp', $admin['booking.submitted.admin'], true);
+})());
+$notifier = (string) file_get_contents($root . '/src/Core/Application/AdminIntroWhatsAppNotifier.php');
+$fail('admin WhatsApp is limited to the new intro event', str_contains($notifier, "EVENT_KEY='booking.submitted.admin'") && !str_contains($notifier, 'booking.escalation') && !str_contains($notifier, 'booking.referral'));
+$fail('admin WhatsApp uses the operations number and the idempotent adapter', str_contains($notifier, "'admin_whatsapp_number'") && str_contains($notifier, 'sendBookingNotification') && str_contains($notifier, 'NotificationChannelPolicy::allows'));
+$fail('admin WhatsApp is scheduled after the intake commit', str_contains((string) file_get_contents($root . '/src/Core/Application/BookingRequestSubmissionService.php'), 'AdminIntroWhatsAppNotifier::schedule') && str_contains((string) file_get_contents($root . '/src/Core/Application/BookingStudentAccountService.php'), 'AdminIntroWhatsAppNotifier::schedule'));
 $fail('mobile methods without a producer are not offered', str_contains($library, 'producesMobileChannel($eventKey,$channel)') && !str_contains($library, 'return $event!==null&&in_array($channel,(array)$event[\'channels\'],true);'));
 $fail('the card renders only offered methods', str_contains($controller, "foreach((array)\$row['offered'] as \$channel)"));
 $fail('the editor hides an unoffered method', str_contains($controller, 'if(!$library->channelOffered($eventKey,$channel))continue;'));

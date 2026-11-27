@@ -1,8 +1,13 @@
 <?php
 namespace Delnavazan\Platform\Integrations;
 
+use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
+use Delnavazan\Platform\Core\Application\NotificationSuppressionGuard;
 use Delnavazan\Platform\Core\Application\OperationalNotificationReceipt;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
+use Delnavazan\Platform\Integrations\Notifications\NotificationChannelPolicy;
+use Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer;
+use Delnavazan\Platform\Integrations\Notifications\TelnyxConfiguration;
 use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCopyResolver;
@@ -46,7 +51,7 @@ final class RenewalReminderWorker {
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM (
                 SELECT term.id term_id,term.lesson_allocation,enrolment.id enrolment_id,enrolment.student_id,
-                       student.display_name,student.email,student.locale,student.calendar_preference,student.timezone,
+                       student.display_name,student.email,student.locale,student.calendar_preference,student.timezone,student.phone student_phone,student.whatsapp_phone student_whatsapp,student.country_code student_country_code,
                        course.name_fa course_name_fa,course.name_en course_name_en,
                        teacher.display_name teacher_display_name,teacher.english_name teacher_english_name,teacher.persian_name teacher_persian_name,
                        (SELECT COUNT(*) FROM {$prefix}lessons lesson
@@ -125,6 +130,7 @@ final class RenewalReminderWorker {
                     continue;
                 }
                 self::sendEmail($row, $variables);
+                self::sendWhatsApp($row, $variables);
                 $result['sent']++;
             } catch (\Throwable $error) {
                 $result['errors']++;
@@ -206,6 +212,27 @@ final class RenewalReminderWorker {
         return $locale === 'fa-IR'
             ? 'ترم بعد را می‌توانید یکجا یا در دو قسط پرداخت کنید.'
             : 'You can pay for the next term in full or in two instalments.';
+    }
+
+    /** Independent student WhatsApp leg; the email/portal result never changes it. */
+    private static function sendWhatsApp(object $row, array $variables): void {
+        if (!class_exists(NotificationChannelPolicy::class) || !NotificationChannelPolicy::allows(self::EVENT_KEY, 'whatsapp')) return;
+        $settings = new IntegrationSettingsService();
+        if (!(new TelnyxConfiguration($settings))->whatsappReady()) return;
+        $contact = PhoneNumberNormalizer::pair((string) ($row->student_phone ?? ''), (string) ($row->student_whatsapp ?? ''));
+        $to = PhoneNumberNormalizer::toE164($contact['whatsapp'], (string) ($row->student_country_code ?: 'IR'));
+        if ($to === '') return;
+        if ((new NotificationSuppressionGuard())->suppressed('student', (int) $row->student_id, self::EVENT_KEY)) return;
+        $parameters = array();
+        foreach (NotificationCatalogue::variables(self::EVENT_KEY) as $code) {
+            if (!array_key_exists($code, $variables)) return;
+            $parameters[$code] = (string) $variables[$code];
+        }
+        try {
+            (new TelnyxWhatsAppAdapter($settings))->sendBookingNotification($to, (int) $row->term_id, self::EVENT_KEY, $parameters);
+        } catch (\Throwable $error) {
+            do_action('dzn_renewal_reminder_whatsapp_failed', (int) $row->term_id, get_class($error));
+        }
     }
 
     private static function sendEmail(object $row, array $variables): void {

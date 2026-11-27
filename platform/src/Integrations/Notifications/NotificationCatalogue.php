@@ -55,7 +55,11 @@ final class NotificationCatalogue {
         'booking.cancelled.teacher'=>array('sms'),
         'booking.rescheduled.student'=>array('whatsapp'),
         'booking.rescheduled.teacher'=>array('sms'),
+        'booking.payment_lapsed.student'=>array('whatsapp'),
+        'booking.payment_conflict.student'=>array('whatsapp'),
+        'booking.terminal.student'=>array('whatsapp'),
         'post_intro.activated.student'=>array('whatsapp'),
+        'post_intro.survey.student'=>array('whatsapp'),
         'post_intro.invitation.student'=>array('whatsapp'),
         'lesson.access.student'=>array('whatsapp'),
         'lesson.reminder.student'=>array('whatsapp'),
@@ -79,6 +83,7 @@ final class NotificationCatalogue {
         'renewal.guarantee_deadline_approaching.student'=>array('whatsapp'),
         'renewal.manual_payment_required.student'=>array('whatsapp'),
         'renewal.term_lapsed.student'=>array('whatsapp'),
+        'renewal.reminder.student'=>array('whatsapp'),
         'payment.failed.student'=>array('whatsapp'),
         'payment.recovered.student'=>array('whatsapp'),
         'refund.review_required.student'=>array('whatsapp'),
@@ -493,20 +498,24 @@ final class NotificationCatalogue {
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · فرصت ثبت‌نام شما','body'=>"درود {{name}}،\n\n{{hold_status_note}} ثبت‌نام کلاس «{{course}}» با {{teacher}} تکمیل نشده است.\n\nاگر تصمیم به ادامه نگرفته‌اید، لطفاً به ما بگویید چه چیزی مانع شد تا بتوانیم کمک کنیم. چند گزینهٔ پیشنهادی:\n- با این مدرس راحت نبودم و مایلم مدرس دیگری را امتحان کنم\n- زمان کلاس مناسب نبود\n- هزینه یا شرایط پرداخت مناسب نبود\n- دلیل دیگری داشتم\n\nمی‌توانید انتخاب کنید که با شما تماس بگیریم، فعلاً ادامه ندهید، یا فقط نظرتان را ثبت کنید.\n\nبرای ثبت پاسخ به حساب کاربری بروید:\n{{survey_url}}\n\nحساب کاربری:\n{{portal_url}}\n\nپاسخ شما فقط برای پیگیری و رفع نگرانی استفاده می‌شود.\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'چرا ثبت‌نام را ادامه ندادید؟','body'=>'{{hold_status_note}} اگر ادامه نمی‌دهید، دلیل را از حساب کاربری برای کلاس «{{course}}» با {{teacher}} ثبت کنید تا بتوانیم کمک کنیم.'),
+                'whatsapp'=>array('body'=>'درود {{name}}، ثبت‌نام «{{course}}» با {{teacher}} تکمیل نشده است. {{hold_status_note}} برای ثبت پاسخ به حساب کاربری بروید: {{survey_url}} — دلنوازان'),
             ),
             'en'=>array(
                 'email'=>array('subject'=>'Delnavazan · your enrolment follow-up','body'=>"Hello {{name}},\n\n{{hold_status_note}} Your {{course}} enrolment with {{teacher}} is not complete.\n\nIf you have decided not to continue, please tell us what got in the way so we can help. Suggested reasons:\n- I did not feel comfortable with this Teacher and would like to try another\n- The class time did not work\n- The price or payment terms did not work\n- Something else\n\nYou can ask us to contact you, say you do not want to continue for now, or simply record your feedback.\n\nAnswer in your account:\n{{survey_url}}\n\nStudent account:\n{{portal_url}}\n\nYour answer is used only to follow up and resolve your concern.\n\nDelnavazan"),
                 'website'=>array('subject'=>'Why did you not continue?','body'=>'{{hold_status_note}} If you are not continuing, record the reason in your account for {{course}} with {{teacher}} so we can help.'),
+                'whatsapp'=>array('body'=>'Hello {{name}}, your {{course}} enrolment with {{teacher}} is not complete. {{hold_status_note}} Answer in your account: {{survey_url}} — Delnavazan'),
             ),
         ));
         $out[]=self::event('renewal.reminder.student','Term Renewal Reminder','payment','student','RenewalReminderWorker','queue',array('email','website'),'financial',true,array('name','course','teacher','remaining_sessions','term_end_date','instalment_note','payment_url','portal_url'),'renewal.reminder',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · یادآوری تمدید ترم','body'=>"درود {{name}}،\n\nفقط {{remaining_sessions}} جلسه از ترم «{{course}}» با {{teacher}} باقی مانده است.\n\nبرای حفظ جایگاه کلاس، تمدید ترم را از بخش پرداخت حساب کاربری تکمیل کنید.\n\n{{instalment_note}}\n\nمهلت: {{term_end_date}}\n\nپرداخت و تمدید:\n{{payment_url}}\n\nحساب کاربری:\n{{portal_url}}\n\nاگر تا پایان ترم پرداخت را تکمیل نکنید یا با مدرس یا آکادمی هماهنگ نکنید، این جایگاه آزاد می‌شود و در دسترس هنرجویان دیگر قرار می‌گیرد.\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'یادآوری تمدید ترم','body'=>'فقط {{remaining_sessions}} جلسه از ترم «{{course}}» باقی مانده است. {{instalment_note}} برای حفظ جایگاه، از بخش پرداخت حساب کاربری تمدید کنید.'),
+                'whatsapp'=>array('body'=>'درود {{name}}، فقط {{remaining_sessions}} جلسه از ترم «{{course}}» باقی مانده است. برای حفظ جایگاه، تمدید را از بخش پرداخت حساب کاربری تکمیل کنید. مهلت: {{term_end_date}} — {{payment_url}} — دلنوازان'),
             ),
             'en'=>array(
                 'email'=>array('subject'=>'Delnavazan · term renewal reminder','body'=>"Hello {{name}},\n\nOnly {{remaining_sessions}} sessions remain in your {{course}} term with {{teacher}}.\n\nTo keep your place, complete the renewal from the payments section of your account.\n\n{{instalment_note}}\n\nDeadline: {{term_end_date}}\n\nPay and renew:\n{{payment_url}}\n\nStudent account:\n{{portal_url}}\n\nIf payment is not completed by the end of the term and you have not spoken with your Teacher or the academy, this place will be released for other students.\n\nDelnavazan"),
                 'website'=>array('subject'=>'Term renewal reminder','body'=>'Only {{remaining_sessions}} sessions remain in your {{course}} term. {{instalment_note}} Renew from the payments section to keep your place.'),
+                'whatsapp'=>array('body'=>'Hello {{name}}, only {{remaining_sessions}} sessions remain in your {{course}} term. To keep your place, complete the renewal from the payments section of your account. Deadline: {{term_end_date}} — {{payment_url}} — Delnavazan'),
             ),
         ));
         $out[]=self::event('post_intro.activated.student','Enrolment Activated','account','student','PostIntroActivationService','queue',array('email','website','whatsapp'),'operational',true,array('name','teacher','course','portal_url'),'post_intro.activated',array(

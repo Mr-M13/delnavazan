@@ -283,6 +283,56 @@
             }
         },
         {
+            "name": "delnavazan_intro_payment_lapsed_v2_fa",
+            "event_key": "booking.payment_lapsed.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}}، مهلت پرداخت کلاس آشنایی «{{2}}» با {{3}} در {{4}} گذشت و جایگاه آزاد شد. اگر همچنان می‌خواهید، از حساب کاربری زمان تازه انتخاب کنید: {{5}} — دلنوازان",
+            "variables": ["name","course","teacher","when","portal_url"],
+            "samples": {"name":"باران","course":"تار","teacher":"استاد ندا","when":"شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰","portal_url":"https://example.invalid/student-portal/"}
+        },
+        {
+            "name": "delnavazan_intro_payment_conflict_v2_fa",
+            "event_key": "booking.payment_conflict.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}}، پرداخت کلاس آشنایی «{{2}}» با {{3}} ثبت شد اما زمان {{4}} پیش از نهایی‌شدن پرداخت گرفته شد. پرداخت شما ایمن است و آموزشگاه برای زمان تازه تماس می‌گیرد: {{5}} — دلنوازان",
+            "variables": ["name","course","teacher","when","portal_url"],
+            "samples": {"name":"باران","course":"تار","teacher":"استاد ندا","when":"شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰","portal_url":"https://example.invalid/student-portal/"}
+        },
+        {
+            "name": "delnavazan_intro_terminal_v2_fa",
+            "event_key": "booking.terminal.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}}، مهلت پاسخ برای کلاس آشنایی «{{2}}» با {{3}} در {{4}} به پایان رسید. می‌توانید از حساب کاربری زمان تازه‌ای انتخاب کنید: {{5}} — دلنوازان",
+            "variables": ["name","course","teacher","when","portal_url"],
+            "samples": {"name":"باران","course":"تار","teacher":"استاد ندا","when":"شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰","portal_url":"https://example.invalid/student-portal/"}
+        },
+        {
+            "name": "delnavazan_term_renewal_reminder_v2_fa",
+            "event_key": "renewal.reminder.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}}، فقط {{2}} جلسه از ترم «{{3}}» باقی مانده است. برای حفظ جایگاه، تمدید را از بخش پرداخت حساب کاربری تکمیل کنید. مهلت: {{4}} — {{5}} — دلنوازان",
+            "variables": ["name","remaining_sessions","course","term_end_date","payment_url"],
+            "samples": {"name":"باران","remaining_sessions":"۴","course":"تار","term_end_date":"۳۰ آذر ۱۴۰۵","payment_url":"https://example.invalid/student-portal/?portal-view=payments"}
+        },
+        {
+            "name": "delnavazan_enrolment_followup_v2_fa",
+            "event_key": "post_intro.survey.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}}، ثبت‌نام «{{2}}» با {{3}} تکمیل نشده است. {{4}} برای ثبت پاسخ به حساب کاربری بروید: {{5}} — دلنوازان",
+            "variables": ["name","course","teacher","hold_status_note","survey_url"],
+            "samples": {"name":"باران","course":"تار","teacher":"استاد ندا","hold_status_note":"مهلت نگه‌داشتن این جایگاه در حال پایان است.","survey_url":"https://example.invalid/student-portal/?post_intro_survey=1"}
+        },
+        {
             "name": "delnavazan_enrolment_confirmation_v2_fa",
             "event_key": "post_intro.activated.student",
             "audience": "student",

@@ -564,10 +564,21 @@ final class StudentWorkspaceReadService {
         );
     }
 
-    /** A booking creates the principal only after authenticating the same account in that request. */
+    /**
+     * A booking creates the principal only after authenticating the same account in that request.
+     *
+     * Accounts created before the explicit self-attestation label was introduced recorded the same
+     * fact as `verified_internal_record` with a `booking-account-`/`booking-adoption-` reference.
+     * Those are still booking self-authentication, not unproven ownership; a claim or admin link
+     * never uses that reference prefix and keeps its review item.
+     */
     private function isBookingSelfAuthenticated(object $principal): bool {
-        return (string) ($principal->verification_basis ?? '') === 'self_attestation'
-            && (string) ($principal->evidence_channel ?? '') === 'authenticated_platform';
+        $basis = (string) ($principal->verification_basis ?? '');
+        $channel = (string) ($principal->evidence_channel ?? '');
+        if ($basis === 'self_attestation' && $channel === 'authenticated_platform') return true;
+        $reference = (string) ($principal->evidence_reference ?? '');
+        return $basis === 'verified_internal_record' && $channel === 'verified_internal_record'
+            && (str_starts_with($reference, 'booking-account-') || str_starts_with($reference, 'booking-adoption-'));
     }
 
     /** @return array<string,mixed> */
@@ -713,7 +724,7 @@ final class StudentWorkspaceReadService {
             $anomalies[] = array(
                 'code' => 'duplicate_identity_candidate',
                 'title' => 'Possible duplicate student identities',
-                'description' => 'Another student record shares a contact value with this profile. This is a candidate only; no automatic merge authority exists in this release.',
+                'description' => 'Another student record uses the same email address (or the same phone when no email is recorded). This is a candidate only; a shared family phone alone is not treated as a duplicate and no automatic merge authority exists in this release.',
                 'evidence' => array('Candidate records' => implode(' | ', array_map(static fn(array $c): string => (string) $c['display_name'] . ' · ' . (string) ($c['reference_code'] ?: 'No public ID'), $candidates))),
                 'options' => array('Review each candidate and verify whether this is the same person.', 'Do not merge or create a second account without verified evidence. Use the protected identity authority for exceptional review.'),
                 'action_keys' => array(),
@@ -750,14 +761,21 @@ final class StudentWorkspaceReadService {
         global $wpdb;
         $clauses = array();
         $args = array($studentId);
-        if (trim($email) !== '') { $clauses[] = 'LOWER(s.email)=LOWER(%s)'; $args[] = trim($email); }
-        foreach (array($phone, $whatsapp) as $number) {
-            $digits = StudentWorkspaceFilters::phoneDigits($number);
-            if ($digits !== '') {
-                $clauses[] = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(s.phone,''),' ',''),'-',''),'+',''),'(',''),')','')=%s";
-                $clauses[] = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(s.whatsapp_phone,''),' ',''),'-',''),'+',''),'(',''),')','')=%s";
-                $args[] = $digits;
-                $args[] = $digits;
+        // A duplicate identity is proven by the same email. A shared phone/WhatsApp alone is common
+        // for siblings or a family contact and must not become a permanent action item; it is used
+        // only when no email is recorded.
+        if (trim($email) !== '') {
+            $clauses[] = 'LOWER(s.email)=LOWER(%s)';
+            $args[] = trim($email);
+        } else {
+            foreach (array($phone, $whatsapp) as $number) {
+                $digits = StudentWorkspaceFilters::phoneDigits($number);
+                if ($digits !== '') {
+                    $clauses[] = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(s.phone,''),' ',''),'-',''),'+',''),'(',''),')','')=%s";
+                    $clauses[] = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(s.whatsapp_phone,''),' ',''),'-',''),'+',''),'(',''),')','')=%s";
+                    $args[] = $digits;
+                    $args[] = $digits;
+                }
             }
         }
         if (!$clauses) return array();

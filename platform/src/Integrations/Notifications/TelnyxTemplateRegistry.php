@@ -25,6 +25,7 @@ final class TelnyxTemplateRegistry {
             'delnavazan_class_reminder_v2_fa'=>array('event_key'=>'lesson.reminder.student','audience'=>'student','variable_order'=>array('name','course','teacher','when','portal_url')),
             'delnavazan_reschedule_request_v2_fa'=>array('event_key'=>'reschedule.change.proposed.student','audience'=>'student','variable_order'=>array('name','when','timezone','portal_url')),
             'delnavazan_enrolment_confirmation_v2_fa'=>array('event_key'=>'post_intro.activated.student','audience'=>'student','variable_order'=>array('name','course','teacher','portal_url')),
+            'delnavazan_enrolment_ready_v2_fa'=>array('event_key'=>'post_intro.invitation.student','audience'=>'student','variable_order'=>array('name','course','teacher','portal_url')),
             'delnavazan_payment_due_v2_fa'=>array('event_key'=>'renewal.manual_payment_required.student','audience'=>'student','variable_order'=>array('name','course','amount','due_date','portal_url')),
             'delnavazan_payment_received_v2_fa'=>array('event_key'=>'payment.recovered.student','audience'=>'student','variable_order'=>array('name','course','amount','paid_date','portal_url')),
             'delnavazan_renewal_reminder_v2_fa'=>array('event_key'=>'renewal.automatic_upcoming.student','audience'=>'student','variable_order'=>array('name','course','due_date','amount','portal_url')),

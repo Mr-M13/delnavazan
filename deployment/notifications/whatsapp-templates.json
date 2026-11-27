@@ -263,6 +263,26 @@
             }
         },
         {
+            "name": "delnavazan_enrolment_ready_v2_fa",
+            "event_key": "post_intro.invitation.student",
+            "audience": "student",
+            "language": "fa",
+            "category": "UTILITY",
+            "body": "درود {{1}}، ثبت‌نام «{{2}}» با {{3}} آمادهٔ تکمیل است. این جایگاه حدود یک هفته برای شما نگه داشته می‌شود. تکمیل ثبت‌نام و پرداخت: {{4}} — دلنوازان",
+            "variables": [
+                "name",
+                "course",
+                "teacher",
+                "portal_url"
+            ],
+            "samples": {
+                "name": "باران",
+                "course": "تار",
+                "teacher": "استاد ندا",
+                "portal_url": "https://example.invalid/student-portal/"
+            }
+        },
+        {
             "name": "delnavazan_enrolment_confirmation_v2_fa",
             "event_key": "post_intro.activated.student",
             "audience": "student",

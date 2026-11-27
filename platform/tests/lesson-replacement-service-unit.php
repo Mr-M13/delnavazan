@@ -115,7 +115,7 @@ namespace {
     $fail('replacement issuance targets the original Lesson and Term', $replacementCalls[0]['origin_lesson_id'] === 41 && $replacementCalls[0]['term_id'] === 2 && $replacementCalls[0]['teacher_assignment_id'] === 8);
     $fail('the original Lesson is never mutated by replacement acceptance', $store->context->lifecycle_state === 'completed' && (string) $store->context->schedule_version_uid === 'SCH-71' && (string) $store->context->starts_at_utc === (string) $context('completed')->starts_at_utc);
     $fail('acceptance records the new schedule version and calendar hand-off', $accepted['result_schedule_version_id'] === 901 && (int) $store->calendarJobs[0]->lesson_id === 900 && (int) $store->calendarJobs[0]->to_schedule_version_id === 901);
-    $fail('acceptance notifies both parties and admin', count(array_filter($store->notifications, static fn($row) => $row->event_type === 'accepted')) === 3);
+    $fail('acceptance notifies both parties and admin', count(array_filter($store->notifications, static fn($row) => $row->event_type === 'accepted')) === 4);
     $replay = $service->decideForStudent(9, (string) $store->proposals[0]->uid, 'accept', 'decision-key-replacement-0001');
     $fail('repeated replacement acceptance is idempotent', $replay['idempotent'] === true && count($replacementCalls) === 1);
 

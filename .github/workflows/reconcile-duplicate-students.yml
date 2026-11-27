@@ -1,0 +1,170 @@
+name: Reconcile duplicate students
+
+# Guarded consolidation of duplicate Student identities. It is deliberately narrow:
+#   - workflow_dispatch only, from main;
+#   - runs in the protected `production` environment;
+#   - serialized with the deploy workflow;
+#   - bound to a reviewed source SHA and the exact deployed build SHA;
+#   - reuses the protected attestation secret;
+#   - takes and verifies a full database export before archiving anything;
+#   - archives only copies with no operational relations, no active portal
+#     principal and no WordPress user; every other group is manual review;
+#   - never deletes a row: archiving is reversible;
+#   - report mode is read-only and returns the fingerprint execute must match.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full 40-char SHA of the reviewed reconcile tool on main
+        type: string
+        required: true
+      commit_sha:
+        description: Full 40-char SHA of the build currently deployed to production
+        type: string
+        required: true
+      mode:
+        description: report is read-only; execute archives the reviewed plan
+        type: choice
+        options: [report, execute]
+        required: true
+        default: report
+      fingerprint:
+        description: Pre-state fingerprint printed by report mode (execute only)
+        type: string
+        required: false
+        default: ''
+      confirm:
+        description: Type RECONCILE_DUPLICATES to authorise execute mode
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: delnavazan-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  reconcile-students:
+    name: Reconcile duplicate Student identities
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - name: Require dispatch from main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run this reconciliation from main only.' >&2; exit 1; }
+
+      - name: Check out the reviewed reconcile source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate source, mode and confirmation
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          MODE: ${{ inputs.mode }}
+          FINGERPRINT: ${{ inputs.fingerprint }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character reviewed source SHA.' >&2; exit 1; }
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Provide one full 40-character deployed SHA.' >&2; exit 1; }
+          [[ "$MODE" == 'report' || "$MODE" == 'execute' ]] || { echo 'Mode must be report or execute.' >&2; exit 1; }
+          if [[ "$MODE" == 'execute' ]]; then
+            [[ "$FINGERPRINT" =~ ^[0-9a-f]{64}$ ]] || { echo 'Execute requires the 64-character report fingerprint.' >&2; exit 1; }
+            [[ "$CONFIRM" == 'RECONCILE_DUPLICATES' ]] || { echo 'Type RECONCILE_DUPLICATES to confirm.' >&2; exit 1; }
+          fi
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/main \
+            || { echo 'The reviewed source SHA must be a commit on main.' >&2; exit 1; }
+          git merge-base --is-ancestor "$COMMIT_SHA" origin/main \
+            || { echo 'The deployed SHA must be a commit on main.' >&2; exit 1; }
+          bash deployment/qa/reconcile-duplicate-students-contract.sh
+
+      - name: Configure pinned production SSH access
+        shell: bash
+        env:
+          PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          PRODUCTION_KNOWN_HOSTS: ${{ secrets.PRODUCTION_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_PRIVATE_KEY" && -n "$PRODUCTION_KNOWN_HOSTS" ]] || { echo 'Production SSH secrets are not configured in the protected environment.' >&2; exit 1; }
+          grep -Eq '^cp119\.hosting-cloud\.net[[:space:]]+ssh-(ed25519|rsa|ecdsa)' <<<"$PRODUCTION_KNOWN_HOSTS" || { echo 'Known-hosts secret must pin cp119.hosting-cloud.net.' >&2; exit 1; }
+          install -m 700 -d "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_production"
+          printf '%s\n' "$PRODUCTION_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_production" >/dev/null
+          cat >> "$HOME/.ssh/config" <<'EOF'
+          Host cp119.hosting-cloud.net
+            UserKnownHostsFile ~/.ssh/known_hosts
+            StrictHostKeyChecking yes
+            IdentityFile ~/.ssh/id_production
+            IdentitiesOnly yes
+            BatchMode yes
+          EOF
+          chmod 600 "$HOME/.ssh/config"
+
+      - name: Report the duplicate plan (read-only)
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$PRODUCTION_SSH_USER" ]] || { echo 'Production SSH user is not configured.' >&2; exit 1; }
+          bash deployment/qa/reconcile-duplicate-students.sh report "$COMMIT_SHA" \
+            | tee "$RUNNER_TEMP/reconcile-report.json"
+          jq -e '.ok == true and .archives_performed == false and (.plan | type == "array")' "$RUNNER_TEMP/reconcile-report.json" >/dev/null
+
+      - name: Confirm the fresh report fingerprint
+        if: inputs.mode == 'execute'
+        shell: bash
+        env:
+          FINGERPRINT: ${{ inputs.fingerprint }}
+        run: |
+          set -Eeuo pipefail
+          observed="$(jq -r '.fingerprint // empty' "$RUNNER_TEMP/reconcile-report.json")"
+          [[ "$observed" == "$FINGERPRINT" ]] || {
+            echo "Pre-state changed: report fingerprint $observed does not match the approved $FINGERPRINT. Re-run report and review again." >&2
+            exit 1
+          }
+
+      - name: Archive the reviewed empty duplicates
+        if: inputs.mode == 'execute'
+        shell: bash
+        env:
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          DZN_RECONCILE_ATTESTATION: ${{ secrets.PURGE_ATTESTATION_TOKEN }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          FINGERPRINT: ${{ inputs.fingerprint }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$DZN_RECONCILE_ATTESTATION" ]] || { echo 'The protected attestation secret is not configured.' >&2; exit 1; }
+          bash deployment/qa/reconcile-duplicate-students.sh execute "$COMMIT_SHA" "$FINGERPRINT" "$CONFIRM" \
+            | tee "$RUNNER_TEMP/reconcile-execute.json"
+          jq -e '.ok == true and .archives_performed == true' "$RUNNER_TEMP/reconcile-execute.json" >/dev/null
+          jq -e '.post_verification.no_active_principal_remains == true' "$RUNNER_TEMP/reconcile-execute.json" >/dev/null
+          jq -e '[.post_verification.archived_visible[]] | all(. == true)' "$RUNNER_TEMP/reconcile-execute.json" >/dev/null
+
+      - name: Preserve reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-reconcile-duplicate-students-${{ inputs.commit_sha }}
+          path: |
+            ${{ runner.temp }}/reconcile-report.json
+            ${{ runner.temp }}/reconcile-execute.json
+          if-no-files-found: warn
+          retention-days: 90

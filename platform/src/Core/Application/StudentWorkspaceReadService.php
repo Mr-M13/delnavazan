@@ -763,7 +763,7 @@ final class StudentWorkspaceReadService {
         if (!$clauses) return array();
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT s.id,s.reference_code,s.display_name,s.status,s.email,s.phone,s.whatsapp_phone,s.archived_at
-             FROM {$this->p}students s WHERE s.id<>%d AND " . implode(' OR ', $clauses) . " ORDER BY s.id DESC LIMIT 10",
+             FROM {$this->p}students s WHERE s.id<>%d AND s.archived_at IS NULL AND s.status<>'archived' AND " . implode(' OR ', $clauses) . " ORDER BY s.id DESC LIMIT 10",
             ...$args
         )) ?: array();
         return array_map(static fn(object $row): array => array(

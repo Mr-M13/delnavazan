@@ -168,6 +168,7 @@ add_action( 'plugins_loaded', static function () {
 	Delnavazan\Platform\Core\Application\Finance\FinanceNotificationService::register();
 	Delnavazan\Platform\Core\Application\PaymentRefundNotificationService::register();
 	Delnavazan\Platform\Core\Application\RenewalAutomationNotificationService::register();
+	Delnavazan\Platform\Core\Application\AdminIntroWhatsAppNotifier::register();
 	Delnavazan\Platform\Integrations\RenewalAutomationWorker::register();
 	Delnavazan\Platform\Portals\PostIntroContinuationController::register();
 	Delnavazan\Platform\Portals\PostIntroSurveyController::register();

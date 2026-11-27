@@ -63,7 +63,8 @@ if(empty($ambiguous['ambiguous']))throw new RuntimeException('SMS wrapper must p
 $rejection=(new WhatsAppTransport(static fn(array $c):array=>array('acknowledged'=>false,'permanent_failure'=>'send_refused','provider_attempted'=>true,'provider_evidence_digest'=>str_repeat('a',64),'provider_evidence_at'=>'2026-10-31 00:00:00','provider_outcome'=>'rejected')))->handoff(array());
 if(empty($rejection['provider_attempted'])||($rejection['provider_evidence_digest']??'')!==str_repeat('a',64)||($rejection['provider_outcome']??'')!=='rejected')throw new RuntimeException('WhatsApp wrapper must preserve keyed rejection evidence');
 $registry=TelnyxTemplateRegistry::definitions();
-if(count($registry)!==40)throw new RuntimeException('approved template registry must contain forty templates');
+if(count($registry)!==41)throw new RuntimeException('approved template registry must contain forty-one templates');
+if(!isset($registry['delnavazan_admin_new_intro_v2_fa'])||$registry['delnavazan_admin_new_intro_v2_fa']['event_key']!=='booking.submitted.admin')throw new RuntimeException('the new intro admin WhatsApp template must be registered');
 foreach($registry as $name=>$definition){
     if(TelnyxTemplateRegistry::eventKeyForName($name)!==$definition['event_key'])throw new RuntimeException('registry event lookup failed: '.$name);
     if($definition['variable_order']===array()||count($definition['variable_order'])!==count(array_unique($definition['variable_order'])))throw new RuntimeException('registry variable order invalid: '.$name);

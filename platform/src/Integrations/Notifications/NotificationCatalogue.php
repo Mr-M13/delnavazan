@@ -48,6 +48,7 @@ final class NotificationCatalogue {
      */
     public const MOBILE_PRODUCER_CHANNELS=array(
         'booking.requested.student'=>array('whatsapp','sms'),
+        'booking.submitted.admin'=>array('whatsapp'),
         'booking.confirmed.student'=>array('whatsapp','sms'),
         'booking.declined.student'=>array('whatsapp','sms'),
         'booking.cancelled.student'=>array('whatsapp','sms'),
@@ -805,8 +806,14 @@ final class NotificationCatalogue {
             ),
         ));
         $out[]=self::event('booking.submitted.admin','New Intro Booking Received','booking','admin','BookingRequestSubmissionService','queue',array('website'),'operational',true,array('booking_reference','learner_name','instrument','course','requested_time','queue_url'),'booking.submitted.admin',array(
-            self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'درخواست کلاس آشنایی جدید ثبت شد','body'=>'درخواست {{booking_reference}} از {{learner_name}} برای {{instrument}} ({{course}}) با زمان پیشنهادی {{requested_time}} ثبت شد و در انتظار هماهنگی است. صف هماهنگی: {{queue_url}}')),
-            'en'=>array('website'=>array('subject'=>'New intro booking received','body'=>'Request {{booking_reference}} from {{learner_name}} for {{instrument}} ({{course}}) was submitted for {{requested_time}} and is awaiting coordination. Coordination queue: {{queue_url}}')),
+            self::PRIMARY_LOCALE=>array(
+                'website'=>array('subject'=>'درخواست کلاس آشنایی جدید ثبت شد','body'=>'درخواست {{booking_reference}} از {{learner_name}} برای {{instrument}} ({{course}}) با زمان پیشنهادی {{requested_time}} ثبت شد و در انتظار هماهنگی است. صف هماهنگی: {{queue_url}}'),
+                'whatsapp'=>array('body'=>'درخواست کلاس آشنایی جدید {{booking_reference}} — هنرجو {{learner_name}}، ساز {{instrument}}، زمان {{requested_time}}. صف هماهنگی: {{queue_url}} — دلنوازان'),
+            ),
+            'en'=>array(
+                'website'=>array('subject'=>'New intro booking received','body'=>'Request {{booking_reference}} from {{learner_name}} for {{instrument}} ({{course}}) was submitted for {{requested_time}} and is awaiting coordination. Coordination queue: {{queue_url}}'),
+                'whatsapp'=>array('body'=>'New intro request {{booking_reference}} — learner {{learner_name}}, instrument {{instrument}}, time {{requested_time}}. Coordination queue: {{queue_url}} — Delnavazan'),
+            ),
         ));
         $out[]=self::event('booking.escalation.admin','Intro Booking Escalated','booking','admin','BookingAllocationWorker','queue',array('website'),'operational',true,array(),'booking.escalation.admin',array(
             self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'فوری · درخواست آشنایی در آستانهٔ توقف پاسخ','body'=>'درخواست آشنایی هنوز تأیید نشده و به آستانهٔ توقف (۱۲ ساعت پیش از شروع کلاس) رسیده است. در صف هماهنگی پیگیری کنید.')),

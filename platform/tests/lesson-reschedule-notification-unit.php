@@ -6,6 +6,8 @@ namespace {
     function wp_mail(...$args): bool { return false; }
     require_once dirname(__DIR__, 2) . '/platform/src/Core/Support/BrandIdentity.php';
     require_once dirname(__DIR__, 2) . '/platform/src/Core/Application/LessonRescheduleStore.php';
+    require_once dirname(__DIR__, 2) . '/platform/src/Integrations/Notifications/NotificationCatalogue.php';
+    require_once dirname(__DIR__, 2) . '/platform/src/Integrations/Notifications/PhoneNumberNormalizer.php';
     require_once dirname(__DIR__, 2) . '/platform/src/Integrations/Notifications/LessonRescheduleNotificationService.php';
 
     use Delnavazan\Platform\Core\Application\LessonRescheduleStore;
@@ -141,6 +143,54 @@ namespace {
     );
     $persianService->dispatchPending(10);
     $fail('recipient Jalali/Tehran presentation is used in the notification', str_contains($persianSent[0][2], 'آبان') && str_contains($persianSent[0][2], 'Asia/Tehran'));
+
+
+    // A student reschedule row on the WhatsApp channel is independent of the email row.
+    $waStore = new NotificationStore();
+    $waStore->proposal = (object) array('uid' => 'PROPOSAL-WA', 'id' => 12, 'student_id' => 9, 'teacher_id' => 5, 'schedule_timezone' => 'Asia/Tehran', 'proposed_starts_at_utc' => '2026-11-05 15:00:00');
+    $waStore->notifications = array(
+        (object) array('id' => 1, 'proposal_id' => 12, 'event_type' => 'proposed', 'audience' => 'student', 'channel' => 'whatsapp', 'state' => 'queued', 'attempt_count' => 0),
+    );
+    $waSent = array();
+    $waService = new LessonRescheduleNotificationService(
+        $waStore,
+        static function (): bool { throw new RuntimeException('email transport must not run for a WhatsApp row'); },
+        static fn(object $proposal, string $audience): array => array('name' => 'Student', 'email' => 'student@example.invalid', 'phone' => '09123456789', 'whatsapp' => '09123456789', 'country' => 'IR', 'timezone' => 'Asia/Tehran', 'calendar' => 'persian'),
+        static fn(): int => time(),
+        static function (string $to, int $notificationId, string $eventKey, array $parameters) use (&$waSent): array {
+            $waSent[] = array('to' => $to, 'notification_id' => $notificationId, 'event_key' => $eventKey, 'parameters' => $parameters);
+            return array('acknowledged' => true, 'permanent_failure' => null);
+        },
+        static fn(string $eventKey): bool => true,
+        static fn(): bool => true,
+        static fn(int $studentId, string $eventKey): bool => false
+    );
+    $waResult = $waService->dispatchPending(10);
+    $fail('student WhatsApp reschedule is sent once', $waResult['sent'] === 1 && count($waSent) === 1);
+    $fail('student WhatsApp reschedule uses the normalized number and event key', $waSent[0]['to'] === '+989123456789' && $waSent[0]['event_key'] === 'reschedule.change.proposed.student');
+    $fail('student WhatsApp reschedule carries the catalogue variables', isset($waSent[0]['parameters']['name'], $waSent[0]['parameters']['when'], $waSent[0]['parameters']['timezone'], $waSent[0]['parameters']['portal_url']));
+    $fail('student WhatsApp reschedule is terminal after one hand-off', $waStore->notifications[0]->state === 'sent');
+    $waService->dispatchPending(10);
+    $fail('student WhatsApp reschedule is never emitted twice', count($waSent) === 1);
+
+    $suppressedStore = new NotificationStore();
+    $suppressedStore->proposal = (object) array('uid' => 'PROPOSAL-WA-S', 'id' => 13, 'student_id' => 9, 'teacher_id' => 5, 'schedule_timezone' => 'Asia/Tehran', 'proposed_starts_at_utc' => '2026-11-05 15:00:00');
+    $suppressedStore->notifications = array(
+        (object) array('id' => 1, 'proposal_id' => 13, 'event_type' => 'proposed', 'audience' => 'student', 'channel' => 'whatsapp', 'state' => 'queued', 'attempt_count' => 0),
+    );
+    $suppressedSent = 0;
+    $suppressedService = new LessonRescheduleNotificationService(
+        $suppressedStore,
+        static fn(): bool => true,
+        static fn(object $proposal, string $audience): array => array('name' => 'Student', 'email' => 'student@example.invalid', 'phone' => '09123456789', 'whatsapp' => '09123456789', 'country' => 'IR'),
+        static fn(): int => time(),
+        static function () use (&$suppressedSent): array { $suppressedSent++; return array('acknowledged' => true, 'permanent_failure' => null); },
+        static fn(string $eventKey): bool => true,
+        static fn(): bool => true,
+        static fn(int $studentId, string $eventKey): bool => true
+    );
+    $suppressedService->dispatchPending(10);
+    $fail('an active suppression blocks the student WhatsApp reschedule', $suppressedSent === 0 && $suppressedStore->notifications[0]->state === 'retry');
 
     echo "Lesson reschedule notification unit passed\n";
 }

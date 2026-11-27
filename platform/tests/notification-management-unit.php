@@ -935,7 +935,7 @@ namespace {
     $editorHtml = (string) ob_get_clean();
     $fail('the editor consolidates the overview into one card', str_contains($editorHtml, 'dzn-nc-overview') && str_contains($editorHtml, 'Variable contract') && str_contains($editorHtml, 'dzn-nc-facts'));
     $fail('the editor switch posts an editor-source toggle', str_contains($editorHtml, 'name="source" value="editor"'));
-    $fail('the editor offers one tab per delivery method', str_contains($editorHtml, 'role="tablist"') && substr_count($editorHtml, 'dzn-nc-tab') >= 4 && str_contains($editorHtml, '>Portal<') && str_contains($editorHtml, '>Email<') && str_contains($editorHtml, '>WhatsApp<') && str_contains($editorHtml, '>SMS<'));
+    $fail('the editor offers one tab per offered delivery method', str_contains($editorHtml, 'role="tablist"') && substr_count($editorHtml, 'dzn-nc-tab') >= 3 && str_contains($editorHtml, '>Portal<') && str_contains($editorHtml, '>Email<') && str_contains($editorHtml, '>WhatsApp<') && !str_contains($editorHtml, '>SMS<'));
     $fail('the editor keeps the preview, editor and history in the selected tab', str_contains($editorHtml, '<h3>Preview</h3>') && str_contains($editorHtml, 'id="dzn-notif-body"') && str_contains($editorHtml, 'Version History'));
     $fail('the editor no longer duplicates the old Delivery and Status cards', !str_contains($editorHtml, '<h3>Delivery</h3>') && !str_contains($editorHtml, '<h3>Status</h3>'));
 

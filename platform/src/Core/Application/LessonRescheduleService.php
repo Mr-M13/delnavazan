@@ -330,6 +330,7 @@ final class LessonRescheduleService {
             if('reject'===$decision){
                 $this->store->updateProposal((int)$proposal->id,(int)$proposal->version,array('state'=>self::STATE_REJECTED,'pending_slot'=>null,'decision_key_digest'=>$decisionDigest,'decided_at'=>$now,'decided_by'=>$authenticatedUserId,'updated_at'=>$now,'updated_by'=>$authenticatedUserId));
                 $this->event($proposal,'rejected',self::STATE_PENDING,self::STATE_REJECTED,'student_reschedule_rejected',$decisionDigest,$authenticatedUserId,null,$now);
+                $this->notify((int)$proposal->id,'rejected','student',(string)$proposal->uid);
                 $this->notify((int)$proposal->id,'rejected','teacher',(string)$proposal->uid);
                 $this->notify((int)$proposal->id,'rejected','admin',(string)$proposal->uid);
                 $this->store->commit();
@@ -540,15 +541,21 @@ final class LessonRescheduleService {
     }
 
     private function notify(int $proposalId,string $eventType,string $audience,string $proposalUid):void{
-        try{
-            $this->store->insertNotification(array(
-                'uid'=>Identifier::uid(),'proposal_id'=>$proposalId,'event_type'=>$eventType,'audience'=>$audience,'channel'=>'email',
-                'state'=>'queued','idempotency_key'=>hash('sha256','reschedule-notify:'.$proposalUid.':'.$eventType.':'.$audience),
-                'attempt_count'=>0,'next_attempt_at'=>$this->now(),'sent_at'=>null,'last_error_code'=>null,
-                'created_at'=>$this->now(),'updated_at'=>$this->now(),
-            ));
-        }catch(\Throwable $e){
-            if($this->store->duplicate($e)!=='idempotency_key')throw $e;
+        // Students receive WhatsApp; the email row remains for the existing fallback/audit.
+        $channels=$audience==='student'?array('email','whatsapp'):array('email');
+        foreach($channels as $channel){
+            try{
+                $suffix=$channel==='email'?'':':'.$channel;
+                $this->store->insertNotification(array(
+                    'uid'=>Identifier::uid(),'proposal_id'=>$proposalId,'event_type'=>$eventType,'audience'=>$audience,'channel'=>$channel,
+                    'state'=>'queued','idempotency_key'=>hash('sha256','reschedule-notify:'.$proposalUid.':'.$eventType.':'.$audience.$suffix),
+                    'attempt_count'=>0,'next_attempt_at'=>$this->now(),'sent_at'=>null,'last_error_code'=>null,
+                    'created_at'=>$this->now(),'updated_at'=>$this->now(),
+                ));
+            }catch(\Throwable $e){
+                if($channel==='whatsapp')continue;
+                if($this->store->duplicate($e)!=='idempotency_key')throw $e;
+            }
         }
     }
 

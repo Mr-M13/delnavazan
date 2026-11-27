@@ -1,9 +1,13 @@
 <?php
 namespace Delnavazan\Platform\Integrations\Notifications;
 
+use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
 use Delnavazan\Platform\Core\Application\LessonRescheduleStore;
+use Delnavazan\Platform\Core\Application\NotificationSupport;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 use Delnavazan\Platform\Core\Infrastructure\Repository\LessonRescheduleRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationSuppressionRepository;
+use Delnavazan\Platform\Integrations\TelnyxWhatsAppAdapter;
 
 /**
  * Recoverable, idempotent reschedule notifications.
@@ -20,12 +24,24 @@ final class LessonRescheduleNotificationService {
     private $recipient;
     /** @var callable():int */
     private $clock;
+    /** @var callable(string,int,string,array):array */
+    private $whatsappSender;
+    /** @var callable(string):bool */
+    private $whatsappAllowed;
+    /** @var callable():bool */
+    private $whatsappReady;
+    /** @var callable(int,string):bool */
+    private $suppressed;
 
     public function __construct(
         private ?LessonRescheduleStore $store=null,
         ?callable $transport=null,
         ?callable $recipient=null,
-        ?callable $clock=null
+        ?callable $clock=null,
+        ?callable $whatsappSender=null,
+        ?callable $whatsappAllowed=null,
+        ?callable $whatsappReady=null,
+        ?callable $suppressed=null
     ){
         $this->store??=new LessonRescheduleRepository();
         $this->transport=$transport??static function(string $email,string $subject,string $body,string $audience=''):bool{
@@ -34,6 +50,15 @@ final class LessonRescheduleNotificationService {
         };
         $this->recipient=$recipient??array(__CLASS__,'defaultRecipient');
         $this->clock=$clock??static fn():int=>time();
+        $this->whatsappSender=$whatsappSender??static function(string $to,int $notificationId,string $eventKey,array $parameters):array{
+            return (new TelnyxWhatsAppAdapter(new IntegrationSettingsService()))->sendBookingNotification($to,$notificationId,$eventKey,$parameters);
+        };
+        $this->whatsappAllowed=$whatsappAllowed??static fn(string $eventKey):bool=>NotificationChannelPolicy::allows($eventKey,'whatsapp');
+        $this->whatsappReady=$whatsappReady??static function():bool{return (new TelnyxConfiguration(new IntegrationSettingsService()))->whatsappReady();};
+        $this->suppressed=$suppressed??static function(int $studentId,string $eventKey):bool{
+            $lookup=new StudentNotificationContactLookup();
+            return (new NotificationSuppressionRepository())->active($lookup->recipientDigest($studentId),$eventKey,NotificationSupport::now(),true)!==null;
+        };
     }
 
     public function dispatchPending(int $limit=20):array{
@@ -46,10 +71,14 @@ final class LessonRescheduleNotificationService {
                 $proposal=$this->store->proposal((int)$locked->proposal_id);
                 if(!$proposal)throw new \RuntimeException('reschedule_proposal_not_found');
                 $recipient=($this->recipient)($proposal,(string)$locked->audience);
-                if(!$recipient||empty($recipient['email']))throw new \RuntimeException('reschedule_recipient_unresolved');
+                $channel=(string)($locked->channel??'email');
+                if(!$recipient||($channel==='email'&&empty($recipient['email'])))throw new \RuntimeException('reschedule_recipient_unresolved');
+                if($channel==='whatsapp'&&empty($recipient['whatsapp'])&&empty($recipient['phone']))throw new \RuntimeException('reschedule_recipient_unresolved');
                 $rendered=$this->render($proposal,(string)$locked->event_type,(string)$locked->audience,(string)($recipient['name']??''),$recipient);
                 $this->recordInbox($proposal,(string)$locked->event_type,(string)$locked->audience,$rendered['variables']);
-                $ok=(bool)($this->transport)((string)$recipient['email'],$rendered['subject'],$rendered['body'],(string)$locked->audience);
+                $ok=$channel==='whatsapp'
+                    ?$this->sendWhatsApp($locked,$proposal,$rendered,$recipient)
+                    :(bool)($this->transport)((string)$recipient['email'],$rendered['subject'],$rendered['body'],(string)$locked->audience);
                 $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
                 if($ok){
                     $this->store->updateNotification((int)$locked->id,array('state'=>'sent','attempt_count'=>(int)$locked->attempt_count+1,'sent_at'=>$now,'last_error_code'=>null,'updated_at'=>$now));
@@ -67,6 +96,24 @@ final class LessonRescheduleNotificationService {
             }
         }
         return array('sent'=>$sent,'failed'=>$failed,'skipped'=>$skipped);
+    }
+
+    /** Independent WhatsApp leg for a student reschedule row. */
+    private function sendWhatsApp(object $locked,object $proposal,array $rendered,array $recipient):bool{
+        $eventKey=(string)$rendered['event_key'];
+        if(!($this->whatsappAllowed)($eventKey))return false;
+        if(!($this->whatsappReady)())return false;
+        $contact=PhoneNumberNormalizer::pair((string)($recipient['phone']??''),(string)($recipient['whatsapp']??''));
+        $to=PhoneNumberNormalizer::toE164($contact['whatsapp'],(string)($recipient['country']??'IR'));
+        if($to==='')return false;
+        if(($this->suppressed)((int)$proposal->student_id,$eventKey))return false;
+        // Hand the rendered variables to the adapter; it validates the approved provider template's
+        // exact variable order. The catalogue variable list is broader than some event states.
+        $parameters=(array)$rendered['variables'];
+        foreach($parameters as $value)if(is_array($value)||is_object($value))return false;
+        try{$result=($this->whatsappSender)($to,(int)$locked->id,$eventKey,$parameters);}
+        catch(\Throwable $error){return false;}
+        return !empty($result['acknowledged']);
     }
 
     private function render(object $proposal,string $eventType,string $audience,string $name,array $recipient=array()):array{
@@ -165,11 +212,17 @@ final class LessonRescheduleNotificationService {
             return array('email'=>$email,'name'=>'مدیر دلنوازان');
         }
         if('student'===$audience){
-            $row=$wpdb->get_row($wpdb->prepare("SELECT email,display_name name,timezone,calendar_preference FROM {$p}students WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",(int)$proposal->student_id));
+            $row=$wpdb->get_row($wpdb->prepare("SELECT email,display_name name,timezone,calendar_preference,phone,whatsapp_phone,country_code FROM {$p}students WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",(int)$proposal->student_id));
         }else{
             $row=$wpdb->get_row($wpdb->prepare("SELECT email,COALESCE(NULLIF(display_name,''),NULLIF(english_name,''),persian_name) name,timezone,calendar_preference FROM {$p}teachers WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",(int)$proposal->teacher_id));
         }
-        if(!$row||trim((string)($row->email??''))==='')return null;
-        return array('email'=>(string)$row->email,'name'=>(string)($row->name??''),'timezone'=>(string)($row->timezone??''),'calendar'=>(string)($row->calendar_preference??''));
+        if(!$row)return null;
+        $email=trim((string)($row->email??''));
+        $phone=trim((string)($row->phone??''));
+        $whatsapp=trim((string)($row->whatsapp_phone??''));
+        if($audience==='student'&&$email===''&&$phone===''&&$whatsapp==='')return null;
+        if($audience!=='student'&&$email==='')return null;
+        return array('email'=>$email,'name'=>(string)($row->name??''),'timezone'=>(string)($row->timezone??''),'calendar'=>(string)($row->calendar_preference??''),
+            'phone'=>$phone,'whatsapp'=>$whatsapp,'country'=>(string)($row->country_code??''));
     }
 }

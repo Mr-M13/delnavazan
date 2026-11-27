@@ -117,6 +117,8 @@ foreach ($mobileMap as $mobileEvent => $mobileChannels) {
     }
 }
 $fail('the confirmed booking has a WhatsApp producer', $catalogueClass::producesMobileChannel('booking.confirmed.student', 'whatsapp'));
+$fail('student booking is WhatsApp-only', $catalogueClass::producesMobileChannel('booking.confirmed.student', 'whatsapp') && !$catalogueClass::producesMobileChannel('booking.confirmed.student', 'sms'));
+$fail('student reschedule has a WhatsApp producer', $catalogueClass::producesMobileChannel('reschedule.change.proposed.student', 'whatsapp') && !$catalogueClass::producesMobileChannel('reschedule.change.proposed.student', 'sms'));
 $fail('the renewal notice has a WhatsApp producer', $catalogueClass::producesMobileChannel('renewal.automatic_upcoming.student', 'whatsapp'));
 $fail('the teacher cancellation is SMS-only', $catalogueClass::producesMobileChannel('booking.cancelled.teacher', 'sms') && !$catalogueClass::producesMobileChannel('booking.cancelled.teacher', 'whatsapp'));
 $fail('one-time account codes have no mobile producer', !$catalogueClass::producesMobileChannel('account.claim_issued.student', 'whatsapp') && !$catalogueClass::producesMobileChannel('account.claim_issued.student', 'sms'));

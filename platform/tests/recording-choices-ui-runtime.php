@@ -250,7 +250,7 @@ dzn_rda_ui_assert($statusModel['status']==='','the confirmation status must be c
 $_SERVER['REQUEST_URI']='/recording-and-research/';
 dzn_rda_ui_assert(dzn_theme_route()==='recording-and-research','the canonical information URL must resolve as a public route');
 ob_start();dzn_theme_render_recording_information_route();$infoHtml=(string)ob_get_clean();
-foreach(array('پروژه پژوهشی','Research Project','An example: learning riz on setar','currently disabled','lang="fa"','lang="en"','Privacy policy')as$text)dzn_rda_ui_assert(str_contains($infoHtml,$text),'public information route missing '.$text);
+foreach(array('پروژه پژوهشی','Research Project','An example: learning riz on setar','recording is active by default','lang="fa"','lang="en"','Privacy policy')as$text)dzn_rda_ui_assert(str_contains($infoHtml,$text),'public information route missing '.$text);
 dzn_rda_ui_assert(substr_count($infoHtml,'<form')===1 && str_contains($infoHtml,'name="action" value="dzn_research_name"'),'Only the project name suggestion form belongs on this page');
 dzn_rda_ui_assert(!str_contains($infoHtml,'dzn_unified_student_consent') && !str_contains($infoHtml,'dzn_unified_teacher_consent'),'Name suggestions must not collect recording or research decisions');
 dzn_rda_ui_assert(str_contains($infoHtml,'<article id="project-fa"') && !preg_match('/<details[^>]*id="project-en"[^>]*\bopen\b/',$infoHtml),'Persian must be an article and English must start collapsed');

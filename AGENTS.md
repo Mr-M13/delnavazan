@@ -245,6 +245,17 @@ is optional strict parity. Docker is required only for the runtime suites.
   zero target rows remain. Its offline source contract,
   `bash deployment/qa/delete-test-student-contract.sh`, runs in the PR gate's production-tooling
   step. A session never runs the execute mode directly.
+- **Duplicate-Student reconciliation:** duplicate identities created before the booking-adoption fix
+  are consolidated by `deployment/qa/reconcile-duplicate-students.sh` (report, then execute with a
+  pre-state fingerprint and a verified full database export). It finds groups by exact lowercased
+  email and archives only a copy with no operational relations, no active portal principal and no
+  WordPress user; every other group is reported for manual review. It never deletes a row.
+  Execute mode is dispatched only through the protected, workflow-dispatch-only
+  `reconcile-duplicate-students.yml` from `main`, with the pinned tool source SHA, the deployed
+  build SHA, the report fingerprint and the `RECONCILE_DUPLICATES` confirm token. It reuses the
+  production-only `PURGE_ATTESTATION_TOKEN` secret and is serialized with production deploys. Its
+  offline source contract, `bash deployment/qa/reconcile-duplicate-students-contract.sh`, runs in
+  the PR gate's production-tooling step. A session never runs execute mode directly.
 - **Imported-enrolment retirement:** the historical-course import ("Import existing enrolment")
   has no compensating action in the admin UI — its lessons are created through the schedule
   authority and become `scheduled`, so the generic archive path refuses them and no legacy cancel

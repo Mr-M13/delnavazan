@@ -34,7 +34,7 @@ $recordingNotice=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_S
 $researchNotice=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_STUDENT_RESEARCH,'en',1,'Student research notice v1');
 $privacyNotice=dzn_rda_ui_notice(RecordingDecisionAuthorityService::AUDIENCE_PRIVACY_TERMS,'en',1,'Privacy v1');
 
-// Enrolment: single pre-checked unified checkbox with policy hyperlinks.
+// Enrolment: default-on recording with an explicit decline control and an unchecked research opt-in.
 wp_set_current_user($adultUser);
 $enrolment=$ui->student('enrolment','en');
 dzn_rda_ui_assert($enrolment['available']===true,'adult enrolment choices must be available');
@@ -44,8 +44,10 @@ dzn_rda_ui_assert($enrolment['forms']['recording']['notice_uid']===$recordingNot
 dzn_rda_ui_assert($enrolment['forms']['research']['notice_uid']===$researchNotice['uid'],'research form must cite the separate published notice');
 dzn_rda_ui_assert(!empty($enrolment['unified']['available'])===true,'unified enrolment consent must be available');
 $html=dzn_rda_ui_render_student($enrolment);
-foreach(array('ضبط کلاس، پژوهش و حریم خصوصی','Privacy Policy','Recording &amp; AI Policy','unified_agree')as$text)dzn_rda_ui_assert(str_contains($html,$text),'enrolment component missing '.$text);
-dzn_rda_ui_assert((bool)preg_match('/name="unified_agree"[^>]*checked/',$html),'unified checkbox must be checked by default');
+foreach(array('ضبط کلاس، پژوهش و حریم خصوصی','privacy-policy','recording-and-ai-policy','unified_agree')as$text)dzn_rda_ui_assert(str_contains($html,$text),'enrolment component missing '.$text);
+dzn_rda_ui_assert(!preg_match('/name="unified_agree"[^>]*checked/',$html),'optional research consent must not be pre-checked');
+dzn_rda_ui_assert(str_contains($html,'ضبط کلاس به‌طور پیش‌فرض فعال است'),'default-on recording state must be stated');
+dzn_rda_ui_assert(str_contains($html,'value="decline"'),'default-on recording must expose a decline control');
 dzn_rda_ui_assert(!str_contains($html,'guardian'),'no guardian form may be exposed');
 
 // Account Settings: unified state, withdraw-all control at the end.

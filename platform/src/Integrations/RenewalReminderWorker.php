@@ -1,6 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Integrations;
 
+use Delnavazan\Platform\Core\Application\OperationalNotificationReceipt;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
@@ -103,6 +104,10 @@ final class RenewalReminderWorker {
             $result['examined']++;
             try {
                 if (self::alreadyRecorded((int) $row->term_id)) {
+                    $result['skipped']++;
+                    continue;
+                }
+                if (!OperationalNotificationReceipt::claim(self::EVENT_KEY, (int) $row->term_id, 'student', 'all')) {
                     $result['skipped']++;
                     continue;
                 }

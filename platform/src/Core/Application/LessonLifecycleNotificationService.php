@@ -191,6 +191,7 @@ final class LessonLifecycleNotificationService {
                 'whatsapp'=>array('state'=>'skipped','reason'=>$audience==='student'?'already_recorded':'not_offered'),
             );
         }
+        if(!OperationalNotificationReceipt::claim($eventKey,$lessonId,$audience,'all'))return self::skipped('already_claimed',$audience);
         $variables=$this->variables($eventKey,$row);
         $linkUrl=$audience==='student'?(string)($variables['portal_url']??''):(string)($variables['teacher_portal_url']??'');
         $recorded=($this->record)($recipientId,$eventKey,self::SOURCE_KIND,$lessonId,$variables,$linkUrl,$audience);

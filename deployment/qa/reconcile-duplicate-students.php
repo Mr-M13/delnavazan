@@ -138,6 +138,55 @@ function dzn_rec_fingerprint( array $plan ): string {
 	return hash( 'sha256', (string) wp_json_encode( $plan ) );
 }
 
+/**
+ * Read-only diagnosis of the newest Students: the exact identity-anomaly codes the workspace shows.
+ * This answers "why does every new student carry two items" without guessing.
+ *
+ * @return array<string,mixed>
+ */
+function dzn_rec_diagnose( int $limit = 25 ): array {
+	global $wpdb, $dzn_rec_prefix;
+	$admins = get_users( array( 'role' => 'administrator', 'number' => 1, 'orderby' => 'ID', 'order' => 'ASC' ) );
+	if ( ! is_array( $admins ) || ! isset( $admins[0]->ID ) ) return array( 'available' => false, 'reason' => 'administrator_unavailable' );
+	wp_set_current_user( (int) $admins[0]->ID );
+	$limit = max( 1, min( 50, $limit ) );
+	$rows  = $wpdb->get_results( $wpdb->prepare(
+		"SELECT id,reference_code,status,created_at FROM {$dzn_rec_prefix}students WHERE archived_at IS NULL ORDER BY id DESC LIMIT %d",
+		$limit
+	) );
+	if ( ! is_array( $rows ) ) return array( 'available' => false, 'reason' => 'student_read_failed' );
+	$service = new \Delnavazan\Platform\Core\Application\StudentWorkspaceReadService();
+	$out     = array();
+	foreach ( $rows as $row ) {
+		try {
+			$profile = $service->profile( (int) $row->id );
+			$codes   = array();
+			$titles  = array();
+			foreach ( (array) ( $profile['identity']['anomalies'] ?? array() ) as $anomaly ) {
+				$codes[]  = (string) ( $anomaly['code'] ?? '' );
+				$titles[] = (string) ( $anomaly['title'] ?? '' );
+			}
+			$out[] = array(
+				'id' => (int) $row->id,
+				'reference' => (string) $row->reference_code,
+				'status' => (string) $row->status,
+				'created_at' => (string) $row->created_at,
+				'anomalies' => $codes,
+				'anomaly_titles' => $titles,
+			);
+		} catch ( \Throwable $error ) {
+			$out[] = array(
+				'id' => (int) $row->id,
+				'reference' => (string) $row->reference_code,
+				'status' => (string) $row->status,
+				'created_at' => (string) $row->created_at,
+				'error' => get_class( $error ) . ':' . substr( $error->getMessage(), 0, 120 ),
+			);
+		}
+	}
+	return array( 'available' => true, 'limit' => $limit, 'students' => $out );
+}
+
 function dzn_rec_counts( array $plan ): array {
 	$groups = count( $plan );
 	$safe   = 0;
@@ -166,6 +215,7 @@ try {
 			'fingerprint'          => $fingerprint,
 			'summary'              => dzn_rec_counts( $plan ),
 			'plan'                 => $plan,
+			'diagnostics'          => dzn_rec_diagnose(),
 		) );
 	}
 

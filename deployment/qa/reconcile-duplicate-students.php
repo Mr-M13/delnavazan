@@ -150,11 +150,14 @@ function dzn_rec_diagnose( int $limit = 25 ): array {
 	if ( ! is_array( $admins ) || ! isset( $admins[0]->ID ) ) return array( 'available' => false, 'reason' => 'administrator_unavailable' );
 	wp_set_current_user( (int) $admins[0]->ID );
 	$limit = max( 1, min( 50, $limit ) );
+	$total = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$dzn_rec_prefix}students" );
+	$live  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$dzn_rec_prefix}students WHERE archived_at IS NULL" );
+	$read_error = (string) $wpdb->last_error;
 	$rows  = $wpdb->get_results( $wpdb->prepare(
 		"SELECT id,reference_code,status,created_at FROM {$dzn_rec_prefix}students WHERE archived_at IS NULL ORDER BY id DESC LIMIT %d",
 		$limit
 	) );
-	if ( ! is_array( $rows ) ) return array( 'available' => false, 'reason' => 'student_read_failed' );
+	if ( ! is_array( $rows ) ) return array( 'available' => false, 'reason' => 'student_read_failed', 'total_students' => $total, 'live_students' => $live, 'read_error' => $read_error );
 	$service = new \Delnavazan\Platform\Core\Application\StudentWorkspaceReadService();
 	$out     = array();
 	foreach ( $rows as $row ) {
@@ -184,7 +187,7 @@ function dzn_rec_diagnose( int $limit = 25 ): array {
 			);
 		}
 	}
-	return array( 'available' => true, 'limit' => $limit, 'students' => $out );
+	return array( 'available' => true, 'limit' => $limit, 'total_students' => $total, 'live_students' => $live, 'read_error' => $read_error, 'students' => $out );
 }
 
 function dzn_rec_counts( array $plan ): array {

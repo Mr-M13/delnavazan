@@ -60,4 +60,7 @@ has "$wf" 'reconcile-report.json' 'the report must be preserved'
 has "$wf" 'reconcile-execute.json' 'the execute evidence must be preserved'
 has "$wf" 'merge-base --is-ancestor' 'source and deployed SHAs must be on main'
 
+# 6. Consolidation must actually clear the candidate banner.
+has "$root/platform/src/Core/Application/StudentWorkspaceReadService.php" "s.archived_at IS NULL AND s.status<>'archived'" 'archived duplicates must stop being identity candidates'
+
 echo "Duplicate student reconciler contract passed"

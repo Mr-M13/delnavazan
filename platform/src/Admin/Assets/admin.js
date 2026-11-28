@@ -278,6 +278,13 @@
         });
     }
 
+    document.querySelectorAll('.dzn-attention-summary__chips a[href^="#dzn-attention-"]').forEach(function (chip) {
+        chip.addEventListener('click', function () {
+            var target = document.querySelector(chip.getAttribute('href') || '');
+            if (target && target.tagName === 'DETAILS') target.open = true;
+        });
+    });
+
     updateOfferCountdowns();
     window.setInterval(updateOfferCountdowns, 30000);
 })();

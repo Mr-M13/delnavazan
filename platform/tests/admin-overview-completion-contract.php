@@ -100,6 +100,15 @@ $contains($dashboard, array(
     'Notification delivery failures',
 ), 'Needs Attention must collect every administrator task and group it by operational area.');
 $contains($css, array('.dzn-attention-group', '.dzn-attention-group__title'), 'The attention inbox needs grouped-area styling.');
+$contains($dashboard, array(
+    'dzn-attention-summary',
+    'dzn-attention-chip',
+    'id="dzn-attention-',
+    'dzn-attention-group__urgent',
+    'dzn-action-card__more',
+    'array_slice($details, 0, 3)',
+), 'The attention inbox must stay compact: a glanceable summary, collapsible area groups and at most three record rows per card.');
+$contains($css, array('.dzn-attention-summary', '.dzn-attention-chip', '.dzn-attention-group > summary', '.dzn-action-card__more'), 'The compact attention inbox needs its summary, chip, disclosure and overflow styling.');
 $contains($dashboard, array('dzn-action-card__details', "'learner_name'", "'requested_time'", "'source'", 'Open intro bookings', 'stageQueue((string) $stage, 5)', "'action' => 'Review acceptance'"), 'Every learner card must list the records it counts and open the section that resolves the missing link.');
 $contains($journey, array('public function stageQueue', 'ELIGIBLE_SQL', 'stageSql($stage)', 'contact.full_name', 'booking_request_requested_times', 'Ready for final acceptance', 'active_candidates'), 'The stage queue must reuse the canonical eligible/stage predicates, the current contact snapshot and the acceptance readiness facts.');
 $contains($dashboard, array('notificationAttention(', 'dzn-system-health', "'component' => 'notifications'", 'dzn-notifications', "'retry_exhausted'", "'stuck_lease'", "'orphan_outbox_row'", "'unregistered_intent'", 'Open notification diagnostics'), 'Notification failures must land on the diagnostics surface with one resolving path per failure class.');

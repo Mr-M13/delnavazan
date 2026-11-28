@@ -2,6 +2,7 @@
 namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Core\Application\Checkout\StripeCheckoutReconciliationService;
+use Delnavazan\Platform\Core\Infrastructure\Repository\CommercialPaymentRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 use Delnavazan\Platform\Integrations\{PostIntroActivationWorker,PostIntroSettlementHook};
 
@@ -94,6 +95,36 @@ final class PostIntroRecoveryService {
         $run = PostIntroActivationWorker::runJob((int) $status['job_id']);
         $status = $this->fulfilment->forEnrolment($enrolmentId);
         return array('state' => $status['fulfilment_state'], 'job' => $run, 'status' => $status);
+    }
+
+    /**
+     * Queue the missing activation job for a paid preparation and run the existing worker.
+     *
+     * The settlement hook is the authority that normally creates the job. It is safe to replay:
+     * it locks the purchase, raises the funding target from settled obligations and never charges.
+     *
+     * @return array{state:string,job_id:int}
+     */
+    public function queueActivation(int $preparationId): array {
+        if (!current_user_can('dzn_manage_post_intro_automation')) throw new \RuntimeException('Unauthorized');
+        $preparation = $this->repository->preparation($preparationId);
+        if (!$preparation) throw new \InvalidArgumentException('post_intro_preparation_not_found');
+        if ((string) $preparation->state !== 'payment_received') throw new \InvalidArgumentException('post_intro_preparation_not_paid');
+        $offerId = (int) ($preparation->offer_id ?? 0);
+        $purchase = $offerId > 0 ? $this->repository->purchaseForOffer($offerId) : null;
+        if (!$purchase) throw new \RuntimeException('commercial_purchase_required');
+        // Re-prove the settlement on the server. The preparation state is a checkpoint, not the
+        // payment authority; a forged or stale request must never progress an unpaid purchase.
+        $obligations = $this->repository->obligationsForOffer($offerId);
+        $obligation = $obligations[0] ?? null;
+        $settlement = $obligation ? (new CommercialPaymentRepository())->settlementForObligation((int) $obligation->id) : null;
+        if ($settlement === null) throw new \RuntimeException('verified_payment_required');
+        PostIntroSettlementHook::handle((int) $purchase->id);
+        $job = $this->repository->activeJobForPurchase((int) $purchase->id);
+        if (!$job) throw new \RuntimeException('post_intro_job_unavailable');
+        PostIntroActivationWorker::run();
+        $fresh = $this->repository->job((int) $job->id);
+        return array('state' => (string) ($fresh->state ?? 'queued'), 'job_id' => (int) $job->id);
     }
 
     /** @return list<string> */

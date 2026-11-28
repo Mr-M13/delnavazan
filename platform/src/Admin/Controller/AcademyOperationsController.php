@@ -10,9 +10,11 @@ use Delnavazan\Platform\Core\Application\EnrolmentWorkspaceReadService;
 use Delnavazan\Platform\Core\Application\LessonOperationsReadService;
 use Delnavazan\Platform\Core\Application\NotificationDiagnosticsReadService;
 use Delnavazan\Platform\Core\Application\NotificationRule;
+use Delnavazan\Platform\Core\Application\PostIntroAttentionReadService;
 use Delnavazan\Platform\Core\Application\Finance\OperationalCashRule;
 use Delnavazan\Platform\Core\Application\Finance\Pricing\PricingMoney;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository;
+use Delnavazan\Platform\Core\Infrastructure\Repository\PostIntroRepository;
 use Delnavazan\Platform\Integrations\GoogleWorkspace\MeetAdministratorClassroomService;
 
 /**
@@ -162,9 +164,11 @@ final class AcademyOperationsController {
     private static function pendingActions(array $summary): void {
         $items = array_values(array_filter(self::pendingActionItems($summary), static fn(array $item): bool => (int) $item['count'] > 0));
         $total = 0;
+        $urgentTotal = 0;
         $grouped = array();
         foreach ($items as $item) {
             $total += (int) $item['count'];
+            if (!empty($item['urgent'])) $urgentTotal += (int) $item['count'];
             $grouped[(string) $item['area']][] = $item;
         }
         echo '<section class="dzn-panel dzn-attention" id="dzn-pending-work"><div class="dzn-panel__head"><div><h2>Needs Attention</h2><p>Every open administrator task across learners, classes, finance, teachers and platform operations, collected once. Each card opens the existing authority that resolves it.</p></div>';
@@ -174,13 +178,35 @@ final class AcademyOperationsController {
             echo '<p class="dzn-all-clear"><span aria-hidden="true">✓</span> No administrator task is waiting in your work areas.</p></section>';
             return;
         }
+        echo '<div class="dzn-attention-summary"><p class="dzn-attention-summary__lead"><strong>' . esc_html(number_format_i18n($urgentTotal)) . '</strong> of <strong>' . esc_html(number_format_i18n($total)) . '</strong> open items need attention now. The rest are waiting on a party or a later date.</p><nav class="dzn-attention-summary__chips" aria-label="Jump to an attention area">';
         foreach (self::attentionAreas() as $areaKey => $areaLabel) {
             if (empty($grouped[$areaKey])) continue;
             $areaTotal = 0;
-            foreach ($grouped[$areaKey] as $item) $areaTotal += (int) $item['count'];
-            echo '<div class="dzn-attention-group"><h3 class="dzn-attention-group__title">' . esc_html($areaLabel) . ' <span class="dzn-badge dzn-badge--gold">' . esc_html(number_format_i18n($areaTotal)) . '</span></h3><div class="dzn-action-grid">';
+            $areaUrgent = 0;
+            foreach ($grouped[$areaKey] as $item) {
+                $areaTotal += (int) $item['count'];
+                if (!empty($item['urgent'])) $areaUrgent += (int) $item['count'];
+            }
+            echo '<a class="dzn-attention-chip' . ($areaUrgent > 0 ? ' is-urgent' : '') . '" href="#dzn-attention-' . esc_attr($areaKey) . '">' . esc_html($areaLabel) . ' <strong>' . esc_html(number_format_i18n($areaTotal)) . '</strong></a>';
+        }
+        echo '</nav></div>';
+        foreach (self::attentionAreas() as $areaKey => $areaLabel) {
+            if (empty($grouped[$areaKey])) continue;
+            usort($grouped[$areaKey], static function (array $a, array $b): int {
+                $aUrgent = empty($a['urgent']) ? 0 : 1;
+                $bUrgent = empty($b['urgent']) ? 0 : 1;
+                if ($aUrgent !== $bUrgent) return $bUrgent <=> $aUrgent;
+                return (int) $b['count'] <=> (int) $a['count'];
+            });
+            $areaTotal = 0;
+            $areaUrgent = 0;
+            foreach ($grouped[$areaKey] as $item) {
+                $areaTotal += (int) $item['count'];
+                if (!empty($item['urgent'])) $areaUrgent += (int) $item['count'];
+            }
+            echo '<details class="dzn-attention-group" id="dzn-attention-' . esc_attr($areaKey) . '"' . ($areaUrgent > 0 ? ' open' : '') . '><summary class="dzn-attention-group__title"><span class="dzn-attention-group__name">' . esc_html($areaLabel) . '</span><span class="dzn-badge dzn-badge--gold">' . esc_html(number_format_i18n($areaTotal)) . '</span><span class="dzn-attention-group__urgent' . ($areaUrgent > 0 ? '' : ' is-waiting') . '">' . ($areaUrgent > 0 ? esc_html(number_format_i18n($areaUrgent)) . ' need attention' : 'Waiting') . '</span></summary><div class="dzn-action-grid">';
             foreach ($grouped[$areaKey] as $item) self::attentionCard($item);
-            echo '</div></div>';
+            echo '</div></details>';
         }
         echo '</section>';
     }
@@ -203,8 +229,10 @@ final class AcademyOperationsController {
         echo '<article class="dzn-action-card' . (!empty($item['urgent']) ? ' is-urgent' : '') . '"><div class="dzn-action-card__top"><span class="dzn-action-card__count">' . esc_html(number_format_i18n((int) $item['count'])) . '</span><span class="dzn-badge' . (!empty($item['urgent']) ? ' dzn-badge--red' : ' dzn-badge--gold') . '">' . (!empty($item['urgent']) ? 'Needs attention' : 'Waiting') . '</span></div><h3>' . esc_html($item['label']) . '</h3><p>' . esc_html($item['description']) . '</p>';
         $details = (array) ($item['details'] ?? array());
         if ($details) {
+            $visible = array_slice($details, 0, 3);
+            $remaining = count($details) - count($visible);
             echo '<ul class="dzn-action-card__details">';
-            foreach ($details as $detail) {
+            foreach ($visible as $detail) {
                 $reference = trim((string) ($detail['reference'] ?? ''));
                 $name = trim((string) ($detail['learner_name'] ?? 'Learner'));
                 $heading = trim((string) ($detail['heading'] ?? ''));
@@ -219,6 +247,7 @@ final class AcademyOperationsController {
                 echo '</li>';
             }
             echo '</ul>';
+            if ($remaining > 0) echo '<p class="dzn-action-card__more">+' . esc_html(number_format_i18n($remaining)) . ' more in this list. Open the action to see every record.</p>';
         }
         echo '<a class="button' . (!empty($item['urgent']) ? ' button-primary' : '') . '" href="' . esc_url($url) . '">' . esc_html($item['action']) . '</a></article>';
     }
@@ -324,15 +353,48 @@ final class AcademyOperationsController {
             }
         }
         if (current_user_can('dzn_manage_post_intro_automation')) {
-            $outcomesDue = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}booking_request_confirmations c INNER JOIN {$p}booking_requests r ON r.id=c.booking_request_id LEFT JOIN {$p}booking_request_intro_outcomes o ON o.confirmation_id=c.id WHERE c.state='confirmed' AND c.ends_at_utc<UTC_TIMESTAMP() AND r.privacy_erased_at IS NULL AND o.id IS NULL");
-            $items[] = array('area' => 'learners', 'label' => 'Intro class outcomes due', 'count' => $outcomesDue, 'page' => 'dzn-enrolment-workspace', 'action' => 'Record intro outcome', 'args' => array('stage' => 'intro_outcome'), 'description' => 'A confirmed introductory class has ended without a Teacher or administrator outcome. Payment and continuation cannot start until it is recorded.', 'urgent' => $outcomesDue > 0, 'anchor' => '');
-            // Count an Enrolment only while its academic provisioning is incomplete. A preparation
-            // that already reached `activated` owns its Term, Assignment and Lessons; a later
-            // provider/classroom projection failure is a classroom-repair task and must not
-            // resurface here as a stuck enrolment. The latest job is the only one that can testify
-            // about the current attempt — an older failed attempt is history once a run succeeds.
-            $postIntroAttention = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$p}post_intro_preparations p WHERE p.state <> 'activated' AND (p.state='exception' OR (p.state='payment_received' AND (NOT EXISTS (SELECT 1 FROM {$p}post_intro_activation_jobs any_job WHERE any_job.preparation_id=p.id) OR EXISTS (SELECT 1 FROM {$p}post_intro_activation_jobs j WHERE j.preparation_id=p.id AND j.id=(SELECT MAX(latest.id) FROM {$p}post_intro_activation_jobs latest WHERE latest.preparation_id=p.id) AND j.state IN ('queued','retryable') AND (j.next_attempt_at IS NULL OR j.next_attempt_at<UTC_TIMESTAMP() - INTERVAL 15 MINUTE)))) OR EXISTS (SELECT 1 FROM {$p}post_intro_activation_jobs failed_job WHERE failed_job.preparation_id=p.id AND failed_job.id=(SELECT MAX(latest.id) FROM {$p}post_intro_activation_jobs latest WHERE latest.preparation_id=p.id) AND failed_job.state='failed'))");
-            $items[] = array('area' => 'learners', 'label' => 'Post-intro enrolments needing attention', 'count' => $postIntroAttention, 'page' => 'dzn-post-intro', 'action' => 'Review post-intro diagnostics', 'args' => array(), 'description' => 'A recorded outcome, verified payment or controlled activation is stuck. Review the preparation and retry only from its protected diagnostics.', 'urgent' => $postIntroAttention > 0, 'anchor' => '');
+            // Both counts come from the same read seam that renders the resolving surface. An
+            // outcome queue is based on the latest confirmation and closes for the whole request
+            // once any outcome is recorded; a superseded confirmation can never hold it open.
+            $postIntroRepository = new PostIntroRepository();
+            $outcomesDue = $postIntroRepository->pendingOutcomeConfirmationCount();
+            $outcomeRows = $outcomesDue > 0 ? $postIntroRepository->pendingOutcomeConfirmations(3) : array();
+            $canOpenIntroCase = current_user_can('dzn_view_booking_requests') || current_user_can('dzn_manage_booking_request_coordination');
+            $outcomePage = $canOpenIntroCase ? 'dzn-enrolment-workspace' : 'dzn-post-intro';
+            $outcomeArgs = $canOpenIntroCase ? array('stage' => 'intro_outcome') : array();
+            $outcomeAnchor = $canOpenIntroCase ? '' : 'dzn-post-intro-outcomes';
+            if ($canOpenIntroCase && $outcomesDue === 1 && count($outcomeRows) === 1) {
+                $outcomeArgs = array('request_id' => (int) ($outcomeRows[0]->booking_request_id ?? 0));
+            }
+            $outcomeDetails = array();
+            foreach ($outcomeRows as $row) {
+                $outcomeDetails[] = array(
+                    'heading' => trim((string) ($row->student_name ?? 'Learner')) . ' · ' . (string) ($row->reference_code ?? ''),
+                    'meta' => trim(implode(' · ', array_filter(array((string) ($row->course_name ?? ''), (string) ($row->teacher_name ?? ''))))),
+                    'note' => 'Ended ' . (string) ($row->ends_at_utc ?? '') . ' UTC',
+                    'url' => $canOpenIntroCase
+                        ? add_query_arg(array('page' => 'dzn-enrolment-workspace', 'request_id' => (int) ($row->booking_request_id ?? 0)), admin_url('admin.php'))
+                        : admin_url('admin.php?page=dzn-post-intro') . '#dzn-post-intro-outcomes',
+                );
+            }
+            $items[] = array('area' => 'learners', 'label' => 'Intro class outcomes due', 'count' => $outcomesDue, 'page' => $outcomePage, 'action' => $outcomesDue === 1 && $canOpenIntroCase ? 'Open the intro case' : 'Record intro outcome', 'args' => $outcomeArgs, 'description' => 'A confirmed introductory class has ended without a Teacher or administrator outcome. Payment and continuation cannot start until it is recorded.', 'urgent' => $outcomesDue > 0, 'anchor' => $outcomeAnchor, 'details' => $outcomeDetails);
+            // The card and the protected diagnostics list one actionable set. A preparation is not
+            // counted when its introduction was not delivered, when the academic provisioning already
+            // owns a Term and Teacher Assignment, or when no action on the diagnostics page can move
+            // it forward. Clicking the card therefore always lands on completing work.
+            $attentionRows = (new PostIntroAttentionReadService())->rows();
+            $postIntroAttention = count($attentionRows);
+            $postIntroDetails = array();
+            foreach (array_slice($attentionRows, 0, 3) as $row) {
+                $reference = trim((string) ($row['reference'] ?? ''));
+                $postIntroDetails[] = array(
+                    'heading' => trim((string) ($row['learner_name'] ?? 'Learner') . ($reference !== '' ? ' · ' . $reference : '')),
+                    'meta' => (string) ($row['reason_label'] ?? ''),
+                    'note' => trim((string) ($row['state'] ?? '') . ((string) ($row['enrolment_reference'] ?? '') !== '' ? ' · ' . (string) $row['enrolment_reference'] : '')),
+                    'url' => add_query_arg(array('page' => 'dzn-post-intro', 'preparation_id' => (int) ($row['preparation_id'] ?? 0)), admin_url('admin.php')) . '#dzn-post-intro-preparation-' . (int) ($row['preparation_id'] ?? 0),
+                );
+            }
+            $items[] = array('area' => 'learners', 'label' => 'Post-intro enrolments needing attention', 'count' => $postIntroAttention, 'page' => 'dzn-post-intro', 'action' => 'Review post-intro diagnostics', 'args' => array(), 'description' => 'A recorded outcome, verified payment or controlled activation is stuck. Review the preparation and retry only from its protected diagnostics.', 'urgent' => $postIntroAttention > 0, 'anchor' => 'dzn-post-intro-attention', 'details' => $postIntroDetails);
         }
         if (current_user_can('dzn_manage_lessons')) {
             $state = self::classSnapshot();

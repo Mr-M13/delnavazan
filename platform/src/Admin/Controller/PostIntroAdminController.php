@@ -1,7 +1,7 @@
 <?php
 namespace Delnavazan\Platform\Admin\Controller;
 
-use Delnavazan\Platform\Core\Application\{PostIntroFeedbackRule,PostIntroFulfilmentReadService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor};
+use Delnavazan\Platform\Core\Application\{PostIntroAttentionReadService,PostIntroFeedbackRule,PostIntroFulfilmentReadService,PostIntroPreparationService,PostIntroRecoveryService,PostIntroSystemActor};
 use Delnavazan\Platform\Core\Infrastructure\Repository\{PostIntroFeedbackRepository,PostIntroRepository};
 use Delnavazan\Platform\Integrations\PostIntroActivationWorker;
 
@@ -25,9 +25,16 @@ final class PostIntroAdminController {
     public static function render(): void {
         if (!current_user_can(self::CAPABILITY)) wp_die(esc_html__('Unauthorized', 'delnavazan-platform'), '', array('response' => 403));
         $repository = new PostIntroRepository();
+        // One merged list feeds both this page and the Overview card. Each row carries the single
+        // action that can move it forward; terminal or already-provisioned preparations are excluded
+        // by the repository before this merge.
         $preparations = $repository->exceptionPreparations();
         $jobs = $repository->failedJobs();
+        $paidWithoutJob = $repository->paidPreparationsWithoutActivationJob();
+        $attention = PostIntroAttentionReadService::compose($preparations, $jobs, $paidWithoutJob);
         $pending = $repository->pendingOutcomeConfirmations();
+        $focusPreparation = absint($_GET['preparation_id'] ?? 0);
+        $canOpenWorkspace = current_user_can(Menu::ENROLMENT_WORKSPACE_CAP);
         $fulfilmentService = new PostIntroFulfilmentReadService();
         $recentPreparations = $repository->recentPreparations(20);
         $feedbackRepository = new PostIntroFeedbackRepository();
@@ -55,8 +62,57 @@ final class PostIntroAdminController {
         ?>
         <div class="wrap">
             <h1>Post-intro automation</h1>
-            <?php if ($status !== '') : ?><div class="notice notice-info"><p><?php echo esc_html($status); ?></p></div><?php endif; ?>
+            <?php if ($status !== '') : ?><div class="notice notice-info"><p><?php echo esc_html(self::statusMessage($status)); ?></p></div><?php endif; ?>
             <p>Only genuine exceptions are listed here. Canonical Lesson, Enrolment, Term, payment, and Teacher-assignment truth must be repaired in its owning authority before retrying.</p>
+
+            <h2 id="dzn-post-intro-attention">Needs attention now</h2>
+            <p>Only preparations whose academic provisioning is still incomplete and that have a resolvable action are listed. A delivered outcome that already owns a canonical Term and Teacher Assignment is complete; a non-delivered introduction is a closed outcome, not a retry.</p>
+            <?php if ($attention) : ?>
+                <table class="widefat striped dzn-post-intro-attention"><thead><tr><th>Booking</th><th>Learner</th><th>Preparation</th><th>Reason</th><th>Updated (UTC)</th><th>Action</th></tr></thead><tbody>
+                <?php foreach ($attention as $row) : ?>
+                    <?php $rowId = (int) $row['preparation_id']; ?>
+                    <tr id="dzn-post-intro-preparation-<?php echo esc_attr((string) $rowId); ?>"<?php echo $focusPreparation === $rowId ? ' class="is-focused"' : ''; ?>>
+                        <td><?php $bookingLabel = (string) ($row['reference'] !== '' ? $row['reference'] : ('Request ' . (int) $row['booking_request_id'])); ?><?php if ($canOpenWorkspace) : ?><a href="<?php echo esc_url(add_query_arg(array('page' => 'dzn-enrolment-workspace', 'request_id' => (int) $row['booking_request_id']), admin_url('admin.php'))); ?>"><?php echo esc_html($bookingLabel); ?></a><?php else : ?><?php echo esc_html($bookingLabel); ?><?php endif; ?></td>
+                        <td><?php echo esc_html((string) $row['learner_name']); ?></td>
+                        <td><code><?php echo esc_html((string) $row['state']); ?></code><?php if ((string) $row['enrolment_reference'] !== '') : ?><br><small><?php echo esc_html((string) $row['enrolment_reference']); ?></small><?php endif; ?></td>
+                        <td><strong><?php echo esc_html((string) $row['reason_label']); ?></strong><?php if ((string) $row['exception_detail'] !== '') : ?><br><small><?php echo esc_html((string) $row['exception_detail']); ?></small><?php endif; ?></td>
+                        <td><?php echo esc_html((string) $row['updated_at']); ?></td>
+                        <td>
+                            <?php if ((string) $row['action'] === 'retry_preparation') : ?>
+                                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                                    <input type="hidden" name="action" value="<?php echo esc_attr(self::ACTION); ?>">
+                                    <input type="hidden" name="operation" value="retry_preparation">
+                                    <input type="hidden" name="preparation_id" value="<?php echo esc_attr((string) $rowId); ?>">
+                                    <?php wp_nonce_field(self::ACTION); ?>
+                                    <button class="button">Retry preparation</button>
+                                </form>
+                            <?php elseif ((string) $row['action'] === 'retry_activation') : ?>
+                                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                                    <input type="hidden" name="action" value="<?php echo esc_attr(self::ACTION); ?>">
+                                    <input type="hidden" name="operation" value="retry_activation">
+                                    <input type="hidden" name="job_id" value="<?php echo esc_attr((string) $row['job_id']); ?>">
+                                    <?php wp_nonce_field(self::ACTION); ?>
+                                    <button class="button">Retry activation</button>
+                                </form>
+                            <?php elseif ((string) $row['action'] === 'queue_activation') : ?>
+                                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                                    <input type="hidden" name="action" value="<?php echo esc_attr(self::ACTION); ?>">
+                                    <input type="hidden" name="operation" value="queue_activation">
+                                    <input type="hidden" name="preparation_id" value="<?php echo esc_attr((string) $rowId); ?>">
+                                    <?php wp_nonce_field(self::ACTION); ?>
+                                    <button class="button">Queue activation</button>
+                                </form>
+                            <?php endif; ?>
+                            <?php if ((int) $row['enrolment_id'] > 0) : ?>
+                                <a class="button" href="<?php echo esc_url(add_query_arg(array('page' => self::MENU_SLUG, 'post_intro_admin' => 'inspect', 'enrolment_id' => (int) $row['enrolment_id']), admin_url('admin.php'))); ?>">Inspect</a>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody></table>
+            <?php else : ?>
+                <p class="dzn-all-clear"><span aria-hidden="true">✓</span> No post-intro preparation needs an operator action.</p>
+            <?php endif; ?>
 
             <h2>Automation identity</h2>
             <p>Status: <code><?php echo esc_html($actorState); ?></code></p>
@@ -245,52 +301,7 @@ final class PostIntroAdminController {
                 <p>No refused provider webhook receipts are recorded.</p>
             <?php endif; ?>
 
-            <h2>Preparation exceptions</h2>
-            <table class="widefat striped"><thead><tr><th>Booking</th><th>State</th><th>Reason</th><th>Updated</th><th>Action</th></tr></thead><tbody>
-            <?php foreach ($preparations as $row) : ?>
-                <tr>
-                    <td><?php echo esc_html((string) $row->booking_request_id); ?></td>
-                    <td><?php echo esc_html((string) $row->state); ?></td>
-                    <td><code><?php echo esc_html((string) $row->exception_code); ?></code><br><?php echo esc_html((string) $row->exception_detail); ?></td>
-                    <td><?php echo esc_html((string) $row->updated_at); ?></td>
-                    <td>
-                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                            <input type="hidden" name="action" value="<?php echo esc_attr(self::ACTION); ?>">
-                            <input type="hidden" name="operation" value="retry_preparation">
-                            <input type="hidden" name="preparation_id" value="<?php echo esc_attr((string) $row->id); ?>">
-                            <?php wp_nonce_field(self::ACTION); ?>
-                            <button class="button">Retry preparation</button>
-                        </form>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-            <?php if (!$preparations) : ?><tr><td colspan="5">No preparation exceptions.</td></tr><?php endif; ?>
-            </tbody></table>
-
-            <h2>Activation jobs</h2>
-            <table class="widefat striped"><thead><tr><th>Purchase</th><th>Preparation</th><th>State</th><th>Attempts</th><th>Last error</th><th>Action</th></tr></thead><tbody>
-            <?php foreach ($jobs as $row) : ?>
-                <tr>
-                    <td><?php echo esc_html((string) $row->purchase_id); ?></td>
-                    <td><?php echo esc_html((string) $row->preparation_id); ?></td>
-                    <td><?php echo esc_html((string) $row->state); ?></td>
-                    <td><?php echo esc_html((string) $row->attempt_count); ?></td>
-                    <td><code><?php echo esc_html((string) $row->last_error_code); ?></code><br><?php echo esc_html((string) $row->last_error_detail); ?></td>
-                    <td>
-                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                            <input type="hidden" name="action" value="<?php echo esc_attr(self::ACTION); ?>">
-                            <input type="hidden" name="operation" value="retry_activation">
-                            <input type="hidden" name="job_id" value="<?php echo esc_attr((string) $row->id); ?>">
-                            <?php wp_nonce_field(self::ACTION); ?>
-                            <button class="button">Retry activation</button>
-                        </form>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-            <?php if (!$jobs) : ?><tr><td colspan="6">No failed activation jobs.</td></tr><?php endif; ?>
-            </tbody></table>
-
-            <h2>Intro outcomes awaiting a Teacher</h2>
+            <h2 id="dzn-post-intro-outcomes">Intro outcomes awaiting a Teacher</h2>
             <p>Use this only when the Teacher cannot record the outcome in the Teacher Portal.</p>
             <table class="widefat striped"><thead><tr><th>Confirmation</th><th>Student</th><th>Teacher</th><th>Ended (UTC)</th><th>Record outcome</th></tr></thead><tbody>
             <?php foreach ($pending as $row) : ?>
@@ -333,8 +344,19 @@ final class PostIntroAdminController {
             } elseif ($operation === 'retry_preparation') {
                 (new PostIntroPreparationService())->retry((int) ($_POST['preparation_id'] ?? 0));
             } elseif ($operation === 'retry_activation') {
-                PostIntroActivationWorker::requeue((int) ($_POST['job_id'] ?? 0));
-                PostIntroActivationWorker::run();
+                // A failed/retryable job is requeued first. A queued job that is already overdue is
+                // executed directly; requeue refuses it because it was never released as failed.
+                $jobId = absint($_POST['job_id'] ?? 0);
+                $job = (new PostIntroRepository())->job($jobId);
+                if (!$job) throw new \InvalidArgumentException('post_intro_job_not_found');
+                if (in_array((string) $job->state, array('failed', 'retryable'), true)) PostIntroActivationWorker::requeue($jobId);
+                $run = PostIntroActivationWorker::runJob($jobId);
+                $runState = sanitize_key((string) ($run['state'] ?? ''));
+                self::redirect($runState === 'completed' ? 'done' : 'activation_' . ($runState !== '' ? $runState : 'failed'));
+            } elseif ($operation === 'queue_activation') {
+                $result = (new PostIntroRecoveryService())->queueActivation(absint($_POST['preparation_id'] ?? 0));
+                $runState = sanitize_key((string) ($result['state'] ?? 'queued'));
+                self::redirect($runState === 'completed' ? 'done' : 'activation_' . ($runState !== '' ? $runState : 'queued'));
             } elseif ($operation === 'inspect_fulfilment') {
                 $enrolmentId = absint($_POST['enrolment_id'] ?? 0);
                 if ($enrolmentId < 1) throw new \InvalidArgumentException('enrolment_id_required');
@@ -393,6 +415,28 @@ final class PostIntroAdminController {
             'prefer_not_to_say' => 'Prefer not to say',
             default => 'Unclassified',
         };
+    }
+
+    private static function statusMessage(string $status): string {
+        $messages = array(
+            'done' => 'The action was completed.',
+            'post_intro_preparation_not_found' => 'That preparation no longer exists.',
+            'post_intro_job_not_found' => 'That activation job no longer exists.',
+            'post_intro_job_not_due' => 'The activation job is not due yet; it runs on its next scheduled attempt.',
+            'post_intro_job_in_progress' => 'The activation job is running now. Wait for it to finish before retrying.',
+            'post_intro_job_not_requeueable' => 'That activation job cannot be requeued in its current state.',
+            'post_intro_job_unavailable' => 'No activation job could be created. Verify the settlement, schedule and funding before retrying.',
+            'commercial_purchase_required' => 'No verified purchase is linked to this preparation, so activation cannot be queued.',
+            'post_intro_preparation_not_paid' => 'That preparation is not waiting on a verified payment, so no activation was queued.',
+            'authoritative_schedule_missing' => 'The continuation has no authoritative schedule yet. Repair the schedule in its owning authority first.',
+            'verified_payment_required' => 'The payment is not verified yet; no activation was queued.',
+            'operation_failed' => 'The action failed. Review the preparation state and its owning records before retrying.',
+            'activation_queued' => 'Activation was queued and will run on the next worker pass.',
+            'activation_retryable' => 'Activation was attempted and returned to the retry queue. Its reason is listed under Needs attention now.',
+            'activation_failed' => 'Activation failed again. Its reason is listed under Needs attention now.',
+        );
+        if (isset($messages[$status])) return $messages[$status];
+        return 'The action returned ' . $status . '. Review the preparation and its owning records before retrying.';
     }
 
     private static function fulfilmentLabel(string $state): string {

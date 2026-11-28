@@ -74,12 +74,56 @@ final class NotificationManualSendService {
         return $out;
     }
 
+    /**
+     * Event templates an administrator may cover in a manual send. Only events with a real mobile
+     * producer are offered; the event decides which channel can carry it.
+     *
+     * @return array<string,array{label:string,audience:string,channels:string[]}>
+     */
+    public function events():array{
+        $out=array();
+        foreach(NotificationCatalogue::events() as $eventKey=>$event){
+            $channels=NotificationCatalogue::mobileProducerChannels((string)$eventKey);
+            if($channels===array())continue;
+            $out[(string)$eventKey]=array(
+                'label'=>(string)($event['label']??$eventKey),
+                'audience'=>(string)($event['audience']??''),
+                'channels'=>array_values($channels),
+            );
+        }
+        return $out;
+    }
+
+    /** Active Students an administrator can select by name instead of a whole audience segment. */
+    public function students():array{
+        global $wpdb;$p=$wpdb->prefix.'dzn_';
+        $rows=$wpdb->get_results("SELECT id,COALESCE(NULLIF(display_name,''),NULLIF(reference_code,''),CONCAT('Student #',id)) label,phone,whatsapp_phone FROM {$p}students WHERE archived_at IS NULL AND status='active' ORDER BY label");
+        if(!is_array($rows))return array();
+        return array_map(static fn(object $row):array=>array(
+            'id'=>(int)$row->id,
+            'label'=>(string)($row->label??('Student #'.(int)$row->id)),
+            'phone'=>(string)($row->phone??''),
+            'whatsapp_phone'=>(string)($row->whatsapp_phone??''),
+        ),$rows);
+    }
+
     /** A safe, read-only recipient preview: how many will be reached and how many are skipped. */
     public function preview(array $input):array{
         $resolution=$this->resolve($input);
         $channel=(string)($resolution['channel']??'');
-        if($channel==='sms'&&trim((string)($input['message']??''))==='')$resolution['errors'][]='A message is required for SMS.';
-        if($channel==='whatsapp'&&trim((string)($input['parameters']['message']??''))==='')$resolution['errors'][]='A message is required for WhatsApp.';
+        $eventKey=(string)($resolution['event']??'');
+        $template=null;
+        if($channel==='sms'&&$eventKey===''&&trim((string)($input['message']??''))==='')$resolution['errors'][]='A message is required for SMS.';
+        if($channel==='whatsapp'&&$eventKey===''){
+            if(trim((string)($input['parameters']['message']??''))==='')$resolution['errors'][]='A message is required for WhatsApp.';
+        }elseif($channel==='whatsapp'){
+            $template=TelnyxTemplateRegistry::nameForEvent($eventKey);
+            if($template===null)$resolution['errors'][]='No approved WhatsApp template is mapped for this event.';
+            else foreach(TelnyxTemplateRegistry::variableOrderForName($template) as $code){
+                if(in_array($code,array('name','teacher','student'),true))continue;
+                if(trim((string)($input['variables'][$code]??''))==='')$resolution['errors'][]='Template variable '.$code.' is required.';
+            }
+        }
         $reached=0;$skipped=array();
         foreach($resolution['recipients'] as $recipient){
             $blocker=$this->blocker($recipient);
@@ -92,7 +136,9 @@ final class NotificationManualSendService {
             'skipped'=>$skipped,
             'errors'=>$resolution['errors'],
             'channel'=>$channel,
-            'whatsapp_template'=>self::WHATSAPP_TEMPLATE,
+            'event'=>$eventKey,
+            'event_label'=>$eventKey===''?'Announcement':(string)($this->events()[$eventKey]['label']??$eventKey),
+            'whatsapp_template'=>$eventKey===''?self::WHATSAPP_TEMPLATE:(string)($template??''),
         );
     }
 
@@ -106,7 +152,7 @@ final class NotificationManualSendService {
         $resolution=$this->resolve($input);
         if($resolution['errors']!==array())throw new \InvalidArgumentException(implode(' ',$resolution['errors']));
         $channel=(string)$resolution['channel'];
-        if($channel!=='whatsapp'&&trim((string)($input['message']??''))==='')throw new \InvalidArgumentException('A message is required for SMS.');
+        if($channel!=='whatsapp'&&trim((string)($input['event']??''))===''&&trim((string)($input['message']??''))==='')throw new \InvalidArgumentException('A message is required for SMS.');
 
         $commandDigest=NotificationSupport::keyDigest($commandKey);
         $now=NotificationSupport::now();
@@ -148,6 +194,8 @@ final class NotificationManualSendService {
         //    recipients are counted, never re-sent; a `sending` row left by an interrupted run is
         //    marked `uncertain` rather than blindly resent.
         $sent=0;$failed=0;$uncertain=0;$skipped=0;
+        $recipientNames=array();
+        foreach($resolution['recipients'] as $resolved)$recipientNames[(string)$resolved['to']]=(string)($resolved['name']??'');
         foreach($this->repository->recipients($batchId) as $row){
             $state=(string)$row->state;
             if($state==='sent'){$sent++;continue;}
@@ -161,7 +209,7 @@ final class NotificationManualSendService {
             // pending
             if(!$this->repository->claimRecipient((int)$row->id,$now))continue;
             $idempotencyKey='dzn-manual:'.hash('sha256',$batchId.':'.(int)$row->id.':'.$commandDigest);
-            $result=$this->dispatch($channel,(string)$row->contact,$input,$idempotencyKey);
+            $result=$this->dispatch($channel,(string)$row->contact,$input,$idempotencyKey,$row,(string)($recipientNames[(string)$row->contact]??''));
             if(!empty($result['acknowledged'])){
                 $this->repository->markRecipient((int)$row->id,'sent',array('failure_reason'=>null,'finished_at'=>gmdate('Y-m-d H:i:s'),'updated_at'=>gmdate('Y-m-d H:i:s')));
                 $sent++;
@@ -193,6 +241,10 @@ final class NotificationManualSendService {
         $channel=(string)($input['channel']??'');
         $manual=self::numbers((string)($input['numbers']??''));
         $segmentKeys=is_array($input['segments']??null)?array_values(array_filter(array_map('sanitize_key',(array)$input['segments']))):array();
+        $eventKey=trim((string)($input['event']??''));
+        $event=$eventKey===''?null:($this->events()[$eventKey]??null);
+        if($eventKey!==''&&$event===null)$errors[]='Unknown notification event template.';
+        $selectedStudents=is_array($input['students']??null)?array_values(array_unique(array_filter(array_map('intval',(array)$input['students']),static fn(int $id):bool=>$id>0))):array();
 
         // The audience is implied by the chosen segments; an explicit value overrides it. A single
         // audience sets the default channel (teacher -> SMS, student -> WhatsApp).
@@ -202,12 +254,17 @@ final class NotificationManualSendService {
         $segmentAudience=count($segmentAudiences)===1?(string)array_key_first($segmentAudiences):'';
         $effectiveAudience=$audience!==''?$audience:$segmentAudience;
 
-        if($channel===''&&$effectiveAudience==='teacher')$channel='sms';
-        if($channel===''&&$effectiveAudience==='student')$channel='whatsapp';
-        if($channel===''&&$effectiveAudience===''&&$manual!==array()&&$segmentKeys===array())$channel='whatsapp';
-        if(!in_array($channel,array('sms','whatsapp'),true)){
-            if($manual!==array()&&$segmentKeys!==array())$errors[]='Choose a channel when sending to both teachers and students.';
-            else$channel=$effectiveAudience==='teacher'?'sms':'whatsapp';
+        if($event!==null){
+            $allowed=$event['channels'];
+            if(!in_array($channel,$allowed,true))$channel=in_array('whatsapp',$allowed,true)?'whatsapp':(string)($allowed[0]??'sms');
+        }else{
+            if($channel===''&&$effectiveAudience==='teacher')$channel='sms';
+            if($channel===''&&$effectiveAudience==='student')$channel='whatsapp';
+            if($channel===''&&$effectiveAudience===''&&$manual!==array()&&$segmentKeys===array()&&$selectedStudents===array())$channel='whatsapp';
+            if(!in_array($channel,array('sms','whatsapp'),true)){
+                if(($manual!==array()||$selectedStudents!==array())&&$segmentKeys!==array())$errors[]='Choose a channel when sending to both teachers and students.';
+                else$channel=$effectiveAudience==='teacher'?'sms':'whatsapp';
+            }
         }
 
         $recipients=array();$seen=array();
@@ -218,13 +275,20 @@ final class NotificationManualSendService {
             if($contact==='')return;
             if(isset($seen[$contact]))return;
             $seen[$contact]=true;
-            $recipients[]=array('to'=>$contact,'audience'=>(string)($row['audience']??''),'id'=>isset($row['id'])?(int)$row['id']:null,'phone'=>$phone,'whatsapp'=>$whatsapp);
+            $recipients[]=array('to'=>$contact,'audience'=>(string)($row['audience']??''),'id'=>isset($row['id'])?(int)$row['id']:null,'name'=>(string)($row['name']??''),'phone'=>$phone,'whatsapp'=>$whatsapp);
         };
 
         foreach($segmentKeys as $segmentKey){
             $definition=$definitions[$segmentKey]??null;
             if($definition===null){$errors[]='Unknown audience segment.';continue;}
-            foreach($definition['rows'] as $row)$add(array('id'=>(int)$row['id'],'phone'=>(string)($row['phone']??''),'whatsapp'=>(string)($row['whatsapp_phone']??''),'audience'=>(string)$definition['audience']));
+            foreach($definition['rows'] as $row)$add(array('id'=>(int)$row['id'],'name'=>(string)($row['name']??''),'phone'=>(string)($row['phone']??''),'whatsapp'=>(string)($row['whatsapp_phone']??''),'audience'=>(string)$definition['audience']));
+        }
+        if($selectedStudents!==array()){
+            $active=$definitions['students_active']['rows']??array();
+            foreach($active as $row){
+                if(!in_array((int)$row['id'],$selectedStudents,true))continue;
+                $add(array('id'=>(int)$row['id'],'name'=>(string)($row['name']??''),'phone'=>(string)($row['phone']??''),'whatsapp'=>(string)($row['whatsapp_phone']??''),'audience'=>'student'));
+            }
         }
         foreach($manual as $number){
             $phone=self::e164($number);
@@ -236,8 +300,14 @@ final class NotificationManualSendService {
             elseif($teacherId!==null)$add(array('id'=>$teacherId,'phone'=>$phone,'whatsapp'=>$phone,'audience'=>'teacher'));
             else$add(array('id'=>null,'phone'=>$phone,'whatsapp'=>$phone,'audience'=>$audience!==''?$audience:'student'));
         }
-        if($recipients===array()&&$errors===array())$errors[]='No recipients matched. Choose an audience or enter numbers.';
-        return array('channel'=>$channel,'recipients'=>$recipients,'errors'=>array_values(array_unique($errors)),'total'=>count($recipients));
+        if($event!==null&&in_array((string)$event['audience'],array('student','teacher'),true)){
+            foreach($recipients as $recipient)if((string)($recipient['audience']??'')!==(string)$event['audience']){
+                $errors[]='The selected event is for '.$event['audience'].'s; remove recipients from the other audience.';
+                break;
+            }
+        }
+        if($recipients===array()&&$errors===array())$errors[]='No recipients matched. Choose a student, an audience or enter numbers.';
+        return array('channel'=>$channel,'event'=>$eventKey,'variables'=>is_array($input['variables']??null)?$input['variables']:array(),'recipients'=>$recipients,'errors'=>array_values(array_unique($errors)),'total'=>count($recipients));
     }
 
     /** Why a recipient may not be sent to, or null when reachable. */
@@ -251,17 +321,38 @@ final class NotificationManualSendService {
     /**
      * @return array{acknowledged:bool,permanent_failure:?string,reason:string}
      */
-    private function dispatch(string $channel,string $to,array $input,string $idempotencyKey):array{
+    private function dispatch(string $channel,string $to,array $input,string $idempotencyKey,object $recipientRow,string $name=''):array{
+        $eventKey=trim((string)($input['event']??''));
+        $variables=is_array($input['variables']??null)?$input['variables']:array();
+        foreach(array('name','teacher','student') as $code)if(array_key_exists($code,$variables)||$code==='name')if($name!==''&&trim((string)($variables[$code]??''))==='')$variables[$code]=$name;
         if($channel==='sms'){
             $provider=SmsProviderRoutingPolicy::select($to);
-            $body=trim(self::messageText($input,'sms'));
-            if($provider==='sms_ir')$adapter=new SmsIrAdapter($this->settings,$this->http);
-            else$adapter=new TelnyxSmsAdapter($this->settings,$this->http);
-            $result=$adapter->send(array('to'=>$to,'body'=>$body,'idempotency_key'=>$idempotencyKey));
+            if($eventKey!==''){
+                if($provider==='sms_ir'){
+                    $adapter=new SmsIrAdapter($this->settings,$this->http);
+                    $result=$adapter->sendBookingNotification($to,(int)$recipientRow->id,'',$eventKey,$variables);
+                }else{
+                    $adapter=new TelnyxSmsAdapter($this->settings,$this->http);
+                    $body=trim((string)($input['message']??''));
+                    if($body==='')$body='Delnavazan: '.($this->events()[$eventKey]['label']??$eventKey);
+                    $result=$adapter->send(array('to'=>$to,'body'=>$body,'idempotency_key'=>$idempotencyKey));
+                }
+            }else{
+                $body=trim(self::messageText($input,'sms'));
+                $adapter=$provider==='sms_ir'?new SmsIrAdapter($this->settings,$this->http):new TelnyxSmsAdapter($this->settings,$this->http);
+                $result=$adapter->send(array('to'=>$to,'body'=>$body,'idempotency_key'=>$idempotencyKey));
+            }
             return array('acknowledged'=>(bool)($result['acknowledged']??false),'permanent_failure'=>isset($result['permanent_failure'])?$result['permanent_failure']:null,'reason'=>(string)($result['reason']??'sms_failed'));
         }
         $adapter=new TelnyxWhatsAppAdapter($this->settings,$this->http);
-        $result=$adapter->sendManual($to,self::WHATSAPP_TEMPLATE,self::WHATSAPP_LANGUAGE,self::WHATSAPP_ORDER,(array)($input['parameters']??array()),0,$idempotencyKey);
+        if($eventKey!==''){
+            $template=TelnyxTemplateRegistry::nameForEvent($eventKey);
+            if($template===null)return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'template_not_mapped');
+            $order=TelnyxTemplateRegistry::variableOrderForName($template);
+            $result=$adapter->sendManual($to,$template,self::WHATSAPP_LANGUAGE,$order,$variables,(int)$recipientRow->id,$idempotencyKey);
+        }else{
+            $result=$adapter->sendManual($to,self::WHATSAPP_TEMPLATE,self::WHATSAPP_LANGUAGE,self::WHATSAPP_ORDER,(array)($input['parameters']??array()),0,$idempotencyKey);
+        }
         return array('acknowledged'=>(bool)($result['acknowledged']??false),'permanent_failure'=>isset($result['permanent_failure'])?$result['permanent_failure']:null,'reason'=>(string)($result['reason']??'whatsapp_failed'));
     }
 
@@ -283,10 +374,10 @@ final class NotificationManualSendService {
     private function segmentRows():array{
         global $wpdb;
         $p=$wpdb->prefix.'dzn_';
-        $teachers=$this->query("SELECT id,phone,whatsapp_phone FROM {$p}teachers WHERE archived_at IS NULL ORDER BY id");
-        $studentsActive=$this->query("SELECT id,phone,whatsapp_phone FROM {$p}students WHERE archived_at IS NULL AND status='active' ORDER BY id");
-        $studentsFormer=$this->query("SELECT id,phone,whatsapp_phone FROM {$p}students WHERE archived_at IS NOT NULL OR status IN ('archived','completed','cancelled') ORDER BY id");
-        $studentsAll=$this->query("SELECT id,phone,whatsapp_phone FROM {$p}students WHERE archived_at IS NULL ORDER BY id");
+        $teachers=$this->query("SELECT id,COALESCE(NULLIF(display_name,''),NULLIF(english_name,''),persian_name,'') name,phone,whatsapp_phone FROM {$p}teachers WHERE archived_at IS NULL ORDER BY id");
+        $studentsActive=$this->query("SELECT id,COALESCE(NULLIF(display_name,''),NULLIF(reference_code,''),'') name,phone,whatsapp_phone FROM {$p}students WHERE archived_at IS NULL AND status='active' ORDER BY id");
+        $studentsFormer=$this->query("SELECT id,COALESCE(NULLIF(display_name,''),NULLIF(reference_code,''),'') name,phone,whatsapp_phone FROM {$p}students WHERE archived_at IS NOT NULL OR status IN ('archived','completed','cancelled') ORDER BY id");
+        $studentsAll=$this->query("SELECT id,COALESCE(NULLIF(display_name,''),NULLIF(reference_code,''),'') name,phone,whatsapp_phone FROM {$p}students WHERE archived_at IS NULL ORDER BY id");
         return array(
             'teachers'=>array('label'=>'All teachers','audience'=>'teacher','rows'=>$teachers),
             'students_active'=>array('label'=>'Active students','audience'=>'student','rows'=>$studentsActive),
@@ -299,7 +390,7 @@ final class NotificationManualSendService {
         global $wpdb;
         $rows=$wpdb->get_results($sql);
         if(!is_array($rows))return array();
-        return array_map(static fn(object $row):array=>array('id'=>(int)$row->id,'phone'=>(string)($row->phone??''),'whatsapp_phone'=>(string)($row->whatsapp_phone??'')),$rows);
+        return array_map(static fn(object $row):array=>array('id'=>(int)$row->id,'name'=>(string)($row->name??''),'phone'=>(string)($row->phone??''),'whatsapp_phone'=>(string)($row->whatsapp_phone??'')),$rows);
     }
 
     // ------------------------------------------------------------------ audit

@@ -25,15 +25,18 @@ foreach (array(
     'dzn_notification_copy_save_draft', 'dzn_notification_copy_publish', 'dzn_notification_copy_discard',
     'dzn_notification_copy_restore', 'dzn_notification_copy_restore_default', 'dzn_notification_provider_mapping',
     'dzn_notification_event_toggle', 'dzn_notification_event_channel_toggle', 'dzn_notification_inbox_prune', 'dzn_notification_inbox_test',
-    'dzn_notification_recover_leases', 'dzn_notification_prepare_drafts', 'dzn_notification_publish_drafts',
-    'dzn_notification_disable_blocked_mobile',
-    'dzn_notification_approve_draft', 'dzn_notification_revoke_approval', 'dzn_notification_approve_operational',
-    'dzn_notification_approve_all_drafts', 'dzn_notification_manual_send',
+    'dzn_notification_recover_leases', 'dzn_notification_disable_blocked_mobile',
+    'dzn_notification_enable_ready_mobile',
+    'dzn_notification_approve_draft', 'dzn_notification_revoke_approval',
+    'dzn_notification_manual_send',
 ) as $action) {
     $fail('registered action ' . $action, str_contains($controller, "admin_post_" . $action));}
 $fail('editing uses the canonical template capability', str_contains($controller, "CAP_EDIT='dzn_manage_notification_templates'"));
 $fail('a manual send is idempotent by content, not by clock', str_contains($controller, "hash('sha256',wp_json_encode(\$input))") && !str_contains($controller, "'manual-send:'.gmdate"));
 $fail('a manual send requires the dispatch capability', str_contains((string) file_get_contents(dirname(__DIR__) . '/src/Integrations/Notifications/NotificationManualSendService.php'), "current_user_can(self::CAPABILITY)"));
+$fail('the dashboard no longer exposes the copy-draft publication ceremony', !str_contains($controller, 'Copy and publication workflow') && !str_contains($controller, 'Prepare drafts') && !str_contains($controller, 'One-time catalogue approval'));
+$fail('the mobile delivery actions remain on the dashboard', str_contains($controller, 'dzn_notification_enable_ready_mobile') && str_contains($controller, 'dzn_notification_disable_blocked_mobile'));
+$fail('manual send can target individual students, a channel and an event template', str_contains($controller, 'ms_students[]') && str_contains($controller, 'ms_event') && str_contains($controller, 'ms_vars[') && str_contains((string) file_get_contents(dirname(__DIR__) . '/src/Integrations/Notifications/NotificationManualSendService.php'), 'public function events()') && str_contains((string) file_get_contents(dirname(__DIR__) . '/src/Integrations/Notifications/NotificationManualSendService.php'), 'public function students()'));
 $fail('channel toggles have an AJAX no-reload path', str_contains($controller, 'admin_post_dzn_notification_channel_toggle_ajax') && str_contains($controller, 'ajaxToggleEventChannel') && str_contains($controller, 'admin_post_dzn_notification_event_channel_toggle'));
 $fail('the AJAX channel toggle reuses capability, nonce and the audited save path', str_contains($controller, "wp_verify_nonce(isset(\$_POST['_wpnonce'])?(string)wp_unslash(\$_POST['_wpnonce']):'','dzn_notification_event_channel_toggle')") && str_contains($controller, 'wp_send_json_success(self::applyChannelToggle') && str_contains($controller, 'saveEventChannel($eventKey,$channel,$enabled)'));
 $fail('the channel toggle is progressive enhancement, not a replacement', str_contains($controller, 'liveToggleScript') && str_contains($controller, 'dzn_notification_channel_toggle') && str_contains($controller, 'preventDefault') && str_contains($controller, 'new FormData(form)') && str_contains($controller, 'dzn-notif-live-status') && !str_contains($controller, 'location.reload'));

@@ -7833,3 +7833,8 @@ button.dzn-button:disabled:hover {
 .dzn-project input:focus-visible,.dzn-project button:focus-visible{outline:3px solid var(--dzn-color-action-primary);outline-offset:3px}
 @media(max-width:35rem){.dzn-project__suggestion-fields{flex-direction:column}}
 @media print{.dzn-project__suggestion{display:none}}
+
+/* Enamad trust seal (footer). Sized from CSS so a slow or unreachable
+   trustseal.enamad.ir never shifts the footer layout. */
+.site-footer__trust{display:flex;justify-content:center;margin-block-start:.75rem}
+.site-footer__trust-image{display:block;inline-size:auto;block-size:5rem;object-fit:contain}

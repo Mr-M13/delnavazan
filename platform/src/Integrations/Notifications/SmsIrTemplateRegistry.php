@@ -30,8 +30,8 @@ final class SmsIrTemplateRegistry {
             ),
             self::INTRO_BOOKING=>array(
                 'label'=>'New intro booking request',
-                'body'=>"دلنوازان : درود #NAME# عزیز\nهنرجویی برای کلاس آشنایی #INSTRUMENT# در تاریخ #DATE# ساعت #TIME# از شما درخواست کرده.\nلطفا برای تأیید یا رد به حساب کاربری سر بزنید.\nبا تشکر،",
-                'variables'=>array('name','instrument','date','time'),
+                'body'=>"دلنوازان: #NAME# عزیز\nشما یک درخواست جدید دارید",
+                'variables'=>array('name'),
                 'events'=>array(self::INTRO_BOOKING_EVENT),
             ),
         );

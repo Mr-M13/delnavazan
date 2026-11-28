@@ -36,10 +36,9 @@ $adapter->sendBookingNotification('+989121234567', 84, 'ignored by the approved 
 ));
 $introPayload = json_decode((string)($calls[1][1]['body']??''), true);
 $introText = (string)($introPayload['MessageText']??'');
-if (!str_contains($introText, 'دلنوازان : درود ندا عزیز')
-    || !str_contains($introText, 'کلاس آشنایی تار')
-    || !str_contains($introText, 'در تاریخ شنبه ۱۰ آبان ۱۴۰۵ ساعت ۱۷:۰۰ تا ۱۸:۰۰')
-    || !str_contains($introText, 'لطفا برای تأیید یا رد به حساب کاربری سر بزنید')) {
+if (!str_contains($introText, 'دلنوازان: ندا عزیز')
+    || !str_contains($introText, 'شما یک درخواست جدید دارید')
+    || str_contains($introText, 'کلاس آشنایی')) {
     throw new RuntimeException('SMS.ir new-booking template mapping failed');
 }
 $adapter->sendBookingNotification('+989121234567', 85, 'ignored by the approved template', 'lesson.reminder.student', array(
@@ -74,7 +73,7 @@ if (empty($templateResult['acknowledged'])
     || ($templateCalls[0][0]??'') !== 'https://sms-ir.example.test/verify'
     || (int)($templatePayload['templateId']??0) !== 12345
     || ($templatePayload['mobile']??'') !== '+989121234567'
-    || array_column((array)($templatePayload['parameters']??array()), 'name') !== array('NAME','INSTRUMENT','DATE','TIME')) {
+    || array_column((array)($templatePayload['parameters']??array()), 'name') !== array('NAME')) {
     throw new RuntimeException('SMS.ir configured template mapping failed');
 }
 echo "SMS.ir adapter unit passed\n";

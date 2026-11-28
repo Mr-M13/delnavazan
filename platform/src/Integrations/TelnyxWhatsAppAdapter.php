@@ -169,6 +169,23 @@ final class TelnyxWhatsAppAdapter {
      * @param string[] $order
      * @param array<string,string> $parameters
      */
+    /**
+     * Event-owned send with a provider idempotency key.
+     *
+     * The booking-notification path keys idempotency on a numeric notification id. A booking request
+     * id is not a notification id, so using it there could collide with an earlier WhatsApp message
+     * and make this send look already delivered. This path resolves the same approved template
+     * authority but never consults that numeric correlation.
+     */
+    public function sendEventOnce(string $to,string $eventKey,array $parameters,string $idempotencyKey):array{
+        $to=PhoneNumberNormalizer::toE164($to);
+        if(!preg_match('/^\+[1-9][0-9]{7,14}$/',$to))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');
+        if(trim($idempotencyKey)==='')return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'idempotency_key_required');
+        $mapped=$this->eventMapping($eventKey);
+        if($mapped===null)return array('acknowledged'=>false,'permanent_failure'=>'send_refused','reason'=>'template_not_mapped');
+        return $this->sendManual($to,(string)$mapped['name'],(string)$mapped['language'],(array)$mapped['variable_order'],$parameters,0,$idempotencyKey);
+    }
+
     public function sendManual(string $to,string $templateName,string $language,array $order,array $parameters,int $correlationId,?string $idempotencyKey=null):array{
         $to=PhoneNumberNormalizer::toE164($to);
         if(!preg_match('/^\+[1-9][0-9]{7,14}$/',$to))return array('acknowledged'=>false,'permanent_failure'=>'contact_unusable');

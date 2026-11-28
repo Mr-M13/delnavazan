@@ -139,7 +139,10 @@ $fail('only the new intro admin event has a mobile producer', (static function (
 })());
 $notifier = (string) file_get_contents($root . '/src/Core/Application/AdminIntroWhatsAppNotifier.php');
 $fail('admin WhatsApp is limited to the new intro event', str_contains($notifier, "EVENT_KEY='booking.submitted.admin'") && !str_contains($notifier, 'booking.escalation') && !str_contains($notifier, 'booking.referral'));
-$fail('admin WhatsApp uses the operations number and the idempotent adapter', str_contains($notifier, "'admin_whatsapp_number'") && str_contains($notifier, 'sendBookingNotification') && str_contains($notifier, 'NotificationChannelPolicy::allows'));
+$fail('admin WhatsApp uses the operations number and a collision-free event send', str_contains($notifier, "'admin_whatsapp_number'") && str_contains($notifier, 'sendEventOnce') && str_contains($notifier, "'dzn-admin-intro:'") && str_contains($notifier, 'NotificationChannelPolicy::allows'));
+$adapterSource=(string)file_get_contents($root.'/src/Integrations/TelnyxWhatsAppAdapter.php');
+$eventSend=substr($adapterSource,(int)strpos($adapterSource,'function sendEventOnce'),(int)strpos($adapterSource,'public function sendManual')-(int)strpos($adapterSource,'function sendEventOnce'));
+$fail('the admin event send never reuses a numeric booking-notification id', $eventSend!=='' && !str_contains($eventSend,'messageForAttempt') && str_contains($eventSend,'sendManual') && str_contains($eventSend,'idempotencyKey') && str_contains($eventSend,'eventMapping'));
 $fail('admin WhatsApp is scheduled after the intake commit', str_contains((string) file_get_contents($root . '/src/Core/Application/BookingRequestSubmissionService.php'), 'AdminIntroWhatsAppNotifier::schedule') && str_contains((string) file_get_contents($root . '/src/Core/Application/BookingStudentAccountService.php'), 'AdminIntroWhatsAppNotifier::schedule'));
 $receipt = (string) file_get_contents($root . '/src/Core/Application/OperationalNotificationReceipt.php');
 $fail('operational receipts use the unique audit key', str_contains($receipt, 'platform_audit_events') && str_contains($receipt, 'idempotency_key') && str_contains($receipt, 'return $ok!==false;'));

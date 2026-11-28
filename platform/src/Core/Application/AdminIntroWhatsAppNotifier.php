@@ -50,11 +50,11 @@ final class AdminIntroWhatsAppNotifier {
             if(!array_key_exists($code,$variables))return self::skipped('variable_contract_mismatch');
             $parameters[$code]=trim((string)$variables[$code]);
         }
-        try{$result=(new TelnyxWhatsAppAdapter($settings))->sendBookingNotification($to,$requestId,self::EVENT_KEY,$parameters);}
+        try{$result=(new TelnyxWhatsAppAdapter($settings))->sendEventOnce($to,self::EVENT_KEY,$parameters,'dzn-admin-intro:'.$requestId);}
         catch(\Throwable $error){return self::skipped('whatsapp_exception');}
         if(!empty($result['acknowledged']))return array('state'=>'accepted');
         $reason=(string)($result['reason']??'');
-        if($reason==='template_not_mapped')return self::skipped('provider_template_not_mapped');
+        if($reason==='template_not_mapped'||$reason==='template_not_approved')return self::skipped('provider_template_not_mapped');
         if($reason==='variable_contract_mismatch')return self::skipped('variable_contract_mismatch');
         if($reason==='sender_not_configured')return self::skipped('provider_not_configured');
         $failure=(string)($result['permanent_failure']??'');

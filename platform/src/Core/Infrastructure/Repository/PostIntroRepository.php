@@ -204,7 +204,50 @@ final class PostIntroRepository {
     public function exceptionPreparations(int $limit = 100): array {
         global $wpdb;
         $limit = max(1, min(250, $limit));
-        return $wpdb->get_results("SELECT * FROM {$this->p}post_intro_preparations WHERE state='exception' OR exception_code IS NOT NULL ORDER BY id DESC LIMIT {$limit}") ?: array();
+        $terminal = $this->terminalOutcomeSql('p');
+        $complete = $this->provisioningCompleteSql('p');
+        return $wpdb->get_results(
+            "SELECT p.id,p.booking_request_id,p.enrolment_id,p.state,p.exception_code,p.exception_detail,p.updated_at,
+                    r.reference_code,
+                    COALESCE(NULLIF(s.full_name,''),'Learner') learner_name,
+                    e.reference_code enrolment_reference
+               FROM {$this->p}post_intro_preparations p
+               LEFT JOIN {$this->p}booking_requests r ON r.id=p.booking_request_id
+               LEFT JOIN {$this->p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1
+               LEFT JOIN {$this->p}enrolments e ON e.id=p.enrolment_id
+              WHERE p.state='exception'
+                AND {$terminal}
+                AND NOT {$complete}
+              ORDER BY p.updated_at DESC,p.id DESC LIMIT {$limit}"
+        ) ?: array();
+    }
+
+    /**
+     * Preparations that never reached `activated` but already own an applicable canonical
+     * Term and Teacher Assignment. Their academic provisioning is complete, so a leftover
+     * automation exception is history and must not be presented as work an operator can finish.
+     */
+    private function provisioningCompleteSql(string $alias = 'p'): string {
+        return "EXISTS (SELECT 1
+                   FROM {$this->p}enrolments pc_enrolment
+                   INNER JOIN {$this->p}terms pc_term ON pc_term.enrolment_id=pc_enrolment.id
+                     AND pc_term.record_model='canonical_enrolment_term_v1'
+                     AND pc_term.applicable_slot=1
+                     AND pc_term.archived_at IS NULL
+                     AND pc_term.lifecycle_state IN ('current','authorised')
+                   INNER JOIN {$this->p}teacher_assignments pc_assignment
+                     ON pc_assignment.enrolment_id=pc_enrolment.id AND pc_assignment.applicable_slot=1
+                  WHERE pc_enrolment.id={$alias}.enrolment_id
+                    AND pc_enrolment.archived_at IS NULL)";
+    }
+
+    /**
+     * A non-delivered introduction (no-show or cancellation) is a closed outcome. The
+     * preparation keeps its exception for audit, but there is no continuation to retry.
+     */
+    private function terminalOutcomeSql(string $alias = 'p'): string {
+        return "NOT EXISTS (SELECT 1 FROM {$this->p}booking_request_intro_outcomes terminal_outcome
+                  WHERE terminal_outcome.id={$alias}.outcome_id AND terminal_outcome.outcome<>'delivered')";
     }
 
     public function activeJobForPurchase(int $purchaseId, bool $lock = false): ?object {
@@ -284,7 +327,55 @@ final class PostIntroRepository {
     public function failedJobs(int $limit = 100): array {
         global $wpdb;
         $limit = max(1, min(250, $limit));
-        return $wpdb->get_results("SELECT * FROM {$this->p}post_intro_activation_jobs WHERE state IN ('failed','retryable') ORDER BY id DESC LIMIT {$limit}") ?: array();
+        $terminal = $this->terminalOutcomeSql('p');
+        $complete = $this->provisioningCompleteSql('p');
+        return $wpdb->get_results(
+            "SELECT j.*,p.booking_request_id,p.enrolment_id,p.state preparation_state,
+                    p.updated_at preparation_updated_at,r.reference_code,
+                    COALESCE(NULLIF(s.full_name,''),'Learner') learner_name,
+                    e.reference_code enrolment_reference
+               FROM {$this->p}post_intro_activation_jobs j
+               INNER JOIN {$this->p}post_intro_preparations p ON p.id=j.preparation_id
+               LEFT JOIN {$this->p}booking_requests r ON r.id=p.booking_request_id
+               LEFT JOIN {$this->p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1
+               LEFT JOIN {$this->p}enrolments e ON e.id=p.enrolment_id
+              WHERE j.id=(SELECT MAX(latest.id) FROM {$this->p}post_intro_activation_jobs latest WHERE latest.preparation_id=j.preparation_id)
+                AND (j.state IN ('failed','retryable')
+                  OR (j.state='queued' AND (j.next_attempt_at IS NULL OR j.next_attempt_at<UTC_TIMESTAMP() - INTERVAL 15 MINUTE)))
+                AND p.state NOT IN ('activated','expired')
+                AND {$terminal}
+                AND NOT {$complete}
+              ORDER BY j.id DESC LIMIT {$limit}"
+        ) ?: array();
+    }
+
+    /**
+     * Paid preparations that have no activation job at all. The settlement hook normally creates
+     * the job; when it did not, an operator can queue it from the protected diagnostics surface.
+     *
+     * @return list<object>
+     */
+    public function paidPreparationsWithoutActivationJob(int $limit = 100): array {
+        global $wpdb;
+        $limit = max(1, min(250, $limit));
+        $terminal = $this->terminalOutcomeSql('p');
+        $complete = $this->provisioningCompleteSql('p');
+        return $wpdb->get_results(
+            "SELECT p.id,p.booking_request_id,p.enrolment_id,p.state,p.exception_code,p.exception_detail,p.updated_at,
+                    r.reference_code,
+                    COALESCE(NULLIF(s.full_name,''),'Learner') learner_name,
+                    e.reference_code enrolment_reference
+               FROM {$this->p}post_intro_preparations p
+               LEFT JOIN {$this->p}booking_requests r ON r.id=p.booking_request_id
+               LEFT JOIN {$this->p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1
+               LEFT JOIN {$this->p}enrolments e ON e.id=p.enrolment_id
+              WHERE p.state='payment_received'
+                AND NOT EXISTS (SELECT 1 FROM {$this->p}post_intro_activation_jobs any_job WHERE any_job.preparation_id=p.id)
+                AND EXISTS (SELECT 1 FROM {$this->p}commercial_purchases pc_purchase WHERE pc_purchase.offer_id=p.offer_id)
+                AND {$terminal}
+                AND NOT {$complete}
+              ORDER BY p.updated_at DESC,p.id DESC LIMIT {$limit}"
+        ) ?: array();
     }
 
     public function purchase(int $purchaseId): ?object {
@@ -616,9 +707,11 @@ final class PostIntroRepository {
              INNER JOIN {$this->p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1
              LEFT JOIN {$this->p}courses course ON course.id=COALESCE(r.selected_intro_course_id,0)
              LEFT JOIN {$this->p}teachers t ON t.id=c.teacher_id
-             LEFT JOIN {$this->p}booking_request_intro_outcomes o ON o.confirmation_id=c.id
-             WHERE c.teacher_id=%d AND c.state='confirmed' AND c.ends_at_utc<=%s AND c.ends_at_utc>=%s AND c.ends_at_utc>=%s AND o.id IS NULL
+             WHERE c.id=(SELECT MAX(cf.id) FROM {$this->p}booking_request_confirmations cf WHERE cf.booking_request_id=r.id)
+               AND c.teacher_id=%d AND c.state='confirmed'
+               AND c.ends_at_utc<=%s AND c.ends_at_utc>=%s AND c.ends_at_utc>=%s
                AND r.privacy_erased_at IS NULL
+               AND NOT EXISTS (SELECT 1 FROM {$this->p}booking_request_intro_outcomes o WHERE o.booking_request_id=r.id)
              ORDER BY c.ends_at_utc DESC LIMIT {$limit}",
             $teacherId, $now, $oldest, self::ELIGIBLE_FROM
         )) ?: array();
@@ -676,22 +769,47 @@ final class PostIntroRepository {
     public function pendingOutcomeConfirmations(int $limit = 100): array {
         global $wpdb;
         $limit = max(1, min(250, $limit));
-        $now = gmdate('Y-m-d H:i:s');
         return $wpdb->get_results($wpdb->prepare(
-            "SELECT c.uid confirmation_uid,c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.teacher_id,
+            "SELECT c.booking_request_id,c.uid confirmation_uid,c.starts_at_utc,c.ends_at_utc,c.schedule_timezone,c.teacher_id,
                     r.reference_code,s.full_name student_name,COALESCE(NULLIF(course.name_fa,''),course.name_en) course_name,
                     COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name) teacher_name
-             FROM {$this->p}booking_request_confirmations c
-             INNER JOIN {$this->p}booking_request_teacher_deliveries d ON d.id=c.delivery_id
-             INNER JOIN {$this->p}booking_requests r ON r.id=c.booking_request_id
-             INNER JOIN {$this->p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1
-             LEFT JOIN {$this->p}courses course ON course.id=COALESCE(r.selected_intro_course_id,0)
-             LEFT JOIN {$this->p}teachers t ON t.id=c.teacher_id
-             LEFT JOIN {$this->p}booking_request_intro_outcomes o ON o.confirmation_id=c.id
-             WHERE c.state='confirmed' AND c.ends_at_utc<=%s AND c.ends_at_utc>=%s AND o.id IS NULL AND r.privacy_erased_at IS NULL
-             ORDER BY c.ends_at_utc DESC LIMIT {$limit}",
-            $now, self::ELIGIBLE_FROM
+             " . $this->pendingOutcomeSource() . "
+              WHERE " . $this->pendingOutcomeWhere() . "
+              ORDER BY c.ends_at_utc DESC LIMIT {$limit}",
+            self::ELIGIBLE_FROM
         )) ?: array();
+    }
+
+    /** Count of current ended introductions that still have no recorded outcome. */
+    public function pendingOutcomeConfirmationCount(): int {
+        global $wpdb;
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(DISTINCT c.booking_request_id) " . $this->pendingOutcomeSource() . " WHERE " . $this->pendingOutcomeWhere(),
+            self::ELIGIBLE_FROM
+        ));
+    }
+
+    /**
+     * The latest confirmation is the only one that can still be the current introductory
+     * booking. A superseded confirmation must never hold the outcome queue open, and one
+     * recorded outcome closes the request regardless of which confirmation it names.
+     */
+    private function pendingOutcomeSource(): string {
+        return "FROM {$this->p}booking_request_confirmations c
+                INNER JOIN {$this->p}booking_request_teacher_deliveries d ON d.id=c.delivery_id
+                INNER JOIN {$this->p}booking_requests r ON r.id=c.booking_request_id
+                LEFT JOIN {$this->p}booking_request_contact_snapshots s ON s.booking_request_id=r.id AND s.snapshot_sequence=1
+                LEFT JOIN {$this->p}courses course ON course.id=COALESCE(r.selected_intro_course_id,0)
+                LEFT JOIN {$this->p}teachers t ON t.id=c.teacher_id";
+    }
+
+    private function pendingOutcomeWhere(): string {
+        return "c.id=(SELECT MAX(cf.id) FROM {$this->p}booking_request_confirmations cf WHERE cf.booking_request_id=r.id)
+                AND c.state='confirmed'
+                AND c.ends_at_utc<=UTC_TIMESTAMP()
+                AND c.ends_at_utc>=%s
+                AND r.privacy_erased_at IS NULL
+                AND NOT EXISTS (SELECT 1 FROM {$this->p}booking_request_intro_outcomes o WHERE o.booking_request_id=r.id)";
     }
 
     public function notificationForBookingKind(int $bookingRequestId, string $kind): ?object {

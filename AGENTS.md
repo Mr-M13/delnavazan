@@ -174,6 +174,11 @@ is optional strict parity. Docker is required only for the runtime suites.
   (deadline math, expiry transition and slot release) and
   `php platform/tests/booking-payment-slot-security-contract.php` (paid-intro
   canonical visibility, unpaid non-blocking and conflict-at-payment). The
+  post-intro attention surface is covered by
+  `php platform/tests/post-intro-attention-unit.php`: the Overview card and the
+  protected diagnostics page render one actionable list, and a non-delivered
+  introduction or a preparation that already owns a canonical Term and Teacher
+  Assignment is closed history rather than lingering work. The
   time-budgeted offer surface is covered by
   `php platform/tests/booking-offer-window-unit.php`
   (the 4h–24h formula, the T−12h terminal gate and the hold exception) and

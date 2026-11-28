@@ -301,6 +301,7 @@ jobs:
           php platform/tests/payment-plan-choice-contract.php
           php platform/tests/instalment-deadline-policy-contract.php
           php platform/tests/post-intro-system-actor-unit.php
+          php platform/tests/post-intro-attention-unit.php
           php platform/tests/catalogue-auto-naming-reconciliation-contract.php
           php platform/tests/booking-admin-class-visibility-contract.php
           php platform/tests/class-admin-return-context-unit.php

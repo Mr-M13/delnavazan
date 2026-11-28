@@ -10,6 +10,8 @@ $contains = static function (string $source, array $needles, string $message) us
 $dashboard = $read('src/Admin/Controller/AcademyOperationsController.php');
 $dashboardRead = $read('src/Core/Application/AcademyDashboardReadService.php');
 $queueRead = $read('src/Core/Application/AcademyJourneyReadService.php');
+$postIntroRepository = $read('src/Core/Infrastructure/Repository/PostIntroRepository.php');
+$postIntroAttention = $read('src/Core/Application/PostIntroAttentionReadService.php');
 $rateRead = $read('src/Core/Application/Finance/Read/TeacherRateReadService.php');
 $rateAdmin = $read('src/Admin/Controller/FinanceRateController.php');
 $statementRead = $read('src/Core/Application/Finance/Read/TeacherStatementReadService.php');
@@ -35,10 +37,20 @@ $contains($dashboard, array('AcademyJourneyReadService::PIPELINE_STAGES'), 'Dash
 // A resolved item must leave the Overview. The assignment stage may only count an Enrolment that is
 // still open, and the post-intro card may only count provisioning that has not completed — a later
 // classroom projection failure belongs to the class/classroom surface, and an older failed attempt
-// is history once a newer run has been recorded.
+// is history once a newer run has been recorded. The Overview now reads the same actionable list the
+// protected diagnostics page renders, so a card can never outlive its resolving action.
 $expect(str_contains($queueRead, "e.lifecycle_state IN ('authorised','current')"), 'The assignment stage must only count an active Enrolment.');
-$expect(str_contains($dashboard, "p.state <> 'activated'"), 'Post-intro attention must require incomplete academic provisioning.');
-$expect(str_contains($dashboard, 'latest.id') && !str_contains($dashboard, "WHERE p.state='exception' OR j.state='failed'"), 'Post-intro attention must read the latest activation attempt, not any historical failed job.');
+$expect(str_contains($postIntroRepository, "p.state NOT IN ('activated','expired')"), 'Post-intro attention must require incomplete academic provisioning.');
+$expect(str_contains($postIntroRepository, 'latest.id') && !str_contains($postIntroRepository, "WHERE p.state='exception' OR j.state='failed'"), 'Post-intro attention must read the latest activation attempt, not any historical failed job.');
+$contains($postIntroRepository, array('provisioningCompleteSql', 'pc_term.applicable_slot=1', 'pc_assignment.applicable_slot=1', 'terminalOutcomeSql', "terminal_outcome.outcome<>'delivered'"), 'A completed Term/Assignment and a non-delivered intro are closed history, not Overview work.');
+$contains($postIntroAttention, array('class PostIntroAttentionReadService', 'exceptionPreparations', 'failedJobs', 'paidPreparationsWithoutActivationJob', "'retry_preparation'", "'retry_activation'", "'queue_activation'"), 'Every counted post-intro preparation must carry a resolvable diagnostics action.');
+$contains($postIntroRepository, array(
+    'pendingOutcomeConfirmationCount',
+    'c.id=(SELECT MAX(cf.id)',
+    'NOT EXISTS (SELECT 1 FROM {$this->p}booking_request_intro_outcomes o WHERE o.booking_request_id=r.id)',
+), 'An outcome card must follow the current confirmation and close the whole request once an outcome exists.');
+$contains($dashboard, array('PostIntroAttentionReadService', 'pendingOutcomeConfirmationCount', "'request_id' => (int) (\$outcomeRows[0]->booking_request_id"), 'The Overview must count and link the exact outcome records it names.');
+$expect(!str_contains($dashboard, "LEFT JOIN {\$p}booking_request_intro_outcomes o ON o.confirmation_id=c.id"), 'The outcome queue must close the whole request, not only one confirmation.');
 
 // 2. Course-specific rate rows show the course name.
 $contains($rateRead, array(

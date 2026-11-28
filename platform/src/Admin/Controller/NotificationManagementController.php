@@ -45,10 +45,6 @@ final class NotificationManagementController {
     public static function register():void{
         add_action('admin_init',static function():void{NotificationTemplateLibrary::retireLegacyCategoryPolicy();});
         add_action('admin_post_dzn_notification_copy_save_draft',array(__CLASS__,'saveDraft'));
-        add_action('admin_post_dzn_notification_prepare_drafts',array(__CLASS__,'prepareCatalogueDrafts'));
-        add_action('admin_post_dzn_notification_approve_operational',array(__CLASS__,'approveOperationalDrafts'));
-        add_action('admin_post_dzn_notification_approve_all_drafts',array(__CLASS__,'approveAllDraftsOnce'));
-        add_action('admin_post_dzn_notification_publish_drafts',array(__CLASS__,'publishReviewedDrafts'));
         add_action('admin_post_dzn_notification_approve_draft',array(__CLASS__,'approveDraft'));
         add_action('admin_post_dzn_notification_revoke_approval',array(__CLASS__,'revokeDraftApproval'));
         add_action('admin_post_dzn_notification_copy_publish',array(__CLASS__,'publish'));
@@ -184,7 +180,7 @@ HTML;
         echo '<p id="dzn-notif-live-status" class="dzn-notif-meta" role="status" aria-live="polite"></p>';
         echo '<p>Every business notification is managed here, grouped by task. Open one to toggle its channels and edit its copy in a panel that keeps your place. A channel is never described as ready unless its copy and provider are both satisfied; switching delivery off never changes accounts, payments, lessons or consent records.</p>';
         self::renderChannelHealth();
-        self::renderCatalogueActions($library);
+        self::renderMobileActions();
         self::renderManualSend();
         self::renderToolbar($search,$categoryFilter,$recipientFilter,$channelFilter,$statusFilter);
 
@@ -402,6 +398,8 @@ HTML;
         if(!NotificationManualSendService::canSend())return;
         $service=new NotificationManualSendService();
         $segments=$service->segments();
+        $events=$service->events();
+        $students=$service->students();
 
         $audience=isset($_GET['ms_audience'])?sanitize_key(wp_unslash((string)$_GET['ms_audience'])):'';
         $channel=isset($_GET['ms_channel'])?sanitize_key(wp_unslash((string)$_GET['ms_channel'])):'';
@@ -410,42 +408,100 @@ HTML;
         $waName=isset($_GET['ms_name'])&&is_scalar($_GET['ms_name'])?sanitize_text_field(wp_unslash((string)$_GET['ms_name'])):'';
         $waMessage=isset($_GET['ms_wa_message'])&&is_scalar($_GET['ms_wa_message'])?wp_unslash((string)$_GET['ms_wa_message']):'';
         $selectedSegments=isset($_GET['ms_segments'])&&is_array($_GET['ms_segments'])?array_map('sanitize_key',wp_unslash($_GET['ms_segments'])):array();
+        $selectedStudents=isset($_GET['ms_students'])&&is_array($_GET['ms_students'])?array_values(array_unique(array_filter(array_map('intval',wp_unslash($_GET['ms_students']))))):array();
+        $eventKey=isset($_GET['ms_event'])&&is_scalar($_GET['ms_event'])?trim(sanitize_text_field(wp_unslash((string)$_GET['ms_event']))):'';
+        if($eventKey!==''&&!isset($events[$eventKey]))$eventKey='';
+        $variables=array();
+        if(isset($_GET['ms_vars'])&&is_array($_GET['ms_vars'])){
+            foreach(wp_unslash($_GET['ms_vars']) as $code=>$value){
+                if(!is_scalar($value))continue;
+                $variables[sanitize_key((string)$code)]=trim(sanitize_text_field((string)$value));
+            }
+        }
 
         $preview=null;
-        if(($audience!==''||$numbers!==''||$selectedSegments!==array())){
+        if($eventKey!==''||$audience!==''||$numbers!==''||$selectedSegments!==array()||$selectedStudents!==array()){
             $preview=$service->preview(array(
-                'audience'=>$audience,'channel'=>$channel==='auto'?'':$channel,'segments'=>$selectedSegments,'numbers'=>$numbers,
-                'message'=>$message,'parameters'=>array('name'=>$waName,'message'=>$waMessage),
+                'event'=>$eventKey,'audience'=>$audience,'channel'=>$channel==='auto'?'':$channel,
+                'segments'=>$selectedSegments,'students'=>$selectedStudents,'numbers'=>$numbers,
+                'message'=>$message,'variables'=>$variables,'parameters'=>array('name'=>$waName,'message'=>$waMessage),
             ));
         }
 
-        echo '<details class="dzn-notif-card dzn-notif-manual" style="margin-block:14px" '.($preview!==null?'open':'').'><summary><strong>Send a notification</strong> <span class="dzn-notif-meta">— compose an operational message to an audience or to entered numbers</span></summary>';
+        echo '<details class="dzn-notif-card dzn-notif-manual" style="margin-block:14px" '.($preview!==null?'open':'').'><summary><strong>Send a notification</strong> <span class="dzn-notif-meta">— pick the students, the channel and the event template that covers the message</span></summary>';
         echo '<form method="get" action="'.esc_url(admin_url('admin.php')).'" class="dzn-notif-filters"><input type="hidden" name="page" value="'.esc_attr(self::PAGE).'"><input type="hidden" name="tab" value="events">';
-        echo '<p><strong>Audience</strong> <span class="dzn-notif-meta">(a segment, typed numbers, or both)</span></p>';
+
+        echo '<p><label><strong>Event template</strong> <select name="ms_event" onchange="this.form.submit()"><option value="">Announcement (free text, no event)</option>';
+        $grouped=array('student'=>array(),'teacher'=>array(),'other'=>array());
+        foreach($events as $key=>$event)$grouped[in_array((string)$event['audience'],array('student','teacher'),true)?(string)$event['audience']:'other'][$key]=$event;
+        foreach(array('student'=>'Students','teacher'=>'Teachers','other'=>'Other') as $group=>$label){
+            if($grouped[$group]===array())continue;
+            echo '<optgroup label="'.esc_attr($label).'">';
+            foreach($grouped[$group] as $key=>$event){
+                echo '<option value="'.esc_attr((string)$key).'"'.($eventKey===(string)$key?' selected':'').'>'.esc_html((string)$event['label']).' · '.esc_html((string)$key).'</option>';
+            }
+            echo '</optgroup>';
+        }
+        echo '</select></label> <span class="dzn-notif-meta">The event decides which approved provider template and channel can carry the message.</span></p>';
+
+        echo '<p><strong>Recipients</strong> <span class="dzn-notif-meta">(pick students, a segment, typed numbers, or a combination)</span></p>';
+        echo '<p><label>Students<br><select name="ms_students[]" multiple size="6" style="min-width:28rem">';
+        foreach($students as $student){
+            echo '<option value="'.esc_attr((string)$student['id']).'"'.(in_array((int)$student['id'],$selectedStudents,true)?' selected':'').'>'.esc_html((string)$student['label']).'</option>';
+        }
+        echo '</select></label> <span class="dzn-notif-meta">Only students with a reachable phone number are sent; up to '.esc_html((string)NotificationManualSendService::MAX_RECIPIENTS).' recipients per batch.</span></p>';
         echo '<div class="dzn-notif-actions">';
         foreach($segments as $segmentKey=>$segment){
             echo '<label class="dzn-notif-chip'.(in_array($segmentKey,$selectedSegments,true)?' is-active':'').'"><input type="checkbox" name="ms_segments[]" value="'.esc_attr($segmentKey).'"'.(in_array($segmentKey,$selectedSegments,true)?' checked':'').'> '.esc_html($segment['label']).' ('.esc_html((string)$segment['count']).')</label>';
         }
         echo '</div>';
         echo '<p><label>Or enter numbers (one per line or comma-separated)<br><textarea name="ms_numbers" rows="3" class="large-text" dir="ltr">'.esc_textarea($numbers).'</textarea></label></p>';
-        echo '<p><label>Channel <select name="ms_channel"><option value="auto"'.($channel===''||$channel==='auto'?' selected':'').'>Automatic (teacher = SMS, student = WhatsApp)</option><option value="sms"'.($channel==='sms'?' selected':'').'>SMS</option><option value="whatsapp"'.($channel==='whatsapp'?' selected':'').'>WhatsApp</option></select></label></p>';
-        echo '<p><label>SMS message<br><textarea name="ms_message" rows="3" class="large-text" maxlength="1000">'.esc_textarea($message).'</textarea></label></p>';
-        echo '<p><label>WhatsApp template fields ('.esc_html(NotificationManualSendService::WHATSAPP_TEMPLATE).') — name <input name="ms_name" value="'.esc_attr($waName).'" class="regular-text"> · message <input name="ms_wa_message" value="'.esc_attr($waMessage).'" class="regular-text"></label> <span class="dzn-notif-meta">WhatsApp requires a Meta-approved template; until it is approved, WhatsApp sends fail closed.</span></p>';
-        echo '<button class="button">Preview recipients</button></form>';
+
+        if($eventKey===''){
+            echo '<p><label>Channel <select name="ms_channel"><option value="auto"'.($channel===''||$channel==='auto'?' selected':'').'>Automatic (teacher = SMS, student = WhatsApp)</option><option value="sms"'.($channel==='sms'?' selected':'').'>SMS</option><option value="whatsapp"'.($channel==='whatsapp'?' selected':'').'>WhatsApp</option></select></label></p>';
+            echo '<p><label>SMS message<br><textarea name="ms_message" rows="3" class="large-text" maxlength="1000">'.esc_textarea($message).'</textarea></label></p>';
+            echo '<p><label>WhatsApp announcement fields ('.esc_html(NotificationManualSendService::WHATSAPP_TEMPLATE).') — name <input name="ms_name" value="'.esc_attr($waName).'" class="regular-text"> · message <input name="ms_wa_message" value="'.esc_attr($waMessage).'" class="regular-text"></label> <span class="dzn-notif-meta">WhatsApp requires a Meta-approved template; until it is approved, WhatsApp sends fail closed.</span></p>';
+        }else{
+            $event=$events[$eventKey];
+            $channels=array_values((array)$event['channels']);
+            echo '<p><label>Channel <select name="ms_channel">';
+            foreach($channels as $allowed){
+                echo '<option value="'.esc_attr($allowed).'"'.($channel===$allowed||($channel===''&&$allowed===$channels[0])?' selected':'').'>'.esc_html(strtoupper($allowed)).'</option>';
+            }
+            echo '</select></label> <span class="dzn-notif-meta">This event is produced by '.esc_html(implode(' / ',$channels)).' only.</span></p>';
+            if($channel==='sms'||in_array('sms',$channels,true)&&!in_array('whatsapp',$channels,true)){
+                echo '<p class="dzn-notif-meta">SMS.ir uses the approved account template for this event. The recipient name is filled automatically; no free text is sent to Iranian numbers.</p>';
+                echo '<p><label>Fallback text for non-Iranian numbers<br><textarea name="ms_message" rows="2" class="large-text" maxlength="1000">'.esc_textarea($message).'</textarea></label></p>';
+            }
+            if(in_array('whatsapp',$channels,true)){
+                $template=TelnyxTemplateRegistry::nameForEvent($eventKey);
+                if($template===null){
+                    echo '<div class="notice notice-warning inline"><p>No approved WhatsApp template is mapped for this event; WhatsApp sends will fail closed. Map it in the event editor first.</p></div>';
+                }else{
+                    echo '<p class="dzn-notif-meta">WhatsApp template <code dir="ltr">'.esc_html($template).'</code>. Fill the template variables below; the selected recipient\'s name is used when the name field is left blank.</p>';
+                    echo '<div class="dzn-notif-actions">';
+                    foreach(TelnyxTemplateRegistry::variableOrderForName($template) as $code){
+                        echo '<label>'.esc_html($code).'<br><input name="ms_vars['.esc_attr($code).']" value="'.esc_attr((string)($variables[$code]??'')).'" class="regular-text" dir="auto"></label>';
+                    }
+                    echo '</div>';
+                }
+            }
+        }
+        echo '<button class="button button-primary">Preview recipients</button></form>';
 
         if($preview!==null){
             echo '<div class="dzn-notif-manual-preview">';
             if($preview['errors']!==array()){
                 echo '<div class="notice notice-error inline"><ul class="dzn-notif-list">';foreach($preview['errors'] as $error)echo '<li>'.esc_html((string)$error).'</li>';echo '</ul></div>';
             }else{
-                echo '<p><strong>'.esc_html((string)$preview['reached']).'</strong> recipient(s) will be reached by <strong>'.esc_html($preview['channel']).'</strong>. ';
+                echo '<p><strong>'.esc_html((string)$preview['reached']).'</strong> recipient(s) will be reached by <strong>'.esc_html($preview['channel']).'</strong> using <strong>'.esc_html((string)$preview['event_label']).'</strong>. ';
                 if($preview['skipped']!==array()){
                     $skipped=array();foreach($preview['skipped'] as $reason=>$count)$skipped[]=esc_html((string)$reason).' '.esc_html((string)$count);
                     echo 'Skipped (STOP / opt-out): '.implode(', ',$skipped).'.';
                 }
                 echo '</p>';
-                if($preview['channel']==='whatsapp')echo '<div class="notice notice-warning inline"><p>This uses the announcement template <code dir="ltr">'.esc_html(NotificationManualSendService::WHATSAPP_TEMPLATE).'</code>. Delivery only succeeds after Meta approves that template.</p></div>';
-                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_manual_send"><input type="hidden" name="ms_segments_json" value="'.esc_attr(wp_json_encode($selectedSegments)).'"><input type="hidden" name="ms_numbers" value="'.esc_attr($numbers).'"><input type="hidden" name="ms_channel" value="'.esc_attr($channel==='auto'?'':$channel).'"><input type="hidden" name="ms_message" value="'.esc_attr($message).'"><input type="hidden" name="ms_name" value="'.esc_attr($waName).'"><input type="hidden" name="ms_wa_message" value="'.esc_attr($waMessage).'">';
+                if($preview['channel']==='whatsapp')echo '<div class="notice notice-warning inline"><p>This uses the mapped template <code dir="ltr">'.esc_html((string)$preview['whatsapp_template']).'</code>. Delivery only succeeds after Meta approves that template.</p></div>';
+                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_manual_send"><input type="hidden" name="ms_event" value="'.esc_attr($eventKey).'"><input type="hidden" name="ms_segments_json" value="'.esc_attr(wp_json_encode($selectedSegments)).'"><input type="hidden" name="ms_students_json" value="'.esc_attr(wp_json_encode($selectedStudents)).'"><input type="hidden" name="ms_vars_json" value="'.esc_attr(wp_json_encode($variables)).'"><input type="hidden" name="ms_numbers" value="'.esc_attr($numbers).'"><input type="hidden" name="ms_channel" value="'.esc_attr($channel==='auto'?'':$channel).'"><input type="hidden" name="ms_message" value="'.esc_attr($message).'"><input type="hidden" name="ms_name" value="'.esc_attr($waName).'"><input type="hidden" name="ms_wa_message" value="'.esc_attr($waMessage).'">';
                 wp_nonce_field('dzn_notification_manual_send');
                 echo '<p><label><strong>Type CONFIRM to send to '.esc_html((string)$preview['reached']).' recipient(s):</strong> <input name="confirm" type="text" class="regular-text" autocomplete="off"></label> ';
                 echo '<button class="button button-primary" type="submit" onclick="return this.form.confirm.value===\'CONFIRM\'||confirm(\'Type CONFIRM to send.\')">Send now</button></form>';
@@ -460,21 +516,26 @@ HTML;
         check_admin_referer('dzn_notification_manual_send');
         if((string)(wp_unslash($_POST['confirm']??''))!=='CONFIRM'){self::flash('error','Type CONFIRM to send. Nothing was sent.');self::redirectBack('events',self::postTableContext());}
         $segments=isset($_POST['ms_segments_json'])&&is_scalar($_POST['ms_segments_json'])?json_decode((string)wp_unslash($_POST['ms_segments_json']),true):array();
+        $students=isset($_POST['ms_students_json'])&&is_scalar($_POST['ms_students_json'])?json_decode((string)wp_unslash($_POST['ms_students_json']),true):array();
+        $variables=isset($_POST['ms_vars_json'])&&is_scalar($_POST['ms_vars_json'])?json_decode((string)wp_unslash($_POST['ms_vars_json']),true):array();
         $input=array(
+            'event'=>isset($_POST['ms_event'])?trim(sanitize_text_field(wp_unslash((string)$_POST['ms_event']))):'',
             'audience'=>isset($_POST['ms_audience'])?sanitize_key(wp_unslash((string)$_POST['ms_audience'])):'',
             'channel'=>isset($_POST['ms_channel'])?sanitize_key(wp_unslash((string)$_POST['ms_channel'])):'',
             'segments'=>is_array($segments)?array_map('sanitize_key',$segments):array(),
+            'students'=>is_array($students)?array_values(array_unique(array_filter(array_map('intval',$students)))):array(),
             'numbers'=>isset($_POST['ms_numbers'])?sanitize_text_field(wp_unslash((string)$_POST['ms_numbers'])):'',
             'message'=>isset($_POST['ms_message'])?wp_unslash((string)$_POST['ms_message']):'',
+            'variables'=>is_array($variables)?array_map(static fn($v):string=>is_scalar($v)?sanitize_text_field((string)$v):'',$variables):array(),
             'parameters'=>array(
                 'name'=>isset($_POST['ms_name'])?sanitize_text_field(wp_unslash((string)$_POST['ms_name'])):'',
                 'message'=>isset($_POST['ms_wa_message'])?wp_unslash((string)$_POST['ms_wa_message']):'',
             ),
         );
         try{
-            // The command key is derived from the send intent — audience, channel, message and the
-            // acting administrator — not from a clock. Re-submitting an identical send converges on the
-            // same batch, so a partially completed batch is never resent to recipients who already
+            // The command key is derived from the send intent — event, recipients, channel, message and
+            // the acting administrator — not from a clock. Re-submitting an identical send converges on
+            // the same batch, so a partially completed batch is never resent to recipients who already
             // received it; a changed message or audience is a new batch.
             $commandKey='manual-send:'.get_current_user_id().':'.hash('sha256',wp_json_encode($input));
             $result=(new NotificationManualSendService())->send($input,$commandKey);
@@ -486,72 +547,26 @@ HTML;
     }
 
     /**
-     * The three-step copy workflow. The steps are separate, named actions in a fixed order so an
-     * administrator can always see what has been done, what is next and what is deliberately held back
-     * for an external approval. Nothing here sends a message or switches a channel on.
+     * Mobile delivery actions. The copy-draft/approval ceremony was removed from the dashboard:
+     * the catalogue already carries finished Persian and English copy, and the operator only needs
+     * to activate routes that have a real producer and provider readiness, or turn off routes that
+     * cannot send.
      */
-    private static function renderCatalogueActions(NotificationTemplateLibrary $library):void{
-        $coverage=NotificationCatalogue::coverage();
-        $workflow=$library->workflowReport();
-        $last=self::lastWorkflowResult();
-
-        echo '<div class="dzn-notif-card dzn-notif-workflow" style="margin-block:12px"><h3>Copy and publication workflow</h3>';
-        echo '<p class="dzn-notif-meta">'.esc_html((string)$coverage['present']).' of '.esc_html((string)$coverage['required']).' required templates carry their own Persian and English copy across '.esc_html((string)$coverage['events']).' notifications. Copy being complete is not the same as a notification being published or ready to send.</p>';
-
-        echo '<ol class="dzn-notif-steps">';
-        echo '<li><strong>Prepare drafts</strong> — <span class="dzn-badge '.($workflow['drafts']>0?'is-ok':'').'">'.esc_html((string)$workflow['drafts']).' draft(s) stored</span><div class="dzn-notif-meta">Creates a reviewable draft for every template that has no version and no draft. Never overwrites a draft or a published version.</div></li>';
-        echo '<li><strong>Approve operational drafts</strong> — <span class="dzn-badge '.($workflow['awaiting']>0?'is-warn':'is-ok').'">'.esc_html((string)$workflow['awaiting']).' awaiting approval</span> <span class="dzn-badge '.($workflow['approved']>0?'is-ok':'').'">'.esc_html((string)$workflow['approved']).' approved</span> <span class="dzn-badge '.($workflow['held']>0?'is-warn':'is-ok').'">'.esc_html((string)$workflow['held']).' held</span><div class="dzn-notif-meta">Records an approval for each exact draft whose channel approvals are complete. Finance, legal, security, dedicated-authority and unmapped-provider copy is skipped and listed below.</div></li>';
-        echo '<li><strong>Publish approved drafts</strong> — <span class="dzn-badge '.($workflow['publishable']>0?'is-ok':'').'">'.esc_html((string)$workflow['publishable']).' ready to publish</span><div class="dzn-notif-meta">Creates a new immutable version for each approved draft. It never enables a channel and never changes a notification that already froze a version.</div></li>';
-        echo '</ol>';
-
+    private static function renderMobileActions():void{
+        echo '<div class="dzn-notif-card dzn-notif-workflow" style="margin-block:12px"><h3>Mobile delivery</h3>';
+        echo '<p class="dzn-notif-meta">These two actions keep WhatsApp and SMS aligned with the code that actually sends them. They never edit copy, publish a draft, enable email/portal delivery or send a message.</p>';
         if(!self::canEdit()){
-            echo '<p class="dzn-notif-note">You have read-only access. Editing, approving and publishing require the <code>dzn_manage_notification_templates</code> capability.</p>';
+            echo '<p class="dzn-notif-note">You have read-only access. Changing mobile routes requires the <code>dzn_manage_notification_templates</code> capability.</p>';
         }else{
             echo '<div class="dzn-notif-actions">';
-            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_prepare_drafts">';
-            wp_nonce_field('dzn_notification_prepare_drafts');
-            echo '<button class="button" type="submit">1. Prepare drafts</button></form>';
-            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_approve_operational">';
-            wp_nonce_field('dzn_notification_approve_operational');
-            echo '<button class="button" type="submit">2. Approve operational drafts</button></form>';
-            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_publish_drafts">';
-            wp_nonce_field('dzn_notification_publish_drafts');
-            echo '<button class="button button-primary" type="submit" onclick="return confirm(\'Publish every approved draft as a new immutable version?\')">3. Publish approved drafts</button></form>';
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_enable_ready_mobile">';
             wp_nonce_field('dzn_notification_enable_ready_mobile');
-            echo '<button class="button" type="submit" onclick="return confirm(\'Enable every WhatsApp and SMS route whose producer exists and whose copy/provider route is ready? Security and one-time-code events are never included.\')">4. Enable ready WhatsApp &amp; SMS events</button></form>';
+            echo '<button class="button" type="submit" onclick="return confirm(\'Enable every WhatsApp and SMS route whose producer exists and whose provider route is ready? Security and one-time-code events are never included.\')">Enable ready WhatsApp &amp; SMS events</button></form>';
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="dzn_notification_disable_blocked_mobile">';
             wp_nonce_field('dzn_notification_disable_blocked_mobile');
-            echo '<button class="button" type="submit" onclick="return confirm(\'Disable every enabled WhatsApp/SMS route that cannot send (no producer, missing provider or unapproved template)? Ready routes stay on.\')">5. Disable blocked mobile routes</button></form>';
+            echo '<button class="button" type="submit" onclick="return confirm(\'Disable every enabled WhatsApp/SMS route that cannot send (no producer, missing provider or unapproved template)? Ready routes stay on.\')">Disable blocked mobile routes</button></form>';
             echo '</div>';
-            echo '<p class="dzn-notif-meta">Action 4 enables only events whose code actually sends the method and whose provider route is ready. Action 5 turns off enabled routes that cannot send, so they are reported as an administrator decision instead of a permanent error. A method with no producer is not shown at all.</p>';
-        }
-
-        $oneTimeAll=$library->oneTimeAllDraftApproval();
-        echo '<div class="dzn-nc-onetime"><strong>One-time catalogue approval</strong>';
-        if($oneTimeAll!==null){
-            echo '<p>Used on <code dir="ltr">'.esc_html((string)$oneTimeAll['used_at']).' UTC</code> by user <code dir="ltr">'.esc_html((string)$oneTimeAll['used_by']).'</code>. The standing workflow above remains the only repeatable path.</p>';
-        }elseif(self::canEdit()){
-            echo '<p>Approves and publishes every stored draft once, including copy normally held for a security or provider review. Dedicated one-time-secret copy stays with its own secure sender. It never enables a delivery channel and never sends a message. It cannot be run a second time.</p>';
-            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="dzn-notif-inline-form"><input type="hidden" name="action" value="dzn_notification_approve_all_drafts">';
-            wp_nonce_field('dzn_notification_approve_all_drafts');
-            echo '<label>Type <code dir="ltr">APPROVE ALL</code> <input name="confirm" type="text" class="regular-text" autocomplete="off" aria-label="Type APPROVE ALL to confirm"></label>';
-            echo '<button class="button" type="submit" onclick="return this.form.confirm.value===\'APPROVE ALL\'||confirm(\'Type APPROVE ALL to approve and publish every draft once.\')">Approve &amp; publish every draft once</button></form>';
-        }else{
-            echo '<p>Read-only access. This action requires the <code>dzn_manage_notification_templates</code> capability.</p>';
-        }
-        echo '</div>';
-
-        if($workflow['held']>0){
-            echo '<div class="notice notice-warning inline"><p><strong>'.esc_html((string)$workflow['held']).' draft(s) are held and cannot be bulk-approved/published yet.</strong></p><ul class="dzn-notif-list">';
-            foreach($workflow['held_by_reason'] as $reason=>$count)echo '<li>'.esc_html($reason).': '.esc_html((string)$count).'</li>';
-            echo '</ul><p class="dzn-notif-meta">A held draft needs its named proof before it can be approved: a mapped/approved provider template for WhatsApp, the owning reviewer for security/dedicated-authority copy, or the exact generated copy for a canonical event. Open the event and edit or map it there; this workflow never force-publishes a held draft.</p></div>';
-        }
-
-        if($last!==null){
-            echo '<p class="dzn-notif-note"><strong>Last run</strong> <code dir="ltr">'.esc_html((string)$last['at']).' UTC</code> — '.esc_html((string)$last['message']).'</p>';
-        }elseif($workflow['drafts']===0){
-            echo '<p class="dzn-notif-meta">No drafts are stored yet. Run step 1 to create them.</p>';
+            echo '<p class="dzn-notif-meta">Enablement includes only events whose code sends the method and whose provider route is ready. Blocked routes are turned off so they appear as an administrator decision rather than a permanent delivery error. A method with no producer is not shown at all.</p>';
         }
         echo '</div>';
     }
@@ -604,8 +619,7 @@ HTML;
         $channel=isset($_GET['channel'])&&is_scalar($_GET['channel'])?sanitize_key(wp_unslash((string)$_GET['channel'])):'';
         $locale=isset($_GET['locale'])&&is_scalar($_GET['locale'])?NotificationCatalogue::normaliseLocale(sanitize_text_field(wp_unslash((string)$_GET['locale']))):NotificationCatalogue::PRIMARY_LOCALE;
         $taskFilter=isset($_GET['task'])&&is_scalar($_GET['task'])?sanitize_key(wp_unslash((string)$_GET['task'])):'';
-        echo '<h2>Templates</h2><p>Review Persian and English drafts before publishing. Preparing drafts never sends a message, enables a channel or approves a WhatsApp provider template.</p>';
-        self::renderCatalogueActions($library);
+        echo '<h2>Templates</h2><p>Review Persian and English copy before publishing. Preparing copy never sends a message or enables a channel.</p>';
         echo '<form method="get" action="'.esc_url(admin_url('admin.php')).'" class="dzn-notif-filters"><input type="hidden" name="page" value="'.esc_attr(self::PAGE).'"><input type="hidden" name="tab" value="templates">';
         echo '<label>Task <select name="task"><option value="">All tasks</option>';
         foreach(NotificationCatalogue::TASKS as $value=>$task)echo '<option value="'.esc_attr($value).'"'.($taskFilter===$value?' selected':'').'>'.esc_html((string)$task['label']).'</option>';

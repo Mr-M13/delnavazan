@@ -127,6 +127,7 @@ namespace {
     require_once dirname(__DIR__) . '/src/Core/Application/NotificationSupport.php';
     require_once dirname(__DIR__) . '/src/Core/Application/SmsProviderRoutingPolicy.php';
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/PhoneNumberNormalizer.php';
+    require_once dirname(__DIR__) . '/src/Integrations/Notifications/NotificationCatalogue.php';
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/StudentNotificationContactLookup.php';
     require_once dirname(__DIR__) . '/src/Integrations/Notifications/NotificationManualSendService.php';
     require_once dirname(__DIR__) . '/src/Core/Infrastructure/Repository/NotificationManualSendRepository.php';
@@ -254,7 +255,24 @@ namespace {
     $failedAgain = $failService->send(array('segments' => array('teachers'), 'channel' => 'sms', 'message' => 'will fail', 'parameters' => array()), $failKey);
     $fail('a failed batch is never re-sent on re-submission', $failedAgain['idempotent'] === true && count($GLOBALS['dzn_http_calls']) === 2);
 
-    /* 8. The permission gate refuses a send. */
+    /* 8. Event templates and individual students are selectable in the composer. */
+    $events = $service->events();
+    $fail('only events with a real mobile producer are offered', isset($events['lesson.reminder.student']) && isset($events['booking.cancelled.teacher']) && $events['lesson.reminder.student']['channels'] === array('whatsapp') && $events['booking.cancelled.teacher']['channels'] === array('sms'));
+    $eventPreview = $service->preview(array('event' => 'lesson.reminder.student', 'students' => array(12), 'channel' => '', 'message' => '', 'variables' => array('name' => 'باران', 'course' => 'تار', 'teacher' => 'ندا', 'when' => 'شنبه', 'portal_url' => 'https://example.invalid/student-portal/'), 'parameters' => array()));
+    $fail('a selected student and event decide the WhatsApp route', $eventPreview['errors'] === array() && $eventPreview['channel'] === 'whatsapp' && $eventPreview['reached'] === 1 && $eventPreview['event'] === 'lesson.reminder.student');
+    $smsPreview = $service->preview(array('event' => 'booking.cancelled.teacher', 'segments' => array('teachers'), 'channel' => '', 'message' => '', 'variables' => array(), 'parameters' => array()));
+    $fail('a teacher SMS event does not require free text and stays on SMS', $smsPreview['errors'] === array() && $smsPreview['channel'] === 'sms' && $smsPreview['reached'] === 2);
+    $GLOBALS['dzn_http_calls'] = array();
+    $eventKeyCommand = 'manual-send:' . get_current_user_id() . ':event-wa';
+    $eventSend = $service->send(array('event' => 'lesson.reminder.student', 'students' => array(12), 'channel' => 'whatsapp', 'message' => '', 'variables' => array('name' => 'باران', 'course' => 'تار', 'teacher' => 'ندا', 'when' => 'شنبه', 'portal_url' => 'https://example.invalid/student-portal/'), 'parameters' => array()), $eventKeyCommand);
+    $payload = json_decode((string) ($GLOBALS['dzn_http_calls'][0]['args']['body'] ?? ''), true);
+    $fail('an event send uses the event\'s mapped WhatsApp template', $eventSend['sent'] === 1 && ($payload['whatsapp_message']['template']['name'] ?? '') === 'delnavazan_class_reminder_v2_fa');
+    $fail('an event send carries the ordered template variables', count((array) ($payload['whatsapp_message']['template']['components'][0]['parameters'] ?? array())) === 5);
+
+    $mismatch = $service->preview(array('event' => 'lesson.reminder.student', 'segments' => array('teachers'), 'channel' => '', 'message' => '', 'variables' => array('name' => 'x', 'course' => 'x', 'teacher' => 'x', 'when' => 'x', 'portal_url' => 'x'), 'parameters' => array()));
+    $fail('an event cannot be sent to the other audience', in_array('The selected event is for students; remove recipients from the other audience.', $mismatch['errors'], true));
+
+    /* 9. The permission gate refuses a send. */
     $GLOBALS['dzn_test_can'] = false;
     $forbidden = false;
     try { $service->send(array('segments' => array('teachers'), 'channel' => '', 'message' => 'x', 'parameters' => array()), 'manual-test-perm'); } catch (InvalidArgumentException $e) { $forbidden = $e->getMessage() === 'notification_manual_send_forbidden'; }

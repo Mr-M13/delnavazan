@@ -127,9 +127,6 @@ final class BookingStudentNotificationWorker {
 
     /** Mobile is fail-soft: it can never roll back the durable booking or the email hand-off. */
     private static function mobile(object $row,string $eventKey,array $variables):array{
-        // Teacher payment-lapse and sole-Teacher-hold remain website/email for now; student
-        // payment, slot-conflict, terminal and follow-up notices use WhatsApp.
-        if(in_array($eventKey,array('booking.payment_lapsed.teacher','booking.hold.teacher'),true))return array('state'=>'skipped','reason'=>'website_email_only');
         if(!class_exists(BookingNotificationMobileDispatcher::class))return array('state'=>'skipped','reason'=>'runtime_unavailable');
         try{return (new BookingNotificationMobileDispatcher())->dispatch($row,$eventKey,$variables);}
         catch(\Throwable $error){do_action('dzn_booking_mobile_notification_failed',(int)$row->id,get_class($error));return array('state'=>'failed','reason'=>'runtime_exception');}

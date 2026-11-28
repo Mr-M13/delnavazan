@@ -1,7 +1,12 @@
 <?php
 namespace Delnavazan\Platform\Integrations;
 
+use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
+use Delnavazan\Platform\Core\Application\NotificationSuppressionGuard;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
+use Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy;
+use Delnavazan\Platform\Integrations\Notifications\NotificationChannelPolicy;
+use Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository;
 use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
@@ -59,6 +64,7 @@ final class BookingAllocationNotificationWorker {
             else{try{$accepted=DelnavazanEmailRenderer::send((string)$user->user_email,$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'audience'=>'teacher','cta'=>array('url'=>$portal,'label'=>'پرتال مدرس')),$headers);}
             catch(\Throwable){$accepted=false;}}
         }
+        self::sms($row,$variables);
         $repo->begin();
         try{
             $locked=$repo->notification($id,true);
@@ -67,5 +73,29 @@ final class BookingAllocationNotificationWorker {
             $data=$suppressed?array('state'=>'cancelled','last_error_code'=>'email_disabled_by_administrator','next_attempt_at'=>null):($accepted?array('state'=>'handed_off','handed_off_at'=>$now,'last_error_code'=>null,'next_attempt_at'=>null):($attempt>=3?array('state'=>'failed','last_error_code'=>'send_refused','next_attempt_at'=>null):array('state'=>'retryable','last_error_code'=>'send_refused','next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+300))));
             $repo->updateNotification($id,'sending',$data+array('lease_expires_at'=>null,'updated_at'=>$now));$repo->commit();
         }catch(\Throwable $error){$repo->rollback();throw $error;}
+    }
+
+    /** Teacher SMS.ir leg for a new intro request; fail-soft and independent of email. */
+    private static function sms(object $row,array $variables):void{
+        if(!class_exists(NotificationChannelPolicy::class))return;
+        if(!NotificationChannelPolicy::allows('booking.new.teacher','sms'))return;
+        $phone=trim((string)($row->teacher_phone??''));
+        if($phone==='')return;
+        $e164=PhoneNumberNormalizer::toE164($phone,(string)($row->teacher_country_code??'IR'));
+        if($e164==='')return;
+        if((new NotificationSuppressionGuard())->suppressed('teacher',(int)$row->teacher_id,'booking.new.teacher'))return;
+        $provider=SmsProviderRoutingPolicy::select($e164);
+        if($provider==='off')return;
+        $settings=new IntegrationSettingsService();
+        try{
+            if($provider==='sms_ir'){
+                if(!$settings->verified('sms_ir'))return;
+                (new SmsIrAdapter($settings))->sendBookingNotification($e164,(int)$row->id,'','booking.new.teacher',$variables);
+                return;
+            }
+            (new TelnyxSmsAdapter($settings))->sendBookingNotification($e164,(int)$row->id,'Delnavazan: you have a new intro request. Open your Teacher Portal.');
+        }catch(\Throwable $error){
+            do_action('dzn_booking_allocation_sms_failed',(int)$row->id,get_class($error));
+        }
     }
 }

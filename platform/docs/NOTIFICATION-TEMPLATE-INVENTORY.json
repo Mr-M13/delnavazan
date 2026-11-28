@@ -1,5 +1,5 @@
 {
-    "generated_at": "2026-11-21T05:53:45+00:00",
+    "generated_at": "2026-11-28T06:03:30+00:00",
     "catalogue_version": "2026-11-19.3",
     "source": "platform/src/Integrations/Notifications/NotificationCatalogue.php + TelnyxTemplateRegistry.php",
     "scope": "Repository source of truth. Published versions, prepared drafts and Meta/Telnyx approval rows are live WordPress data and are listed under live_checks_outstanding.",
@@ -12,7 +12,7 @@
         "invalid_templates": 0,
         "missing_translations": 0,
         "unpublished_canonical_templates": "live_check_required",
-        "missing_provider_mappings": 46,
+        "missing_provider_mappings": 39,
         "unsupported_routes": 0,
         "events_without_registered_producer": 0
     },
@@ -70,14 +70,10 @@
         "booking.hold.admin",
         "booking.hold.teacher",
         "booking.payment_conflict.admin",
-        "booking.payment_conflict.student",
-        "booking.payment_lapsed.student",
         "booking.payment_lapsed.teacher",
         "booking.payment_unreconciled.admin",
         "booking.referral.admin",
         "booking.rescheduled.teacher",
-        "booking.submitted.admin",
-        "booking.terminal.student",
         "consent.admin_attention.admin",
         "consent.guardian_required.guardian",
         "consent.policy_updated.student",
@@ -92,9 +88,6 @@
         "lesson.cancelled.teacher",
         "lesson.reminder.teacher",
         "post_intro.activated.teacher",
-        "post_intro.invitation.student",
-        "post_intro.survey.student",
-        "renewal.reminder.student",
         "reschedule.change.accepted.admin",
         "reschedule.change.cancelled.admin",
         "reschedule.change.failed.admin",
@@ -213,6 +206,77 @@
             ]
         },
         {
+            "provider_template": "delnavazan_enrolment_ready_v2_fa",
+            "event_key": "post_intro.invitation.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "teacher",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_intro_payment_lapsed_v2_fa",
+            "event_key": "booking.payment_lapsed.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "teacher",
+                "when",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_intro_payment_conflict_v2_fa",
+            "event_key": "booking.payment_conflict.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "teacher",
+                "when",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_intro_terminal_v2_fa",
+            "event_key": "booking.terminal.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "teacher",
+                "when",
+                "portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_term_renewal_reminder_v2_fa",
+            "event_key": "renewal.reminder.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "remaining_sessions",
+                "course",
+                "term_end_date",
+                "payment_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_enrolment_followup_v2_fa",
+            "event_key": "post_intro.survey.student",
+            "audience": "student",
+            "variable_order": [
+                "name",
+                "course",
+                "teacher",
+                "hold_status_note",
+                "survey_url"
+            ]
+        },
+        {
             "provider_template": "delnavazan_payment_due_v2_fa",
             "event_key": "renewal.manual_payment_required.student",
             "audience": "student",
@@ -271,6 +335,18 @@
                 "when",
                 "response_window",
                 "teacher_portal_url"
+            ]
+        },
+        {
+            "provider_template": "delnavazan_admin_new_intro_v2_fa",
+            "event_key": "booking.submitted.admin",
+            "audience": "admin",
+            "variable_order": [
+                "booking_reference",
+                "learner_name",
+                "instrument",
+                "requested_time",
+                "queue_url"
             ]
         },
         {
@@ -554,12 +630,9 @@
         {
             "template_key": "intro_booking_request",
             "label": "New intro booking request",
-            "body": "دلنوازان : درود #NAME# عزیز\nهنرجویی برای کلاس آشنایی #INSTRUMENT# در تاریخ #DATE# ساعت #TIME# از شما درخواست کرده.\nلطفا برای تأیید یا رد به حساب کاربری سر بزنید.\nبا تشکر،",
+            "body": "دلنوازان: #NAME# عزیز\nشما یک درخواست جدید دارید",
             "variables": [
-                "name",
-                "instrument",
-                "date",
-                "time"
+                "name"
             ],
             "events": [
                 "booking.new.teacher"
@@ -1503,8 +1576,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_intro_payment_conflict_v2_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_registry_key": "account_referral",
                 "sms_state": "approved_template_mapped"
             }
@@ -1570,8 +1643,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_intro_payment_lapsed_v2_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_registry_key": "account_referral",
                 "sms_state": "approved_template_mapped"
             }
@@ -2039,8 +2112,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_admin_new_intro_v2_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_registry_key": "account_referral",
                 "sms_state": "approved_template_mapped"
             }
@@ -2106,8 +2179,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_intro_terminal_v2_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_registry_key": "account_referral",
                 "sms_state": "approved_template_mapped"
             }
@@ -3519,8 +3592,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_enrolment_ready_v2_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_registry_key": "account_referral",
                 "sms_state": "approved_template_mapped"
             }
@@ -3586,8 +3659,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_enrolment_followup_v2_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_registry_key": "account_referral",
                 "sms_state": "approved_template_mapped"
             }
@@ -4122,8 +4195,8 @@
                 }
             },
             "provider": {
-                "whatsapp_registry_name": null,
-                "whatsapp_state": "not_mapped",
+                "whatsapp_registry_name": "delnavazan_term_renewal_reminder_v2_fa",
+                "whatsapp_state": "registry_present_discovery_unverified",
                 "sms_registry_key": "account_referral",
                 "sms_state": "approved_template_mapped"
             }

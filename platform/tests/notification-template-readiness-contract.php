@@ -241,9 +241,8 @@ foreach (array('booking.requested.student', 'lesson.access.student', 'lesson.rem
 $genericSms = SmsIrTemplateRegistry::renderForEvent('lesson.reminder.student', array('name' => 'باران'));
 $fail('the generic approved SMS body is exact', $genericSms === 'دلنوازان: باران عزیز، لطفا به حساب کاربری خود مراجعه کنید.');
 $introSms = SmsIrTemplateRegistry::renderForEvent('booking.new.teacher', array('teacher' => 'ندا', 'course' => 'تار', 'when' => 'شنبه ۱۰ آبان ۱۴۰۵، ساعت ۱۷:۰۰ تا ۱۸:۰۰ به وقت Asia/Tehran'));
-$fail('the new-booking SMS names the instrument', str_contains($introSms, 'کلاس آشنایی تار'));
-$fail('the new-booking SMS carries date and time', str_contains($introSms, 'در تاریخ شنبه ۱۰ آبان ۱۴۰۵ ساعت ۱۷:۰۰ تا ۱۸:۰۰'));
-$fail('the new-booking SMS asks for approval or rejection in the account', str_contains($introSms, 'برای تأیید یا رد به حساب کاربری سر بزنید'));
+$fail('the new-booking SMS uses the approved provider body', str_contains($introSms, 'دلنوازان: ندا عزیز') && str_contains($introSms, 'شما یک درخواست جدید دارید'));
+$fail('the new-booking SMS does not invent unapproved variables', !str_contains($introSms, 'تار') && !str_contains($introSms, 'شنبه ۱۰ آبان'));
 $inventory = json_decode((string) file_get_contents($root . '/docs/NOTIFICATION-TEMPLATE-INVENTORY.json'), true);
 $fail('the generated inventory records both SMS.ir templates', is_array($inventory) && count((array) ($inventory['sms_registry'] ?? array())) === 2);
 $smsByEvent = array();

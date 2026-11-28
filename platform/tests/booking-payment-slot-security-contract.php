@@ -75,8 +75,12 @@ $contains($studentWorker, array(
     "notification_kind==='payment_lapsed')",
     "notification_kind==='payment_lapsed_teacher')",
     "notification_kind==='payment_conflict')",
-    'website_email_only',
-), 'The booking worker must map the new kinds and keep them off WhatsApp/SMS.');
+), 'The booking worker must map the new payment kinds.');
+$contains($catalogue, array(
+    "'booking.payment_lapsed.student'=>array('whatsapp')",
+    "'booking.payment_lapsed.teacher'=>array('sms')",
+    "'booking.payment_conflict.student'=>array('whatsapp')",
+), 'Student payment notices must use WhatsApp and teacher notices SMS.');
 
 // 6. The Student portal exposes the deadline and the lapsed label.
 $contains($portal, array('intro.payment_due_at', "'payment_due_at'"), 'The portal read model must expose the payment deadline.');

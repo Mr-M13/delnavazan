@@ -77,6 +77,19 @@ final class NotificationCatalogue {
         'reschedule.replacement.rejected.student'=>array('whatsapp'),
         'reschedule.replacement.failed.student'=>array('whatsapp'),
         'reschedule.replacement.cancelled.student'=>array('whatsapp'),
+        'reschedule.change.proposed.teacher'=>array('sms'),
+        'reschedule.change.accepted.teacher'=>array('sms'),
+        'reschedule.change.rejected.teacher'=>array('sms'),
+        'reschedule.change.failed.teacher'=>array('sms'),
+        'reschedule.change.cancelled.teacher'=>array('sms'),
+        'reschedule.replacement.proposed.teacher'=>array('sms'),
+        'reschedule.replacement.accepted.teacher'=>array('sms'),
+        'reschedule.replacement.rejected.teacher'=>array('sms'),
+        'reschedule.replacement.failed.teacher'=>array('sms'),
+        'reschedule.replacement.cancelled.teacher'=>array('sms'),
+        'attendance.absence_reported.teacher'=>array('sms'),
+        'attendance.missed_class_claim.teacher'=>array('sms'),
+        'booking.expired.teacher'=>array('sms'),
         'lesson.access.teacher'=>array('sms'),
         'lesson.reminder.teacher'=>array('sms'),
         'lesson.cancelled.teacher'=>array('sms'),
@@ -625,24 +638,28 @@ final class NotificationCatalogue {
 
     private static function teacherEvents():array{
         $out=array();
-        $out[]=self::event('attendance.absence_reported.teacher','Student Absence Notice','lesson','teacher','CanonicalAttendanceNotificationService','queue',array('email','website'),'operational',true,array('teacher','student','course','when','timezone','teacher_portal_url'),'attendance.absence_reported.teacher',array(
+        $out[]=self::event('attendance.absence_reported.teacher','Student Absence Notice','lesson','teacher','CanonicalAttendanceNotificationService','queue',array('email','website','sms'),'operational',true,array('teacher','student','course','when','timezone','teacher_portal_url'),'attendance.absence_reported.teacher',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · اطلاع غیبت هنرجو','body'=>"درود {{teacher}}،\n\n{{student}} برای جلسهٔ «{{course}}» در {{when}} ({{timezone}}) اطلاع غیبت فرستاده است.\n\nلطفاً با هنرجو هماهنگ کنید و در صورت توافق، زمان جایگزین همین جلسه را در پرتال مدرس ثبت کنید:\n{{teacher_portal_url}}\n\nاین درخواست در «کارهای مهم» پرتال مدرس نیز نمایش داده می‌شود.\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'اطلاع غیبت هنرجو','body'=>'{{student}} برای جلسهٔ «{{course}}» در {{when}} اطلاع غیبت فرستاده است.'),
+                'sms'=>array('body'=>'دلنوازان: {{student}} برای جلسهٔ {{course}} در {{when}} اطلاع غیبت فرستاده است. لطفاً در پرتال مدرس هماهنگ کنید.'),
             ),
             'en'=>array(
                 'email'=>array('subject'=>'Delnavazan · student absence notice','body'=>"Hello {{teacher}},\n\n{{student}} reported an absence for the {{course}} session on {{when}} ({{timezone}}).\n\nPlease coordinate with the student and, if you both agree, record the replacement time for this session in the Teacher Portal:\n{{teacher_portal_url}}\n\nThis request also appears under priority tasks in the Teacher Portal.\n\nDelnavazan"),
                 'website'=>array('subject'=>'Student absence notice','body'=>'{{student}} reported an absence for the {{course}} session on {{when}}.'),
+                'sms'=>array('body'=>'Delnavazan: {{student}} reported an absence for {{course}} on {{when}}. Coordinate in the Teacher Portal.'),
             ),
         ));
-        $out[]=self::event('attendance.missed_class_claim.teacher','Missed Class Claim','lesson','teacher','CanonicalAttendanceNotificationService','queue',array('email','website'),'operational',true,array('teacher','student','course','when','timezone','teacher_portal_url'),'attendance.missed_class_claim.teacher',array(
+        $out[]=self::event('attendance.missed_class_claim.teacher','Missed Class Claim','lesson','teacher','CanonicalAttendanceNotificationService','queue',array('email','website','sms'),'operational',true,array('teacher','student','course','when','timezone','teacher_portal_url'),'attendance.missed_class_claim.teacher',array(
             self::PRIMARY_LOCALE=>array(
                 'email'=>array('subject'=>'دلنوازان · اعلام جلسهٔ ازدست‌رفته','body'=>"درود {{teacher}}،\n\n{{student}} اعلام کرده است که جلسهٔ «{{course}}» در {{when}} ({{timezone}}) را از دست داده است.\n\nلطفاً برای جلسهٔ جبرانی با هنرجو هماهنگ کنید و زمان تازه را در پرتال مدرس ثبت کنید:\n{{teacher_portal_url}}\n\nاین درخواست در «کارهای مهم» پرتال مدرس نیز نمایش داده می‌شود.\n\nبا احترام، دلنوازان"),
                 'website'=>array('subject'=>'اعلام جلسهٔ ازدست‌رفته','body'=>'{{student}} اعلام کرده جلسهٔ «{{course}}» در {{when}} را از دست داده است. زمان جلسهٔ جبرانی را پیشنهاد دهید.'),
+                'sms'=>array('body'=>'دلنوازان: {{student}} اعلام کرده جلسهٔ {{course}} در {{when}} را از دست داده است. لطفاً جلسهٔ جبرانی را در پرتال مدرس هماهنگ کنید.'),
             ),
             'en'=>array(
                 'email'=>array('subject'=>'Delnavazan · missed class claim','body'=>"Hello {{teacher}},\n\n{{student}} reported missing the {{course}} session on {{when}} ({{timezone}}).\n\nPlease coordinate a replacement session with the student and record the new time in the Teacher Portal:\n{{teacher_portal_url}}\n\nThis request also appears under priority tasks in the Teacher Portal.\n\nDelnavazan"),
                 'website'=>array('subject'=>'Missed class claim','body'=>'{{student}} reported missing the {{course}} session on {{when}}. Propose a replacement time.'),
+                'sms'=>array('body'=>'Delnavazan: {{student}} reported missing {{course}} on {{when}}. Coordinate a replacement in the Teacher Portal.'),
             ),
         ));
         $out[]=self::event('post_intro.activated.teacher','New Student Class Activated','account','teacher','PostIntroActivationService','queue',array('email','website'),'operational',true,array('teacher','teacher_portal_url'),'post_intro.activated.teacher',array(
@@ -683,9 +700,15 @@ final class NotificationCatalogue {
                 'sms'=>array('body'=>'Delnavazan: new {{course}} booking with {{student}}, {{when}}. Reply in {{response_window}}. Portal: {{teacher_portal_url}}'),
             ),
         ));
-        $out[]=self::event('booking.expired.teacher','Intro Offer Expired','booking','teacher','BookingAllocationWorker','queue',array('website'),'operational',true,array(),'booking.expired.teacher',array(
-            self::PRIMARY_LOCALE=>array('website'=>array('subject'=>'مهلت پاسخ درخواست آشنایی پایان یافت','body'=>'مهلت پاسخ این درخواست پایان یافته است. درخواست دیگر برای شما قابل پذیرش نیست و به مدرس بعدی یا هماهنگی آکادمی سپرده شده است.')),
-            'en'=>array('website'=>array('subject'=>'Intro offer response deadline has passed','body'=>'The response deadline for this request has passed. It can no longer be accepted by you and has been passed to the next Teacher or to academy coordination.')),
+        $out[]=self::event('booking.expired.teacher','Intro Offer Expired','booking','teacher','BookingAllocationWorker','queue',array('website','sms'),'operational',true,array('teacher','teacher_portal_url'),'booking.expired.teacher',array(
+            self::PRIMARY_LOCALE=>array(
+                'website'=>array('subject'=>'مهلت پاسخ درخواست آشنایی پایان یافت','body'=>'مهلت پاسخ این درخواست پایان یافته است. درخواست دیگر برای شما قابل پذیرش نیست و به مدرس بعدی یا هماهنگی آکادمی سپرده شده است.'),
+                'sms'=>array('body'=>'دلنوازان: مهلت درخواست آشنایی پایان یافت و دیگر قابل پذیرش نیست. پرتال مدرس: {{teacher_portal_url}}'),
+            ),
+            'en'=>array(
+                'website'=>array('subject'=>'Intro offer response deadline has passed','body'=>'The response deadline for this request has passed. It can no longer be accepted by you and has been passed to the next Teacher or to academy coordination.'),
+                'sms'=>array('body'=>'Delnavazan: the intro offer has expired and is no longer available to you. Portal: {{teacher_portal_url}}'),
+            ),
         ));
         $out[]=self::event('booking.payment_lapsed.teacher','Intro Payment Deadline Lapsed','booking','teacher','IntroPaymentExpiryWorker','queue',array('email','website'),'operational',true,array('teacher','student','course','when','teacher_portal_url'),'booking.payment_lapsed.teacher',array(
             self::PRIMARY_LOCALE=>array(
@@ -1195,15 +1218,33 @@ final class NotificationCatalogue {
                 if($state==='proposed')$variables=array_merge($variables,array('when','timezone','course','student','current_when','new_when'));
                 elseif($state==='accepted')$variables=array_merge($variables,array('when','timezone','course','student','previous_when','new_when'));
                 elseif($state==='rejected')$variables=array_merge($variables,array('course','student','when'));
-                $out[]=self::event($meta['prefix'].'.'.$state.'.teacher',ucfirst($meta['label']).' · '.ucfirst($state).' · Teacher','lesson','teacher','LessonRescheduleService','queue',array('email','website','whatsapp'),'operational',true,$variables,$meta['prefix'].'.'.$state,array(
+                $labelFa=$kind==='replacement'?'جلسهٔ جبرانی':'تغییر زمان کلاس';
+                $labelEn=$kind==='replacement'?'replacement session':'lesson change';
+                $faSms=array(
+                    'proposed'=>'دلنوازان: پیشنهاد '.$labelFa.' برای {{when}} ثبت شد. پرتال مدرس: {{teacher_portal_url}}',
+                    'accepted'=>'دلنوازان: هنرجو '.$labelFa.' را برای {{when}} پذیرفت. پرتال مدرس: {{teacher_portal_url}}',
+                    'rejected'=>'دلنوازان: هنرجو پیشنهاد '.$labelFa.' را رد کرد و زمان فعلی {{when}} تغییر نمی‌کند. پرتال مدرس: {{teacher_portal_url}}',
+                    'failed'=>'دلنوازان: پیشنهاد '.$labelFa.' ثبت نشد و بسته شد. پرتال مدرس: {{teacher_portal_url}}',
+                    'cancelled'=>'دلنوازان: پیشنهاد '.$labelFa.' توسط مدیر لغو شد. پرتال مدرس: {{teacher_portal_url}}',
+                );
+                $enSms=array(
+                    'proposed'=>'Delnavazan: {{when}} was proposed for your '.$labelEn.'. Teacher Portal: {{teacher_portal_url}}',
+                    'accepted'=>'Delnavazan: the student accepted {{when}} for your '.$labelEn.'. Teacher Portal: {{teacher_portal_url}}',
+                    'rejected'=>'Delnavazan: the student declined the '.$labelEn.' proposal; the time {{when}} is unchanged. Portal: {{teacher_portal_url}}',
+                    'failed'=>'Delnavazan: the '.$labelEn.' proposal could not be recorded and was closed. Portal: {{teacher_portal_url}}',
+                    'cancelled'=>'Delnavazan: the '.$labelEn.' proposal was cancelled by an administrator. Portal: {{teacher_portal_url}}',
+                );
+                $out[]=self::event($meta['prefix'].'.'.$state.'.teacher',ucfirst($meta['label']).' · '.ucfirst($state).' · Teacher','lesson','teacher','LessonRescheduleService','queue',array('email','website','sms'),'operational',true,$variables,$meta['prefix'].'.'.$state,array(
                     self::PRIMARY_LOCALE=>array(
                         'email'=>array('subject'=>$copy['fa_subject'],'body'=>$copy['fa_email']),
                         'website'=>array('subject'=>$meta['fa'],'body'=>$copy['fa_portal']),
+                        'sms'=>array('body'=>$faSms[$state]),
                         'whatsapp'=>array('body'=>$copy['fa_whatsapp']),
                     ),
                     'en'=>array(
                         'email'=>array('subject'=>$copy['en_subject'],'body'=>$copy['en_email']),
                         'website'=>array('subject'=>$meta['label'],'body'=>$copy['en_portal']),
+                        'sms'=>array('body'=>$enSms[$state]),
                         'whatsapp'=>array('body'=>$copy['en_whatsapp']),
                     ),
                 ));

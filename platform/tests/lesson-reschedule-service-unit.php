@@ -112,7 +112,7 @@ namespace {
     $adminService2 = new LessonRescheduleService($adminStore2, static fn() => array(), $adminCommit, static fn() => time(), static fn() => true);
     $adminProposal2 = $adminService2->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-admin-0002');
     $adminCancelled = $adminService2->cancelAsAdministrator((string) $adminProposal2['proposal_uid'], 'admin-cancel-key-0001');
-    $fail('administrator can cancel a pending proposal before a manual change', $adminCancelled['state'] === 'cancelled' && (string) $adminStore2->proposals[0]->state === 'cancelled' && count($adminStore2->notifications) === 7);
+    $fail('administrator can cancel a pending proposal before a manual change', $adminCancelled['state'] === 'cancelled' && (string) $adminStore2->proposals[0]->state === 'cancelled' && count($adminStore2->notifications) === 8);
 
     $failStore = new FakeRescheduleStore(); $failStore->context = $context();
     $failCommit = static function (array $p): array { throw new InvalidArgumentException('teacher_unavailable'); };
@@ -134,7 +134,9 @@ namespace {
     $accepted = $service->decideForStudent(9, (string) $store->proposals[0]->uid, 'accept', 'decision-key-0001');
     $fail('acceptance commits through the canonical service', $accepted['state'] === 'accepted' && count($commits) === 1 && $accepted['result_schedule_version_id'] === 99);
     $fail('acceptance preserves duration in the canonical payload', $commits[0]['input']['duration_minutes'] === 30 && $commits[0]['input']['expected_schedule_version_id'] === 71);
-    $fail('acceptance queues student email, student WhatsApp, teacher, admin and calendar sync', count($store->notifications) === 7 && count($store->calendarJobs) === 1);
+    $fail('acceptance queues student email, student WhatsApp, teacher email and SMS, admin and calendar sync', count($store->notifications) === 8 && count($store->calendarJobs) === 1);
+    $teacherChannels = array(); foreach ($store->notifications as $notification) { if ($notification->audience === 'teacher') { $teacherChannels[] = $notification->channel; } }
+    $fail('the teacher receives a durable SMS row beside email', $teacherChannels === array('email', 'sms'));
     $acceptedEvent = null; foreach ($store->events as $event) { if ($event->event_type === 'accepted') { $acceptedEvent = $event; } }
     $fail('accepted event attributes the real student decision actor and schedule facts', $acceptedEvent
         && (int) $acceptedEvent->authenticated_user_id === 11

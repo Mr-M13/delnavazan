@@ -3,7 +3,11 @@ namespace Delnavazan\Platform\Core\Application;
 
 use Delnavazan\Platform\Integrations\Notifications\DelnavazanEmailRenderer;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCatalogue;
+use Delnavazan\Platform\Integrations\Notifications\NotificationChannelPolicy;
 use Delnavazan\Platform\Integrations\Notifications\NotificationCopyResolver;
+use Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer;
+use Delnavazan\Platform\Integrations\SmsIrAdapter;
+use Delnavazan\Platform\Integrations\TelnyxSmsAdapter;
 
 /**
  * Immediate Teacher notice for a Student-owned absence claim.
@@ -16,7 +20,7 @@ final class CanonicalAttendanceNotificationService {
         if($lessonId<1||$scheduleVersionId<1)return false;
         global $wpdb;$p=$wpdb->prefix.'dzn_';
         $row=$wpdb->get_row($wpdb->prepare(
-            "SELECT t.id teacher_id,t.email,t.timezone teacher_timezone,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name,'') teacher_name,
+            "SELECT t.id teacher_id,t.email,t.phone,t.country_code,t.timezone teacher_timezone,COALESCE(NULLIF(t.display_name,''),NULLIF(t.english_name,''),t.persian_name,'') teacher_name,
                     COALESCE(NULLIF(s.display_name,''),NULLIF(s.reference_code,''),'هنرجو') student_name,
                     v.starts_at_utc,v.ends_at_utc,v.schedule_timezone,
                     COALESCE(NULLIF(i.name_fa,''),NULLIF(c.name_fa,''),NULLIF(c.name_en,''),'کلاس') course_name
@@ -29,9 +33,9 @@ final class CanonicalAttendanceNotificationService {
              WHERE l.id=%d AND l.archived_at IS NULL LIMIT 1",
             $scheduleVersionId,$lessonId
         ));
-        if(!$row||trim((string)($row->email??''))==='')return false;
-        $email=(string)apply_filters('dzn_attendance_notification_recipient',(string)$row->email,$lessonId,$scheduleVersionId);
-        if(!is_email($email))return false;
+        if(!$row)return false;
+        $email=(string)apply_filters('dzn_attendance_notification_recipient',(string)($row->email??''),$lessonId,$scheduleVersionId);
+        $emailValid=is_email($email);
         // The notice is addressed to the Teacher, so the Teacher's configured zone wins when it is valid;
         // the class schedule zone remains the fallback for an unset legacy profile.
         $timezone=trim((string)($row->teacher_timezone??''));
@@ -48,15 +52,39 @@ final class CanonicalAttendanceNotificationService {
         $teacherId=(int)($row->teacher_id??0);
         $eventKey=$past?'attendance.missed_class_claim.teacher':'attendance.absence_reported.teacher';
         $portal=home_url('/teacher-portal/');
-        $variables=array('teacher'=>$name,'student'=>trim((string)$row->student_name),'course'=>trim((string)$row->course_name),'when'=>$when,'timezone'=>$timezone,'teacher_portal_url'=>$portal);
+        $variables=array('teacher'=>$name,'student'=>trim((string)$row->student_name),'course'=>trim((string)$row->course_name),'when'=>$when,'timezone'=>$timezone,'teacher_portal_url'=>$portal,'lesson_id'=>$lessonId);
         $copy=array('subject'=>$subject,'body'=>$body);
         if(class_exists(NotificationCopyResolver::class)){
             $copy=NotificationCopyResolver::email($eventKey,NotificationCatalogue::PRIMARY_LOCALE,$variables,$copy);
             if($teacherId>0&&class_exists(PortalNotificationRecorder::class))PortalNotificationRecorder::teacher($teacherId,$eventKey,'attendance_notification',$lessonId,$variables,$portal);
         }
+        $accepted=false;
+        if($emailValid){
+            try{
+                $accepted=class_exists(DelnavazanEmailRenderer::class)
+                    ?DelnavazanEmailRenderer::send($email,$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'audience'=>'teacher','cta'=>array('url'=>(string)($copy['cta_url']??$portal),'label'=>'رفتن به پرتال مدرس')))
+                    :(bool)wp_mail($email,$copy['subject'],$copy['body']);
+            }catch(\Throwable){$accepted=false;}
+        }
+        self::sendSms($row,$eventKey,$variables);
+        return $accepted;
+    }
+
+    /** Independent Teacher SMS leg; never changes the email/evidence outcome. */
+    private static function sendSms(object $row,string $eventKey,array $variables):void{
+        if(!class_exists(NotificationChannelPolicy::class)||!NotificationChannelPolicy::allows($eventKey,'sms'))return;
+        $phone=trim((string)($row->phone??''));if($phone==='')return;
+        $to=PhoneNumberNormalizer::toE164($phone,(string)($row->country_code??'IR'));if($to==='')return;
+        if((new NotificationSuppressionGuard())->suppressed('teacher',(int)$row->teacher_id,$eventKey))return;
+        $provider=SmsProviderRoutingPolicy::select($to);if($provider==='off')return;
+        $settings=new IntegrationSettingsService();
         try{
-            if(class_exists(DelnavazanEmailRenderer::class))return DelnavazanEmailRenderer::send($email,$copy['subject'],$copy['body'],array('locale'=>NotificationCatalogue::PRIMARY_LOCALE,'audience'=>'teacher','cta'=>array('url'=>(string)($copy['cta_url']??$portal),'label'=>'رفتن به پرتال مدرس')));
-            return (bool)wp_mail($email,$copy['subject'],$copy['body']);
-        }catch(\Throwable){return false;}
+            if($provider==='sms_ir'){
+                if(!$settings->verified('sms_ir'))return;
+                (new SmsIrAdapter($settings))->sendBookingNotification($to,(int)($variables['lesson_id']??0),'',$eventKey,$variables);
+                return;
+            }
+            (new TelnyxSmsAdapter($settings))->sendBookingNotification($to,(int)($variables['lesson_id']??0),'Delnavazan: a new attendance notice is in your Teacher Portal.');
+        }catch(\Throwable $error){do_action('dzn_attendance_notification_sms_failed',(int)$row->teacher_id,get_class($error));}
     }
 }

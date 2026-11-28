@@ -7,6 +7,8 @@ use Delnavazan\Platform\Core\Application\NotificationSupport;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
 use Delnavazan\Platform\Core\Infrastructure\Repository\LessonRescheduleRepository;
 use Delnavazan\Platform\Core\Infrastructure\Repository\NotificationSuppressionRepository;
+use Delnavazan\Platform\Integrations\SmsIrAdapter;
+use Delnavazan\Platform\Integrations\TelnyxSmsAdapter;
 use Delnavazan\Platform\Integrations\TelnyxWhatsAppAdapter;
 
 /**
@@ -32,6 +34,10 @@ final class LessonRescheduleNotificationService {
     private $whatsappReady;
     /** @var callable(int,string):bool */
     private $suppressed;
+    /** @var callable(string,int,string,array):array */
+    private $smsSender;
+    /** @var callable(string):bool */
+    private $smsAllowed;
 
     public function __construct(
         private ?LessonRescheduleStore $store=null,
@@ -41,7 +47,9 @@ final class LessonRescheduleNotificationService {
         ?callable $whatsappSender=null,
         ?callable $whatsappAllowed=null,
         ?callable $whatsappReady=null,
-        ?callable $suppressed=null
+        ?callable $suppressed=null,
+        ?callable $smsSender=null,
+        ?callable $smsAllowed=null
     ){
         $this->store??=new LessonRescheduleRepository();
         $this->transport=$transport??static function(string $email,string $subject,string $body,string $audience=''):bool{
@@ -59,6 +67,14 @@ final class LessonRescheduleNotificationService {
             $lookup=new StudentNotificationContactLookup();
             return (new NotificationSuppressionRepository())->active($lookup->recipientDigest($studentId),$eventKey,NotificationSupport::now(),true)!==null;
         };
+        $this->smsSender=$smsSender??static function(string $to,int $notificationId,string $eventKey,array $parameters):array{
+            $settings=new IntegrationSettingsService();
+            $provider=SmsProviderRoutingPolicy::select($to);
+            if($provider==='off')return array('acknowledged'=>false,'permanent_failure'=>'send_refused');
+            if($provider==='sms_ir')return (new SmsIrAdapter($settings))->sendBookingNotification($to,$notificationId,'',$eventKey,$parameters);
+            return (new TelnyxSmsAdapter($settings))->sendBookingNotification($to,$notificationId,'Delnavazan: a class time change is waiting in your Teacher Portal.');
+        };
+        $this->smsAllowed=$smsAllowed??static fn(string $eventKey):bool=>NotificationChannelPolicy::allows($eventKey,'sms');
     }
 
     public function dispatchPending(int $limit=20):array{
@@ -74,11 +90,14 @@ final class LessonRescheduleNotificationService {
                 $channel=(string)($locked->channel??'email');
                 if(!$recipient||($channel==='email'&&empty($recipient['email'])))throw new \RuntimeException('reschedule_recipient_unresolved');
                 if($channel==='whatsapp'&&empty($recipient['whatsapp'])&&empty($recipient['phone']))throw new \RuntimeException('reschedule_recipient_unresolved');
+                if($channel==='sms'&&empty($recipient['phone']))throw new \RuntimeException('reschedule_recipient_unresolved');
                 $rendered=$this->render($proposal,(string)$locked->event_type,(string)$locked->audience,(string)($recipient['name']??''),$recipient);
                 $this->recordInbox($proposal,(string)$locked->event_type,(string)$locked->audience,$rendered['variables']);
-                $ok=$channel==='whatsapp'
-                    ?$this->sendWhatsApp($locked,$proposal,$rendered,$recipient)
-                    :(bool)($this->transport)((string)$recipient['email'],$rendered['subject'],$rendered['body'],(string)$locked->audience);
+                $ok=match($channel){
+                    'whatsapp'=>$this->sendWhatsApp($locked,$proposal,$rendered,$recipient),
+                    'sms'=>$this->sendSms($locked,$proposal,$rendered,$recipient),
+                    default=>(bool)($this->transport)((string)$recipient['email'],$rendered['subject'],$rendered['body'],(string)$locked->audience),
+                };
                 $now=gmdate('Y-m-d H:i:s',(int)($this->clock)());
                 if($ok){
                     $this->store->updateNotification((int)$locked->id,array('state'=>'sent','attempt_count'=>(int)$locked->attempt_count+1,'sent_at'=>$now,'last_error_code'=>null,'updated_at'=>$now));
@@ -112,6 +131,20 @@ final class LessonRescheduleNotificationService {
         $parameters=(array)$rendered['variables'];
         foreach($parameters as $value)if(is_array($value)||is_object($value))return false;
         try{$result=($this->whatsappSender)($to,(int)$locked->id,$eventKey,$parameters);}
+        catch(\Throwable $error){return false;}
+        return !empty($result['acknowledged']);
+    }
+
+    /** Independent Teacher SMS leg for a reschedule row. */
+    private function sendSms(object $locked,object $proposal,array $rendered,array $recipient):bool{
+        $eventKey=(string)$rendered['event_key'];
+        if(!($this->smsAllowed)($eventKey))return false;
+        $to=PhoneNumberNormalizer::toE164((string)($recipient['phone']??''),(string)($recipient['country']??'IR'));
+        if($to==='')return false;
+        if(($this->suppressed)((int)$proposal->teacher_id,$eventKey))return false;
+        $parameters=(array)$rendered['variables'];
+        foreach($parameters as $value)if(is_array($value)||is_object($value))return false;
+        try{$result=($this->smsSender)($to,(int)$locked->id,$eventKey,$parameters);}
         catch(\Throwable $error){return false;}
         return !empty($result['acknowledged']);
     }
@@ -214,14 +247,14 @@ final class LessonRescheduleNotificationService {
         if('student'===$audience){
             $row=$wpdb->get_row($wpdb->prepare("SELECT email,display_name name,timezone,calendar_preference,phone,whatsapp_phone,country_code FROM {$p}students WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",(int)$proposal->student_id));
         }else{
-            $row=$wpdb->get_row($wpdb->prepare("SELECT email,COALESCE(NULLIF(display_name,''),NULLIF(english_name,''),persian_name) name,timezone,calendar_preference FROM {$p}teachers WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",(int)$proposal->teacher_id));
+            $row=$wpdb->get_row($wpdb->prepare("SELECT email,COALESCE(NULLIF(display_name,''),NULLIF(english_name,''),persian_name) name,timezone,calendar_preference,phone,country_code FROM {$p}teachers WHERE id=%d AND status='active' AND archived_at IS NULL LIMIT 1",(int)$proposal->teacher_id));
         }
         if(!$row)return null;
         $email=trim((string)($row->email??''));
         $phone=trim((string)($row->phone??''));
         $whatsapp=trim((string)($row->whatsapp_phone??''));
         if($audience==='student'&&$email===''&&$phone===''&&$whatsapp==='')return null;
-        if($audience!=='student'&&$email==='')return null;
+        if($audience!=='student'&&$audience!=='teacher'&&$email==='')return null;
         return array('email'=>$email,'name'=>(string)($row->name??''),'timezone'=>(string)($row->timezone??''),'calendar'=>(string)($row->calendar_preference??''),
             'phone'=>$phone,'whatsapp'=>$whatsapp,'country'=>(string)($row->country_code??''));
     }

@@ -192,5 +192,32 @@ namespace {
     $suppressedService->dispatchPending(10);
     $fail('an active suppression blocks the student WhatsApp reschedule', $suppressedSent === 0 && $suppressedStore->notifications[0]->state === 'retry');
 
+    // A teacher reschedule row on the SMS channel is independent of the email row.
+    $smsStore = new NotificationStore();
+    $smsStore->proposal = (object) array('uid' => 'PROPOSAL-SMS', 'id' => 14, 'student_id' => 9, 'teacher_id' => 5, 'schedule_timezone' => 'Asia/Tehran', 'proposed_starts_at_utc' => '2026-11-05 15:00:00');
+    $smsStore->notifications = array(
+        (object) array('id' => 1, 'proposal_id' => 14, 'event_type' => 'accepted', 'audience' => 'teacher', 'channel' => 'sms', 'state' => 'queued', 'attempt_count' => 0),
+    );
+    $smsSent = array();
+    $smsService = new LessonRescheduleNotificationService(
+        $smsStore,
+        static function (): bool { throw new RuntimeException('email transport must not run for an SMS row'); },
+        static fn(object $proposal, string $audience): array => array('name' => 'Teacher', 'email' => 'teacher@example.invalid', 'phone' => '09123456789', 'country' => 'IR', 'timezone' => 'Asia/Tehran', 'calendar' => 'persian'),
+        static fn(): int => time(),
+        null, null, null,
+        static fn(int $teacherId, string $eventKey): bool => false,
+        static function (string $to, int $notificationId, string $eventKey, array $parameters) use (&$smsSent): array {
+            $smsSent[] = array('to' => $to, 'notification_id' => $notificationId, 'event_key' => $eventKey, 'parameters' => $parameters);
+            return array('acknowledged' => true);
+        },
+        static fn(string $eventKey): bool => true
+    );
+    $smsResult = $smsService->dispatchPending(10);
+    $fail('teacher SMS reschedule is sent once', $smsResult['sent'] === 1 && count($smsSent) === 1);
+    $fail('teacher SMS reschedule uses the normalized number and teacher event key', $smsSent[0]['to'] === '+989123456789' && $smsSent[0]['event_key'] === 'reschedule.change.accepted.teacher');
+    $fail('teacher SMS reschedule is terminal after one hand-off', $smsStore->notifications[0]->state === 'sent');
+    $smsService->dispatchPending(10);
+    $fail('teacher SMS reschedule is never emitted twice', count($smsSent) === 1);
+
     echo "Lesson reschedule notification unit passed\n";
 }

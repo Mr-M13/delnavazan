@@ -115,7 +115,7 @@ namespace {
     $fail('replacement issuance targets the original Lesson and Term', $replacementCalls[0]['origin_lesson_id'] === 41 && $replacementCalls[0]['term_id'] === 2 && $replacementCalls[0]['teacher_assignment_id'] === 8);
     $fail('the original Lesson is never mutated by replacement acceptance', $store->context->lifecycle_state === 'completed' && (string) $store->context->schedule_version_uid === 'SCH-71' && (string) $store->context->starts_at_utc === (string) $context('completed')->starts_at_utc);
     $fail('acceptance records the new schedule version and calendar hand-off', $accepted['result_schedule_version_id'] === 901 && (int) $store->calendarJobs[0]->lesson_id === 900 && (int) $store->calendarJobs[0]->to_schedule_version_id === 901);
-    $fail('acceptance notifies both parties and admin', count(array_filter($store->notifications, static fn($row) => $row->event_type === 'accepted')) === 4);
+    $fail('acceptance notifies both parties by email plus student WhatsApp and teacher SMS, and admin by email', count(array_filter($store->notifications, static fn($row) => $row->event_type === 'accepted')) === 5);
     $replay = $service->decideForStudent(9, (string) $store->proposals[0]->uid, 'accept', 'decision-key-replacement-0001');
     $fail('repeated replacement acceptance is idempotent', $replay['idempotent'] === true && count($replacementCalls) === 1);
 
@@ -152,7 +152,7 @@ namespace {
     $rejectService = new LessonRescheduleService($rejectStore, static fn() => array(), $rescheduleCommit, static fn() => time(), static fn() => true, $replacementCommit, $exception);
     $first = $rejectService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $input, 'request-key-replacement-0010');
     $rejected = $rejectService->decideForStudent(9, (string) $rejectStore->proposals[0]->uid, 'reject', 'decision-key-replacement-0010');
-    $fail('rejection preserves the original schedule and notifies the Teacher', $rejected['state'] === 'rejected' && count($replacementCalls) >= 1 && count(array_filter($rejectStore->notifications, static fn($row) => $row->event_type === 'rejected' && $row->audience === 'teacher')) === 1);
+    $fail('rejection preserves the original schedule and notifies the Teacher', $rejected['state'] === 'rejected' && count($replacementCalls) >= 1 && count(array_filter($rejectStore->notifications, static fn($row) => $row->event_type === 'rejected' && $row->audience === 'teacher')) === 2);
     $secondInput = $input; $secondInput['local_time'] = '19:30';
     $second = $rejectService->proposeForTeacher(5, 'Asia/Tehran', 'LESSON-41', 'SCH-71', $secondInput, 'request-key-replacement-0011');
     $fail('the Teacher can propose another replacement after a rejection', $second['state'] === 'pending' && ($second['kind'] ?? '') === 'replacement');

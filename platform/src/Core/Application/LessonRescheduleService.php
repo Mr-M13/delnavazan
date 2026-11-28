@@ -541,8 +541,9 @@ final class LessonRescheduleService {
     }
 
     private function notify(int $proposalId,string $eventType,string $audience,string $proposalUid):void{
-        // Students receive WhatsApp; the email row remains for the existing fallback/audit.
-        $channels=$audience==='student'?array('email','whatsapp'):array('email');
+        // Students receive WhatsApp and Teachers receive SMS; the email row stays for
+        // the existing fallback/audit.
+        $channels=$audience==='student'?array('email','whatsapp'):($audience==='teacher'?array('email','sms'):array('email'));
         foreach($channels as $channel){
             try{
                 $suffix=$channel==='email'?'':':'.$channel;
@@ -553,7 +554,7 @@ final class LessonRescheduleService {
                     'created_at'=>$this->now(),'updated_at'=>$this->now(),
                 ));
             }catch(\Throwable $e){
-                if($channel==='whatsapp')continue;
+                if($channel!=='email')continue;
                 if($this->store->duplicate($e)!=='idempotency_key')throw $e;
             }
         }

@@ -2,8 +2,13 @@
 namespace Delnavazan\Platform\Integrations;
 
 use Delnavazan\Platform\Core\Application\BookingAllocationService;
+use Delnavazan\Platform\Core\Application\IntegrationSettingsService;
+use Delnavazan\Platform\Core\Application\NotificationSuppressionGuard;
 use Delnavazan\Platform\Core\Application\PortalNotificationRecorder;
+use Delnavazan\Platform\Core\Application\SmsProviderRoutingPolicy;
 use Delnavazan\Platform\Core\Infrastructure\Repository\BookingAllocationRepository;
+use Delnavazan\Platform\Integrations\Notifications\NotificationChannelPolicy;
+use Delnavazan\Platform\Integrations\Notifications\PhoneNumberNormalizer;
 
 /** Bounded, repeatable timeout, sole-Teacher hold and terminal-escalation pass. */
 final class BookingAllocationWorker {
@@ -29,9 +34,29 @@ final class BookingAllocationWorker {
             }
         }
         foreach($repo->unnotifiedExpirations(25) as $offer){
+            self::expirySms($offer);
             if(PortalNotificationRecorder::teacher((int)$offer->teacher_id,'booking.expired.teacher','booking_offer_expiry',(int)$offer->id,array(),home_url('/teacher-portal/'))!==null){
                 try{$repo->markExpiryNotified((int)$offer->id,$now);}catch(\Throwable $error){do_action('dzn_booking_allocation_notification_failed',(int)$offer->id,get_class($error));}
             }
         }
+    }
+
+    /** Independent Teacher SMS for an expired intro offer; fail-soft and never blocks the marker. */
+    private static function expirySms(object $offer):void{
+        if(!class_exists(NotificationChannelPolicy::class))return;
+        if(!NotificationChannelPolicy::allows('booking.expired.teacher','sms'))return;
+        $phone=trim((string)($offer->teacher_phone??''));if($phone==='')return;
+        $to=PhoneNumberNormalizer::toE164($phone,(string)($offer->teacher_country_code??'IR'));if($to==='')return;
+        if((new NotificationSuppressionGuard())->suppressed('teacher',(int)$offer->teacher_id,'booking.expired.teacher'))return;
+        $provider=SmsProviderRoutingPolicy::select($to);if($provider==='off')return;
+        $settings=new IntegrationSettingsService();
+        try{
+            if($provider==='sms_ir'){
+                if(!$settings->verified('sms_ir'))return;
+                (new SmsIrAdapter($settings))->sendBookingNotification($to,(int)$offer->id,'','booking.expired.teacher',array('name'=>(string)($offer->teacher_name??'')));
+                return;
+            }
+            (new TelnyxSmsAdapter($settings))->sendBookingNotification($to,(int)$offer->id,'Delnavazan: your introductory lesson offer has expired. Open your Teacher Portal.');
+        }catch(\Throwable $error){do_action('dzn_booking_allocation_sms_failed',(int)$offer->id,get_class($error));}
     }
 }

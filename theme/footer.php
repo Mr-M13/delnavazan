@@ -49,6 +49,7 @@ $footer_email_uri     = get_theme_file_uri( 'assets/images/Mail-gold.webp' );
 		<?php dzn_theme_footer_policy_links(); ?>
 		<div class="site-footer__legal">
 			<p><?php echo esc_html( sprintf( __( '© %1$s %2$s. همهٔ حقوق محفوظ است.', 'delnavazan-theme' ), wp_date( 'Y' ), get_bloginfo( 'name' ) ) ); ?></p>
+			<?php dzn_theme_enamad_seal(); ?>
 		</div>
 	</div>
 </footer>
